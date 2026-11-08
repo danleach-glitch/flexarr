@@ -73,9 +73,17 @@ public static partial class DiscoveryEndpoints
             var me = profile.Id;
             var options = services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions>>().CurrentValue;
             // The profile's own rows, or the server's while it hasn't chosen.
+            var cache = services.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>();
+            // Kept a minute, until anything is written or the settings change (see HomeCache).
+            var version = DataVersion.Current;
+            var homeKey = HomeCache.Key(db, profile, listening, DateTime.UtcNow);
+            if (HomeCache.TryGet(cache, homeKey, version, options, out var kept))
+            {
+                return kept;
+            }
+
             var homeLayout = await LayoutEndpoints.ForProfileAsync(db, options, me, ct);
             var arr = services.GetRequiredService<Flexarr.Integrations.Arr.ArrClient>();
-            var cache = services.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>();
             var rows = new List<HomeRowDto>();
             var states = db.PlaybackStates.Where(p => p.UserId == me);
             var topLevel = db.MediaItems.Where(i => i.ParentId == null);
@@ -222,7 +230,7 @@ public static partial class DiscoveryEndpoints
             {
                 try
                 {
-                    upcoming = (await UpcomingEndpoints.UpcomingAsync(10, options, arr, cache, db, null, ct)).Where(u => !u.Available && u.Date >= DateTime.UtcNow.AddHours(-12)).Take(16).ToList();
+                    upcoming = (await UpcomingEndpoints.UpcomingAsync(10, options, arr, cache, db, null, ct)).Where(u => !u.Available && u.Date >= DateTime.UtcNow.AddHours(-12)).Take(16).ToList().For(profile);
                     downloading = (await UpcomingEndpoints.DownloadsAsync(options, arr, cache, db, null, ct)).Count;
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
@@ -260,7 +268,9 @@ public static partial class DiscoveryEndpoints
                 arranged.Insert(arranged.FindIndex(r => r.Id == "continue") + 1, row);
             }
 
-            return new HomeDto(rotation, overviews, arranged, upcoming, downloading, resume, resumes, PlacesPodcasts: true);
+            var home = new HomeDto(rotation, overviews, arranged, upcoming, downloading, resume, resumes, PlacesPodcasts: true);
+            HomeCache.Set(cache, homeKey, version, options, home, DateTime.UtcNow);
+            return home;
         }).WithTags("Discovery");
 
         api.MapGet("/home/continue", async (int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
@@ -337,8 +347,8 @@ public static partial class DiscoveryEndpoints
                 try
                 {
                     var arr = services.GetRequiredService<Integrations.Arr.ArrClient>();
-                    upcoming = [.. (await UpcomingEndpoints.ForLibraryAsync(library, 10, options.CurrentValue, arr, cache, db, ct))
-                        .Where(u => !u.Available && u.Date >= DateTime.UtcNow.AddHours(-12)).Take(16)];
+                    upcoming = (await UpcomingEndpoints.ForLibraryAsync(library, 10, options.CurrentValue, arr, cache, db, ct))
+                        .Where(u => !u.Available && u.Date >= DateTime.UtcNow.AddHours(-12)).Take(16).ToList().For(profile);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
@@ -435,34 +445,46 @@ public static partial class DiscoveryEndpoints
                 .OrderByDescending(i => EF.Functions.Like(i.Title, prefix) || EF.Functions.Like(i.SortTitle, prefix))
                 .ThenByDescending(i => i.Popularity ?? i.CommunityRating)
                 .Take(limit).Summaries(profile.Id).ToListAsync(ct);
-            var episodes = await db.MediaItems.Where(i => i.Kind == MediaKind.Episode && EF.Functions.Like(i.Title, contains))
-                .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).Take(8).Summaries(profile.Id).ToListAsync(ct);
+            // Episodes, albums, tracks and books by name: in one pass over their names when few match, else with the
+            // query each has below (each of which reads the names of its kind). Ties go by id, so a search always gives
+            // the same answer.
+            var named = await Search.NamedItems.FindAsync(db, contains, prefix, ct);
+            var episodes = named is not null ? await MusicDiscovery.InOrderAsync(db, named.Episodes, profile.Id, ct)
+                : await Search.NamedItems.Searched(db).Where(i => i.Kind == MediaKind.Episode && EF.Functions.Like(i.Title, contains))
+                .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).ThenBy(i => i.Id).Take(8).Summaries(profile.Id).ToListAsync(ct);
             // People in titles this profile may see: not those only in a hidden library, or only above its age limit.
-            var visible = db.MediaItems.Select(i => i.Id);
-            var people = await db.People.Where(p => EF.Functions.Like(p.Name, contains) && p.Credits.Any(c => visible.Contains(c.MediaItemId)))
-                .OrderByDescending(p => EF.Functions.Like(p.Name, prefix)).ThenByDescending(p => p.Credits.Count(c => visible.Contains(c.MediaItemId)))
+            // Each credit's title is looked up by its id. Asking whether the id is in the list of every visible title
+            // (visible.Contains) had SQLite build that whole list first, once for each place it was asked.
+            var people = await db.People.Where(p => EF.Functions.Like(p.Name, contains))
+                .Select(p => new { Person = p, Credits = p.Credits.Count(c => db.MediaItems.Any(i => i.Id == c.MediaItemId)) })
+                .Where(p => p.Credits > 0)
+                .OrderByDescending(p => EF.Functions.Like(p.Person.Name, prefix)).ThenByDescending(p => p.Credits)
                 .Take(8)
-                .Select(p => new SearchPersonDto(p.Id, p.Name, ArtworkUrls.Person(p.Id, p.ImageUrl != null, p.ImageChangedAt), p.Credits.Count(c => visible.Contains(c.MediaItemId))))
+                .Select(p => new SearchPersonDto(p.Person.Id, p.Person.Name, ArtworkUrls.Person(p.Person.Id, p.Person.ImageUrl != null, p.Person.ImageChangedAt), p.Credits))
                 .ToListAsync(ct);
             var genres = await db.Genres.Where(g => EF.Functions.Like(g.Name, contains)).Select(g => g.Name).Take(5).ToListAsync(ct);
 
             // Albums and tracks by name; their summaries carry the artist and borrow the album's cover.
-            var albums = await db.MediaItems.Where(i => i.Kind == MediaKind.Album && EF.Functions.Like(i.Title, contains))
-                .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).ThenByDescending(i => i.Year).Take(8).Summaries(profile.Id).ToListAsync(ct);
-            var trackIds = await db.MediaItems.Where(i => i.Kind == MediaKind.Track && EF.Functions.Like(i.Title, contains))
-                .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).ThenBy(i => i.SortTitle).Take(8)
+            var albums = named is not null ? await MusicDiscovery.InOrderAsync(db, named.Albums, profile.Id, ct)
+                : await Search.NamedItems.Searched(db).Where(i => i.Kind == MediaKind.Album && EF.Functions.Like(i.Title, contains))
+                .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).ThenByDescending(i => i.Year).ThenBy(i => i.Id).Take(8).Summaries(profile.Id).ToListAsync(ct);
+            var trackIds = named is not null
+                ? await db.MediaItems.Where(i => named.Tracks.Contains(i.Id)).Select(i => new { i.Id, Album = i.Parent!.Title }).ToListAsync(ct)
+                : await Search.NamedItems.Searched(db).Where(i => i.Kind == MediaKind.Track && EF.Functions.Like(i.Title, contains))
+                .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).ThenBy(i => i.SortTitle).ThenBy(i => i.Id).Take(8)
                 .Select(i => new { i.Id, Album = i.Parent!.Title }).ToListAsync(ct);
-            var trackItems = await MusicDiscovery.InOrderAsync(db, trackIds.Select(t => t.Id), profile.Id, ct);
+            var trackItems = await MusicDiscovery.InOrderAsync(db, named?.Tracks ?? trackIds.Select(t => t.Id), profile.Id, ct);
             var tracks = trackItems.Select(t => new SearchTrackDto(t, trackIds.First(x => x.Id == t.Id).Album)).ToList();
 
             // Books by their title or subtitle, and series by name, in libraries this profile can see.
-            var books = await db.MediaItems.Where(i => i.Kind == MediaKind.Audiobook && i.MissingSince == null
+            var books = named is not null ? await MusicDiscovery.InOrderAsync(db, named.Books, profile.Id, ct)
+                : await Search.NamedItems.Searched(db).Where(i => i.Kind == MediaKind.Audiobook && i.MissingSince == null
                     && (EF.Functions.Like(i.Title, contains) || (i.Book!.Subtitle != null && EF.Functions.Like(i.Book.Subtitle, contains))))
-                .OrderByDescending(i => EF.Functions.Like(i.Title, prefix) || EF.Functions.Like(i.SortTitle, prefix)).ThenBy(i => i.SortTitle)
+                .OrderByDescending(i => EF.Functions.Like(i.Title, prefix) || EF.Functions.Like(i.SortTitle, prefix)).ThenBy(i => i.SortTitle).ThenBy(i => i.Id)
                 .Take(8).Summaries(profile.Id).ToListAsync(ct);
-            var series = await db.BookSeries.Where(s => EF.Functions.Like(s.Name, contains) && s.Entries.Any(e => visible.Contains(e.BookId)))
+            var series = await db.BookSeries.Where(s => EF.Functions.Like(s.Name, contains) && s.Entries.Any(e => db.MediaItems.Any(i => i.Id == e.BookId)))
                 .OrderByDescending(s => EF.Functions.Like(s.Name, prefix)).ThenBy(s => s.SortName).Take(5)
-                .Select(s => new Books.BookSeriesSearchDto(s.Id, s.Name, s.Entries.Count(e => visible.Contains(e.BookId))))
+                .Select(s => new Books.BookSeriesSearchDto(s.Id, s.Name, s.Entries.Count(e => db.MediaItems.Any(i => i.Id == e.BookId))))
                 .ToListAsync(ct);
 
             // The database only finds the words as typed; top up with near misses ("breking bad", "amelie", "spiderman").
@@ -473,8 +495,8 @@ public static partial class DiscoveryEndpoints
             {
                 var close = await index.FindAsync(db, term, Search.SearchIndex.Group.Person, 8 - people.Count, people.Select(p => p.Id).ToHashSet(), ct);
                 var ids = close.Select(m => m.Id).ToList();
-                var found = await db.People.Where(p => ids.Contains(p.Id) && p.Credits.Any(c => visible.Contains(c.MediaItemId)))
-                    .Select(p => new SearchPersonDto(p.Id, p.Name, ArtworkUrls.Person(p.Id, p.ImageUrl != null, p.ImageChangedAt), p.Credits.Count(c => visible.Contains(c.MediaItemId))))
+                var found = await db.People.Where(p => ids.Contains(p.Id) && p.Credits.Any(c => db.MediaItems.Any(i => i.Id == c.MediaItemId)))
+                    .Select(p => new SearchPersonDto(p.Id, p.Name, ArtworkUrls.Person(p.Id, p.ImageUrl != null, p.ImageChangedAt), p.Credits.Count(c => db.MediaItems.Any(i => i.Id == c.MediaItemId))))
                     .ToListAsync(ct);
                 people.AddRange(found.OrderBy(p => ids.IndexOf(p.Id)));
             }

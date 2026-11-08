@@ -26,6 +26,11 @@ public class LoggingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
     [InlineData("{\"password\":\"hunter2\"}", "{\"password\":\"***\"}")]
     [InlineData("GET https://www.googleapis.com/books/v1/volumes?q=dune&key=AIzaSyabc", "GET https://www.googleapis.com/books/v1/volumes?q=dune&key=***")]
     [InlineData("the sort key=title stays", "the sort key=title stays")]
+    [InlineData("GET https://www.patreon.com/rss/show?auth=Zx9kQ2pLmN", "GET https://www.patreon.com/rss/show?auth=***")]
+    [InlineData("feed https://dan:hunter2@feeds.example.com/rss failed", "feed https://***@feeds.example.com/rss failed")]
+    [InlineData("\"url\": \"http://admin:pw@192.168.1.5:8989\"", "\"url\": \"http://***@192.168.1.5:8989\"")]
+    [InlineData("mail dan@example.com about https://example.com/a@b", "mail dan@example.com about https://example.com/a@b")]
+    [InlineData("the author= field stays", "the author= field stays")]
     [InlineData("nothing secret here", "nothing secret here")]
     public void RedactsNamedSecrets(string line, string expected) => Assert.Equal(expected, Redactor.Redact(line));
 
@@ -171,6 +176,29 @@ public class LoggingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
     }
 
     [Fact]
+    public async Task AReportWithAnEmptyPropertyIsStillTaken()
+    {
+        var device = await DeviceAsync("Sparse TV");
+        var batch = new { platform = "web", entries = new[] { new { level = "Warning", message = "Hello", properties = new Dictionary<string, string?> { ["not a name"] = null } } } };
+
+        Assert.Equal(HttpStatusCode.Accepted, (await device.PostAsJsonAsync(Api("/logs/client"), batch)).StatusCode);
+    }
+
+    [Fact]
+    public async Task ADeviceSendingLongReportsIsTurnedAwayBeforeItFloodsTheLog()
+    {
+        var device = await DeviceAsync("Wordy TV");
+        var long_ = new string('x', 8 * 1024);
+        var batch = new { platform = "tvos", entries = Enumerable.Range(0, 100).Select(i => new { level = "Warning", message = $"{i} {long_}" }).ToArray() };
+
+        var first = await device.PostAsJsonAsync(Api("/logs/client"), batch);
+        var second = await device.PostAsJsonAsync(Api("/logs/client"), batch);
+
+        Assert.Equal(HttpStatusCode.Accepted, first.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, second.StatusCode);
+    }
+
+    [Fact]
     public async Task DiagnosticsAreRedactedAndListed()
     {
         var device = await DeviceAsync("Diagnostics TV");
@@ -186,6 +214,35 @@ public class LoggingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
         Assert.Contains("started", text, StringComparison.Ordinal);
         Assert.DoesNotContain("hunter2", text, StringComparison.Ordinal);
         Assert.Equal(HttpStatusCode.NotFound, (await Admin().GetAsync(Api("/logs/uploads/..%2Fconfig"))).StatusCode);
+    }
+
+    [Fact]
+    public async Task DiagnosticsWithNoLineBreaks_AreKeptInPiecesUpToTheLimit()
+    {
+        var device = await DeviceAsync("Unbroken TV");
+        using var body = new StringContent("started\r\n" + new string('z', 8 * 1024 * 1024) + "\npassword=hunter2", Encoding.UTF8, "text/plain");
+
+        var sent = await device.PostAsync(Api("/logs/client/diagnostics?platform=tvos"), body);
+        var id = (await sent.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString()!;
+        var text = await Admin().GetStringAsync(Api($"/logs/uploads/{id}"));
+
+        Assert.Equal(HttpStatusCode.Created, sent.StatusCode);
+        Assert.StartsWith("started\n" + new string('z', 1000), text, StringComparison.Ordinal);
+        Assert.InRange(text.Length, 4 * 1024 * 1024, ClientLogs.MaxUploadBytes + 1024);
+        Assert.Contains("cut short", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DiagnosticsKeepTheirLines()
+    {
+        var device = await DeviceAsync("Lines TV");
+        using var body = new StringContent("one\r\ntwo\rthree\n\nfour", Encoding.UTF8, "text/plain");
+
+        var sent = await device.PostAsync(Api("/logs/client/diagnostics?platform=tvos"), body);
+        var id = (await sent.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString()!;
+        var text = await Admin().GetStringAsync(Api($"/logs/uploads/{id}"));
+
+        Assert.Equal(["one", "two", "three", "", "four", ""], text.Split(Environment.NewLine));
     }
 
     [Fact]
@@ -227,7 +284,7 @@ public class LoggingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
     [InlineData("Couldn't open '/Volumes/Media/data/movies/Dune (2021)/Dune.mkv'", "Couldn't open \"…\"")]
     [InlineData("Probe failed for /Volumes/Media/data/movies/Dune (2021)/Dune Part Two.mkv: timeout", "Probe failed for <path> Part <file>: timeout")]
     [InlineData("Could not find a part of the path /Users/dan/.flexarr/data/cache/x", "Could not find a part of the path <path>")]
-    [InlineData("Sonarr at http://192.168.1.106:8989/api/v3/series failed", "Sonarr at <server>/api/v3/series failed")]
+    [InlineData("Sonarr at http://192.168.1.50:8989/api/v3/series failed", "Sonarr at <server>/api/v3/series failed")]
     [InlineData("connect to 10.0.0.12 refused", "connect to <ip> refused")]
     [InlineData("No match for “The Bear” in TVmaze", "No match for \"…\" in TVmaze")]
     [InlineData("mail dan@example.com about it", "mail <email> about it")]

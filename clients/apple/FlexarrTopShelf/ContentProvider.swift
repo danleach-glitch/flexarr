@@ -10,6 +10,8 @@ final class ContentProvider: TVTopShelfContentProvider {
         // tvOS gives the Top Shelf no shared container with the app: the Apple TV's own language, from the packs built in.
         Localization.shared.showDeviceLanguage()
         guard let signIn = SharedSignIn.load() else { return nil }
+        // The Top Shelf has a cache file of its own, where an earlier version kept its answers and the sign-in: gone, once.
+        FlexarrClient.forgetAnswersKeptBefore()
         let client = FlexarrClient(baseURL: signIn.address, apiKey: signIn.apiKey, profileToken: signIn.profileToken)
         guard let home = try? await client.home() else { return nil }
         let style = TopShelfStyle.current

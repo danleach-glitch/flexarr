@@ -50,6 +50,36 @@ public class CollectionTests(FlexarrApiFactory factory) : IClassFixture<FlexarrA
     }
 
     [Fact]
+    public async Task ACollectionsDescriptionAndRules_HaveALength()
+    {
+        var client = Client();
+        var name = $"Long-winded {Guid.NewGuid():N}";
+        var tooLong = new string('x', Flexarr.Api.Collections.CollectionEndpoints.MaxDescriptionLength + 1);
+        var tooManyGenres = Enumerable.Range(0, 2000).Select(i => $"Genre {i}").ToArray();
+
+        var described = await client.PostAsJsonAsync(Api("/collections"), new { name, personal = false, description = tooLong });
+        var ruled = await client.PostAsJsonAsync(Api("/collections"), new { name, personal = false, rules = new { genres = tooManyGenres } });
+
+        Assert.Equal(HttpStatusCode.BadRequest, described.StatusCode);
+        Assert.Contains("up to 20,000 characters", await described.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.BadRequest, ruled.StatusCode);
+        Assert.Contains("rules are too long", await ruled.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.DoesNotContain(name, await client.GetStringAsync(Api("/collections")), StringComparison.Ordinal);
+
+        // What fits is kept, and editing is held to the same lengths.
+        var fits = tooLong[..^1];
+        var created = await (await client.PostAsJsonAsync(Api("/collections"), new { name, personal = false, description = fits, rules = new { genres = new[] { "Drama" } } }))
+            .Content.ReadFromJsonAsync<JsonElement>();
+        var id = created.GetProperty("id").GetString();
+        Assert.Equal(fits, created.GetProperty("description").GetString());
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync(Api($"/collections/{id}"), new { description = tooLong })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync(Api($"/collections/{id}"), new { rules = new { genres = tooManyGenres } })).StatusCode);
+        var kept = await client.GetFromJsonAsync<JsonElement>(Api($"/collections/{id}"));
+        Assert.Equal(fits, kept.GetProperty("summary").GetProperty("description").GetString());
+        Assert.Equal("Drama", kept.GetProperty("rules").GetProperty("genres")[0].GetString());
+    }
+
+    [Fact]
     public async Task CollectionsOnHome_EachShowTheirOwnTitles_InTheirOwnOrder()
     {
         var (_, films) = await SeedAsync(("Home One", 2001, 6.0), ("Home Two", 2002, 7.0), ("Home Three", 2003, 8.0));

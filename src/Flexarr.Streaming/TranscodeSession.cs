@@ -44,6 +44,13 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     private volatile bool _disposed;
     private string? _lastError;
 
+    // The speed the viewer plays at, and the pace the ffmpeg now running was started at (see Speed).
+    private double _speed = 1;
+    private double _pace = 1;
+
+    // The head start the ffmpeg now running was started with: short for a copied stream got ready ahead of Play.
+    private int _burst = FfmpegCommand.RunAheadSeconds;
+
     // What ffmpeg's playlist listed when it was last read, and its size and time then (it's polled every 100 ms).
     private HashSet<int> _completed = [];
 
@@ -130,6 +137,18 @@ public sealed partial class TranscodeSession : IAsyncDisposable
 
     /// <summary>Where playback opens (a resume point), written into the playlist.</summary>
     public double StartSeconds { get; set; }
+
+    /// <summary>
+    /// The speed it's being watched at, where the player has said (1 otherwise). Past its head start ffmpeg makes the
+    /// stream at this pace rather than real time (<see cref="FfmpegCommand.Pace"/>), or a viewer at 1.5× would use the
+    /// head start up within minutes and then wait for every segment. A change takes effect when ffmpeg next starts,
+    /// which it does by itself once a faster viewer has caught up with what's made.
+    /// </summary>
+    public double Speed
+    {
+        get => Volatile.Read(ref _speed);
+        set => Volatile.Write(ref _speed, FfmpegCommand.Pace(value));
+    }
 
     public string MediaPlaylist() => Plan.Repackage is { } repackage
         ? FfmpegCommand.MediaPlaylist(repackage.SegmentStarts, DurationSeconds, StartSeconds)
@@ -226,6 +245,21 @@ public sealed partial class TranscodeSession : IAsyncDisposable
             {
                 var produced = HighestComplete();
                 var coming = IsRunning && index >= Math.Max(_startSegment, _prunedBelow) && index <= Math.Max(produced, _startSegment) + SeekTolerance;
+                // Now watched faster than this run is paced at, and past its head start, the viewer has caught up with
+                // it: it starts again here at their speed, with a new head start, rather than every segment from now
+                // on being waited for.
+                if (coming && Speed > _pace && MadeSeconds() >= FfmpegCommand.RunAheadSeconds)
+                {
+                    coming = false;
+                }
+
+                // A copied stream got ready ahead of Play runs with only a short head start: taken up by a player, it
+                // starts again here with the full one.
+                if (coming && !Warming && _burst < FfmpegCommand.RunAheadSeconds)
+                {
+                    coming = false;
+                }
+
                 if (!coming)
                 {
                     // Back from a long pause (or a crash), this is a new transcode as far as the limit goes.
@@ -530,11 +564,18 @@ public sealed partial class TranscodeSession : IAsyncDisposable
 
         var start = new ProcessStartInfo(_settings.FfmpegPath) { UseShellExecute = false, RedirectStandardError = true, RedirectStandardInput = false };
         // The full burst even when got ready ahead of Play: the sweep stops that run once it has enough to open on (see
-        // StopWarmRunAsync), and one taken up while it's still going keeps the whole run-ahead.
-        foreach (var arg in FfmpegCommand.Hls(Input, Plan, segment, Directory, _settings, Opening, FfmpegCommand.RunAheadSeconds))
+        // StopWarmRunAsync), and one taken up while it's still going keeps the whole run-ahead. Not a copied stream's:
+        // copying gets through the whole burst before the sweep comes round, reading and writing minutes of the film for
+        // a page looked at, so it starts with just enough to open on, and again with the full burst once taken up.
+        var pace = Speed;
+        var burst = Warming && Plan.Repackage is not null ? FfmpegCommand.WarmingRunAheadSeconds : FfmpegCommand.RunAheadSeconds;
+        foreach (var arg in FfmpegCommand.Hls(Input, Plan, segment, Directory, _settings, Opening, burst, pace))
         {
             start.ArgumentList.Add(arg);
         }
+
+        _pace = pace;
+        _burst = burst;
 
         _lastError = null;
         StartedAt = DateTime.UtcNow;

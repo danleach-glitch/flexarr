@@ -36,6 +36,18 @@ public class FfmpegCommandTests
     }
 
     [Fact]
+    public void APodcastEpisode_IsReadOnlyAsASoundFile_WhateverItSaysItIs()
+    {
+        var episode = string.Join(' ', FfmpegCommand.M4a("/in.part.m3u8", 0, 2, "/out/x.part.m4a", soundFileOnly: true));
+        var track = string.Join(' ', FfmpegCommand.M4a("/in.ogg", 0, 2, "/out/x.part.m4a"));
+
+        // No playlists (hls, concat) among them: those name other files for ffmpeg to read.
+        Assert.Contains("-protocol_whitelist file -format_whitelist aac,aiff,asf,flac,matroska,mov,mp3,ogg,wav -i /in.part.m3u8", episode, StringComparison.Ordinal);
+        // A library's own tracks come in more kinds of file than that, and are the owner's.
+        Assert.DoesNotContain("-format_whitelist", track, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Software_UsesLibx264()
     {
         var args = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan with { ToneMap = false }, 0, "/out", Settings(HardwareAcceleration.None)));
@@ -59,6 +71,21 @@ public class FfmpegCommandTests
 
         var sdr = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan with { BurnSubtitle = burn, ToneMap = false }, 0, "/out", Settings(HardwareAcceleration.VideoToolbox)));
         Assert.Contains("-filter_complex [0:3][0:0]scale2ref=w=oh*mdar:h=rh[sub][base];[base][sub]overlay=(W-w)/2:(H-h)/2,scale=1920:1080,format=yuv420p[v] -map [v]", sdr, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SidecarSubtitles_AreReadAsSubtitles_InDownloadsAndBurnedIn()
+    {
+        var sidecar = new SubtitleTrack("x0", null, "/media/in.fr.srt", "subrip", "fre", null, false, false);
+        var styled = new SubtitleTrack("x1", null, "/media/in.en.ass", "ass", "eng", null, false, false);
+
+        var mp4 = string.Join(' ', FfmpegCommand.Mp4("/in.mkv", Plan, 0, null, null, [sidecar, styled], "/out.mp4", Settings(HardwareAcceleration.None)));
+        var burned = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan with { BurnSubtitle = styled }, 0, "/out", Settings(HardwareAcceleration.None)));
+
+        // Not left to ffmpeg to guess: a "subtitle" that's really a playlist or another container isn't opened as one.
+        Assert.Contains("-f srt -i /media/in.fr.srt", mp4, StringComparison.Ordinal);
+        Assert.Contains("-f ass -i /media/in.en.ass", mp4, StringComparison.Ordinal);
+        Assert.Contains("-f ass -i /media/in.en.ass", burned, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -254,6 +281,34 @@ public class FfmpegCommandTests
 
         Assert.Contains("-itsoffset -0.25 -readrate 1.0 -readrate_initial_burst 180 -ss 8.75 -protocol_whitelist file -i /in.mkv", args, StringComparison.Ordinal);
         Assert.Contains("-map 1:1 -c:a copy", args, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AStreamWatchedFaster_IsMadeThatFast_AndNeverSlowerThanRealTime()
+    {
+        string Made(TranscodePlan plan, double speed) => string.Join(' ', FfmpegCommand.Hls("/in.mkv", plan, 10, "/out", Settings(HardwareAcceleration.None), speed: speed));
+
+        // Nothing said, normal speed, slower, or nonsense: real time, written as it always was.
+        Assert.Contains("-readrate 1.0 -readrate_initial_burst 180 ", string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan, 10, "/out", Settings(HardwareAcceleration.None))), StringComparison.Ordinal);
+        Assert.Contains("-readrate 1.0 -readrate_initial_burst 180 ", Made(Plan, 1), StringComparison.Ordinal);
+        Assert.Contains("-readrate 1.0 -readrate_initial_burst 180 ", Made(Plan, 0.5), StringComparison.Ordinal);
+        Assert.Contains("-readrate 1.0 -readrate_initial_burst 180 ", Made(Plan, double.NaN), StringComparison.Ordinal);
+
+        Assert.Contains("-readrate 1.5 -readrate_initial_burst 180 ", Made(Plan, 1.5), StringComparison.Ordinal);
+        Assert.Contains("-readrate 1.25 -readrate_initial_burst 180 ", Made(Plan, 1.25), StringComparison.Ordinal);
+        Assert.Contains("-readrate 2 -readrate_initial_burst 180 ", Made(Plan, 2), StringComparison.Ordinal);
+        Assert.Contains("-readrate 4 -readrate_initial_burst 180 ", Made(Plan, 9), StringComparison.Ordinal); // no faster than players play
+
+        // The sound's own input, when it's out of sync, keeps pace with the picture's.
+        var shifted = Made(Plan with { AudioDelaySeconds = 0.5 }, 1.5);
+        Assert.Contains("-readrate 1.5 -readrate_initial_burst 180 -ss 48 ", shifted, StringComparison.Ordinal);
+        Assert.Contains("-itsoffset 0 -readrate 1.5 -readrate_initial_burst 180 -ss 47.5 ", shifted, StringComparison.Ordinal);
+        Assert.DoesNotContain("-readrate 1.0", shifted, StringComparison.Ordinal);
+
+        // A video repackaged as it is, too.
+        var repackage = new Repackage([0, 4, 8.5], "hvc1", "hvc1.2.4.L150.B0", null, "PQ", StripDolbyVision: false);
+        var copied = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan with { Repackage = repackage, CopyAudio = true }, 2, "/out", Settings(HardwareAcceleration.None), speed: 2));
+        Assert.Contains("-readrate 2 -readrate_initial_burst 180 -ss 8.5 ", copied, StringComparison.Ordinal);
     }
 
     private static TranscodeSettings Settings(HardwareAcceleration hw) => new() { CacheDirectory = "/cache", HardwareAcceleration = hw };

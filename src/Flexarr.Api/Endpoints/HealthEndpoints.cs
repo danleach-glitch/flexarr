@@ -83,7 +83,7 @@ public static partial class HealthEndpoints
 {
     public static RouteGroupBuilder MapHealthEndpoints(this RouteGroupBuilder api)
     {
-        api.MapGet("/library-health", async (FlexarrDbContext db, CurrentProfile profile, HealthCheck check, IOptionsMonitor<FlexarrOptions> options, ArrClient arr,
+        var libraryHealth = async (FlexarrDbContext db, CurrentProfile profile, HealthCheck check, IOptionsMonitor<FlexarrOptions> options, ArrClient arr,
             CancellationToken ct) =>
         {
             // Duplicates: more than one file for one movie or episode. The best copy (resolution, then bitrate) is kept.
@@ -167,7 +167,8 @@ public static partial class HealthEndpoints
                 music.Duplicates,
                 music.Repeated,
                 music.Split);
-        }).WithTags("Library health").RequireAuthorization(FlexarrClaims.AdminPolicy);
+        };
+        api.MapLibraryHealthEndpoints(libraryHealth);
 
         // "Confirm removal" for a held folder: its files really are gone, so the next scan (queued now) hides them, and
         // they're removed after the usual grace period. Only for the result shown, which the request repeats: if a scan

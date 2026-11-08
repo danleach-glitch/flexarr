@@ -90,7 +90,7 @@ struct TraktSettingsView: View {
                     .textSelection(.enabled)
                     .accessibilityLabel(pending.userCode.map(String.init).joined(separator: " "))
                     .listRowBackground(Color.seat)
-                if let url = URL(string: pending.verificationUrl) {
+                if let url = pending.verificationLink {
                     Button {
                         #if os(macOS)
                         NSPasteboard.general.clearContents()

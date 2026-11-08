@@ -819,6 +819,11 @@ data class SignInInfo(
     val isGuest: Boolean = false,
     /** The profile's chosen language (a BCP 47 code); null follows the device. Absent from servers before 0.61. */
     val language: String? = null,
+    /**
+     * Nobody has chosen who's watching on this device yet, and being the main profile takes its own PIN: ask, even with
+     * one profile, and choosing is all the server allows until then. Absent from servers before 0.63.
+     */
+    val chooseProfile: Boolean = false,
 ) {
     /** The main profile, unlocked or not: it's asked to let devices in (allowing takes its PIN while locked). */
     val isMainProfile: Boolean get() = isAdmin || canUnlock

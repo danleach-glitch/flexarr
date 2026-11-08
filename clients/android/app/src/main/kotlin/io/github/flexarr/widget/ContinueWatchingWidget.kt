@@ -69,7 +69,8 @@ private val log = FlexarrLog("widget")
  * Continue Watching on the home screen: the titles part-watched, newest first, each with its picture and how far in;
  * tapping one plays it from there. Asked of the server whenever the widget updates (every hour, and when something's
  * been watched in the app); what it last showed is kept for when the server can't be reached, and a title's picture is
- * fetched only when it's new to the widget.
+ * fetched only when it's new to the widget. With nobody chosen on a server with more than one profile ("Who's watching?"
+ * is up), it asks for someone to be chosen rather than showing whoever was watching last, as the Watchlist widget does.
  */
 class ContinueWatchingWidget : GlanceAppWidget() {
     /** Laid out for its real size: one across when small, up to three when wide, the pictures as tall as there's room for. */
@@ -83,6 +84,7 @@ class ContinueWatchingWidget : GlanceAppWidget() {
     /** What the widget shows: titles with their pictures, or why there are none. */
     private sealed interface State {
         data object SignedOut : State
+        data object ChooseProfile : State
         data class Titles(val titles: List<Shown>) : State
     }
 
@@ -94,7 +96,14 @@ class ContinueWatchingWidget : GlanceAppWidget() {
 
     private suspend fun load(context: Context): State = withContext(Dispatchers.IO) {
         // The app's sign-in as it is now (one for this launch only, too), else the saved one.
-        val credentials = context.appModel.credentials ?: CredentialStore(context).load() ?: return@withContext State.SignedOut
+        val model = context.appModel
+        val credentials = model.credentials ?: CredentialStore(context).load() ?: return@withContext State.SignedOut
+        // Nobody chosen where there's a choice: the server would answer as whoever was watching last. What the widget
+        // kept of theirs goes, and it asks for someone to be chosen.
+        if (model.awaitsProfile) {
+            File(context.cacheDir, "widget").deleteRecursively()
+            return@withContext State.ChooseProfile
+        }
         val folder = File(context.cacheDir, "widget").apply { mkdirs() }
         val saved = File(folder, "continue.json")
         fun pictureFile(id: String) = File(folder, "$id.jpg")
@@ -139,6 +148,7 @@ class ContinueWatchingWidget : GlanceAppWidget() {
             Spacer(GlanceModifier.height(8.dp))
             when (state) {
                 State.SignedOut -> Note(t("Open Flexarr to connect it to your server."))
+                State.ChooseProfile -> Note(t("Open Flexarr to choose who’s watching"))
                 is State.Titles -> if (state.titles.isEmpty()) {
                     Note(t("Nothing to carry on with. What you start watching shows up here."))
                 } else {

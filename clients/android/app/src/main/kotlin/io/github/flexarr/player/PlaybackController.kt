@@ -3,7 +3,6 @@ package io.github.flexarr.player
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
 import android.content.Context
-import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableFloatStateOf
@@ -48,6 +47,7 @@ import io.github.flexarr.core.NextEpisodeTiming
 import io.github.flexarr.core.PlaybackPrompt
 import io.github.flexarr.core.nextEpisodeTiming
 import io.github.flexarr.core.PlaybackRequest
+import io.github.flexarr.core.PlaybackSpeedReport
 import io.github.flexarr.core.SubtitlePosition
 import io.github.flexarr.core.SubtitleSize
 import io.github.flexarr.core.SubtitleSyncState
@@ -115,6 +115,14 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         private set
     var isBuffering by mutableStateOf(true)
         private set
+    /** The file has played to its end (the last frame is up). */
+    private var hasEnded by mutableStateOf(false)
+    /**
+     * Whether the screen is kept on ([screenStaysOn]): playing, the spinner is up, or the next episode is being
+     * counted down to over the last frame (nothing plays for those seconds, but something is about to). A countdown
+     * that follows the picture (over the credits, or to a skip) holds while paused, so it keeps nothing on by itself.
+     */
+    val keepsScreenOn: Boolean get() = screenStaysOn(isPlaying, isBuffering || isOpening, error != null, countingDown, hasEnded)
     var position by mutableDoubleStateOf(0.0)
         private set
     var duration by mutableDoubleStateOf(0.0)
@@ -290,6 +298,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
             override fun onPlaybackStateChanged(state: Int) {
                 isBuffering = state == Player.STATE_BUFFERING
+                hasEnded = state == Player.STATE_ENDED
                 // A stall soon after the first picture: its own entry beside the start's. Not a seek (Skip intro, say),
                 // which moves the place well past where playing alone would have got to.
                 if (state == Player.STATE_BUFFERING) firstFrame?.let { (at, position, playbackId) ->
@@ -314,13 +323,13 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                 // can't do in practice, say): once, the server's converted stream instead, from the same place.
                 if (info?.method == PlaybackMethod.DirectPlay && !forcedTranscode && e.errorCode in DECODER_ERRORS && !isOpening) {
                     forcedTranscode = true
-                    Log.w("Flexarr", "Couldn't decode the file; asking for it converted", e)
+                    log.warning("Couldn't decode the file; asking for it converted", e)
                     reopen()
                     return
                 }
                 // A stream that was playing stopped, converted or played as it is.
                 if (hasPlayed) return recover(e)
-                Log.w("Flexarr", "Playback failed", e)
+                log.warning("Playback failed", e)
                 fail(playerErrorMessage(e), retry = info?.let { reopenRequest(it, player.currentPosition / 1000.0) })
             }
 
@@ -470,7 +479,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                 if (closed || mine != openGeneration) return@launch
                 // Opened again behind the scenes: the picture plays on as it was, unless its stream had stopped.
                 if (reopening && player.playerError == null) {
-                    Log.w("Flexarr", "Couldn't open the stream again", e)
+                    log.warning("Couldn't open the stream again", e)
                 } else {
                     val takenOver = e is FlexarrException.Http && e.status == 410
                     fail(e.message ?: t("This couldn’t be played."), retry = request, takenOver = takenOver)
@@ -495,7 +504,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                 return client.startPlayback(request)
             } catch (e: FlexarrException) {
                 if (e is FlexarrException.Http && (e.status == 503 || e.status == 410)) throw e
-                Log.w("Flexarr", "Couldn't open the stream (attempt ${it + 1} of $attempts)", e)
+                log.warning("Couldn't open the stream (attempt ${it + 1} of $attempts)", e)
             }
             delay(RECOVERY_RETRY_MS)
             if (!wanted()) return null
@@ -522,12 +531,12 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                 val takenOver = client.takenOverReason(failed)
                 // The player may have closed, or moved on, while that was out.
                 if (closed || info?.sessionId != failed || isOpening) return@launch
-                Log.w("Flexarr", "Stream stopped again within a minute", e)
+                log.warning("Stream stopped again within a minute", e)
                 if (takenOver != null) fail(takenOver, retry = request, takenOver = true) else fail(playerErrorMessage(e), retry = request)
             }
             return
         }
-        Log.w("Flexarr", "Stream stopped; recovering at ${at.toInt()} s", e)
+        log.warning("Stream stopped; recovering at ${at.toInt()} s", e)
         lastRecovery = now
         carriedRate = rate
         open(reopening = true, attempts = RECOVERY_ATTEMPTS, request = request)
@@ -664,6 +673,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         val startRate = (if (sameTitle) carriedRate else null) ?: started.speed?.toFloat() ?: 1f
         carriedRate = null
         setPlayerRate(startRate)
+        // Opened again at a speed the new stream wasn't started at (a converted film sped up before): the server hears it.
+        tellSpeed(started, rate, known = started.speed ?: 1.0)
         // Asleep (End of episode stopped the last one): stay paused under the dim.
         if (sleep.phase != VideoSleep.Phase.Asleep) player.play()
         lastReport = System.currentTimeMillis()
@@ -956,7 +967,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
             android.os.SystemClock.elapsedRealtime() - ready.at < PreparedStreams.NEXT_EPISODE_MAX_AGE_MS) {
             timing?.answered(ready.info, warmed = true)
             // Got ready during the credits: this session ends, and the next one opens straight away.
-            Log.i("Flexarr", "Using the next episode got ready during the credits")
+            log.info("Using the next episode got ready during the credits")
             prepared = null
             send { runCatching { client.stopPlayback(current.sessionId) } }
             newTitle(subtitlesOff)
@@ -1004,7 +1015,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                     runCatching { client.stopPlayback(ready.sessionId) }
                     return@launch
                 }
-                Log.i("Flexarr", "Next episode ready: ${ready.item.title}")
+                log.info("Next episode ready: ${ready.item.title}")
                 prepared = Prepared(ready, subtitlesOff)
             } finally {
                 preparing = null
@@ -1169,7 +1180,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
             try {
                 client.setAudioDelay(itemId, clamped)
             } catch (e: Exception) {
-                Log.w("Flexarr", "Couldn't save the audio sync", e)
+                log.warning("Couldn't save the audio sync", e)
                 return@launch
             }
             while (isReopening) delay(200)
@@ -1248,7 +1259,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
             try {
                 client.setSubtitleDelay(current.item.id, seconds)
             } catch (e: Exception) {
-                Log.w("Flexarr", "Couldn't move subtitles", e)
+                log.warning("Couldn't move subtitles", e)
                 return@launch
             }
             if (info?.sessionId == current.sessionId) reopen()
@@ -1301,7 +1312,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     /** Subtitles chosen there are saved beside the file, and the title opens again where it was with them on. */
     fun subtitlesDownloaded(saved: DownloadedSubtitles) {
         subtitleSearchFile = null
-        Log.i("Flexarr", "Subtitles downloaded: ${saved.label} (${saved.key})")
+        log.info("Subtitles downloaded: ${saved.label} (${saved.key})")
         viewerChoseSubtitle = true
         viewerSubtitleKey = saved.key
         reopen()
@@ -1378,15 +1389,25 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
     // Speed
 
-    /** A speed chosen in the menu. During an episode it's kept for its show (for this profile); a film's is for now. */
+    /**
+     * A speed chosen in the menu. During an episode it's kept for its show (for this profile); a film's is for now, but
+     * a film being converted has the server make it that fast (see [PlaybackSpeedReport]).
+     */
     fun chooseRate(rate: Float) {
         if (rate == this.rate) return
+        val before = this.rate
         setPlayerRate(rate)
         val current = info ?: return
-        if (!current.hasPlayerControls || current.item.kind != MediaKind.Episode || !model.recordsHistory) return
+        tellSpeed(current, this.rate, known = before.toDouble())
+    }
+
+    private fun tellSpeed(current: PlaybackInfo, rate: Float, known: Double) {
+        val tells = PlaybackSpeedReport.shouldTell(current.item.kind, rate, known, converted = current.method == PlaybackMethod.Transcode,
+            hasPlayerControls = current.hasPlayerControls, offline = isOffline, recordsHistory = model.recordsHistory)
+        if (!tells) return
         scope.launch {
             runCatching { client.setPlaybackSpeed(current.item.id, rate.toDouble()) }
-                .onFailure { Log.w("Flexarr", "Couldn't remember the show's speed", it) }
+                .onFailure { log.warning("Couldn't tell the server the speed", it) }
         }
     }
 

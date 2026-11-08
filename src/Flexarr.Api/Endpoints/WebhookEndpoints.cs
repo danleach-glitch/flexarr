@@ -72,6 +72,11 @@ public static class WebhookEndpoints
 
                 // What Coming soon and Downloads show has just changed: ask the *arr apps again rather than wait out the cache.
                 UpcomingEndpoints.ForgetArrCalls();
+                if (kind is ArrKind.Radarr or ArrKind.Sonarr)
+                {
+                    RequestRequested.Forget();
+                }
+
                 return Results.Accepted(value: new { queued = requests.Count });
             })
             .WithTags("Webhooks")

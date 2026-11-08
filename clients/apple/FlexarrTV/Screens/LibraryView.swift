@@ -34,11 +34,17 @@ struct LibraryView: View {
     @State private var loadedToken: Int?
     @State private var loadedAt: Date?
     @State private var isVisible = false
+    /// Where the grid was last looking, for fetching again only the titles near it after a watch.
+    @State private var place = NearbyRefresh.Place()
     /// Bumped by each reload (a new sort or genre), so an answer for the old one is dropped rather than shown or appended.
     @State private var generation = 0
     @State private var isRefreshing = false
     /// The letter being jumped to while the titles up to it load.
     @State private var jumping: String?
+    /// The rail's letters with nothing to jump to, as of the titles loaded. Kept, and worked out again only when the
+    /// titles change: every move of focus draws this screen again, and going through thousands of titles for their
+    /// letters each time made the remote feel sticky in a long library.
+    @State private var emptyLetters: Set<String> = []
     @FocusState private var focusedItem: String?
     /// The sort and genre buttons and the A–Z rail.
     @FocusState private var focusedControl: String?
@@ -91,14 +97,12 @@ struct LibraryView: View {
                     StatusView(state: .empty(genre.map(noneInGenre) ?? t("Nothing in this library yet.")))
                         .frame(height: 500)
                 } else {
-                    LazyVGrid(columns: columns, alignment: .leading, spacing: 64) {
-                        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                            card(item)
-                                .id(item.id)
-                                .onAppear { loadMoreIfNeeded(at: index) }
-                        }
-                    }
-                    .focusSection()
+                    // Its own view, drawn again only when the titles change: every move of focus draws this screen
+                    // again, and going through thousands of loaded titles each time made the remote feel sticky.
+                    LibraryGrid(items: items, content: content, columns: columns, focus: $focusedItem,
+                                open: { router.push(.item($0)) }, showing: { loadMoreIfNeeded(showing: $0) })
+                        .equatable()
+                        .focusSection()
                     if isLoading {
                         ProgressView().frame(maxWidth: .infinity).padding(40)
                     }
@@ -121,7 +125,11 @@ struct LibraryView: View {
             // Coming back from a detail screen or another tab runs this again. Keep what's loaded, and so the
             // scroll position, only bringing it up to date if something changed here or it's getting old.
             if let loadedToken, !items.isEmpty {
-                if loadedToken != model.refreshToken || Freshness.isStale(loadedAt) { await refreshLoaded() }
+                if Freshness.isStale(loadedAt) {
+                    await refreshLoaded()
+                } else if loadedToken != model.refreshToken {
+                    await refreshLoaded(nearby: true)
+                }
                 return
             }
             // A genre's own page doesn't offer another genre, so it doesn't need the list.
@@ -139,8 +147,11 @@ struct LibraryView: View {
         .onChange(of: focusedControl) { _, now in if now == nil { lastFocusHereAt = .now } }
         .onChange(of: takesFocus.wrappedValue, focusFirstTitleOnArrival)
         .onChange(of: items.first?.id, focusFirstTitleOnArrival)
+        .onChange(of: items, initial: true) { emptyLetters = Self.emptyLetters(among: items, of: total) }
+        .onChange(of: total) { emptyLetters = Self.emptyLetters(among: items, of: total) }
         .onChange(of: focusedItem) { old, new in
             if old != nil, new == nil { lastFocusHereAt = .now }
+            if let new { place.id = new }
             focusFirstTitleFromSidebar(old: old, new: new)
         }
         .onDisappear { isVisible = false }
@@ -149,7 +160,9 @@ struct LibraryView: View {
         }
         .onChange(of: sort) { Task { await reload() } }
         .onChange(of: genre) { Task { await reload() } }
-        .onChange(of: model.refreshToken) { Task { await refreshLoaded() } }
+        // Only the grid on screen: one behind another page or tab catches up when it's next shown (the task above),
+        // once for however much changed meanwhile, rather than fetching everything it has loaded at each change.
+        .onChange(of: model.refreshToken) { if isVisible { Task { await refreshLoaded(nearby: true) } } }
     }
 
     private var header: some View {
@@ -231,15 +244,6 @@ struct LibraryView: View {
         }
     }
 
-    @ViewBuilder
-    private func card(_ item: ItemSummary) -> some View {
-        switch content {
-        case .titles: PosterCard(item: item, focus: $focusedItem) { router.push(.item(item)) }
-        case .artists: ArtistCard(item: item, focus: $focusedItem) { router.push(.item(item)) }
-        case .albums: AlbumCard(item: item, showsArtist: true, focus: $focusedItem) { router.push(.item(item)) }
-        }
-    }
-
     private func reload() async {
         guard let client = model.client else { return }
         generation += 1
@@ -264,15 +268,36 @@ struct LibraryView: View {
     /// After playback or watched changes, or after a while, refetch what is already on screen so badges update.
     /// Only one runs at a time (playback ending and Back both ask within a second or two); one asked for while
     /// it runs because something changed again is run once it finishes.
-    private func refreshLoaded() async {
+    /// `nearby`: something was watched or marked, so the titles near where the grid is looking are enough, if they
+    /// come back the same titles in the same order (`fetchNearby`).
+    private func refreshLoaded(nearby: Bool = false) async {
         guard !isRefreshing else { return }
         isRefreshing = true
         defer { isRefreshing = false }
         var token: Int
         repeat {
             token = model.refreshToken
+            if nearby, await fetchNearby(around: items.firstIndex(where: { $0.id == place.id }) ?? 0) { continue }
             await fetchLoaded()
         } while token != model.refreshToken && !Task.isCancelled
+    }
+
+    /// After a watch or a mark: only the titles around where the grid is looking (`NearbyRefresh`), one request
+    /// rather than one per 500 titles loaded. False when that isn't known to be enough (a short list, a failed
+    /// request, or that stretch came back changed), and everything should be fetched again. The rest catch up once
+    /// the grid is old (`Freshness`), as titles watched on another device do.
+    private func fetchNearby(around index: Int) async -> Bool {
+        guard let client = model.client, let window = NearbyRefresh.window(around: index, loaded: items.count) else { return false }
+        let current = generation
+        let token = model.refreshToken
+        guard let page = try? await fetch(client, skip: window.lowerBound, take: window.count) else { return false }
+        // A new sort or genre replaced the list meanwhile: there's nothing of this one left to bring up to date.
+        guard current == generation else { return true }
+        guard let patched = NearbyRefresh.patch(items, window: window, fetched: page.items,
+                                                fetchedTotal: page.total, total: total) else { return false }
+        items = patched
+        loadedToken = token
+        return true
     }
 
     /// The server sends at most `maxPageSize` a request, so a long list comes back in several; whatever didn't
@@ -349,7 +374,7 @@ struct LibraryView: View {
     /// Letters with nothing to jump to: none among the titles loaded, and either every title is loaded or the grid
     /// has already loaded past the letter. "#" also covers accented titles, which sort after Z, so it's only known
     /// once everything is loaded.
-    private var emptyLetters: Set<String> {
+    static func emptyLetters(among items: [ItemSummary], of total: Int) -> Set<String> {
         let found = Set(items.map(Self.letter(of:)))
         let complete = items.count >= total
         let last = items.last.map(Self.letter(of:)) ?? "#"
@@ -379,7 +404,8 @@ struct LibraryView: View {
                 focusedItem = target.id
                 return
             }
-            guard !emptyLetters.contains(letter), items.count < total else { return }
+            // Worked out afresh: the kept set follows `items` a moment later, and this loop has just added to them.
+            guard !Self.emptyLetters(among: items, of: total).contains(letter), items.count < total else { return }
             let skip = items.count
             guard let page = try? await fetch(client, skip: skip, take: Self.maxPageSize),
                   current == generation, !page.items.isEmpty else { return }
@@ -391,8 +417,9 @@ struct LibraryView: View {
         }
     }
 
-    private func loadMoreIfNeeded(at index: Int) {
-        guard !isLoading, items.count < total, index >= items.count - 18, let client = model.client else { return }
+    /// The next page, once a title in the last three rows comes on screen.
+    private func loadMoreIfNeeded(showing item: ItemSummary) {
+        guard !isLoading, items.count < total, items.suffix(18).contains(where: { $0.id == item.id }), let client = model.client else { return }
         let current = generation
         let skip = items.count
         isLoading = true
@@ -406,6 +433,44 @@ struct LibraryView: View {
                 total = page.total
             }
         }
+    }
+}
+
+/// A library's posters, artists or albums. Equal, and so not drawn again, while the titles and the layout are the same:
+/// a move of focus draws `LibraryView` again but leaves this be.
+private struct LibraryGrid: View, @MainActor Equatable {
+    let items: [ItemSummary]
+    let content: LibraryGridContent
+    let columns: [GridItem]
+    var focus: FocusState<String?>.Binding
+    let open: (ItemSummary) -> Void
+    /// A title came on screen: the grid may want its next page.
+    let showing: (ItemSummary) -> Void
+
+    var body: some View {
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 64) {
+            ForEach(items) { item in
+                card(item)
+                    .id(item.id)
+                    .onAppear { showing(item) }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func card(_ item: ItemSummary) -> some View {
+        switch content {
+        case .titles: PosterCard(item: item, focus: focus) { open(item) }
+        case .artists: ArtistCard(item: item, focus: focus) { open(item) }
+        case .albums: AlbumCard(item: item, showsArtist: true, focus: focus) { open(item) }
+        }
+    }
+
+    /// The closures only reach the library screen's own state and the router, which stay the same; the columns
+    /// differ only in their spacing, which follows whether the rail shows.
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.items == rhs.items && lhs.content == rhs.content && lhs.columns.count == rhs.columns.count
+            && lhs.columns.first?.spacing == rhs.columns.first?.spacing
     }
 }
 

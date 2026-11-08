@@ -117,7 +117,14 @@ class FlexarrMessagingService : FirebaseMessagingService() {
                 PushPayload.PODCAST -> info["episode"]
                 else -> null
             }
-            download?.let { builder.addAction(0, t(Words.download), DownloadReceiver.intent(context, id, it, podcast = payload.category == PushPayload.PODCAST)) }
+            // Like Allow on a pairing notification, it asks for a locked phone to be unlocked first (Android 12 and later).
+            download?.let {
+                builder.addAction(
+                    NotificationCompat.Action.Builder(0, t(Words.download), DownloadReceiver.intent(context, id, it, podcast = payload.category == PushPayload.PODCAST))
+                        .setAuthenticationRequired(true)
+                        .build(),
+                )
+            }
             runCatching {
                 NotificationManagerCompat.from(context).notify(id, builder.build())
                 payload.thread?.let { thread -> NotificationManagerCompat.from(context).notify(summaryId(thread), summary(context, payload, thread, opens)) }
@@ -149,8 +156,8 @@ class FlexarrMessagingService : FirebaseMessagingService() {
                 .setStyle(NotificationCompat.BigTextStyle().bigText(payload.body))
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setCategory(NotificationCompat.CATEGORY_STATUS)
-                // Shown whole on the lock screen, Allow and Don't allow too: the name and code are already on the device's
-                // own screen, and answering still unlocks the phone first.
+                // Shown whole on the lock screen, its buttons too: the name and code are already on the device's own
+                // screen, and Allow still unlocks the phone first.
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setAutoCancel(true)
                 // Codes last minutes, not hours.
@@ -160,7 +167,11 @@ class FlexarrMessagingService : FirebaseMessagingService() {
                 // Its name, for "“Living room” is connected": as the app heard it, else from the title the server wrote.
                 val name = model.pairing.waiting.firstOrNull { it.code == code }?.deviceName
                     ?: payload.title.removeSuffix(" wants to connect").takeIf { it != payload.title && it.isNotBlank() }
-                builder.addAction(PairingReceiver.action(context, t("Allow"), code, name, allow = true))
+                // Only where Android can ask for the phone to be unlocked first (12 and later): on older phones a locked
+                // phone could let a device in. There, a tap opens the app's prompt, which needs the phone unlocked.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    builder.addAction(PairingReceiver.action(context, t("Allow"), code, name, allow = true))
+                }
                 builder.addAction(PairingReceiver.action(context, t("Don’t allow"), code, name, allow = false))
             }
             runCatching { NotificationManagerCompat.from(context).notify(id, builder.build()) }

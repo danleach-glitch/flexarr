@@ -115,9 +115,15 @@ public static partial class PlaybackEndpoints
             return Results.NoContent();
         }).WithTags("Playback");
 
-        // A fault of the file, so fixed for the household: whoever nudges it fixes it for everyone.
-        api.MapPut("/items/{id:guid}/audio-delay", async (Guid id, AudioDelayRequest request, FlexarrDbContext db, CancellationToken ct) =>
+        // A fault of the file, so fixed for the household: whoever nudges it fixes it for everyone. A family guest isn't
+        // the household's, so doesn't.
+        api.MapPut("/items/{id:guid}/audio-delay", async (Guid id, AudioDelayRequest request, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
         {
+            if (profile.IsGuest)
+            {
+                return Problems.Of("Guests can’t change a title’s audio sync.", status: 403);
+            }
+
             if (!double.IsFinite(request.Seconds) || Math.Abs(request.Seconds) > MaxAudioDelaySeconds)
             {
                 return Problems.Of("The sound can be moved up to two seconds either way.", status: 400);
@@ -135,7 +141,8 @@ public static partial class PlaybackEndpoints
         }).WithTags("Playback");
 
         // Each profile's own, kept for the show an episode belongs to.
-        api.MapPut("/items/{id:guid}/playback-speed", async (Guid id, PlaybackSpeedRequest request, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        api.MapPut("/items/{id:guid}/playback-speed", async (Guid id, PlaybackSpeedRequest request, FlexarrDbContext db, CurrentProfile profile, PlaybackSessions sessions,
+            CancellationToken ct) =>
         {
             if (!double.IsFinite(request.Speed) || request.Speed is < 0.25 or > 4)
             {
@@ -145,6 +152,15 @@ public static partial class PlaybackEndpoints
             if (await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id, ct) is not { } item)
             {
                 return Results.NotFound();
+            }
+
+            // Being converted for this profile right now: made as fast as it's now watched.
+            foreach (var playing in sessions.Active.Where(s => s.ItemId == id && s.ProfileId == profile.Id))
+            {
+                if (playing.Transcode is { } converting)
+                {
+                    converting.Speed = request.Speed;
+                }
             }
 
             // A book keeps its own speed, even 1× when the profile's default for books is something else.
@@ -416,8 +432,11 @@ public static partial class PlaybackEndpoints
             return text is null ? Problems.Of("These subtitles couldn’t be read.", status: 422) : Results.Text(text, "text/x-ssa");
         });
 
-        // The fonts attached to the file, which its styled subtitles are drawn with.
-        group.MapGet("/fonts.json", async (string sid, PlaybackSessions sessions, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
+        // The fonts attached to the file, which its styled subtitles are drawn with. Optional `subtitle=<key>` (a styled
+        // track's key, as in its .ass address; absent from servers before the release after 0.62.1, which send every
+        // font): only the fonts that track's script names, plus any whose names can't be read. Unchanged without it.
+        group.MapGet("/fonts.json", async (string sid, string? subtitle, PlaybackSessions sessions, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options,
+            SubtitleCache subtitles, CancellationToken ct) =>
         {
             if (sessions.Get(sid) is not { } session)
             {
@@ -426,11 +445,16 @@ public static partial class PlaybackEndpoints
 
             var file = await db.MediaFiles.AsNoTracking().FirstAsync(f => f.Id == session.FileId, ct);
             var fonts = await SubtitleFonts.ListAsync(file, options.CurrentValue.FfprobePath, ct);
+            if (!string.IsNullOrEmpty(subtitle))
+            {
+                fonts = await FontsNamedByAsync(file, session, subtitle, fonts, subtitles, TranscodeSettingsFor(options.CurrentValue), ct);
+            }
+
             return Results.Ok(fonts.Select(f => new SubtitleFontDto(f.Name, $"/api/v1/playback/{sid}/fonts/{f.StreamIndex}")).ToList());
         });
 
         group.MapGet("/fonts/{index:int}", async (string sid, int index, PlaybackSessions sessions, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options,
-            CancellationToken ct) =>
+            HttpContext http, CancellationToken ct) =>
         {
             if (sessions.Get(sid) is not { } session)
             {
@@ -438,12 +462,15 @@ public static partial class PlaybackEndpoints
             }
 
             var file = await db.MediaFiles.AsNoTracking().FirstAsync(f => f.Id == session.FileId, ct);
-            if ((await SubtitleFonts.ListAsync(file, options.CurrentValue.FfprobePath, ct)).FirstOrDefault(f => f.StreamIndex == index) is not { } font
-                || await SubtitleFonts.ExtractAsync(file, font, TranscodeSettingsFor(options.CurrentValue), ct) is not { } path)
+            var fonts = await SubtitleFonts.ListAsync(file, options.CurrentValue.FfprobePath, ct);
+            if (fonts.FirstOrDefault(f => f.StreamIndex == index) is not { } font
+                || await SubtitleFonts.ExtractAsync(file, font, fonts, TranscodeSettingsFor(options.CurrentValue), ct) is not { } path)
             {
                 return Results.NotFound();
             }
 
+            // A session plays one file for good, and its address names the attachment: what it gives never changes.
+            http.Response.Headers[HeaderNames.CacheControl] = "private, max-age=31536000, immutable";
             return Results.File(path, font.ContentType, font.Name);
         });
 

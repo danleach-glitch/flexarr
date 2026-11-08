@@ -15,15 +15,22 @@ namespace Flexarr.Api.Scanning;
 public sealed partial class LibraryScanWorker(
     ILibraryScanQueue queue,
     IServiceScopeFactory scopes,
-    ILogger<LibraryScanWorker> logger) : BackgroundService
+    ILogger<LibraryScanWorker> logger,
+    LibraryWorkGate gate) : BackgroundService
 {
     private static readonly TimeSpan Debounce = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan ScheduledScanInterval = TimeSpan.FromHours(12);
 
+    /// <summary>How often the schedule looks for a library folder whose last full scan is <see cref="ScheduledScanInterval"/> old.</summary>
+    private static readonly TimeSpan ScheduleCheck = TimeSpan.FromMinutes(15);
+
+    /// <summary>When the schedule last queued each library folder, since the server started: one queued but not yet done isn't queued again.</summary>
+    private readonly Dictionary<string, DateTime> _queuedAt = new(StringComparer.Ordinal);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // Catch up on anything that changed while the server was down (and finish interrupted scans).
-        // Unchanged files are only stat'ed, so this is cheap after the first scan.
+        // Catch up on anything that changed while the server was down (and finish interrupted scans). A folder scanned
+        // in full less than 12 hours ago waits until then: a restart doesn't scan everything again.
         await EnqueueAllSafelyAsync("Startup", stoppingToken);
 
         _ = ScheduleAsync(stoppingToken);
@@ -59,6 +66,7 @@ public sealed partial class LibraryScanWorker(
             {
                 try
                 {
+                    using var entered = await gate.EnterAsync(stoppingToken);
                     await ScanAsync(request, stoppingToken);
                 }
                 // Anything but shutdown, including an HTTP timeout (a TaskCanceledException), is one failed scan.
@@ -70,10 +78,10 @@ public sealed partial class LibraryScanWorker(
         }
     }
 
-    /// <summary>Picks up changes the *arr webhooks don't cover (files added by hand, other tools) and stale metadata.</summary>
+    /// <summary>Picks up changes the *arr webhooks don't cover (files added by hand, other tools).</summary>
     private async Task ScheduleAsync(CancellationToken ct)
     {
-        using var timer = new PeriodicTimer(ScheduledScanInterval);
+        using var timer = new PeriodicTimer(ScheduleCheck);
         while (await timer.WaitForNextTickAsync(ct))
         {
             await EnqueueAllSafelyAsync("Scheduled", ct);
@@ -93,13 +101,30 @@ public sealed partial class LibraryScanWorker(
         }
     }
 
-    private async Task EnqueueAllAsync(string reason, CancellationToken ct)
+    /// <summary>
+    /// Each library folder whose last full scan finished <see cref="ScheduledScanInterval"/> ago or more (or that never
+    /// had one), unless the schedule queued it within that time.
+    /// </summary>
+    internal async Task EnqueueAllAsync(string reason, CancellationToken ct)
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
-        foreach (var folder in await db.LibraryFolders.Select(f => f.Path).ToListAsync(ct))
+        foreach (var folder in await db.LibraryFolders.AsNoTracking().Select(f => new { f.Path, f.FullScanAt }).ToListAsync(ct))
         {
-            await queue.EnqueueAsync(new LibraryScanRequest(folder, reason), ct);
+            var now = DateTime.UtcNow;
+            var last = folder.FullScanAt;
+            if (_queuedAt.TryGetValue(folder.Path, out var queued) && (last is null || queued > last))
+            {
+                last = queued; // Queued and not done yet, or it failed: tried again when the interval is up, as before.
+            }
+
+            if (last is { } at && at <= now && now - at < ScheduledScanInterval)
+            {
+                continue;
+            }
+
+            _queuedAt[folder.Path] = now;
+            await queue.EnqueueAsync(new LibraryScanRequest(folder.Path, reason), ct);
         }
     }
 
@@ -160,6 +185,13 @@ public sealed partial class LibraryScanWorker(
             var started = TimeProvider.System.GetTimestamp();
             // A metadata refresh also retries files ffprobe couldn't read.
             var result = await scanner.ScanAsync(library, target, request.ForceMetadata, request.Deleted, ct);
+            foreach (var folder in library.Folders.Where(f => PathComparison.IsUnder(f.Path, target)))
+            {
+                // A scan of the whole folder: the schedule's next one is 12 hours from now, restart or not.
+                var finished = DateTime.UtcNow;
+                await db.LibraryFolders.Where(f => f.Id == folder.Id).ExecuteUpdateAsync(u => u.SetProperty(f => f.FullScanAt, finished), ct);
+            }
+
             var seconds = TimeProvider.System.GetElapsedTime(started).TotalSeconds;
             LogScanFinished(library.Name, PathComparison.Printable(target), result.Added, result.Updated, result.Missing, result.Removed, result.Unchanged,
                 result.Unmatched, result.ProbeFailures, seconds);
@@ -187,13 +219,14 @@ public sealed partial class LibraryScanWorker(
         foreach (var library in targets.Select(t => t.Library).DistinctBy(l => l.Id))
         {
             // A scan of one folder (a webhook) also refreshes the films or series in it, so new episodes get their
-            // titles straight away rather than when the series is next due.
+            // titles straight away rather than when the series is next due. Titles merely out of date are left to
+            // MetadataRefreshWorker, a few at a time.
             var folders = library.Folders.Select(f => f.Path).ToList();
             var scopes = targets.Where(t => t.Library.Id == library.Id).Select(t => t.Scope).ToList();
             var within = scopes.Any(s => folders.Any(f => PathComparison.IsUnder(f, s))) ? [] : scopes;
 
             var started = TimeProvider.System.GetTimestamp();
-            var refreshed = await metadata.RefreshLibraryAsync(library, request.ForceMetadata, within, request.TmdbId, request.TvdbId, ct);
+            var refreshed = await metadata.RefreshScannedAsync(library, request.ForceMetadata, within, request.TmdbId, request.TvdbId, ct);
             if (refreshed.FromArr + refreshed.FromLookup + refreshed.FromLocal + refreshed.Unmatched > 0)
             {
                 var seconds = TimeProvider.System.GetElapsedTime(started).TotalSeconds;

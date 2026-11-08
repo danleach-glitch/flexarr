@@ -70,13 +70,14 @@ import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import io.github.flexarr.core.Format
 import io.github.flexarr.core.LiveChannel
-import io.github.flexarr.core.LiveGuide
+import io.github.flexarr.core.GuideFilter
 import io.github.flexarr.core.liveChannels
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.marquee
 import io.github.flexarr.ui.tv.TvActionButton
 import io.github.flexarr.ui.tv.TvLayout
+import io.github.flexarr.ui.tv.KeptGuide
 import io.github.flexarr.ui.tv.TvGuideCache
 import io.github.flexarr.ui.tv.TvLiveGuideGrid
 import io.github.flexarr.ui.tv.TvProgressBar
@@ -190,7 +191,7 @@ internal fun TvLivePlayerScreen(controller: LiveTvController, onClose: () -> Uni
                 }
             },
     ) {
-        VideoSurface(controller.player)
+        VideoSurface(controller.player, controller.keepsScreenOn)
         if ((controller.isBuffering || controller.startingChannel != null) && controller.error == null) {
             CircularProgressIndicator(Modifier.align(Alignment.Center), color = Flexarr.screen)
         }
@@ -386,17 +387,24 @@ private fun ChannelPanel(controller: LiveTvController, onPick: (LiveChannel) -> 
 /** The guide over the picture, which carries on behind it: the channels in their order, opening on the one being watched. */
 @Composable
 private fun GuideOverlay(controller: LiveTvController, onWatch: (LiveChannel) -> Unit) {
-    var guide by remember { mutableStateOf<LiveGuide?>(null) }
+    var kept by remember { mutableStateOf<KeptGuide?>(null) }
     var version by remember { mutableIntStateOf(0) }
-    // The one Live TV fetched, when it's recent; fresh after a recording's been set from here.
+    // The one Live TV fetched, when it's recent and has these channels; fresh after a recording's been set from here.
+    // Otherwise only these channels, by id when there are few enough.
     var hours by remember { mutableIntStateOf(TvGuideCache.FIRST_HOURS) }
-    LaunchedEffect(version, hours) { runCatching { TvGuideCache.guide(controller.client, hours, controller.profileId, fresh = version > 0) }.onSuccess { guide = it } }
+    val channels = controller.channels
+    val ids = remember(channels) { channels.map { it.id } }
+    val ask = remember(channels) { GuideFilter.byIds(channels) }
+    LaunchedEffect(version, hours) {
+        runCatching { TvGuideCache.guide(controller.client, hours, controller.profileId, ask, ids, kept, fresh = version > 0) }.onSuccess { kept = it }
+    }
+    val guide = kept?.guide
     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.8f))) {
         Column(Modifier.padding(start = TvLayout.Edge, top = 25.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(t("Guide"), style = marquee(28))
             TvLiveGuideGrid(
                 controller.client,
-                controller.channels,
+                channels,
                 guide,
                 onWatch = onWatch,
                 onRecordingsChanged = { version++ },

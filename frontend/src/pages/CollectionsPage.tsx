@@ -7,6 +7,7 @@ import {
   deleteCollection,
   getCollection,
   getCollections,
+  backdropSources,
   getCollectionSuggestions,
   imageUrl,
   removeFromCollection,
@@ -26,6 +27,7 @@ import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
 import { usePlay } from '../hooks/usePlay'
 import { t, Words } from '../i18n'
+import '../styles/settings.lazy.css'
 
 /** All collections: suggestions to add, then yours, the household's and the franchises Radarr knows. */
 export function CollectionsPage() {
@@ -218,7 +220,7 @@ export function CollectionPage() {
     <article className="collection-page">
       {data.backdrop && (
         <div className="collection-backdrop" aria-hidden="true">
-          <img src={imageUrl(data.backdrop, 1920)} alt="" />
+          <img {...backdropSources(data.backdrop)} alt="" />
         </div>
       )}
       <header className="collection-header">

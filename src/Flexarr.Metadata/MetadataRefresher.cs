@@ -70,6 +70,60 @@ public sealed partial class MetadataRefresher(
     private Dictionary<string, Person>? _peopleByTmdb;
     private Dictionary<string, Person>? _peopleByTvMaze;
 
+    /// <summary>A timed refresh's limit: at most this many titles of each kind, the longest since refreshed first.</summary>
+    private int? _dueAtMost;
+
+    /// <summary>A timed refresh's titles to leave for now.</summary>
+    private IReadOnlyCollection<Guid> _notNow = [];
+
+    /// <summary>A scan's refresh: only titles never refreshed yet and those in the folders just scanned.</summary>
+    private bool _scannedOnly;
+
+    /// <summary>
+    /// Titles a refresh left due because their Radarr or Sonarr didn't answer (see <see cref="RefreshDueAsync"/>).
+    /// </summary>
+    public List<Guid> LeftDue { get; } = [];
+
+    /// <summary>
+    /// Refreshes the <paramref name="atMost"/> titles of the library longest due (and as many of their seasons,
+    /// episodes or albums as come with them), on a timer of its own, so a whole library falling due together isn't
+    /// refreshed inside one scan. Titles a Radarr or Sonarr that didn't answer left due are in <see cref="LeftDue"/>,
+    /// for the caller to pass back as <paramref name="notNow"/> a while, so they don't hold up the rest.
+    /// </summary>
+    public async Task<MetadataRefreshResult> RefreshDueAsync(Library library, int atMost, IReadOnlyCollection<Guid> notNow, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(library);
+        ArgumentNullException.ThrowIfNull(notNow);
+        _dueAtMost = atMost;
+        _notNow = notNow;
+        try
+        {
+            return await RefreshLibraryAsync(library, false, [], null, null, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _dueAtMost = null;
+            _notNow = [];
+        }
+    }
+
+    /// <summary>
+    /// What a scan refreshes: titles new since the last refresh and those in <paramref name="within"/> (or, with
+    /// <paramref name="force"/>, everything). Titles merely out of date are left to <see cref="RefreshDueAsync"/>.
+    /// </summary>
+    public async Task<MetadataRefreshResult> RefreshScannedAsync(Library library, bool force, IReadOnlyCollection<string> within, int? tmdbId, int? tvdbId, CancellationToken ct)
+    {
+        _scannedOnly = true;
+        try
+        {
+            return await RefreshLibraryAsync(library, force, within, tmdbId, tvdbId, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _scannedOnly = false;
+        }
+    }
+
     public Task<MetadataRefreshResult> RefreshLibraryAsync(Library library, bool force, CancellationToken ct) =>
         RefreshLibraryAsync(library, force, [], ct);
 
@@ -150,7 +204,8 @@ public sealed partial class MetadataRefresher(
         }
 
         var radarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Radarr).ToList();
-        var onlyWithin = !force && items.All(i => also.Contains(i.Id)); // Just the webhook's: ask for just those.
+        // Just the webhook's, or a timed refresh's few: ask for just those.
+        var onlyWithin = !force && (_dueAtMost is not null || items.All(i => also.Contains(i.Id)));
         var (fetched, allAnswered) = await KnownAsync(radarrs, onlyWithin ? items : null, Hinted(also, tmdbId, i => i.TmdbId),
             arr.GetMoviesAsync, arr.GetMovieAsync, arr.GetMoviesByTmdbIdAsync, ct).ConfigureAwait(false);
         var known = fetched.Select(k => (k.Instance, Movie: k.Entry)).ToList();
@@ -166,6 +221,7 @@ public sealed partial class MetadataRefresher(
             // are, still linked and still due, rather than re-sourcing them from TMDB unlinked for a week.
             if (!allAnswered && Unconfirmed(item, known.Select(k => (k.Instance, k.Movie.Id))))
             {
+                LeftDue.Add(item.Id);
                 continue;
             }
 
@@ -337,7 +393,7 @@ public sealed partial class MetadataRefresher(
             .DistinctBy(c => (c.Credit.PersonTmdbId, c.Role))
             .ToList();
 
-        var people = await PeopleAsync(tmdb: true, ct).ConfigureAwait(false);
+        var people = await PeopleAsync(tmdb: true, wanted.Select(c => c.Credit.PersonTmdbId.ToString(CultureInfo.InvariantCulture)), ct).ConfigureAwait(false);
 
         db.Credits.RemoveRange(item.Credits);
         item.Credits.Clear();
@@ -367,6 +423,11 @@ public sealed partial class MetadataRefresher(
     private async Task<MetadataRefreshResult> RefreshMusicAsync(Guid libraryId, bool force, IReadOnlyCollection<string> within, CancellationToken ct)
     {
         var lidarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Lidarr).ToList();
+        if (lidarrs.Count == 0 && _dueAtMost is not null)
+        {
+            return new MetadataRefreshResult(0, 0, 0); // Nothing goes out of date: the tags are read when scanned.
+        }
+
         if (lidarrs.Count == 0)
         {
             // Followed artists still waiting for their first album were followed through a Lidarr that's gone.
@@ -848,7 +909,8 @@ public sealed partial class MetadataRefresher(
         }
 
         var sonarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Sonarr).ToList();
-        var onlyWithin = !force && items.All(i => also.Contains(i.Id)); // Just the webhook's: ask for just those.
+        // Just the webhook's, or a timed refresh's few: ask for just those.
+        var onlyWithin = !force && (_dueAtMost is not null || items.All(i => also.Contains(i.Id)));
         var (fetched, allAnswered) = await KnownAsync(sonarrs, onlyWithin ? items : null, Hinted(also, tvdbId, i => i.TvdbId),
             arr.GetSeriesAsync, arr.GetOneSeriesAsync, arr.GetSeriesByTvdbIdAsync, ct).ConfigureAwait(false);
         var known = fetched.Select(k => (k.Instance, Series: k.Entry)).ToList();
@@ -863,6 +925,7 @@ public sealed partial class MetadataRefresher(
             // As for films: a Sonarr that didn't answer leaves its shows linked and due, not re-sourced from TVmaze.
             if (!allAnswered && Unconfirmed(item, known.Select(k => (k.Instance, k.Series.Id))))
             {
+                LeftDue.Add(item.Id);
                 continue;
             }
 
@@ -1176,7 +1239,7 @@ public sealed partial class MetadataRefresher(
             .DistinctBy(c => (c.Person.Id, c.Role))
             .ToList();
 
-        var people = await PeopleAsync(tmdb: false, ct).ConfigureAwait(false);
+        var people = await PeopleAsync(tmdb: false, wanted.Select(c => c.Person.Id.ToString(CultureInfo.InvariantCulture)), ct).ConfigureAwait(false);
 
         db.Credits.RemoveRange(item.Credits);
         item.Credits.Clear();
@@ -1329,7 +1392,7 @@ public sealed partial class MetadataRefresher(
             .DistinctBy(c => (c.Id, c.Role))
             .ToList();
 
-        var people = await PeopleAsync(tmdb: true, ct).ConfigureAwait(false);
+        var people = await PeopleAsync(tmdb: true, wanted.Select(c => c.Id.ToString(CultureInfo.InvariantCulture)), ct).ConfigureAwait(false);
 
         db.Credits.RemoveRange(item.Credits);
         item.Credits.Clear();
@@ -1519,7 +1582,7 @@ public sealed partial class MetadataRefresher(
                 video.ThumbUrl = ArtworkUrl.Frame(file.Path, Math.Min(60, (file.DurationSeconds ?? 0) / 10));
             }
 
-            video.MetadataUpdatedAt = DateTime.UtcNow; // the still's ?v=, so a new one isn't hidden by a cached old one
+            video.MetadataUpdatedAt = DateTime.UtcNow;
         }
 
         foreach (var season in seasons)
@@ -1531,6 +1594,16 @@ public sealed partial class MetadataRefresher(
         if (series.PosterUrl is null && seasons.Select(s => s.PosterUrl).FirstOrDefault(p => p is not null) is { } first)
         {
             await SetArtworkAsync(series, first, series.BackdropUrl ?? first, series.LogoUrl, ct).ConfigureAwait(false);
+        }
+
+        // A still's address is its video's path, the same when the video is replaced: its ?v= moves on at every refresh
+        // (as every picture's used to), so a new still isn't hidden by a cached old one.
+        foreach (var shown in videos.Concat(seasons).Append(series))
+        {
+            if (new[] { shown.PosterUrl, shown.BackdropUrl, shown.ThumbUrl }.Any(url => ArtworkUrl.TryParseFrame(url, out _, out _)))
+            {
+                shown.ArtworkChangedAt = DateTime.UtcNow;
+            }
         }
     }
 
@@ -1639,27 +1712,26 @@ public sealed partial class MetadataRefresher(
 
     /// <summary>
     /// People shared across the whole refresh, so an actor in two films processed before the next save
-    /// isn't created twice.
+    /// isn't created twice. Only the people with <paramref name="keys"/> not looked up yet are read, not everyone.
     /// </summary>
-    private async Task<Dictionary<string, Person>> PeopleAsync(bool tmdb, CancellationToken ct)
+    private async Task<Dictionary<string, Person>> PeopleAsync(bool tmdb, IEnumerable<string> keys, CancellationToken ct)
     {
-        if (tmdb)
+        var map = tmdb ? _peopleByTmdb ??= new(StringComparer.Ordinal) : _peopleByTvMaze ??= new(StringComparer.Ordinal);
+        var wanted = keys.Where(k => !map.ContainsKey(k)).Distinct(StringComparer.Ordinal).ToList();
+        if (wanted.Count == 0)
         {
-            return _peopleByTmdb ??= Unique(await db.People.Where(p => p.TmdbId != null).ToListAsync(ct).ConfigureAwait(false), p => p.TmdbId!);
-        }
-
-        return _peopleByTvMaze ??= Unique(await db.People.Where(p => p.TvMazeId != null).ToListAsync(ct).ConfigureAwait(false), p => p.TvMazeId!);
-
-        static Dictionary<string, Person> Unique(List<Person> people, Func<Person, string> key)
-        {
-            var map = new Dictionary<string, Person>(StringComparer.Ordinal);
-            foreach (var person in people)
-            {
-                map.TryAdd(key(person), person);
-            }
-
             return map;
         }
+
+        var people = tmdb
+            ? await db.People.Where(p => wanted.Contains(p.TmdbId!)).ToListAsync(ct).ConfigureAwait(false)
+            : await db.People.Where(p => wanted.Contains(p.TvMazeId!)).ToListAsync(ct).ConfigureAwait(false);
+        foreach (var person in people)
+        {
+            map.TryAdd(tmdb ? person.TmdbId! : person.TvMazeId!, person);
+        }
+
+        return map;
     }
 
     private async Task SetGenresAsync(MediaItem item, IReadOnlyList<string> names, CancellationToken ct)
@@ -1681,6 +1753,26 @@ public sealed partial class MetadataRefresher(
     }
 
     private IQueryable<MediaItem> Stale(Guid libraryId, MediaKind kind, bool force, List<Guid> also)
+    {
+        if (_scannedOnly && !force)
+        {
+            // Never refreshed, or set to be on the next scan (PathMappingFinder.RematchAsync: a new mapping or connection
+            // may link them).
+            var rematch = DateTime.UnixEpoch;
+            return db.MediaItems.Where(i => i.LibraryId == libraryId && i.Kind == kind
+                && (also.Contains(i.Id) || i.MetadataUpdatedAt == null || i.MetadataUpdatedAt <= rematch));
+        }
+
+        if (_dueAtMost is { } atMost)
+        {
+            var notNow = _notNow.ToList();
+            return Due(libraryId, kind, force, also).Where(i => !notNow.Contains(i.Id)).OrderBy(i => i.MetadataUpdatedAt).ThenBy(i => i.Id).Take(atMost);
+        }
+
+        return Due(libraryId, kind, force, also);
+    }
+
+    private IQueryable<MediaItem> Due(Guid libraryId, MediaKind kind, bool force, List<Guid> also)
     {
         var now = DateTime.UtcNow;
         var cutoff = now - StaleAfter;

@@ -89,12 +89,17 @@ public sealed record WatchlistRefusal(int StatusCode, string English, object? Ar
 /// they're watched (a film) or started (a show); titles that aren't in the library can be requested as they're added.
 /// A title that leaves is kept as removed (with why), so a sync elsewhere can be told and adding it again revives it.
 /// </summary>
-public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOptionsMonitor<FlexarrOptions> options, IMemoryCache cache)
+public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOptionsMonitor<FlexarrOptions> options, IMemoryCache cache,
+    IServiceScopeFactory scopes)
 {
     /// <summary>Home's row of watchlist titles ready to play.</summary>
     public const string HomeRowId = "watchlist";
 
-    private static readonly TimeSpan SeerrCacheFor = TimeSpan.FromMinutes(10);
+    /// <summary>
+    /// What Seerr says is kept this long: the list answers from it and asks Seerr afresh in the background. A request
+    /// made through Flexarr drops it (see <see cref="Forget"/>); a title that arrives is shown from the library instead.
+    /// </summary>
+    private static readonly TimeSpan SeerrCacheFor = TimeSpan.FromHours(3);
 
     /// <summary>A Seerr that didn't answer is asked again after this, not on every load.</summary>
     private static readonly TimeSpan SeerrFailureCacheFor = TimeSpan.FromMinutes(1);
@@ -111,7 +116,7 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
     {
         await PruneAsync(profileId, ct);
         var entries = await Live(profileId).OrderByDescending(w => w.AddedAt).ToListAsync(ct);
-        var result = await ToDtosAsync(profileId, entries, ct);
+        var result = await ToDtosAsync(profileId, entries, ct, waitForSeerr: false);
         await SaveLinksAsync(ct);
         return result;
     }
@@ -460,6 +465,12 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
             return false; // Already asked for, partly in, or Seerr isn't answering (so it can't say).
         }
 
+        // The day's worth of requests counts here too: a long watchlist isn't a way round it. The title stays on the list.
+        if (!await RequestEndpoints.TakeAskAsync(db, cache, profileId, ct))
+        {
+            return false;
+        }
+
         try
         {
             await RequestEndpoints.PlaceAsync(seerr, instance, options.CurrentValue, db, profileId, mediaType, tmdbId, ct);
@@ -468,6 +479,7 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
         }
         catch (Exception ex) when (SeerrFailed(ex, ct))
         {
+            RequestEndpoints.ReturnAsk(cache, profileId);
             return false;
         }
     }
@@ -505,7 +517,12 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
     }
 
     /// <summary>Links, then works out each entry's status: from the library, Flexarr's requests and (in parallel) Seerr.</summary>
-    private async Task<List<WatchlistEntryDto>> ToDtosAsync(string profileId, List<WatchlistEntry> entries, CancellationToken ct)
+    /// <param name="waitForSeerr">
+    /// Ask Seerr about titles it hasn't been asked about lately before answering (one entry just added). Otherwise (the
+    /// whole list) answer from what each entry stores, Flexarr's own requests and what Seerr said lately, and ask Seerr
+    /// about the rest in the background, so the list doesn't wait on a round trip for every title.
+    /// </param>
+    private async Task<List<WatchlistEntryDto>> ToDtosAsync(string profileId, List<WatchlistEntry> entries, CancellationToken ct, bool waitForSeerr = true)
     {
         await LinkAsync(profileId, entries, ct);
         var ids = entries.Where(e => e.MediaItemId is not null).Select(e => e.MediaItemId!.Value).ToList();
@@ -520,7 +537,8 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
         }
 
         var outside = entries.Where(e => !(e.MediaItemId is { } id && items.ContainsKey(id)) && e.TmdbId is not null).ToList();
-        var facts = await SeerrFactsAsync(outside.Select(e => (MediaType(e.Kind), e.TmdbId!.Value)), ct);
+        var titles = outside.Select(e => (MediaType(e.Kind), e.TmdbId!.Value));
+        var facts = waitForSeerr ? await SeerrFactsAsync(titles, ct) : KnownFacts(titles);
         var requested = await RequestedAsync(entries, ct);
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
@@ -576,6 +594,73 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
         var tmdb = entries.Where(e => e.TmdbId is not null).Select(e => e.TmdbId!.Value).ToList();
         return (await db.MediaRequests.Where(r => r.FulfilledAt == null && tmdb.Contains(r.TmdbId)).Select(r => new { r.Kind, r.TmdbId }).ToListAsync(ct))
             .Select(r => Key(r.Kind, r.TmdbId)).ToHashSet(StringComparer.Ordinal);
+    }
+
+    /// <summary>Drops what Seerr said about a title, once it's been asked for.</summary>
+    public static void Forget(IMemoryCache cache, string mediaType, int tmdbId)
+    {
+        ArgumentNullException.ThrowIfNull(cache);
+        cache.Remove(SeerrKey(mediaType, tmdbId));
+    }
+
+    /// <summary>Titles being looked up in the background, so opening the list twice doesn't ask Seerr twice.</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> LookingUp = new(StringComparer.Ordinal);
+
+    /// <summary>The last background lookup started, for tests to wait on.</summary>
+    internal static Task LastLookup { get; private set; } = Task.CompletedTask;
+
+    /// <summary>
+    /// What Seerr said lately about each title, without asking it; the titles it hasn't been asked about lately are
+    /// looked up in the background, for the next time the list is opened.
+    /// </summary>
+    private Dictionary<string, SeerrFacts> KnownFacts(IEnumerable<(string MediaType, int TmdbId)> titles)
+    {
+        var known = new Dictionary<string, SeerrFacts>(StringComparer.Ordinal);
+        var unknown = new List<(string MediaType, int TmdbId)>();
+        foreach (var title in titles.Distinct())
+        {
+            if (!cache.TryGetValue(SeerrKey(title.MediaType, title.TmdbId), out SeerrFacts? facts))
+            {
+                unknown.Add(title);
+            }
+            else if (facts is not null && !ReferenceEquals(facts, Unanswered) && !ReferenceEquals(facts, Unreadable))
+            {
+                known[$"{title.MediaType}:{title.TmdbId.ToString(CultureInfo.InvariantCulture)}"] = facts;
+            }
+        }
+
+        if (unknown.Count == 0 || options.CurrentValue.Seerr?.Instance is not { } instance)
+        {
+            return known;
+        }
+
+        string Busy((string MediaType, int TmdbId) t) => $"{instance.BaseUrl}|{SeerrKey(t.MediaType, t.TmdbId)}";
+        var mine = unknown.Where(t => LookingUp.TryAdd(Busy(t), 0)).ToList();
+        if (mine.Count > 0)
+        {
+            LastLookup = Task.Run(async () =>
+            {
+                try
+                {
+                    using var scope = scopes.CreateScope();
+                    await scope.ServiceProvider.GetRequiredService<WatchlistService>().SeerrFactsAsync(mine, CancellationToken.None);
+                }
+#pragma warning disable CA1031 // Nothing waits on it: a failure only leaves those titles to be asked about next time.
+                catch (Exception)
+#pragma warning restore CA1031
+                {
+                }
+                finally
+                {
+                    foreach (var title in mine)
+                    {
+                        LookingUp.TryRemove(Busy(title), out _);
+                    }
+                }
+            });
+        }
+
+        return known;
     }
 
     /// <summary>What Seerr says about each title ("movie:123" → facts), several at once; titles it can't say about are left out.</summary>

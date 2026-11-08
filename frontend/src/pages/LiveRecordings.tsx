@@ -10,6 +10,8 @@ import { usePolling } from '../hooks/usePolling'
 import { formatSize } from '../lib/format'
 import { programmeTime } from '../lib/livetv'
 import { locale, t, Words } from '../i18n'
+import '../styles/settings.lazy.css'
+import '../styles/livetv.lazy.css'
 
 const day = { format: (d: Date) => d.toLocaleDateString(locale(), { weekday: 'short', day: 'numeric', month: 'short' }) }
 
@@ -42,8 +44,8 @@ export default function LiveRecordings() {
   return (
     <div className="recordings">
       <p className="muted recordings-summary">
-        {t.rich('Recordings go to {folder}', { folder: <code>{data.folder}</code> })}
-        {data.freeBytes != null && <>{'\u2003'}{t('{size} free', { size: formatSize(data.freeBytes) })}</>}{'\u2003'}
+        {data.folder && <>{t.rich('Recordings go to {folder}', { folder: <code>{data.folder}</code> })}{'\u2003'}</>}
+        {data.freeBytes != null && <>{t('{size} free', { size: formatSize(data.freeBytes) })}{'\u2003'}</>}
         {t('{count, plural, one {one channel at a time} other {# channels at a time}}', { count: data.streams })}
       </p>
       {error && (

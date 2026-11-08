@@ -4,7 +4,7 @@ import { appLink } from './apps'
 describe('appLink', () => {
   it('sends localhost to the host the browser reached Flexarr on, keeping the port and path', () => {
     expect(appLink('http://localhost:8989', 'mini.local')).toBe('http://mini.local:8989/')
-    expect(appLink('http://127.0.0.1:7878/radarr', '192.168.1.106')).toBe('http://192.168.1.106:7878/radarr')
+    expect(appLink('http://127.0.0.1:7878/radarr', '192.168.1.50')).toBe('http://192.168.1.50:7878/radarr')
     expect(appLink('http://[::1]:5055', 'mini.local')).toBe('http://mini.local:5055/')
   })
 

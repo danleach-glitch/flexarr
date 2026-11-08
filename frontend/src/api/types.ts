@@ -420,6 +420,8 @@ export interface DeviceProfile {
   delaysAudio?: boolean
   /** Plays it earlier by itself: browsers can't, so the server moves the sound in its stream. */
   advancesAudio?: boolean
+  /** Takes converted streams in fragmented MP4, so a picture it plays is copied as it is (lib/copiedVideo). */
+  fmp4?: boolean
 }
 
 export interface PlaybackRequest {

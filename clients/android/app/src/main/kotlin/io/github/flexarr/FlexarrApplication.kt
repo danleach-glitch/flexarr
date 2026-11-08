@@ -18,6 +18,8 @@ import io.github.flexarr.data.CredentialStore
 import io.github.flexarr.logging.ErrorReports
 import io.github.flexarr.logging.LogHub
 import io.github.flexarr.notifications.FlexarrMessagingService
+import io.github.flexarr.player.DeviceCapabilities
+import io.github.flexarr.ui.tv.TvGuideCache
 
 class FlexarrApplication : Application(), SingletonImageLoader.Factory {
     lateinit var model: AppModel
@@ -31,6 +33,7 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
         io.github.flexarr.core.i18n.Localization.deviceLanguages = android.os.LocaleList.getDefault().toLanguageTags().split(',')
         io.github.flexarr.core.i18n.Localization.startWithLastShown()
         FlexarrClient.deviceType = deviceType()
+        DeviceCapabilities.warm()
         LogHub.start(this)
         // Read once (decrypting it takes a moment) for both.
         val signIn = CredentialStore(this).load()
@@ -59,6 +62,15 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
         })
     }
 
+    /**
+     * Android wants memory back, or the app has left the screen: the guide the TV keeps between Live TV and the guide
+     * over the picture goes (it's fetched again if it's wanted).
+     */
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        TvGuideCache.clear()
+    }
+
     /** A TV by its UI mode, a tablet by its narrowest side (600 dp and over, as Android's own layouts count it). */
     private fun deviceType(): String = when {
         isTelevision -> "AndroidTv"
@@ -66,10 +78,10 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
         else -> "AndroidPhone"
     }
 
-    /** Artwork comes over the same connections as the API. */
+    /** Artwork comes over the same connections as the API, in a queue of its own so it never holds the API up. */
     override fun newImageLoader(context: PlatformContext): ImageLoader =
         ImageLoader.Builder(context)
-            .components { add(OkHttpNetworkFetcherFactory(callFactory = { FlexarrClient.sharedHttp })) }
+            .components { add(OkHttpNetworkFetcherFactory(callFactory = { FlexarrClient.artworkHttp })) }
             .build()
 }
 

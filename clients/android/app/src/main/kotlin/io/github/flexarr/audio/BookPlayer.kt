@@ -5,6 +5,7 @@ import android.hardware.Sensor
 import android.hardware.SensorManager
 import android.net.Uri
 import androidx.annotation.OptIn
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -151,7 +152,12 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
         private set
 
     val chapters: List<BookChapter> get() = manifest?.chapters.orEmpty()
-    val chapterIndex: Int? get() = chapters.chapterAt(position)
+    /**
+     * Derived, so what reads it (the chapter list, the bar's chapter name) changes once a chapter rather than with
+     * every tick of [position].
+     */
+    private val chapterIndexState = derivedStateOf { chapters.chapterAt(position) }
+    val chapterIndex: Int? get() = chapterIndexState.value
     val chapter: BookChapter? get() = chapterIndex?.let(chapters::getOrNull)
 
     /** Playing, or about to: what a guest's tunnel stays up for. */

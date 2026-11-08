@@ -78,6 +78,14 @@ public static class DeviceEndpoints
     {
         var group = api.MapGroup("/devices").WithTags("Devices");
 
+        // A kids profile doesn't control the household's other screens: it lists none of them (see ListAsync) and can
+        // send them nothing. Its own device still listens for commands (a GET), and may end a Live Activity it began.
+        group.AddEndpointFilter(async (context, next) =>
+            context.HttpContext.Request.Method is var method && !HttpMethods.IsGet(method) && !HttpMethods.IsDelete(method)
+                && context.HttpContext.RequestServices.GetRequiredService<FlexarrDbContext>().ServesKids
+                ? Problems.Of("That isn’t available on a kids profile.", status: 403)
+                : await next(context));
+
         group.MapGet("/", async (SignIns signIns, DeviceCommands commands, PlaybackSessions sessions, FlexarrDbContext db, CurrentProfile current, CancellationToken ct) =>
             Results.Ok(await ListAsync(signIns, commands, sessions, db, current, ct)));
 
@@ -318,7 +326,8 @@ public static class DeviceEndpoints
         var names = await db.Profiles.AsNoTracking().ToDictionaryAsync(p => p.Id, p => p.Name, ct);
         var list = new List<DeviceDto>();
         // A family guest sees none of the household's devices, and guests' own devices aren't anyone's to control.
-        if (current.IsGuest)
+        // Nor does a kids profile: which screens there are, who's on each and what they're playing isn't a child's to follow.
+        if (current.IsGuest || db.ServesKids)
         {
             return [];
         }
@@ -373,11 +382,15 @@ public static class DeviceEndpoints
     }
 
     /// <summary>
-    /// A title the listener mayn't see, told as playing and nothing more: its tracks, the button over the picture and
-    /// its length could say what it is as surely as its name.
+    /// A title the listener mayn't see, told as playing and nothing more: its tracks, the button over the picture, its
+    /// length and the chapter of a book being heard could say what it is as surely as its name.
     /// </summary>
     private static NowPlayingDto Private(NowPlayingDto playing) =>
-        playing with { Item = playing.Item.Id == Guid.Empty ? playing.Item : playing.Item.Private(), DurationSeconds = 0, Tracks = null, Prompt = null, HasNext = null, Sound = null };
+        playing with
+        {
+            Item = playing.Item.Id == Guid.Empty ? playing.Item : playing.Item.Private(), DurationSeconds = 0, Tracks = null, Prompt = null, HasNext = null, Sound = null,
+            Chapter = null,
+        };
 
     /// <summary>How often a device's stream looks again at which libraries its profile hides (tests make it every time).</summary>
     internal static TimeSpan HiddenRecheck { get; set; } = TimeSpan.FromSeconds(5);
@@ -433,7 +446,12 @@ public static class DeviceEndpoints
         // Shuffling a show: the device is handed the show itself and asks for random episodes as it goes.
         var shuffle = request.Shuffle && item.Kind is MediaKind.Series or MediaKind.Season;
         var playing = shuffle ? item.Id : target.Id;
-        var summary = await db.MediaItems.Where(i => i.Id == playing).Summaries(profileId).FirstAsync(ct);
+        // How far someone is into a title is theirs to know: unless the caller is that profile (or the admin), the
+        // answer describes it as the caller's own profile sees it, and for a profile the caller named, only the
+        // title that was asked for, not the episode they're up to. The device is still sent what will play.
+        var theirs = current.IsAdmin || current.Id == profileId;
+        var described = theirs || request.ProfileId is null ? playing : item.Id;
+        var summary = await db.MediaItems.Where(i => i.Id == described).Summaries(theirs ? profileId : current.Id).FirstAsync(ct);
         // Within two days: nothing plays longer, and a device turns it into a whole number of seconds.
         var start = !shuffle && playing == item.Id && request.StartSeconds is { } at && double.IsFinite(at) && at is >= 0 and <= 172_800 ? at : (double?)null;
         var command = new DeviceCommand(DeviceCommand.NewId(), DeviceCommandKind.Play, playing, request.FromBeginning, SenderName(signIns, current), DateTime.UtcNow, shuffle,
@@ -561,7 +579,7 @@ public static class DeviceEndpoints
         // changes: the profile chosen on the device, or what it may see, can change while it listens.
         var kidsSettings = LibraryVisibility.KidsSettingsVersion;
         var appliedAt = DateTime.UtcNow;
-        async Task<bool> HidesAsync(ItemSummaryDto item)
+        async Task LookAgainAsync()
         {
             if (current.SignInId is { } signInId && (DateTime.UtcNow - appliedAt >= HiddenRecheck || kidsSettings != LibraryVisibility.KidsSettingsVersion))
             {
@@ -572,7 +590,11 @@ public static class DeviceEndpoints
                 await LibraryVisibility.ApplyAsync(db, profile, ct);
                 appliedAt = DateTime.UtcNow;
             }
+        }
 
+        async Task<bool> HidesAsync(ItemSummaryDto item)
+        {
+            await LookAgainAsync();
             return item.Id != Guid.Empty && (db.HiddenLibraryIds.Contains(item.LibraryId)
                 || db.IsLimited() && !await LibraryVisibility.CanSeeAsync(db, item.LibraryId, item.Id, ct));
         }
@@ -663,6 +685,14 @@ public static class DeviceEndpoints
 
                 while (watching is not null && watching.Changes.TryRead(out var change))
                 {
+                    // A kids profile (now chosen on the device, perhaps since it began listening) isn't told what the
+                    // household's other screens are doing, as GET /devices lists it none of them.
+                    await LookAgainAsync();
+                    if (db.ServesKids)
+                    {
+                        continue;
+                    }
+
                     if (change.NowPlaying is { Item: var item } playing && await HidesAsync(item))
                     {
                         change = change with { NowPlaying = Private(playing) };

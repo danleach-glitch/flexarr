@@ -6,6 +6,7 @@ import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -227,6 +228,41 @@ class FlexarrClientTest {
     }
 
     @Test
+    fun `says on every request that it can ask who's watching`() = runTest {
+        server.enqueue(json("[]"))
+        client().libraries()
+        assertEquals("1", server.takeRequest().headers["X-Flexarr-Profile-Choice"])
+    }
+
+    @Test
+    fun `the server saying nobody has chosen here is read, and older servers never say it`() = runTest {
+        server.enqueue(json("""{"profileId":"default","method":"device","isAdmin":false,"canUnlock":true,"chooseProfile":true}"""))
+        assertTrue(client().me().chooseProfile)
+        server.enqueue(json("""{"profileId":"default","method":"device","isAdmin":false}"""))
+        assertFalse(client().me().chooseProfile)
+    }
+
+    @Test
+    fun `a request refused until someone is chosen tells the app`() = runTest {
+        var told = 0
+        FlexarrClient.onChooseProfile = { told++ }
+        try {
+            server.enqueue(json("""{"status":403,"detail":"Choose who’s watching first.","chooseProfile":true}""", code = 403))
+            val error = runCatching { client().libraries() }.exceptionOrNull()
+            assertTrue(error is FlexarrException.Http && error.status == 403 && error.chooseProfile)
+            assertEquals(1, told)
+
+            // Any other refusal isn't that.
+            server.enqueue(json("""{"status":403,"detail":"No."}""", code = 403))
+            val other = runCatching { client().libraries() }.exceptionOrNull()
+            assertTrue(other is FlexarrException.Http && !other.chooseProfile)
+            assertEquals(1, told)
+        } finally {
+            FlexarrClient.onChooseProfile = null
+        }
+    }
+
+    @Test
     fun `an HTML page is not a Flexarr server`() = runTest {
         server.enqueue(MockResponse.Builder().addHeader("Content-Type", "text/html").body("<html></html>").build())
         val error = runCatching { client().systemStatus() }.exceptionOrNull()
@@ -252,15 +288,19 @@ class FlexarrClientTest {
     }
 
     @Test
-    fun `an internet host typed without a scheme is tried over https first`() {
-        assertEquals(
-            listOf("https://flexarr.example.com/", "http://flexarr.example.com:8383/"),
-            FlexarrClient.addressCandidates("flexarr.example.com").map { it.toString() },
-        )
-        assertEquals(listOf("https://example.com:9000/", "http://example.com:9000/"), FlexarrClient.addressCandidates("example.com:9000").map { it.toString() })
-        // Typed with a scheme, it's what was asked for.
+    fun `an internet host typed without a scheme is only tried over https`() {
+        // Never plain http as a second try: that would send the key in the clear to whoever stopped https answering.
+        assertEquals(listOf("https://flexarr.example.com/"), FlexarrClient.addressCandidates("flexarr.example.com").map { it.toString() })
+        assertEquals(listOf("https://example.com:9000/"), FlexarrClient.addressCandidates("example.com:9000").map { it.toString() })
+        assertEquals(listOf("https://example.com/"), FlexarrClient.addressCandidates(" example.com ").map { it.toString() })
+        for (typed in listOf("flexarr.example.com", "example.com:9000", "8.8.8.8", "100.200.1.1:8383")) assertTrue(typed, FlexarrClient.triesOnlyHttps(typed))
+        // Typed with a scheme, it's what was asked for: plain http too, for whoever means it.
         assertEquals(listOf("http://example.com/"), FlexarrClient.addressCandidates("http://example.com").map { it.toString() })
+        assertEquals(listOf("http://example.com:8383/"), FlexarrClient.addressCandidates("http://example.com:8383").map { it.toString() })
+        assertEquals(listOf("https://example.com/"), FlexarrClient.addressCandidates("https://example.com").map { it.toString() })
+        for (typed in listOf("http://example.com", "https://example.com", "HTTP://example.com:8383")) assertFalse(typed, FlexarrClient.triesOnlyHttps(typed))
         assertEquals(emptyList<String>(), FlexarrClient.addressCandidates("not an address").map { it.toString() })
+        assertFalse(FlexarrClient.triesOnlyHttps("not an address"))
     }
 
     @Test
@@ -269,9 +309,10 @@ class FlexarrClientTest {
             assertEquals(host, 1, FlexarrClient.addressCandidates(host).size)
             assertEquals(host, "http", FlexarrClient.addressCandidates(host).single().scheme)
             assertEquals(host, 8383, FlexarrClient.addressCandidates(host).single().port)
+            assertFalse(host, FlexarrClient.triesOnlyHttps(host))
         }
-        assertEquals(2, FlexarrClient.addressCandidates("8.8.8.8").size)
-        assertEquals(2, FlexarrClient.addressCandidates("100.200.1.1").size) // outside Tailscale's range
+        assertEquals("https", FlexarrClient.addressCandidates("8.8.8.8").single().scheme)
+        assertEquals("https", FlexarrClient.addressCandidates("100.200.1.1").single().scheme) // outside Tailscale's range
     }
 
     @Test

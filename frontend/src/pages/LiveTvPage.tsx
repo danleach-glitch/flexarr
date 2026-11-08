@@ -1,7 +1,7 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PageLoading } from '../components/PageStatus'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { getLiveChannels, getLiveGuide, getLiveTvStatus, type LiveChannel, type LiveGuide, type LiveProgramme } from '../api/client'
+import { getLiveChannels, getLiveGuide, getLiveProgramme, getLiveTvStatus, type LiveChannel, type LiveGuide, type LiveProgramme } from '../api/client'
 import { FavouriteButton } from '../components/FavouriteButton'
 import { RecordControls } from '../components/RecordControls'
 import { ChannelLogo } from '../components/LiveChannelCard'
@@ -13,6 +13,7 @@ import { useApi } from '../hooks/useApi'
 import { usePolling } from '../hooks/usePolling'
 import { clock, programmeTime, programmeTitle, progress, tidyGroup } from '../lib/livetv'
 import { locale, t, Words } from '../i18n'
+import '../styles/livetv.lazy.css'
 
 const LiveRecordings = lazy(() => import('./LiveRecordings'))
 
@@ -203,12 +204,78 @@ function ChannelRow({ channel: c, favourite, onToggle }: { channel: LiveChannel;
   )
 }
 
+/** Minutes from the guide's start to a time. */
+const guideMinutes = (from: Date, iso: string | number) => ((typeof iso === 'number' ? iso : Date.parse(iso)) - from.getTime()) / 60_000
+
+/**
+ * A channel's line in the guide. Drawn again only when its own programmes, the time or its chosen programme change, so
+ * choosing a programme redraws the line it's on (and the one it left), not hundreds.
+ */
+const GuideRow = memo(function GuideRow({
+  channel: c,
+  from,
+  hours,
+  now,
+  selected,
+  onSelect,
+}: {
+  channel: LiveGuide['channels'][number]
+  from: Date
+  hours: number
+  now: number
+  selected: LiveProgramme['id'] | undefined
+  onSelect: (channel: LiveGuide['channels'][number], programme: LiveProgramme) => void
+}) {
+  const minutes = (iso: string | number) => guideMinutes(from, iso)
+  const width = hours * 60 * PX_PER_MINUTE
+  return (
+    <div className="livetv-guide-row">
+      <Link className="livetv-guide-channel" to={`/live/${c.id}`} aria-label={t('Watch {name}', { name: c.name })}>
+        <ChannelLogo channel={c} />
+        <span>
+          <span className="muted">{c.number}</span> {c.name}
+        </span>
+      </Link>
+      <div className="livetv-guide-programmes" style={{ width }}>
+        {c.programmes.length === 0 && <span className="livetv-guide-none muted">{t('No listings')}</span>}
+        {c.programmes.map((p) => {
+          const left = Math.max(0, minutes(p.start)) * PX_PER_MINUTE
+          const right = Math.min(hours * 60, minutes(p.end)) * PX_PER_MINUTE
+          const onNow = Date.parse(p.start) <= now && Date.parse(p.end) > now
+          const past = Date.parse(p.end) <= now
+          const time = programmeTime(p)
+          return (
+            <button
+              key={p.id}
+              className={['livetv-guide-programme', onNow && 'now', past && 'past', p.recording && 'recording', selected === p.id && 'selected']
+                .filter(Boolean)
+                .join(' ')}
+              style={{ left, width: Math.max(0, right - left - 2) }}
+              title={[p.title, time, p.recording ? (p.recording === 'recording' ? t('Recording now') : t('Set to record')) : null].filter(Boolean).join('\u2003')}
+              onClick={() => onSelect(c, p)}
+            >
+              <strong>
+                {p.recording && <RecordMark programme={p} />}
+                {p.series && !p.recording && <SeriesDots className="record-dot" aria-label={t(Words.series)} />}
+                {programmeTitle(p)}
+              </strong>
+              <span className="muted">{time}</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+})
+
 function Guide() {
   const navigate = useNavigate()
   const { limited } = useAgeLimits()
   const [from] = useState(() => guideStart())
   const [hours, setHours] = useState(GUIDE_HOURS)
-  const [guide, setGuide] = useState<LiveGuide>()
+  /** The guide, and whether it was asked for the favourite channels only. */
+  const [loaded, setLoaded] = useState<{ guide: LiveGuide; favourites: boolean }>()
+  const guide = loaded?.guide
   const [failed, setFailed] = useState<string>()
   const [selected, setSelected] = useState<{ channel: LiveGuide['channels'][number]; programme: LiveProgramme }>()
   const [now, setNow] = useState(() => Date.now())
@@ -218,12 +285,34 @@ function Guide() {
   // Favourites first, as in On now, when there are any.
   const [favouritesChosen, setFavouritesOnly] = useState<boolean>()
   usePolling(() => setNow(Date.now()), 30_000)
+  // Until the guide says, as if there were favourites: asked for them alone first, a guide without any comes back
+  // empty, and every channel is asked for then.
+  const anyFavourite = guide ? guide.channels.some((c) => c.isFavourite) : true
+  const favouritesOnly = favouritesChosen ?? anyFavourite
+  // The favourites alone are asked for while they're what's shown. Asked for them, a server before the guide's filters
+  // sends every channel: then it has them all already.
+  const hasAll = !!loaded && (!loaded.favourites || loaded.guide.channels.some((c) => !c.isFavourite))
+  // A programme's description, fetched when its details open (the guide comes without them).
+  const [descriptions, setDescriptions] = useState<Record<number, string | null>>({})
+  const openId = selected?.programme.id
+  const openHasDescription = selected?.programme.description != null
+
+  useEffect(() => {
+    if (openId === undefined || openHasDescription || openId in descriptions) return
+    const controller = new AbortController()
+    getLiveProgramme(openId, controller.signal).then(
+      (p) => setDescriptions((all) => ({ ...all, [openId]: p?.description ?? null })),
+      () => undefined,
+    )
+    return () => controller.abort()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openId, openHasDescription])
 
   useEffect(() => {
     const controller = new AbortController()
-    getLiveGuide(from, hours, controller.signal).then(
+    getLiveGuide(from, hours, controller.signal, { favourites: favouritesOnly }).then(
       (loaded) => {
-        setGuide(loaded)
+        setLoaded({ guide: loaded, favourites: favouritesOnly })
         // The programme open in the details keeps up with its marks.
         setSelected((open) => {
           if (!open) return open
@@ -237,16 +326,17 @@ function Guide() {
       },
     )
     return () => controller.abort()
-  }, [from, hours, version])
+  }, [from, hours, version, favouritesOnly])
 
-  const minutes = (iso: string | number) => ((typeof iso === 'number' ? iso : Date.parse(iso)) - from.getTime()) / 60_000
+  const select = useCallback((channel: LiveGuide['channels'][number], programme: LiveProgramme) => setSelected({ channel, programme }), [])
+  const minutes = (iso: string | number) => guideMinutes(from, iso)
   const width = hours * 60 * PX_PER_MINUTE
   const slots = Array.from({ length: hours * 2 }, (_, i) => new Date(from.getTime() + i * 30 * 60_000))
 
   if (failed) return <p className="error">{t('Couldn’t load the guide: {error}', { error: failed })}</p>
-  if (!guide) return <PageLoading label={t('Loading the guide')} />
-  const anyFavourite = guide.channels.some((c) => c.isFavourite)
-  const favouritesOnly = favouritesChosen ?? anyFavourite
+  // No favourites after all: on to every channel, still loading.
+  if (!guide || (!favouritesOnly && !hasAll && favouritesChosen === undefined)) return <PageLoading label={t('Loading the guide')} />
+  const description = selected && (selected.programme.description ?? descriptions[selected.programme.id])
   const rows = favouritesOnly ? guide.channels.filter((c) => c.isFavourite) : guide.channels
 
   return (
@@ -275,41 +365,7 @@ function Guide() {
             ))}
           </div>
           {rows.map((c) => (
-            <div key={c.id} className="livetv-guide-row">
-              <Link className="livetv-guide-channel" to={`/live/${c.id}`} aria-label={t('Watch {name}', { name: c.name })}>
-                <ChannelLogo channel={c} />
-                <span>
-                  <span className="muted">{c.number}</span> {c.name}
-                </span>
-              </Link>
-              <div className="livetv-guide-programmes" style={{ width }}>
-                {c.programmes.length === 0 && <span className="livetv-guide-none muted">{t('No listings')}</span>}
-                {c.programmes.map((p) => {
-                  const left = Math.max(0, minutes(p.start)) * PX_PER_MINUTE
-                  const right = Math.min(hours * 60, minutes(p.end)) * PX_PER_MINUTE
-                  const onNow = Date.parse(p.start) <= now && Date.parse(p.end) > now
-                  const past = Date.parse(p.end) <= now
-                  return (
-                    <button
-                      key={p.id}
-                      className={['livetv-guide-programme', onNow && 'now', past && 'past', p.recording && 'recording', selected?.programme.id === p.id && 'selected']
-                        .filter(Boolean)
-                        .join(' ')}
-                      style={{ left, width: Math.max(0, right - left - 2) }}
-                      title={[p.title, programmeTime(p), p.recording ? (p.recording === 'recording' ? t('Recording now') : t('Set to record')) : null].filter(Boolean).join('\u2003')}
-                      onClick={() => setSelected({ channel: c, programme: p })}
-                    >
-                      <strong>
-                        {p.recording && <RecordMark programme={p} />}
-                        {p.series && !p.recording && <SeriesDots className="record-dot" aria-label={t(Words.series)} />}
-                        {programmeTitle(p)}
-                      </strong>
-                      <span className="muted">{programmeTime(p)}</span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
+            <GuideRow key={c.id} channel={c} from={from} hours={hours} now={now} selected={selected?.channel.id === c.id ? selected.programme.id : undefined} onSelect={select} />
           ))}
           <span className="livetv-guide-now" style={{ left: 200 + minutes(now) * PX_PER_MINUTE }} aria-hidden="true" />
         </div>
@@ -334,7 +390,7 @@ function Guide() {
             {selected.programme.isNew && '\u2003' + t('New')}
           </p>
           {selected.programme.subtitle && <p>{selected.programme.subtitle}</p>}
-          {selected.programme.description && <p>{selected.programme.description}</p>}
+          {description && <p>{description}</p>}
           <div className="livetv-details-actions">
             {Date.parse(selected.programme.start) <= now && Date.parse(selected.programme.end) > now && (
               <button className="button small" onClick={() => navigate(`/live/${selected.channel.id}`)}>

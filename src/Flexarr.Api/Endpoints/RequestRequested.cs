@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text.Json;
 using Flexarr.Api.Configuration;
@@ -41,8 +42,18 @@ public static class RequestRequested
 {
     private static readonly TimeSpan CallTimeout = TimeSpan.FromSeconds(15);
 
+    /// <summary>How many titles Radarr, Sonarr or Seerr are asked about at once: a list of forty isn't forty calls back to back.</summary>
+    private const int LookupsAtOnce = 4;
+
     /// <summary>Seerr's and the *arrs' answers are kept this long (a page and its revisits), dropped by a request or an unrequest.</summary>
     private static readonly TimeSpan ListsFor = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// What Radarr or Sonarr says of one title (its folder, whether it has the file, when it's out) is kept longer than
+    /// the lists: how far a download has got comes from the queue. Dropped by a request or an unrequest, and by a
+    /// Radarr or Sonarr webhook (a file arrived).
+    /// </summary>
+    private static readonly TimeSpan TitleAnswersFor = TimeSpan.FromMinutes(10);
 
     /// <summary>A title's name and poster barely change.</summary>
     private static readonly TimeSpan TitlesFor = TimeSpan.FromHours(6);
@@ -90,8 +101,11 @@ public static class RequestRequested
         }
 
         // A film already in a library the profile sees is in, whatever Seerr thinks; a show may be partly in.
-        var inLibrary = await RequestEndpoints.LibraryIndexAsync(db, ct);
-        var everywhere = await db.MediaItems.IgnoreQueryFilters().Where(i => i.TmdbId != null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series))
+        var inLibrary = await RequestEndpoints.LibraryIndexAsync(db, titles.Select(t => t.TmdbId), ct);
+        // Where each requested title is, in libraries the profile can't see too: just those titles, by their TMDB ids.
+        var requested = titles.Select(t => t.TmdbId.ToString(CultureInfo.InvariantCulture)).Distinct().ToList();
+        var everywhere = await db.MediaItems.IgnoreQueryFilters()
+            .Where(i => i.TmdbId != null && requested.Contains(i.TmdbId) && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series))
             .Select(i => new { i.Kind, i.TmdbId, i.LibraryId }).ToListAsync(ct);
         var whereIs = everywhere.ToLookup(i => $"{(i.Kind == MediaKind.Movie ? "movie" : "tv")}:{i.TmdbId}", i => i.LibraryId);
 
@@ -103,50 +117,60 @@ public static class RequestRequested
 
         var radarrs = options.Arr.Where(a => a.Kind == ArrKind.Radarr).ToList();
         var sonarrs = options.Arr.Where(a => a.Kind == ArrKind.Sonarr).ToList();
-        // One that doesn't answer (a sleeping NAS) is asked once, not once per title, each waiting out the timeout; and
-        // not again for a couple of minutes, or every refresh of the list would wait on it.
+        // One that doesn't answer (a sleeping NAS) is asked once (or about the few titles in hand at that moment), not
+        // once per title, each waiting out the timeout; and not again for a couple of minutes, or every refresh of the
+        // list would wait on it.
         var wasDown = radarrs.Concat(sonarrs).Where(i => cache.TryGetValue(DownKey(i), out _)).ToList();
-        var down = wasDown.ToHashSet();
+        var down = new ConcurrentDictionary<ArrInstance, bool>(wasDown.Select(i => KeyValuePair.Create(i, true)));
         var queues = new Dictionary<ArrInstance, IReadOnlyList<ArrQueueItem>>();
         foreach (var instance in radarrs.Concat(sonarrs).Where(i => titles.Any(t => (t.Type == "movie") == (i.Kind == ArrKind.Radarr))))
         {
-            var queue = down.Contains(instance) ? null
+            var queue = down.ContainsKey(instance) ? null
                 : await Cached(cache, $"requested-queue:{instance.BaseUrl}", ListsFor, t => arr.GetQueueAsync(instance, t), ct);
             if (queue is null)
             {
-                down.Add(instance);
+                down.TryAdd(instance, true);
             }
 
             queues[instance] = queue ?? [];
         }
 
         var now = DateTime.UtcNow;
-        var listed = new List<TitleRequestedDto>();
-        foreach (var title in titles)
+        // What Radarr, Sonarr or Seerr say of each title, asked a few at a time rather than one after another (nothing
+        // in here touches the database); null for a title that isn't on its way.
+        var finds = new Found?[titles.Count];
+        await Parallel.ForEachAsync(Enumerable.Range(0, titles.Count), new ParallelOptions { MaxDegreeOfParallelism = LookupsAtOnce, CancellationToken = ct }, async (n, token) =>
         {
-            var key = $"{title.Type}:{title.TmdbId.ToString(CultureInfo.InvariantCulture)}";
-            var itemId = inLibrary.TryGetValue(key, out var id) ? id : (Guid?)null;
-            if (title.Type == "movie" && itemId is not null)
+            var title = titles[n];
+            if (title.Type == "movie" && inLibrary.ContainsKey($"{title.Type}:{title.TmdbId.ToString(CultureInfo.InvariantCulture)}"))
             {
-                continue;
+                return;
             }
 
             var (found, gone) = title.Type == "movie"
-                ? await MovieAsync(arr, radarrs, queues, down, cache, title.TmdbId, now, ct)
-                : title.TvdbId is { } tvdb ? await ShowAsync(arr, sonarrs, queues, down, cache, tvdb, title.Seasons, now, ct) : (null, false);
+                ? await MovieAsync(arr, radarrs, queues, down, cache, title.TmdbId, now, token)
+                : title.TvdbId is { } tvdb ? await ShowAsync(arr, sonarrs, queues, down, cache, tvdb, title.Seasons, now, token) : (null, false);
 
             // Radarr or Sonarr has it all already (the library just hasn't caught up), or answered that it doesn't hold
             // an approved request's title at all (taken out since, so nobody's looking): not on its way.
             if (gone && !(found is null && title.Pending))
             {
-                continue;
+                return;
             }
 
-            found ??= await FromSeerrAsync(seerrClient, seerr, cache, title.Type, title.TmdbId, ct);
+            finds[n] = found ?? await FromSeerrAsync(seerrClient, seerr, cache, title.Type, title.TmdbId, token);
+        });
+
+        var listed = new List<TitleRequestedDto>();
+        foreach (var (title, found) in titles.Zip(finds))
+        {
             if (found is null)
             {
                 continue;
             }
+
+            var key = $"{title.Type}:{title.TmdbId.ToString(CultureInfo.InvariantCulture)}";
+            var itemId = inLibrary.TryGetValue(key, out var id) ? id : (Guid?)null;
 
             // Where it lives: the library item's library, else the folder Radarr or Sonarr keeps it in (or Seerr sent
             // it to), else the oldest library of its kind, as Coming soon places it.
@@ -173,7 +197,7 @@ public static class RequestRequested
                 itemId));
         }
 
-        foreach (var instance in down.Except(wasDown)) // from when it first failed, so it's asked again after
+        foreach (var instance in down.Keys.Except(wasDown)) // from when it first failed, so it's asked again after
         {
             cache.Set(DownKey(instance), true, DownFor);
         }
@@ -190,16 +214,16 @@ public static class RequestRequested
     /// </returns>
     /// <param name="down">Instances that didn't answer earlier in this listing: skipped, and any that don't now join them.</param>
     private static async Task<(Found? Found, bool Gone)> MovieAsync(ArrClient arr, List<ArrInstance> radarrs, Dictionary<ArrInstance, IReadOnlyList<ArrQueueItem>> queues,
-        HashSet<ArrInstance> down, IMemoryCache cache, int tmdbId, DateTime now, CancellationToken ct)
+        ConcurrentDictionary<ArrInstance, bool> down, IMemoryCache cache, int tmdbId, DateTime now, CancellationToken ct)
     {
         var answered = 0;
-        foreach (var radarr in radarrs.Where(r => !down.Contains(r)))
+        foreach (var radarr in radarrs.Where(r => !down.ContainsKey(r)))
         {
-            var films = await Cached(cache, $"requested-movie:{radarr.BaseUrl}:{tmdbId}", ListsFor, t => arr.GetMoviesByTmdbIdAsync(radarr, tmdbId, t), ct);
+            var films = await Cached(cache, $"requested-movie:{radarr.BaseUrl}:{tmdbId}", TitleAnswersFor, t => arr.GetMoviesByTmdbIdAsync(radarr, tmdbId, t), ct);
             answered += films is null ? 0 : 1;
             if (films is null)
             {
-                down.Add(radarr);
+                down.TryAdd(radarr, true);
             }
 
             if (films is not [var film, ..])
@@ -231,16 +255,16 @@ public static class RequestRequested
     /// <param name="seasons">The seasons asked for; null for every one.</param>
     /// <returns>As <see cref="MovieAsync"/>: <c>Gone</c> when Sonarr has every season asked for, or no Sonarr holds the show.</returns>
     private static async Task<(Found? Found, bool Gone)> ShowAsync(ArrClient arr, List<ArrInstance> sonarrs, Dictionary<ArrInstance, IReadOnlyList<ArrQueueItem>> queues,
-        HashSet<ArrInstance> down, IMemoryCache cache, int tvdbId, IReadOnlyList<int>? seasons, DateTime now, CancellationToken ct)
+        ConcurrentDictionary<ArrInstance, bool> down, IMemoryCache cache, int tvdbId, IReadOnlyList<int>? seasons, DateTime now, CancellationToken ct)
     {
         var answered = 0;
-        foreach (var sonarr in sonarrs.Where(s => !down.Contains(s)))
+        foreach (var sonarr in sonarrs.Where(s => !down.ContainsKey(s)))
         {
-            var shows = await Cached(cache, $"requested-series:{sonarr.BaseUrl}:{tvdbId}", ListsFor, t => arr.GetSeriesByTvdbIdAsync(sonarr, tvdbId, t), ct);
+            var shows = await Cached(cache, $"requested-series:{sonarr.BaseUrl}:{tvdbId}", TitleAnswersFor, t => arr.GetSeriesByTvdbIdAsync(sonarr, tvdbId, t), ct);
             answered += shows is null ? 0 : 1;
             if (shows is null)
             {
-                down.Add(sonarr);
+                down.TryAdd(sonarr, true);
             }
 
             if (shows is not [var show, ..])
@@ -334,7 +358,7 @@ public static class RequestRequested
     /// One call, kept a little while (dropped by a request or an unrequest); null when it failed or took too long, which
     /// isn't kept, so the next page asks again.
     /// </summary>
-    private static async Task<T?> Cached<T>(IMemoryCache cache, string key, TimeSpan ttl, Func<CancellationToken, Task<T>> call, CancellationToken ct) where T : class
+    internal static async Task<T?> Cached<T>(IMemoryCache cache, string key, TimeSpan ttl, Func<CancellationToken, Task<T>> call, CancellationToken ct) where T : class
     {
         if (cache.TryGetValue(key, out T? hit) && hit is not null)
         {

@@ -150,6 +150,26 @@ func TestTunnel(t *testing.T) {
 		t.Fatalf("rebinding request: %v %v", res, err)
 	}
 
+	// With a client token set, only requests that carry it get through: another app on the
+	// phone reaching the port doesn't know it.
+	SetClientToken("app-secret")
+	if res, err := fresh.Get(fmt.Sprintf("http://127.0.0.1:%d/", port)); err != nil || res.StatusCode != http.StatusForbidden {
+		t.Fatalf("request without the token: %v %v", res, err)
+	}
+	wrong, _ := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/", port), nil)
+	wrong.Header.Set(TokenHeader, "guess")
+	if res, err := fresh.Do(wrong); err != nil || res.StatusCode != http.StatusForbidden {
+		t.Fatalf("request with the wrong token: %v %v", res, err)
+	}
+	right, _ := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/", port), nil)
+	right.Header.Set(TokenHeader, "app-secret")
+	if res, err := fresh.Do(right); err != nil || res.StatusCode != http.StatusOK {
+		t.Fatalf("request with the token: %v %v", res, err)
+	} else {
+		res.Body.Close()
+	}
+	SetClientToken("")
+
 	// Asking again while it runs (the app asked twice) gives the same port, at once.
 	if again, err := Start(stateDir, "guest-phone", "", target, controlURL); err != nil || again != port {
 		t.Fatalf("second Start = %d, %v", again, err)
@@ -256,5 +276,19 @@ func TestListenLoopbackPrefersItsPort(t *testing.T) {
 	defer other.Close()
 	if got := other.Addr().(*net.TCPAddr).Port; got == free || got == 0 {
 		t.Fatalf("busy preferred port gave %d", got)
+	}
+}
+
+func TestTokenOK(t *testing.T) {
+	head := []byte("GET / HTTP/1.1\r\nHost: 127.0.0.1:5000\r\nx-flexarr-tunnel: abc\r\n\r\n")
+	if !tokenOK(head, "abc") || !tokenOK(head, "") {
+		t.Fatal("the right token (or none set) should pass")
+	}
+	if tokenOK(head, "abd") || tokenOK([]byte("GET / HTTP/1.1\r\nHost: 127.0.0.1:5000\r\n\r\n"), "abc") {
+		t.Fatal("a wrong or missing token should fail")
+	}
+	// The headers not all here yet: not trusted.
+	if tokenOK([]byte("GET / HTTP/1.1\r\nX-Flexarr-Tunnel: abc\r\n"), "abc") {
+		t.Fatal("an unfinished head should fail")
 	}
 }

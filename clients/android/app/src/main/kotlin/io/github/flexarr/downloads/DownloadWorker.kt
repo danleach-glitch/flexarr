@@ -26,14 +26,27 @@ class DownloadWorker(context: Context, parameters: WorkerParameters) : Coroutine
     override suspend fun doWork(): Result {
         val id = inputData.getString(ID) ?: return Result.failure()
         val transfer = DownloadTransfer(applicationContext, show = { download, status, fraction -> promote(foregroundInfo(download, status, fraction)) })
-        return when (transfer.run(id, runAttemptCount)) {
+        val waits = inputData.getInt(WAITS, 0)
+        // A foreground service on Android 12 on can't be had again from the background, so one that has it keeps it
+        // (and asks after the download as before) rather than come back later without it, for the transfer itself.
+        val mayEnd = { Build.VERSION.SDK_INT < Build.VERSION_CODES.S || !promoted }
+        return when (transfer.run(id, runAttemptCount, waits, mayEnd)) {
             DownloadTransfer.Outcome.Done -> Result.success()
             DownloadTransfer.Outcome.Retry -> Result.retry()
+            // Waiting its turn on the server (a season can for hours): ends, rather than keep the phone awake asking,
+            // and comes back in a few minutes.
+            DownloadTransfer.Outcome.Later -> {
+                onMain { store.later(id, waits) }
+                Result.success()
+            }
         }
     }
 
     /** Set when Android wouldn't let this transfer show as a foreground service: not asked again. */
     private var promotionRefused = false
+
+    /** Set once this transfer shows as a foreground service. */
+    private var promoted = false
 
     /**
      * Shows the transfer as a foreground service, so it can run past Android's ten minutes for background work. Started
@@ -45,6 +58,7 @@ class DownloadWorker(context: Context, parameters: WorkerParameters) : Coroutine
         if (promotionRefused) return
         try {
             setForeground(info)
+            promoted = true
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -70,5 +84,7 @@ class DownloadWorker(context: Context, parameters: WorkerParameters) : Coroutine
 
     companion object {
         const val ID = "id"
+        /** How many times it's come back to a download still waiting its turn ([DownloadTransfer.Outcome.Later]). */
+        const val WAITS = "waits"
     }
 }

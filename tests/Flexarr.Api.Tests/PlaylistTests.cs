@@ -70,6 +70,73 @@ public class PlaylistTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApi
     }
 
     [Fact]
+    public async Task MovesAndRemovals_KeepTheOrderAListWould_WithOrWithoutGapsInThePositions()
+    {
+        var music = await SeedAsync();
+        var artist = await SeedArtistAsync(music.Library, 12);
+        var client = Client();
+        var created = await (await client.PostAsJsonAsync(Api("/playlists"), new { name = "Shuffle" })).Content.ReadFromJsonAsync<PlaylistSummaryDto>(Json);
+        (await client.PostAsJsonAsync(Api($"/playlists/{created!.Id}/items"), new { itemIds = new[] { artist } })).EnsureSuccessStatusCode();
+        var expected = (await client.GetFromJsonAsync<PlaylistDetailDto>(Api($"/playlists/{created.Id}"), Json))!.Tracks.Select(t => (t.EntryId, t.Track.Title)).ToList();
+
+        async Task CheckAsync()
+        {
+            var detail = (await client.GetFromJsonAsync<PlaylistDetailDto>(Api($"/playlists/{created.Id}"), Json))!;
+            Assert.Equal(expected, detail.Tracks.Select(t => (t.EntryId, t.Track.Title)));
+            using var scope = factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            Assert.Equal(Enumerable.Range(0, expected.Count), db.PlaylistItems.Where(i => i.PlaylistId == created.Id).OrderBy(i => i.Position).Select(i => i.Position).ToList());
+        }
+
+        async Task MoveAsync(int index, int position)
+        {
+            var entry = expected[index];
+            (await client.PutAsJsonAsync(Api($"/playlists/{created.Id}/items/{entry.EntryId}/position"), new { position })).EnsureSuccessStatusCode();
+            expected.RemoveAt(index);
+            expected.Insert(Math.Clamp(position, 0, expected.Count), entry);
+            await CheckAsync();
+        }
+
+        async Task RemoveAsync(int index)
+        {
+            (await client.DeleteAsync(Api($"/playlists/{created.Id}/items/{expected[index].EntryId}"))).EnsureSuccessStatusCode();
+            expected.RemoveAt(index);
+            await CheckAsync();
+        }
+
+        // From the end to the start and back, within the middle, onto itself, and past either end.
+        await MoveAsync(11, 0);
+        await MoveAsync(0, 11);
+        await MoveAsync(3, 7);
+        await MoveAsync(8, 2);
+        await MoveAsync(5, 5);
+        await MoveAsync(4, 99);
+        await MoveAsync(6, -3);
+        await RemoveAsync(0);
+        await RemoveAsync(5);
+        await RemoveAsync(expected.Count - 1);
+
+        // A track gone from the library leaves a gap: the next change numbers the list again, in the same order.
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var entry = db.PlaylistItems.Single(i => i.Id == expected[3].EntryId);
+            db.PlaylistItems.Remove(entry);
+            db.SaveChanges();
+        }
+
+        expected.RemoveAt(3);
+        await MoveAsync(1, 6);
+        await RemoveAsync(2);
+        await MoveAsync(expected.Count - 1, 0);
+
+        // A missing entry is still not found.
+        Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync(Api($"/playlists/{created.Id}/items/999999"))).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.PutAsJsonAsync(Api($"/playlists/{created.Id}/items/999999/position"), new { position = 0 })).StatusCode);
+        await CheckAsync();
+    }
+
+    [Fact]
     public async Task APlaylist_CanBeRenamed_GivenACover_AndDeleted()
     {
         var music = await SeedAsync();
@@ -122,6 +189,155 @@ public class PlaylistTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApi
         Assert.Equal("music-playlists", browse!.Rows[0].Id);
         Assert.DoesNotContain(samsHome!.Rows, r => r.Id == "music-playlists");
         Assert.Contains(layout!.Home, r => r.Id == "music-playlists");
+    }
+
+    [Fact]
+    public async Task APlaylistsSummary_CountsAndTimesEveryEntry_AndShowsTheFirstFourDistinctCovers()
+    {
+        Guid a1, a2, a5, ownCover;
+        Guid full, empty;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var music = new Library { Name = $"Music {Guid.NewGuid():N}", Type = LibraryType.Music };
+            db.Add(music);
+            var artist = new MediaItem { LibraryId = music.Id, Kind = MediaKind.Artist, Title = "Artist", SortTitle = "artist" };
+            db.Add(artist);
+            MediaItem Album(string title, bool poster)
+            {
+                var album = new MediaItem { LibraryId = music.Id, ParentId = artist.Id, Kind = MediaKind.Album, Title = title, SortTitle = title, PosterUrl = poster ? $"https://covers.example/{title}.jpg" : null };
+                db.Add(album);
+                return album;
+            }
+
+            MediaItem Track(MediaItem album, string title, params double?[] durations)
+            {
+                var track = new MediaItem { LibraryId = music.Id, ParentId = album.Id, Kind = MediaKind.Track, Title = title, SortTitle = title };
+                foreach (var (d, i) in durations.Select((d, i) => (d, i)))
+                {
+                    track.Files.Add(new MediaFile { Path = $"/music/{music.Id}/{title}/{i}.flac", DurationSeconds = d });
+                }
+
+                db.Add(track);
+                return track;
+            }
+
+            var (album1, album2, album3, album4, album5, album6) = (Album("A1", true), Album("A2", true), Album("A3", false), Album("A4", true), Album("A5", true), Album("A6", true));
+            var t1 = Track(album1, "t1", 200);
+            var t2 = Track(album2, "t2", 100, 300); // Two copies: the longer counts. It has a cover of its own.
+            t2.PosterUrl = "https://covers.example/t2.jpg";
+            var t3 = Track(album2, "t3", 200);
+            var t4 = Track(album3, "t4", 50); // No cover anywhere.
+            var t5 = Track(album4, "t5", [null]); // Length unknown.
+            var t6 = Track(album5, "t6", 200);
+            var t7 = Track(album6, "t7", 200);
+            var t8 = Track(album1, "t8", 200);
+            (a1, a2, a5, ownCover) = (album1.Id, album2.Id, album5.Id, t2.Id);
+
+            var playlist = new Playlist { ProfileId = "owner", Name = $"Summary {Guid.NewGuid():N}", UpdatedAt = DateTime.UtcNow.AddYears(1) };
+            var nothing = new Playlist { ProfileId = "owner", Name = $"Empty {Guid.NewGuid():N}", UpdatedAt = DateTime.UtcNow.AddYears(1).AddMinutes(-1) };
+            db.AddRange(playlist, nothing);
+            (full, empty) = (playlist.Id, nothing.Id);
+            // Added out of order: the positions are what count.
+            foreach (var (track, position) in new[] { (t7, 7), (t1, 4), (t8, 0), (t6, 5), (t3, 1), (t5, 6), (t4, 2), (t2, 3) })
+            {
+                db.PlaylistItems.Add(new PlaylistItem { PlaylistId = playlist.Id, MediaItemId = track.Id, Position = position });
+            }
+
+            await db.SaveChangesAsync();
+        }
+
+        var all = await Client().GetFromJsonAsync<List<PlaylistSummaryDto>>(Api("/playlists"), Json);
+        var summary = Assert.Single(all!, p => p.Id == full);
+        Assert.Equal(8, summary.TrackCount);
+        Assert.Equal(200 + 200 + 50 + 300 + 200 + 200 + 0 + 200, summary.DurationSeconds);
+        Assert.Equal([a1, a2, ownCover, a5], summary.Covers.Select(c => Guid.Parse(c.Split('/')[5])));
+        var nothingIn = Assert.Single(all!, p => p.Id == empty);
+        Assert.Equal((0, 0d), (nothingIn.TrackCount, nothingIn.DurationSeconds));
+        Assert.Empty(nothingIn.Covers);
+        // Most recently changed first.
+        Assert.True(all!.FindIndex(p => p.Id == full) < all.FindIndex(p => p.Id == empty));
+        Assert.Equal(summary, (await Client().GetFromJsonAsync<PlaylistDetailDto>(Api($"/playlists/{full}"), Json))!.Summary with { Covers = summary.Covers });
+    }
+
+    [Fact]
+    public async Task ARequest_NamesUpTo500ThingsAtATime()
+    {
+        var music = await SeedAsync();
+        var client = Client();
+        var name = $"Over and over {Guid.NewGuid():N}";
+
+        var tooMany = await client.PostAsJsonAsync(Api("/playlists"), new { name, itemIds = Enumerable.Repeat(music.Pulp, PlaylistEndpoints.MaxIdsPerRequest + 1) });
+        Assert.Equal(HttpStatusCode.BadRequest, tooMany.StatusCode);
+        Assert.Contains("up to 500", await tooMany.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.DoesNotContain(await client.GetFromJsonAsync<List<PlaylistSummaryDto>>(Api("/playlists"), Json) ?? [], p => p.Name == name);
+
+        // 500 is fine, and a playlist may still repeat: Pulp's three tracks, 500 times.
+        var created = await (await client.PostAsJsonAsync(Api("/playlists"), new { name, itemIds = Enumerable.Repeat(music.Pulp, PlaylistEndpoints.MaxIdsPerRequest) }))
+            .Content.ReadFromJsonAsync<PlaylistSummaryDto>(Json);
+        Assert.Equal(1500, created!.TrackCount);
+
+        var more = await client.PostAsJsonAsync(Api($"/playlists/{created.Id}/items"), new { itemIds = Enumerable.Repeat(music.Tender, PlaylistEndpoints.MaxIdsPerRequest + 1) });
+        Assert.Equal(HttpStatusCode.BadRequest, more.StatusCode);
+        Assert.Contains("up to 500", await more.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Equal(1500, (await client.GetFromJsonAsync<PlaylistDetailDto>(Api($"/playlists/{created.Id}"), Json))!.Summary.TrackCount);
+    }
+
+    [Fact]
+    public async Task APlaylist_HoldsUpTo10000Tracks_HoweverTheyreAsked()
+    {
+        var music = await SeedAsync();
+        var prolific = await SeedArtistAsync(music.Library, tracks: 25);
+        var client = Client();
+        var name = $"Everything {Guid.NewGuid():N}";
+
+        // One artist named 500 times is 12,500 tracks: refused whole, with nothing made.
+        var tooMany = await client.PostAsJsonAsync(Api("/playlists"), new { name, itemIds = Enumerable.Repeat(prolific, 500) });
+        Assert.Equal(HttpStatusCode.BadRequest, tooMany.StatusCode);
+        Assert.Contains("up to 10,000 tracks", await tooMany.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.DoesNotContain(await client.GetFromJsonAsync<List<PlaylistSummaryDto>>(Api("/playlists"), Json) ?? [], p => p.Name == name);
+
+        // 400 times is 10,000 exactly, which fits.
+        var created = await (await client.PostAsJsonAsync(Api("/playlists"), new { name, itemIds = Enumerable.Repeat(prolific, 400) })).Content.ReadFromJsonAsync<PlaylistSummaryDto>(Json);
+        Assert.Equal(PlaylistEndpoints.MaxTracks, created!.TrackCount);
+
+        // Full: one more track doesn't go in, nor does an album.
+        foreach (var id in new[] { music.Tender, music.DifferentClass })
+        {
+            var full = await client.PostAsJsonAsync(Api($"/playlists/{created.Id}/items"), new { itemIds = new[] { id } });
+            Assert.Equal(HttpStatusCode.BadRequest, full.StatusCode);
+            Assert.Contains("up to 10,000 tracks", await full.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        }
+
+        // Adding what it already has, skipping duplicates, is still nothing to add rather than an error.
+        var skipped = await (await client.PostAsJsonAsync(Api($"/playlists/{created.Id}/items"), new { itemIds = Enumerable.Repeat(prolific, 500), skipDuplicates = true }))
+            .Content.ReadFromJsonAsync<PlaylistAddedDto>(Json);
+        Assert.Equal(0, skipped!.Added);
+        Assert.Equal(PlaylistEndpoints.MaxTracks, skipped.Summary.TrackCount);
+
+        // With one taken out there's room for one, and not for two.
+        var entry = (await client.GetFromJsonAsync<PlaylistDetailDto>(Api($"/playlists/{created.Id}"), Json))!.Tracks[0].EntryId;
+        (await client.DeleteAsync(Api($"/playlists/{created.Id}/items/{entry}"))).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync(Api($"/playlists/{created.Id}/items"), new { itemIds = new[] { music.DifferentClass } })).StatusCode);
+        var one = await (await client.PostAsJsonAsync(Api($"/playlists/{created.Id}/items"), new { itemIds = new[] { music.Tender } })).Content.ReadFromJsonAsync<PlaylistAddedDto>(Json);
+        Assert.Equal((1, PlaylistEndpoints.MaxTracks), (one!.Added, one.Summary.TrackCount));
+    }
+
+    /// <summary>An artist with one album of <paramref name="tracks"/> tracks.</summary>
+    private async Task<Guid> SeedArtistAsync(Guid library, int tracks)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var artist = new MediaItem { LibraryId = library, Kind = MediaKind.Artist, Title = "Prolific", SortTitle = "prolific" };
+        var album = new MediaItem { LibraryId = library, ParentId = artist.Id, Kind = MediaKind.Album, Title = "Box Set", SortTitle = "box set", Year = 2001 };
+        db.AddRange(artist, album);
+        for (var i = 1; i <= tracks; i++)
+        {
+            db.Add(new MediaItem { LibraryId = library, ParentId = album.Id, Kind = MediaKind.Track, Title = $"Track {i}", SortTitle = SortTitle.ForNumber(i), TrackNumber = i });
+        }
+
+        await db.SaveChangesAsync();
+        return artist.Id;
     }
 
     private HttpClient Client(string? profileToken = null)

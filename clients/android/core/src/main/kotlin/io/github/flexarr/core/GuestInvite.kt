@@ -18,6 +18,7 @@ import java.math.BigInteger
 import java.net.ConnectException
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
+import java.security.MessageDigest
 import java.security.SecureRandom
 import java.security.interfaces.ECPrivateKey
 import java.security.interfaces.ECPublicKey
@@ -179,12 +180,24 @@ interface LoopbackTunnel {
     /** Nothing was listening on [failed]: starts it again, and gives the port it listens on now. */
     fun restart(failed: Int): Int
 
+    /**
+     * What the tunnel asks each connection for ([TOKEN_HEADER]), so another app on the phone can't use its port; null
+     * when it asks for nothing.
+     */
+    val token: String? get() = null
+
     companion object {
-        /** Sends loopback requests to [current]'s port, once it's up, and starts it again once if it had gone. */
+        /** The header the token goes in (the tunnel's TokenHeader). */
+        const val TOKEN_HEADER = "X-Flexarr-Tunnel"
+
+        /**
+         * Sends loopback requests to [current]'s port, once it's up, with its token, and starts it again once if it had
+         * gone.
+         */
         fun interceptor(current: () -> LoopbackTunnel?): Interceptor = Interceptor { chain ->
-            val request = chain.request()
             val tunnel = current()
-            if (tunnel == null || request.url.host != "127.0.0.1") return@Interceptor chain.proceed(request)
+            if (tunnel == null || chain.request().url.host != "127.0.0.1") return@Interceptor chain.proceed(chain.request())
+            val request = tunnel.token?.let { chain.request().newBuilder().header(TOKEN_HEADER, it).build() } ?: chain.request()
             val port = tunnel.port()
             try {
                 chain.proceed(request.toPort(port))
@@ -204,8 +217,8 @@ interface LoopbackTunnel {
  * and opens it. As FlexarrKit's GuestTvCode.
  */
 class GuestTvCode(
-    /** "ABCDEFGH", as the relay keeps it. */
-    val code: String = randomCode(),
+    /** "ABCDEFGH", as the relay keeps it: made from the public key ([codeFor]), so the server can tell the key is this TV's. */
+    val code: String,
     /** Proves to the relay that this TV is the one collecting. */
     val secret: String = randomSecret(),
     private val privateKey: ECPrivateKey,
@@ -296,19 +309,29 @@ class GuestTvCode(
         private val jsonType = "application/json".toMediaType()
         private val random = SecureRandom()
 
-        /** A new code with a fresh key pair. */
+        /** A new code with a fresh key pair (so a code that's taken is followed by a new key, and so a new code). */
         fun create(): GuestTvCode {
             val pair = KeyPairGenerator.getInstance("EC").apply { initialize(ECGenParameterSpec("secp256r1"), random) }.generateKeyPair()
-            return GuestTvCode(privateKey = pair.private as ECPrivateKey, publicKeyValue = pair.public as ECPublicKey)
+            val public = pair.public as ECPublicKey
+            return GuestTvCode(code = codeFor(Base64.getEncoder().encodeToString(encode(public))), privateKey = pair.private as ECPrivateKey, publicKeyValue = public)
         }
 
         /** A code from a key pair given as raw bytes (the private scalar, 32 bytes, and the X9.63 public key): tests. */
-        fun fromRawKeys(privateKey: ByteArray, publicKey: ByteArray, code: String = randomCode(), secret: String = randomSecret()): GuestTvCode {
+        fun fromRawKeys(privateKey: ByteArray, publicKey: ByteArray, code: String = codeFor(Base64.getEncoder().encodeToString(publicKey)), secret: String = randomSecret()): GuestTvCode {
             val private = KeyFactory.getInstance("EC").generatePrivate(ECPrivateKeySpec(BigInteger(1, privateKey), p256)) as ECPrivateKey
             return GuestTvCode(code, secret, private, decodePublicKey(publicKey))
         }
 
-        fun randomCode(): String = String(CharArray(8) { ALPHABET[random.nextInt(ALPHABET.length)] })
+        /**
+         * The code made from [publicKey] (base64, exactly as sent to the relay), as docs/remote-guests.md ("The code proves
+         * the key") and the server's GuestTvCodes: seven characters from its SHA-256, then a check character.
+         */
+        fun codeFor(publicKey: String): String {
+            val hash = MessageDigest.getInstance("SHA-256").digest(publicKey.toByteArray(Charsets.UTF_8))
+            val first = CharArray(7) { ALPHABET[(hash[it].toInt() and 0xFF) % ALPHABET.length] }
+            val check = first.withIndex().sumOf { (i, c) -> (i + 1) * ALPHABET.indexOf(c) } % ALPHABET.length
+            return String(first) + ALPHABET[check]
+        }
 
         /** 32 random bytes, base64url without padding (43 characters). */
         fun randomSecret(): String = Base64.getUrlEncoder().withoutPadding().encodeToString(ByteArray(32).also(random::nextBytes))

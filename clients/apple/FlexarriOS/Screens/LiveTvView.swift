@@ -59,7 +59,8 @@ struct LiveTvView: View {
                 } else if showsGuide {
                     VStack(spacing: 0) {
                         chips.padding(.vertical, 6)
-                        LiveGuideView(channels: shown, order: order, onFavourite: { setFavourite($0, !$0.isFavourite) })
+                        LiveGuideView(channels: shown, favouritesOnly: filter == .favourites, order: order,
+                                      onFavourite: { setFavourite($0, !$0.isFavourite) })
                     }
                 } else {
                     list

@@ -4,7 +4,7 @@ import {
   createLibrary,
   deleteLibrary,
   getAllLibraries,
-  getLibraryHealth,
+  getLibraryHealthScore,
   getPodcastCountries,
   getSettings,
   saveSettings,
@@ -91,8 +91,8 @@ export function LibrariesSection() {
 
 /** Library health and the Plex import, each a page of its own, with how things stand now. */
 function LibraryTools() {
-  const health = useApi(getLibraryHealth, [])
-  const score = health.data?.score
+  const health = useApi(getLibraryHealthScore, [])
+  const score = health.data
   return (
     <SettingsGroup title={t('Tools')}>
       <SettingLink

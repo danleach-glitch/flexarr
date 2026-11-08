@@ -109,6 +109,167 @@ public sealed class TranscodeSessionTests : IDisposable
         Assert.NotNull(await session.GetSegmentAsync(1, CancellationToken.None));
     }
 
+    /// <summary>
+    /// Stands in for ffmpeg: notes what each run was asked, writes <paramref name="segments"/> segments from the one it
+    /// was started at, all at once (its head start), then keeps going as ffmpeg would at its pace.
+    /// </summary>
+    private string PacedFfmpeg(string runs, int segments)
+    {
+        var ffmpeg = Path.Combine(_cache, "fake-ffmpeg");
+        File.WriteAllText(ffmpeg, $$"""
+            #!/bin/sh
+            echo "$*" >> "{{runs}}"
+            start=0; previous=""
+            for arg; do [ "$previous" = "-start_number" ] && start=$arg; previous=$arg; done
+            dir=$(dirname "$previous")
+            printf '#EXTM3U\n' > "$dir/list"
+            i=$start; end=$((start + {{segments}})); while [ $i -lt $end ]; do echo x > "$dir/seg$i.ts"; echo "seg$i.ts" >> "$dir/list"; i=$((i+1)); done
+            mv "$dir/list" "$previous"
+            sleep 30
+            """);
+        if (!OperatingSystem.IsWindows())
+        {
+            File.SetUnixFileMode(ffmpeg, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+
+        return ffmpeg;
+    }
+
+    [Fact]
+    public async Task AStreamWatchedFasterFromTheStart_IsMadeAtThatSpeed()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var runs = Path.Combine(_cache, "runs");
+        var settings = new TranscodeSettings { CacheDirectory = _cache, FfmpegPath = PacedFfmpeg(runs, 40) };
+        await using var session = new TranscodeSession("fast", "/in.mkv", 3600, Plan, settings, NullLogger.Instance) { Speed = 1.5 };
+
+        Assert.NotNull(await session.GetSegmentAsync(0, CancellationToken.None));
+
+        Assert.Contains("-readrate 1.5 -readrate_initial_burst 180 ", Assert.Single(File.ReadAllLines(runs)), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AViewerWhoSpeedsUpAndCatchesUpWithTheStream_GetsItMadeAtTheirSpeedFromThere()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        // Each run makes four minutes at once: more than the head start, so by its last segment it's being paced.
+        var runs = Path.Combine(_cache, "runs");
+        var settings = new TranscodeSettings { CacheDirectory = _cache, FfmpegPath = PacedFfmpeg(runs, 40) };
+        await using var session = new TranscodeSession("faster", "/in.mkv", 3600, Plan, settings, NullLogger.Instance);
+
+        Assert.NotNull(await session.GetSegmentAsync(0, CancellationToken.None));
+        Assert.NotNull(await session.GetSegmentAsync(39, CancellationToken.None));
+        Assert.Contains("-readrate 1.0 ", Assert.Single(File.ReadAllLines(runs)), StringComparison.Ordinal);
+
+        // Sped up: what's already made is still served as it is.
+        session.Speed = 2;
+        Assert.NotNull(await session.GetSegmentAsync(20, CancellationToken.None));
+        Assert.Single(File.ReadAllLines(runs));
+
+        // The next segment isn't made yet, and at real time never would be in time: made from there at twice the speed.
+        Assert.NotNull(await session.GetSegmentAsync(40, CancellationToken.None));
+        var again = File.ReadAllLines(runs);
+        Assert.Equal(2, again.Length);
+        Assert.Contains("-readrate 2 -readrate_initial_burst 180 ", again[1], StringComparison.Ordinal);
+        Assert.Contains("-start_number 40 ", again[1], StringComparison.Ordinal);
+
+        // Now at the viewer's pace, catching up with it again just waits for it, as before.
+        Assert.NotNull(await session.GetSegmentAsync(79, CancellationToken.None));
+        using var soon = new CancellationTokenSource(TimeSpan.FromMilliseconds(700));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => session.GetSegmentAsync(80, soon.Token));
+        Assert.Equal(2, File.ReadAllLines(runs).Length);
+    }
+
+    [Fact]
+    public async Task AViewerAtNormalSpeedOrSlower_WhoCatchesUpWithTheStream_JustWaitsForIt_AsBefore()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var runs = Path.Combine(_cache, "runs");
+        var settings = new TranscodeSettings { CacheDirectory = _cache, FfmpegPath = PacedFfmpeg(runs, 40) };
+        await using var session = new TranscodeSession("normal", "/in.mkv", 3600, Plan, settings, NullLogger.Instance);
+
+        Assert.NotNull(await session.GetSegmentAsync(0, CancellationToken.None));
+        Assert.NotNull(await session.GetSegmentAsync(39, CancellationToken.None));
+
+        // Past the head start and at the end of what's made: the next segment is waited for, never a reason to start again.
+        using (var soon = new CancellationTokenSource(TimeSpan.FromMilliseconds(500)))
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => session.GetSegmentAsync(40, soon.Token));
+        }
+
+        session.Speed = 0.5;
+        using (var soon = new CancellationTokenSource(TimeSpan.FromMilliseconds(500)))
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => session.GetSegmentAsync(40, soon.Token));
+        }
+
+        Assert.Contains("-readrate 1.0 ", Assert.Single(File.ReadAllLines(runs)), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AViewerWhoSlowsDownAgain_KeepsTheStreamTheyHave()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var runs = Path.Combine(_cache, "runs");
+        var settings = new TranscodeSettings { CacheDirectory = _cache, FfmpegPath = PacedFfmpeg(runs, 40) };
+        await using var session = new TranscodeSession("slower", "/in.mkv", 3600, Plan, settings, NullLogger.Instance) { Speed = 2 };
+
+        Assert.NotNull(await session.GetSegmentAsync(0, CancellationToken.None));
+        Assert.NotNull(await session.GetSegmentAsync(39, CancellationToken.None));
+
+        // Back to normal speed, then up again to what the stream is already made at: neither starts it again.
+        session.Speed = 1;
+        using (var soon = new CancellationTokenSource(TimeSpan.FromMilliseconds(500)))
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => session.GetSegmentAsync(40, soon.Token));
+        }
+
+        session.Speed = 2;
+        using (var soon = new CancellationTokenSource(TimeSpan.FromMilliseconds(500)))
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => session.GetSegmentAsync(40, soon.Token));
+        }
+
+        Assert.Contains("-readrate 2 ", Assert.Single(File.ReadAllLines(runs)), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SpeedingUpInsideTheHeadStart_DoesntStartTheStreamAgain()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        // A minute made so far: ffmpeg is still on its head start, and making it as fast as it can.
+        var runs = Path.Combine(_cache, "runs");
+        var settings = new TranscodeSettings { CacheDirectory = _cache, FfmpegPath = PacedFfmpeg(runs, 10) };
+        await using var session = new TranscodeSession("early", "/in.mkv", 3600, Plan, settings, NullLogger.Instance);
+
+        Assert.NotNull(await session.GetSegmentAsync(0, CancellationToken.None));
+        session.Speed = 2;
+
+        using var soon = new CancellationTokenSource(TimeSpan.FromMilliseconds(700));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => session.GetSegmentAsync(10, soon.Token));
+        Assert.Single(File.ReadAllLines(runs));
+    }
+
     [Fact]
     public async Task WithoutASoftwareEncoder_AFailingHardwareEncoderJustFails()
     {

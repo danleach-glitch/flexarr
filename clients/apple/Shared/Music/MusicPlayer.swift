@@ -1367,7 +1367,8 @@ final class MusicPlayer {
             lastNowPlayingTime = Date()
             let chapterChanged = isBook && nowPlayingChapter != chapterIndex
             if chapterChanged { pushNowPlaying() }
-            nowPlaying.setTime(position: position, duration: duration, rate: isPlaying ? playRate : 0, defaultRate: playRate)
+            // The system counts the time on by itself: told again only when that count has drifted.
+            nowPlaying.keepTime(position: position, duration: duration, rate: isPlaying ? playRate : 0, defaultRate: playRate)
         }
         watchShakes()
         if isPlaying, Date().timeIntervalSince(lastReport) >= Self.reportInterval { report(paused: false) }

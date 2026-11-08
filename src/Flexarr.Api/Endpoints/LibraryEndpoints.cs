@@ -37,12 +37,12 @@ public static class LibraryEndpoints
             // A profile with an age limit isn't shown libraries with nothing in them for it: a child's menu is what they can watch.
             var limited = db.IsLimited();
             return InOrder(libraries, order).Where(l => !(liveTv && RecordingsLibrary.Is(l)) && (!limited || counts.GetValueOrDefault(l.Id) > 0))
-                .Select(l => ToDto(l, counts.GetValueOrDefault(l.Id), progress)).ToList();
+                .Select(l => ToDto(l, counts.GetValueOrDefault(l.Id), progress, profile.IsMainProfile)).ToList();
         });
 
-        group.MapGet("/{id:guid}", async (Guid id, FlexarrDbContext db, ScanProgress progress, CancellationToken ct) =>
+        group.MapGet("/{id:guid}", async (Guid id, FlexarrDbContext db, ScanProgress progress, CurrentProfile profile, CancellationToken ct) =>
             await db.Libraries.Include(l => l.Folders).FirstOrDefaultAsync(l => l.Id == id, ct) is { } library
-                ? Results.Ok(ToDto(library, await db.MediaItems.CountAsync(i => i.LibraryId == id && i.ParentId == null, ct), progress))
+                ? Results.Ok(ToDto(library, await db.MediaItems.CountAsync(i => i.LibraryId == id && i.ParentId == null, ct), progress, profile.IsMainProfile))
                 : Results.NotFound());
 
         group.MapPost("/", async (LibraryRequest request, FlexarrDbContext db, ILibraryScanQueue queue, ScanProgress progress, CancellationToken ct) =>
@@ -167,10 +167,12 @@ public static class LibraryEndpoints
             .Select(r => r.l).ToList();
     }
 
-    private static LibraryDto ToDto(Library library, int itemCount, ScanProgress progress)
+    /// <param name="paths">False for any profile but the main one: where the library's folders are on the server's disk, and the
+    /// file a scan has reached, are left empty (the fields stay, as apps read them).</param>
+    private static LibraryDto ToDto(Library library, int itemCount, ScanProgress progress, bool paths = true)
     {
-        var scan = progress.Current is { } p && p.LibraryId == library.Id ? new ScanStatusDto(p.Path, p.Total, p.Processed) : null;
-        return new LibraryDto(library.Id, library.Name, library.Type, library.Folders.Select(f => f.Path).Order().ToList(),
+        var scan = progress.Current is { } p && p.LibraryId == library.Id ? new ScanStatusDto(paths ? p.Path : "", p.Total, p.Processed) : null;
+        return new LibraryDto(library.Id, library.Name, library.Type, paths ? library.Folders.Select(f => f.Path).Order().ToList() : [],
             itemCount, library.LastScannedAt, scan, library.FineForKids);
     }
 

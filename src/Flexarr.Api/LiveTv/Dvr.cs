@@ -577,7 +577,11 @@ public sealed partial class DvrScheduler(IServiceScopeFactory scopes, DvrService
 
         var titles = rules.Select(r => r.Title.Trim().ToUpperInvariant()).ToHashSet();
         var until = now + Ahead;
-        var programmes = await db.LiveProgrammes.AsNoTracking().Where(p => p.End > now && p.Start < until).ToListAsync(ct);
+        // The titles first (a big guide is hundreds of thousands of programmes), then only the series' showings whole.
+        var matching = (await db.LiveProgrammes.AsNoTracking().Where(p => p.End > now && p.Start < until).Select(p => new { p.Id, p.Title }).ToListAsync(ct))
+            .Where(p => titles.Contains(p.Title.Trim().ToUpperInvariant())).Select(p => p.Id).ToList();
+        // As one JSON parameter: a series on many channels can match more showings than SQLite takes parameters (32,766).
+        var programmes = matching.Count == 0 ? [] : await db.LiveProgrammes.AsNoTracking().Where(p => EF.Parameter(matching).Contains(p.Id)).OrderBy(p => p.Id).ToListAsync(ct);
         var channels = await db.LiveChannels.AsNoTracking().ToDictionaryAsync(c => c.Id, ct);
         var guide = programmes.Where(p => titles.Contains(p.Title.Trim().ToUpperInvariant()) && channels.ContainsKey(p.ChannelId))
             .Select(p => new GuideShowing(p, channels[p.ChannelId])).ToList();

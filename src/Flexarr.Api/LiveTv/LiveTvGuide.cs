@@ -53,6 +53,12 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
 
     private const int Batch = 5_000;
 
+    /// <summary>
+    /// The guide last written to each database (by its connection string): a hash of the downloaded guide and of the
+    /// channels it was read for, and whether anything was left out for being too far ahead or past the limit.
+    /// </summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string Hash, bool CutAhead)> Written = new(StringComparer.Ordinal);
+
     /// <param name="onlyIfChanged">
     /// A quick check: the channel list is read, and the guide only fetched again when channels came, went or moved to
     /// another guide entry.
@@ -159,10 +165,21 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
         var until = now + KeptAhead;
 
         var fresh = new List<LiveProgramme>();
-        await using (var guide = await client.OpenGuideAsync(account, ct))
+        // What was read, and for which channels: the same again means the same guide, give or take what's slipped into
+        // the past since (see below).
+        using var hash = System.Security.Cryptography.IncrementalHash.CreateHash(System.Security.Cryptography.HashAlgorithmName.SHA256);
+        foreach (var (guideId, ids) in byGuideId.OrderBy(g => g.Key, StringComparer.Ordinal))
+        {
+            hash.AppendData(System.Text.Encoding.UTF8.GetBytes($"{guideId}={string.Join(',', ids.Order())};"));
+        }
+
+        var cutAhead = false;
+        var complete = false;
+        await using (var guide = new HashingStream(await client.OpenGuideAsync(account, ct), hash))
         {
             await foreach (var p in XmltvParser.ProgrammesAsync(guide, ct))
             {
+                cutAhead |= p.Start > until;
                 if (p.End < from || p.Start > until || !byGuideId.TryGetValue(p.ChannelId, out var ids))
                 {
                     continue;
@@ -189,11 +206,31 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
                 if (fresh.Count >= MaxProgrammes)
                 {
                     LogGuideCut(MaxProgrammes);
+                    cutAhead = true;
                     break;
                 }
             }
+
+            if (!cutAhead)
+            {
+                // Read to the end, so the hash is of the whole guide.
+                await guide.CopyToAsync(Stream.Null, ct);
+                complete = true;
+            }
         }
 
+        // The same guide as last time, for the same channels, with nothing left out at the far end: what's written
+        // already is what would be written again, but for programmes that have since slipped out of the past it keeps,
+        // which go on their own. Rewriting it all would hold the database's one write lock for nothing.
+        var key = db.Database.GetConnectionString() ?? "";
+        var read = Convert.ToHexString(hash.GetHashAndReset());
+        if (complete && Written.TryGetValue(key, out var last) && last.Hash == read && !last.CutAhead)
+        {
+            await db.LiveProgrammes.Where(p => p.End < from).ExecuteDeleteAsync(ct);
+            return await db.LiveProgrammes.CountAsync(ct);
+        }
+
+        Written.TryRemove(key, out _);
         fresh = LiveSchedule.Tidy(fresh);
 
         // Swapped in one go, so the guide is never half there.
@@ -207,7 +244,63 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
         }
 
         await transaction.CommitAsync(ct);
+        if (complete)
+        {
+            Written[key] = (read, cutAhead);
+        }
+
         return fresh.Count;
+    }
+
+    /// <summary>Passes what's read through <paramref name="hash"/> on its way.</summary>
+    private sealed class HashingStream(Stream inner, System.Security.Cryptography.IncrementalHash hash) : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            var read = inner.Read(buffer, offset, count);
+            hash.AppendData(buffer, offset, read);
+            return read;
+        }
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            var read = await inner.ReadAsync(buffer, cancellationToken);
+            hash.AppendData(buffer.Span[..read]);
+            return read;
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override void Flush()
+        {
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                inner.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
+
+        public override async ValueTask DisposeAsync()
+        {
+            await inner.DisposeAsync();
+            await base.DisposeAsync();
+        }
     }
 
     private static string? Cut(string? text, int length) => text is null || text.Length <= length ? text : text[..length];

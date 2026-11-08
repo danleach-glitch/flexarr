@@ -62,13 +62,13 @@ public static class ImageEndpoints
             // "wide": the backdrop with the title's logo on it (the Apple TV's Top Shelf), at the backdrop's ?v=.
             if (kind == "wide")
             {
-                if (await SourceAsync(db, memory, id, "backdrop", v, ct) is not { Url: { } backdrop })
+                if (await SourceAsync(db, memory, id, "backdrop", v, ct) is not { Url: { } backdrop } backdropSource)
                 {
                     return Results.NotFound();
                 }
 
-                var logo = (await SourceAsync(db, memory, id, "logo", v, ct))?.Url;
-                return await ServeAsync(() => cache.GetWideAsync(backdrop, logo, w, ct), http);
+                var logo = await SourceAsync(db, memory, id, "logo", v, ct);
+                return await ServeAsync(() => cache.GetWideAsync(backdrop, backdropSource.Stamp, logo?.Url, logo?.Stamp, w, ct), http);
             }
 
             if (kind is not ("poster" or "backdrop" or "logo" or "thumb"))
@@ -76,7 +76,9 @@ public static class ImageEndpoints
                 return Results.NotFound();
             }
 
-            return await SourceAsync(db, memory, id, kind, v, ct) is { Url: { } url } ? await ServeAsync(cache, url, w, http, ct) : Results.NotFound();
+            return await SourceAsync(db, memory, id, kind, v, ct) is { Url: { } url } source
+                ? await ServeAsync(() => cache.GetAsync(url, source.Stamp, w, ct), http)
+                : Results.NotFound();
         });
 
         // Artwork for things not in the library yet (Coming soon, downloads). Only images on known artwork hosts, so
@@ -139,7 +141,7 @@ public static class ImageEndpoints
         for (Guid? current = id; current is { } itemId;)
         {
             var item = await db.MediaItems.AsNoTracking().Where(i => i.Id == itemId)
-                .Select(i => new { i.ParentId, i.LibraryId, i.PosterUrl, i.BackdropUrl, i.LogoUrl, i.ThumbUrl, i.Kind, i.MetadataUpdatedAt, i.ArtworkChangedAt })
+                .Select(i => new { i.ParentId, i.LibraryId, i.PosterUrl, i.BackdropUrl, i.LogoUrl, i.ThumbUrl, i.Kind, i.MetadataUpdatedAt, i.ArtworkChangedAt, i.ArtworkStamp })
                 .FirstOrDefaultAsync(ct);
             if (item is null)
             {
@@ -162,14 +164,16 @@ public static class ImageEndpoints
                 return new ImageSource(null, version);
             }
 
-            if (ArtworkUrl.IsLocal(url) && !await InLibraryAsync(db, item.LibraryId, item.Kind, url!, ct))
+            // Stamped artwork is checked for being a link when the cache reads it, not here on every look-up.
+            if (ArtworkUrl.IsLocal(url) && !await InLibraryAsync(db, item.LibraryId, item.Kind, url!, checkLink: item.ArtworkStamp is null, ct))
             {
                 return new ImageSource(null, version);
             }
 
             if (url is not null || kind == "thumb")
             {
-                return new ImageSource(url, version);
+                // Local artwork by the scan's stamp of it, so a cached copy is served without looking at the media drive.
+                return new ImageSource(url, version, ArtworkUrl.IsLocal(url) ? item.ArtworkStamp : null);
             }
 
             current = item.ParentId;
@@ -178,7 +182,8 @@ public static class ImageEndpoints
         return new ImageSource(null, version);
     }
 
-    private sealed record ImageSource(string? Url, string? Version);
+    /// <param name="Stamp">For local artwork, the item's <see cref="MediaItem.ArtworkStamp"/>, when the scan has made one.</param>
+    private sealed record ImageSource(string? Url, string? Version, string? Stamp = null);
 
     /// <summary>Whether a photo's ?v= (seconds) is newer than the one remembered; one that isn't a number never is.</summary>
     internal static bool IsNewer(string? v, string? remembered) =>
@@ -242,7 +247,8 @@ public static class ImageEndpoints
     /// Whether local artwork is a file in one of the library's folders (and, for art inside a media file, music's or a
     /// book's: the scanner takes a book's cover from its first file when the folder has none).
     /// </summary>
-    private static async Task<bool> InLibraryAsync(FlexarrDbContext db, Guid libraryId, MediaKind kind, string url, CancellationToken ct)
+    /// <param name="checkLink">Look at the file for being a link now; false when the image cache will before reading it.</param>
+    private static async Task<bool> InLibraryAsync(FlexarrDbContext db, Guid libraryId, MediaKind kind, string url, bool checkLink, CancellationToken ct)
     {
         if (url.StartsWith("embedded://", StringComparison.Ordinal) && kind is not (MediaKind.Artist or MediaKind.Album or MediaKind.Track or MediaKind.Audiobook))
         {
@@ -250,7 +256,7 @@ public static class ImageEndpoints
         }
 
         // Not a link, which could lead anywhere from inside the library.
-        if (ArtworkUrl.LocalPath(url) is not { Length: > 0 } path || (File.Exists(path) && new FileInfo(path).LinkTarget is not null))
+        if (ArtworkUrl.LocalPath(url) is not { Length: > 0 } path || (checkLink && File.Exists(path) && new FileInfo(path).LinkTarget is not null))
         {
             return false;
         }

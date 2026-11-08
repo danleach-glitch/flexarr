@@ -14,9 +14,9 @@ public class McpTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
 {
     private static Uri Api(string path) => new($"/api/v1{path}", UriKind.Relative);
 
-    private async Task<McpClient> ConnectAsync(string? apiKey = FlexarrApiFactory.ApiKey)
+    private async Task<McpClient> ConnectAsync(string? apiKey = FlexarrApiFactory.ApiKey, FlexarrApiFactory? server = null)
     {
-        var http = factory.CreateClient();
+        var http = (server ?? factory).CreateClient();
         var options = new HttpClientTransportOptions { Endpoint = new Uri(http.BaseAddress!, "/api/v1/mcp"), TransportMode = HttpTransportMode.StreamableHttp };
         if (apiKey is not null)
         {
@@ -135,6 +135,46 @@ public class McpTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
 
         Assert.True(played.IsError);
         Assert.Contains("audiobooks", Assert.IsType<TextContentBlock>(Assert.Single(played.Content)).Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task OnAKidsProfile_TheAssistantSeesAndControlsNoOtherScreens()
+    {
+        await using var server = new FlexarrApiFactory();
+        await server.SetMainPinAsync("4321");
+        var admin = server.CreateClient();
+        admin.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        var tv = (await (await admin.PostAsJsonAsync(Api("/session/device"), new { deviceName = "Family TV" })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
+        var token = (await (await admin.PostAsJsonAsync(Api("/session/device"), new { deviceName = "Ada's tablet" })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString();
+        var ada = (await (await admin.PostAsJsonAsync(Api("/profiles"), new { name = "Ada", maxRatingAge = 8, isKids = true })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
+        var tablet = server.CreateClient();
+        tablet.DefaultRequestHeaders.Add("X-Api-Key", token);
+
+        // As paired (the main profile) it sees both devices and may send them commands; with the kids profile chosen on
+        // it, it sees none and every device tool refuses.
+        await using (var before = await ConnectAsync(token, server))
+        {
+            Assert.Equal(2, Result(await before.CallToolAsync("list_devices", new Dictionary<string, object?>())).GetArrayLength());
+            Assert.NotEqual(true, (await before.CallToolAsync("control_device", new Dictionary<string, object?> { ["deviceId"] = tv, ["action"] = "pause" })).IsError);
+            Assert.NotEqual(true, (await before.CallToolAsync("set_device_sound", new Dictionary<string, object?> { ["deviceId"] = tv, ["nightMode"] = "on" })).IsError);
+        }
+
+        Assert.True((await tablet.PostAsJsonAsync(Api($"/profiles/{ada}/select"), new { })).IsSuccessStatusCode);
+        await using var client = await ConnectAsync(token, server);
+
+        Assert.Equal(0, Result(await client.CallToolAsync("list_devices", new Dictionary<string, object?>())).GetArrayLength());
+        Assert.Equal(0, Result(await client.CallToolAsync("now_playing", new Dictionary<string, object?>())).GetArrayLength());
+        foreach (var (tool, arguments) in new (string, Dictionary<string, object?>)[]
+        {
+            ("control_device", new() { ["deviceId"] = tv, ["action"] = "pause" }),
+            ("set_sleep_timer", new() { ["deviceId"] = tv, ["minutes"] = 5.0 }),
+            ("set_device_sound", new() { ["deviceId"] = tv, ["nightMode"] = "on" }),
+            ("play_on_device", new() { ["deviceId"] = tv, ["itemId"] = Guid.NewGuid(), ["fromBeginning"] = false }),
+            ("watch_channel_on_device", new() { ["deviceId"] = tv, ["channelId"] = Guid.NewGuid() }),
+        })
+        {
+            Assert.True((await client.CallToolAsync(tool, arguments)).IsError, tool);
+        }
     }
 
     [Fact]

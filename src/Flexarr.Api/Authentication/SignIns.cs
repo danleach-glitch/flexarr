@@ -63,6 +63,14 @@ public sealed class SignIn
     /// <summary>The profile chosen on it; null is the main profile. Only the main profile may manage the server.</summary>
     public string? ProfileId { get; set; }
 
+    /// <summary>
+    /// Paired with no profile chosen on it yet (a new TV or phone): while the main profile has a PIN of its own, apps
+    /// that say they can ask who's watching are answered as no profile chosen rather than as the main profile, until
+    /// one is chosen (see <see cref="ApiKeyAuthenticationHandler.ProfileChoiceHeader"/>). False for sign-ins from before
+    /// 0.63, which carry on as the main profile.
+    /// </summary>
+    public bool AwaitsProfile { get; set; }
+
     /// <summary>For a device, what it is, as its app last said; null until an app that says has used it.</summary>
     public DeviceType? DeviceType { get; set; }
 
@@ -78,6 +86,13 @@ public sealed class SignIn
     /// signing people in), and only works from home while that's so.
     /// </summary>
     public string? TailscaleLogin { get; init; }
+
+    /// <summary>
+    /// A browser moved over from the cookie earlier versions gave every browser (see
+    /// <see cref="FlexarrOptions.LegacySignInsUntil"/>). Whoever holds that cookie is given one of these for the asking,
+    /// so for wrong admin PINs it isn't a caller with a count it can't shed (see <see cref="Profiles.PinGuard"/>).
+    /// </summary>
+    public bool FromSharedCookie { get; init; }
 
     /// <summary>
     /// Locked to kids profiles: only they can be chosen on it, until the admin PIN releases it (there, or
@@ -135,7 +150,7 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
 
     /// <summary>Creates a sign-in and returns its token, which is shown once and never stored.</summary>
     public (SignIn SignIn, string Token) Issue(SignInKind kind, string name, NetworkZone zone, string? address, string? profileId = null, bool pinVerified = false,
-        string? tailscaleLogin = null, DeviceType? deviceType = null)
+        string? tailscaleLogin = null, DeviceType? deviceType = null, bool fromSharedCookie = false, bool awaitsProfile = false)
     {
         var token = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
         var now = clock.GetUtcNow().UtcDateTime;
@@ -153,6 +168,8 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
             PinVerified = pinVerified,
             TailscaleLogin = tailscaleLogin,
             DeviceType = deviceType,
+            FromSharedCookie = fromSharedCookie,
+            AwaitsProfile = awaitsProfile && profileId is null,
         };
 
         lock (_lock)
@@ -430,6 +447,7 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
             if (profileId is not null)
             {
                 signIn.ProfileId = profileId;
+                signIn.AwaitsProfile = false;
             }
 
             SaveLocked();
@@ -456,9 +474,10 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
     {
         lock (_lock)
         {
-            if (Loaded().Values.FirstOrDefault(s => s.Id == id) is { } signIn && signIn.ProfileId != profileId)
+            if (Loaded().Values.FirstOrDefault(s => s.Id == id) is { } signIn && (signIn.ProfileId != profileId || signIn.AwaitsProfile))
             {
                 signIn.ProfileId = profileId;
+                signIn.AwaitsProfile = false;
                 SaveLocked();
             }
         }

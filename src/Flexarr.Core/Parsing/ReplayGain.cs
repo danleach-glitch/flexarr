@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace Flexarr.Core.Parsing;
@@ -11,6 +12,29 @@ namespace Flexarr.Core.Parsing;
 public sealed record Loudness(double? TrackGain, double? AlbumGain, double? TrackPeak, double? AlbumPeak)
 {
     public static readonly Loudness Unknown = new(null, null, null, null);
+
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+
+    /// <summary>As it's kept with a track's file (<see cref="Media.MediaFile.Loudness"/>).</summary>
+    public string ToJson() => JsonSerializer.Serialize(this, Json);
+
+    /// <summary>What <see cref="ToJson"/> wrote; null when nothing was kept, or it can't be read.</summary>
+    public static Loudness? FromJson(string? json)
+    {
+        if (string.IsNullOrEmpty(json))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<Loudness>(json, Json);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
 }
 
 /// <summary>

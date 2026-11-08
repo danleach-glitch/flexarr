@@ -76,7 +76,7 @@ The server accepts the redeem only from a tailnet address that `tailscale whois`
 
 ## A TV code
 
-1. The TV makes a P-256 key pair and a random 8-character code, and registers `{code, publicKey}` with the relay (`POST /api/pair`). The relay keeps it for 10 minutes.
+1. The TV makes a P-256 key pair and an 8-character code (random in TV apps before the code proves the key; made from the key since, below), and registers `{code, publicKey}` with the relay (`POST /api/pair`). The relay keeps it for 10 minutes.
 2. The owner types the code into Settings. The server fetches the TV's public key (`GET /api/pair/<code>`), creates an invite and seals the payload:
    - ECDH with a fresh P-256 key;
    - HKDF-SHA256 with `info = "flexarr-tv-invite"`;
@@ -85,7 +85,25 @@ The server accepts the redeem only from a tailnet address that `tailscale whois`
    It posts `{serverPublicKey, sealed}` back (`POST /api/pair/<code>/invite`).
 3. The TV polls (`GET /api/pair/<code>/invite` with its own secret), collects the invite once, opens it and joins as a phone would.
 
-The relay sees public keys and ciphertext only. Whoever runs it could in theory swap the TV's key during those 10 minutes. It's Flexarr's own relay, the code works once, and the owner sees the device join and gets told.
+The relay sees public keys and ciphertext only. With a random code, whoever runs it could in theory swap the TV's key during those 10 minutes. The code made from the key, below, closes that.
+
+### The code proves the key
+
+A TV app makes its code from its public key, so the server can tell the key the relay hands back is the TV's:
+
+- `h` = SHA-256 of the UTF-8 bytes of `publicKey`, the base64 string exactly as the TV sends it to the relay.
+- Characters 1 to 7: `ALPHABET[h[i] % 31]` for `i` = 0 to 6, where `ALPHABET` = `ABCDEFGHJKMNPQRSTUVWXYZ23456789` (`GuestTvCodes.Alphabet`, `relay/api/pair.js`).
+- Character 8, the check: `ALPHABET[(sum of (i + 1) × index(cᵢ) for i = 0 to 6) % 31]`.
+
+When the code typed ends in its check character, the server refuses a key that doesn't make it ("That code doesn’t match the device showing it"), and the relay won't keep a code under a key that doesn't make it (409 `CodeTaken`, so an older TV app whose random code ends in its check character by chance just makes another). A code that fails the check comes from a TV app before this and is taken as before. If the code is already taken, the TV makes a new key.
+
+Test vectors (`relay/test/pair.test.js` and `RemoteGuestTests` check the same ones):
+
+| publicKey | code |
+|---|---|
+| `BAabxf2q9hMu/dxG+nGp5nYWsRDth260mBqx6U/8TU9miOPz86o/f4xuMSzrZ/YVxS1EHcdBY/JxFPKujcWATRA=` | `P5GSPMQP` |
+| `BJeO6XNfhIDBbIdQxtPpYlj3Cjk7nlUzjg+xJFmk20ChvzfI1jdWs2T5CgsWu1MmBW4iXHxrMfK9/MTDb9Nb1mM=` | `VFAZC453` |
+| `BBikfwYmLGipShyfrqxMWA/kv+NWBDrgrZotgMESONlNQfZ0um1pjfF8J+1iarUDMOzmd5+F9czYFE5xxV+pIvo=` | `7EAR565J` |
 
 ## Guests on the server
 
@@ -133,7 +151,9 @@ have them). When they're turned on by default:
 - the Apple apps: `FLEXARR_GUEST_INVITES` defaults to `YES` in `clients/apple/project.yml` (or build with
   `FLEXARR_GUEST_INVITES=YES`, or launch with `-FlexarrGuestInvites YES` to try one);
 - Android: `flexarr.guestInvites` defaults to true in `clients/android/app/build.gradle.kts` (or build with
-  `-Pflexarr.guestInvites=true`);
+  `-Pflexarr.guestInvites=true`). The same switch packages the tunnel: a release build without it leaves the Go
+  library (`libgojni.so`, about 18 MB on each device) out and can't start a guest's tunnel, so the build in the
+  stores has to be one made with it on before invites are;
 
 - add `share-with-family` to `docs/guide/index.json` (after `away-from-home`), link it from `away-from-home.md` and the
   FAQ, and run `make guide`;

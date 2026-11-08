@@ -98,6 +98,13 @@ public static partial class RequestEndpoints
     ];
 
     /// <summary>
+    /// How long Seerr's lists are kept: they're the same for everyone and change over hours, so visits close together
+    /// (a title's page and back) share one fetch. What Seerr says of a title in them (asked for, in) can change
+    /// sooner: a request or an unrequest made here drops them.
+    /// </summary>
+    private static readonly TimeSpan ListsFor = TimeSpan.FromMinutes(5);
+
+    /// <summary>
     /// TMDB's popular shows are mostly long-running ones (Grey's Anatomy, Friends), so that row keeps to shows that
     /// started in the last year, up to today so it isn't filled with ones yet to air.
     /// </summary>
@@ -114,10 +121,11 @@ public static partial class RequestEndpoints
         api.MapMusicRequestEndpoints(group);
 
         // Whether requests are set up, so clients can hide the feature otherwise. To a profile with an age limit, they aren't.
-        api.MapGet("/requests/status", async (IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, FlexarrDbContext db, CancellationToken ct) =>
+        api.MapGet("/requests/status", async (IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, FlexarrDbContext db,
+            Microsoft.Extensions.Caching.Memory.IMemoryCache cache, CancellationToken ct) =>
         {
             var instance = db.IsLimited() ? null : options.CurrentValue.Seerr?.Instance;
-            return new { configured = instance is not null, reachable = instance is not null && await SafePingAsync(seerr, instance, ct) };
+            return new { configured = instance is not null, reachable = instance is not null && await SafePingAsync(seerr, instance, cache, ct) };
         }).WithTags("Requests");
 
         // The libraries this profile's requests could go to (every one, for the admin choosing for others).
@@ -141,41 +149,44 @@ public static partial class RequestEndpoints
         });
 
         group.MapGet("/discover", async (IOptionsMonitor<FlexarrOptions> options, SeerrClient seerr, FlexarrDbContext db, Watchlist.WatchlistService watchlist,
-            Trakt.TraktRecommendations trakt, CurrentProfile current, CancellationToken ct) =>
+            Trakt.TraktRecommendations trakt, CurrentProfile current, Microsoft.Extensions.Caching.Memory.IMemoryCache cache, CancellationToken ct) =>
         {
             if (options.CurrentValue.Seerr?.Instance is not { } instance)
             {
                 return Results.Ok(Array.Empty<ExternalRowDto>());
             }
 
-            var library = await LibraryIndexAsync(db, ct);
             var hidden = await LibraryVisibility.HiddenTypesAsync(db, ct);
             var wanted = await watchlist.KeysAsync(current.Id, ct);
             var rows = new List<ExternalRowDto>();
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
-            // Trakt's picks are worked out alongside Seerr's lists (they only use Seerr and Trakt from here on).
-            var picksTask = trakt.RowAsync(current.Id, instance, library, wanted, hidden, ct);
+            // Trakt's picks are worked out alongside Seerr's lists. They use the database until they're done, so nothing
+            // here does before they're awaited below.
+            var picksTask = trakt.RowAsync(current.Id, instance, wanted, hidden, ct);
             ExternalRowDto? picks;
+            SeerrPage?[] pages;
             try
             {
-                foreach (var (id, list, title) in Lists)
-                {
-                    try
-                    {
-                        var page = await seerr.DiscoverAsync(instance, list, 1, ct, FilterFor(id, today));
-                        rows.Add(new ExternalRowDto(id, Loc.T(title), page.Results.Where(r => r.MediaType is "movie" or "tv").Select(r => ToDto(r, library, wanted))
-                            .Where(t => t.LibraryItemId is not null || !hidden.Hides(KindOf(t.MediaType))).ToList()));
-                    }
-                    catch (HttpRequestException)
-                    {
-                        // One list failing shouldn't hide the others.
-                    }
-                }
+                // Asked for together, not one after another, and kept a few minutes. One list failing (it comes back
+                // null, and isn't kept) shouldn't hide the others.
+                pages = await Task.WhenAll(Lists.Select(l => RequestRequested.Cached(cache, $"seerr-discover:{instance.BaseUrl}:{l.List}?{FilterFor(l.Id, today)}", ListsFor,
+                    t => seerr.DiscoverAsync(instance, l.List, 1, t, FilterFor(l.Id, today)), ct)));
             }
             finally
             {
                 // Never left running past the request, which owns the database context it uses.
                 picks = await picksTask;
+            }
+
+            // The lists are everyone's; the marks on them (in the library, on the watchlist) are this profile's, now.
+            var library = await LibraryIndexAsync(db, pages.OfType<SeerrPage>().SelectMany(p => p.Results).Select(r => r.Id), ct);
+            foreach (var ((id, _, title), page) in Lists.Zip(pages))
+            {
+                if (page is not null)
+                {
+                    rows.Add(new ExternalRowDto(id, Loc.T(title), page.Results.Where(r => r.MediaType is "movie" or "tv").Select(r => ToDto(r, library, wanted))
+                        .Where(t => t.LibraryItemId is not null || !hidden.Hides(KindOf(t.MediaType))).ToList()));
+                }
             }
 
             // A profile connected to Trakt gets its picks, after what's trending.
@@ -199,7 +210,7 @@ public static partial class RequestEndpoints
             try
             {
                 var page = await seerr.SearchAsync(instance, q.Trim(), ct);
-                var library = await LibraryIndexAsync(db, ct);
+                var library = await LibraryIndexAsync(db, page.Results.Select(r => r.Id), ct);
                 var hidden = await LibraryVisibility.HiddenTypesAsync(db, ct);
                 var wanted = await watchlist.KeysAsync(current.Id, ct);
                 return Results.Ok(page.Results.Where(r => r.MediaType is "movie" or "tv").Select(r => ToDto(r, library, wanted))
@@ -219,7 +230,7 @@ public static partial class RequestEndpoints
                 return Results.NotFound();
             }
 
-            var library = await LibraryIndexAsync(db, ct);
+            var library = await LibraryIndexAsync(db, [tmdbId], ct);
             var hidden = await LibraryVisibility.HiddenTypesAsync(db, ct);
             library.TryGetValue($"{mediaType}:{tmdbId.ToString(CultureInfo.InvariantCulture)}", out var itemId);
             if (itemId == Guid.Empty && hidden.Hides(KindOf(mediaType)))
@@ -236,6 +247,11 @@ public static partial class RequestEndpoints
 
                 var ratings = await SafeGetAsync(seerr, instance, SeerrRatings.PathFor(mediaType == "movie", tmdbId), ct);
                 var recommendations = await SafeGetAsync(seerr, instance, $"{mediaType}/{tmdbId}/recommendations", ct);
+                // The title as Seerr names it, and what it recommends, marked too.
+                var recommended = recommendations is { ValueKind: JsonValueKind.Object } r && r.TryGetProperty("results", out var list) && list.ValueKind == JsonValueKind.Array
+                    ? list.EnumerateArray().Select(e => e.Deserialize<SeerrResult>(Web)!.Id)
+                    : [];
+                library = await LibraryIndexAsync(db, recommended.Append(title.Deserialize<SeerrResult>(Web)!.Id).Append(tmdbId), ct);
                 var onWatchlist = (await watchlist.MembershipAsync(current.Id, new Watchlist.WatchlistAdd(null, mediaType, tmdbId), ct)).OnWatchlist;
                 var wanted = await watchlist.KeysAsync(current.Id, ct);
                 return Results.Ok(Detail(mediaType, title, ratings, recommendations, library, hidden, wanted) with { OnWatchlist = onWatchlist });
@@ -266,11 +282,17 @@ public static partial class RequestEndpoints
                 return Problems.Field("Use \"movie\" or \"tv\".", field: "mediaType");
             }
 
+            if (!await TakeAskAsync(db, cache, current.Id, ct))
+            {
+                return Problems.Of("That’s a lot of requests for one day. Try again tomorrow.", status: 429);
+            }
+
             try
             {
                 var seasons = request.MediaType == "tv" && request.Seasons is { Count: > 0 } chosen ? chosen.Where(n => n > 0).Distinct().Order().ToList() : null;
                 await PlaceAsync(seerr, instance, options.CurrentValue, db, current.Id, request.MediaType, request.TmdbId, ct, seasons);
                 RequestRequested.Forget();
+                Watchlist.WatchlistService.Forget(cache, request.MediaType, request.TmdbId);
                 if (seasons is not null)
                 {
                     // The show's page asks Sonarr again, so the seasons show as requested.
@@ -285,10 +307,12 @@ public static partial class RequestEndpoints
             }
             catch (HttpRequestException ex)
             {
+                ReturnAsk(cache, current.Id);
                 return Problems.Of("Seerr didn’t accept the request ({status}). It may already be requested.", new { status = (int?)ex.StatusCode ?? 0 }, status: 502);
             }
             catch (NotRequestableException ex)
             {
+                ReturnAsk(cache, current.Id);
                 return Results.Problem(ex.Message, statusCode: 409);
             }
         });
@@ -363,6 +387,79 @@ public static partial class RequestEndpoints
     }
 
     /// <summary>
+    /// The most films and shows one profile can ask for in a day (music has its own,
+    /// <see cref="MusicRequestEndpoints.DailyLimit"/>): Seerr approves them with Flexarr's key, and Radarr and Sonarr
+    /// download what it approves, so without one a guest's device or a teenager's profile could fill the disk.
+    /// </summary>
+    internal const int DailyLimit = 50;
+
+    /// <summary>
+    /// Takes one of <paramref name="profileId"/>'s day's worth of film and show requests, or false when it has none
+    /// left: its requests in the last day, or what it has asked since (asking again for the same title reuses its
+    /// request but still reaches Seerr). Taken before Seerr is asked, so requests sent all at once can't each find
+    /// room before any is counted; one Seerr then refuses is given back (<see cref="ReturnAsk"/>), but not one given
+    /// up on part way (the asker went away), which Seerr may have taken all the same.
+    /// Never the main profile, which manages Sonarr and Radarr anyway.
+    /// </summary>
+    internal static async Task<bool> TakeAskAsync(FlexarrDbContext db, Microsoft.Extensions.Caching.Memory.IMemoryCache cache, string profileId, CancellationToken ct)
+    {
+        if (profileId == PlaybackState.DefaultUser)
+        {
+            return true;
+        }
+
+        var since = DateTime.UtcNow.AddDays(-1);
+        if (await db.MediaRequests.CountAsync(r => r.ProfileId == profileId && (r.Kind == MediaKind.Movie || r.Kind == MediaKind.Series) && r.RequestedAt > since, ct)
+            >= DailyLimit)
+        {
+            return false;
+        }
+
+        var asked = AskCount(cache, profileId);
+        if (Interlocked.Increment(ref asked.Value) > DailyLimit)
+        {
+            Interlocked.Decrement(ref asked.Value);
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>Gives back what <see cref="TakeAskAsync"/> took for a film or show request that Seerr refused, or was never sent.</summary>
+    internal static void ReturnAsk(Microsoft.Extensions.Caching.Memory.IMemoryCache cache, string profileId)
+    {
+        if (profileId == PlaybackState.DefaultUser)
+        {
+            return;
+        }
+
+        // Never below nothing: the day's count may have started afresh since it was taken.
+        var asked = AskCount(cache, profileId);
+        for (var now = asked.Value; now > 0; now = asked.Value)
+        {
+            if (Interlocked.CompareExchange(ref asked.Value, now - 1, now) == now)
+            {
+                return;
+            }
+        }
+    }
+
+    private static readonly Lock AskCounts = new();
+
+    private static System.Runtime.CompilerServices.StrongBox<int> AskCount(Microsoft.Extensions.Caching.Memory.IMemoryCache cache, string profileId)
+    {
+        // One at a time: two requests arriving together would otherwise each make, and count in, a box of their own.
+        lock (AskCounts)
+        {
+            return Microsoft.Extensions.Caching.Memory.CacheExtensions.GetOrCreate(cache, $"title-ask:{profileId}", entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromDays(1);
+                return new System.Runtime.CompilerServices.StrongBox<int>();
+            })!;
+        }
+    }
+
+    /// <summary>
     /// Asks Seerr for a title for a profile, sent to the library it chose, and remembers who asked (Seerr only knows
     /// Flexarr did) so they hear when it's in. Throws <see cref="HttpRequestException"/> when Seerr refuses.
     /// </summary>
@@ -381,7 +478,11 @@ public static partial class RequestEndpoints
 
         var to = await RequestDestinations.ForRequestAsync(seerr, instance, options.PathMappings, db, profileId, kind, ct);
         await seerr.RequestAsync(instance, mediaType, tmdbId, to, ct, seasons);
-        if (!await db.MediaRequests.AnyAsync(r => r.ProfileId == profileId && r.Kind == kind && r.TmdbId == tmdbId && r.FulfilledAt == null, ct))
+        // Seerr now says it's asked for: what was kept of its lists and requests is out of date.
+        RequestRequested.Forget();
+        // One open for over a year isn't looked for any more (see NotificationWorker): asked again, it's a new request.
+        var lookedFor = DateTime.UtcNow - Notifications.NotificationWorker.VideosWaitFor;
+        if (!await db.MediaRequests.AnyAsync(r => r.ProfileId == profileId && r.Kind == kind && r.TmdbId == tmdbId && r.FulfilledAt == null && r.RequestedAt > lookedFor, ct))
         {
             db.MediaRequests.Add(new MediaRequest { ProfileId = profileId, Kind = kind, TmdbId = tmdbId });
             await db.SaveChangesAsync(ct);
@@ -507,11 +608,21 @@ public static partial class RequestEndpoints
     internal static string? Tmdb(string? path, string size) =>
         path is null ? null : ImageEndpoints.RemoteUrl($"https://image.tmdb.org/t/p/{size}{path}");
 
-    /// <summary>"movie:123" / "tv:456" (TMDB ids) → library item.</summary>
-    internal static async Task<Dictionary<string, Guid>> LibraryIndexAsync(FlexarrDbContext db, CancellationToken ct)
+    /// <summary>"movie:123" / "tv:456" (TMDB ids) → library item, for the titles asked about.</summary>
+    /// <param name="tmdbIds">
+    /// The TMDB ids on the page, films' and shows' alike: only those are looked up, which the index on TmdbId answers,
+    /// rather than reading every film and show in the library to mark a handful.
+    /// </param>
+    internal static async Task<Dictionary<string, Guid>> LibraryIndexAsync(FlexarrDbContext db, IEnumerable<int> tmdbIds, CancellationToken ct)
     {
         var map = new Dictionary<string, Guid>(StringComparer.Ordinal);
-        foreach (var i in await db.MediaItems.Where(i => i.TmdbId != null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series))
+        var ids = tmdbIds.Select(i => i.ToString(CultureInfo.InvariantCulture)).Distinct().ToList();
+        if (ids.Count == 0)
+        {
+            return map;
+        }
+
+        foreach (var i in await db.MediaItems.Where(i => i.TmdbId != null && ids.Contains(i.TmdbId) && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series))
                      .Select(i => new { i.Id, i.Kind, i.TmdbId }).ToListAsync(ct))
         {
             map.TryAdd($"{(i.Kind == MediaKind.Movie ? "movie" : "tv")}:{i.TmdbId}", i.Id);
@@ -520,17 +631,31 @@ public static partial class RequestEndpoints
         return map;
     }
 
-    private static async Task<bool> SafePingAsync(SeerrClient seerr, SeerrInstance instance, CancellationToken ct)
-    {
-        try
+    /// <summary>
+    /// Whether Seerr answers. Library pages, request buttons, the search palette and the apps' Discover all ask, so
+    /// the answer is remembered half a minute (for this address and key: new settings are asked about at once), and a
+    /// Seerr whose machine is off or asleep gets five seconds to say hello, not the fifteen a real question gets, and
+    /// then counts as not reachable rather than failing whoever asked.
+    /// </summary>
+    private static Task<bool> SafePingAsync(SeerrClient seerr, SeerrInstance instance, Microsoft.Extensions.Caching.Memory.IMemoryCache cache, CancellationToken ct) =>
+        Microsoft.Extensions.Caching.Memory.CacheExtensions.GetOrCreateAsync(cache, ("seerr-ping", instance), async entry =>
         {
-            return await seerr.PingAsync(instance, ct);
-        }
-        catch (HttpRequestException)
-        {
-            return false;
-        }
-    }
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(30);
+            using var quick = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            quick.CancelAfter(TimeSpan.FromSeconds(5));
+            try
+            {
+                return await seerr.PingAsync(instance, quick.Token);
+            }
+            catch (HttpRequestException)
+            {
+                return false;
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                return false;
+            }
+        });
 }
 
 /// <summary>A title that can't be requested, and why, in words for whoever asked.</summary>

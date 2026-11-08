@@ -1,5 +1,5 @@
 import type { ItemSummary } from '../api/types'
-import { profileKey } from '../lib/profileScope'
+import { profileKey, QUEUE_KEY } from '../lib/profileScope'
 
 /**
  * The play queue, kept as plain data so its rules can be tested without an <audio> element: the tracks in order,
@@ -109,17 +109,73 @@ export function upcoming(state: QueueState): { track: ItemSummary; index: number
   return state.tracks.slice(state.index + 1).map((track, i) => ({ track, index: state.index + 1 + i }))
 }
 
-/** The shape kept in sessionStorage: ids, not whole tracks, which are fetched again on load. */
+/**
+ * The shape kept in sessionStorage: the order as ids, written often (the position moves). The tracks themselves are
+ * kept beside it (see `queueTracksStorageKey`), written only when the queue changes.
+ */
 export interface StoredQueue {
   ids: string[]
-  /** The albums the tracks belong to: one request each rebuilds the whole queue. */
+  /** The albums the tracks belong to: one request each rebuilds the queue when the kept tracks aren't all there. */
   albums: string[]
   index: number
   position: number
+  /** When this was written (ms since the epoch). Absent from a queue kept before the tracks were. */
+  savedAt?: number
 }
 
 /** Kept per profile: Switch profile reloads the page, and the next profile mustn't find the last one's queue. */
-export const queueStorageKey = () => profileKey('flexarr.musicQueue')
+export const queueStorageKey = () => profileKey(QUEUE_KEY)
+
+/**
+ * Where the queue's tracks are kept (each once, whatever its place), so a reload brings a long queue back without a
+ * request per album.
+ */
+export const queueTracksStorageKey = () => profileKey(`${QUEUE_KEY}Tracks`)
+
+/**
+ * How long after the queue was last written its kept tracks are still taken as they are, in milliseconds. A reload is
+ * moments later; a browser bringing back last week's tabs is not, and by then tracks may have left the library, so the
+ * queue is fetched afresh.
+ */
+const KEPT_TRACKS_GOOD_FOR = 24 * 60 * 60 * 1000
+
+/** Whether a stored queue was written recently enough to come back from its kept tracks, without asking the server. */
+export function keptTracksAreCurrent(stored: StoredQueue, now: number): boolean {
+  return stored.savedAt !== undefined && now >= stored.savedAt && now - stored.savedAt < KEPT_TRACKS_GOOD_FOR
+}
+
+/**
+ * The queue's tracks as they're kept: each once, and as the server gave them. Where an entry was asked to start
+ * (`playFrom`, a chapter chosen or "from the start") is this page's own and isn't kept, so a reload brings a track back
+ * as fetching it again would.
+ */
+export function serializeQueueTracks(state: QueueState): ItemSummary[] {
+  const asGiven = (track: ItemSummary) => {
+    const kept = { ...track }
+    delete kept.playFrom
+    return kept
+  }
+  return [...new Map(state.tracks.map((t) => [t.id, asGiven(t)])).values()]
+}
+
+/** The kept tracks by id; none when there's nothing kept or it can't be read. */
+export function readStoredTracks(raw: string | null): Map<string, ItemSummary> {
+  const byId = new Map<string, ItemSummary>()
+  if (!raw) return byId
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return byId
+    for (const track of parsed as unknown[]) {
+      if (typeof track !== 'object' || track === null) continue
+      // What the player draws straight away: without it (kept by some other version, or damaged) the queue is fetched.
+      const { id, kind, title, artwork } = track as Record<string, unknown>
+      if (typeof id === 'string' && typeof kind === 'string' && typeof title === 'string' && typeof artwork === 'object' && artwork !== null) byId.set(id, track as ItemSummary)
+    }
+  } catch {
+    // Unreadable: the queue is fetched instead.
+  }
+  return byId
+}
 
 export function serializeQueue(state: QueueState, position: number): StoredQueue {
   return {
@@ -137,13 +193,14 @@ export function readStoredQueue(raw: string | null): StoredQueue | null {
   try {
     const parsed: unknown = JSON.parse(raw)
     if (typeof parsed !== 'object' || parsed === null) return null
-    const { ids, albums, index, position } = parsed as Record<string, unknown>
+    const { ids, albums, index, position, savedAt } = parsed as Record<string, unknown>
     if (!Array.isArray(ids) || ids.length === 0 || !ids.every((id) => typeof id === 'string')) return null
     return {
       ids,
       albums: Array.isArray(albums) ? albums.filter((a): a is string => typeof a === 'string') : [],
       index: typeof index === 'number' ? index : 0,
       position: typeof position === 'number' ? position : 0,
+      ...(typeof savedAt === 'number' ? { savedAt } : {}),
     }
   } catch {
     return null

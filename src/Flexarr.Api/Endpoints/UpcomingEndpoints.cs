@@ -53,13 +53,29 @@ public static class UpcomingEndpoints
 
     public static RouteGroupBuilder MapUpcomingEndpoints(this RouteGroupBuilder api)
     {
-        api.MapGet("/upcoming", async (int? days, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, IMemoryCache cache, FlexarrDbContext db, HttpRequest request, CancellationToken ct) =>
-            await UpcomingAsync(Math.Clamp(days ?? 21, 1, 90), options.CurrentValue, arr, cache, db, request.Host.Host, ct)).WithTags("Upcoming");
+        api.MapGet("/upcoming", async (int? days, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, IMemoryCache cache, FlexarrDbContext db, HttpRequest request,
+            CurrentProfile profile, CancellationToken ct) =>
+            (await UpcomingAsync(Math.Clamp(days ?? 21, 1, 90), options.CurrentValue, arr, cache, db, request.Host.Host, ct)).For(profile)).WithTags("Upcoming");
 
-        api.MapGet("/downloads", async (IOptionsMonitor<FlexarrOptions> options, ArrClient arr, IMemoryCache cache, FlexarrDbContext db, HttpRequest request, CancellationToken ct) =>
-            await DownloadsAsync(options.CurrentValue, arr, cache, db, request.Host.Host, ct)).WithTags("Upcoming");
+        api.MapGet("/downloads", async (IOptionsMonitor<FlexarrOptions> options, ArrClient arr, IMemoryCache cache, FlexarrDbContext db, HttpRequest request,
+            CurrentProfile profile, CancellationToken ct) =>
+        {
+            var downloads = await DownloadsAsync(options.CurrentValue, arr, cache, db, request.Host.Host, ct);
+            return profile.IsMainProfile ? downloads : [.. downloads.Select(d => d with { ManageUrl = null })];
+        }).WithTags("Upcoming");
 
         return api;
+    }
+
+    /// <summary>
+    /// What's coming, as <paramref name="profile"/> is told it: the link into Sonarr or Radarr says where they are, so
+    /// only the main profile, who manages them, is given it.
+    /// </summary>
+    public static List<UpcomingDto> For(this List<UpcomingDto> upcoming, CurrentProfile profile)
+    {
+        ArgumentNullException.ThrowIfNull(upcoming);
+        ArgumentNullException.ThrowIfNull(profile);
+        return profile.IsMainProfile ? upcoming : [.. upcoming.Select(u => u with { ManageUrl = null })];
     }
 
     /// <param name="host">The host the browser reached Flexarr on, for links into *arr apps configured as localhost.</param>

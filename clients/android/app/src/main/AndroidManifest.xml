@@ -24,6 +24,10 @@
     <!-- On a TV, a trailer opens in the YouTube app: the Trailer button shows only when it's there. -->
     <queries>
         <package android:name="com.google.android.youtube.tv" />
+        <!-- Android Auto and the Assistant: what they are is checked before they browse or play (audio/TrustedCallers.kt). -->
+        <package android:name="com.google.android.projection.gearhead" />
+        <package android:name="com.google.android.googlequicksearchbox" />
+        <package android:name="com.google.android.carassistant" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="vnd.youtube" />

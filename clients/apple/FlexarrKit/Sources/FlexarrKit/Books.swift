@@ -731,6 +731,7 @@ extension FlexarrClient {
         if let apiKey, !apiKey.isEmpty { request.setValue(apiKey, forHTTPHeaderField: "X-Api-Key") }
         if let profileToken, !profileToken.isEmpty { request.setValue(profileToken, forHTTPHeaderField: "X-Flexarr-Profile") }
         if let deviceType = Self.deviceType { request.setValue(deviceType, forHTTPHeaderField: "X-Flexarr-Device") }
+        request.setValue("1", forHTTPHeaderField: Self.profileChoiceHeader)
         return request
     }
 

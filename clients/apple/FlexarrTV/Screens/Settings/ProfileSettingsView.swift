@@ -57,6 +57,6 @@ struct ProfileSettingsView: View {
 
     private func choose(_ asks: Bool) {
         asksWhoIsWatching = asks
-        AppModel.asksWhoIsWatching = asks
+        model.setAsksWhoIsWatching(asks)
     }
 }

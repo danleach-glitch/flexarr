@@ -13,6 +13,8 @@ import {
   languageOptions,
   nextChapterStart,
   parseClock,
+  forgetOldPlaces,
+  localPlaceKey,
   readLocalPlace,
   saveLocalPlace,
   previousChapterStart,
@@ -22,6 +24,7 @@ import {
   stepSpeed,
   timelineAt,
 } from './books'
+import { forgetPlayed } from './profileScope'
 
 // Three files: 0–100, 100–250, 250–300.
 const files = [
@@ -202,6 +205,45 @@ describe("this browser's place in a book", () => {
     }
     expect(readLocalPlace('b')).toEqual({ position: 600, savedAt: 1000 })
     localStorage.clear()
+  })
+
+  it('stays under the name a book playing started with, and isn’t kept at all once this browser has signed out', () => {
+    try {
+      // The parent's book, still playing as "Switch to …" saves the child's profile and the page goes.
+      const key = localPlaceKey('b')
+      localStorage.setItem('flexarr.profile', 'kid-1.signature')
+      saveLocalPlace('b', 600, 1000, key)
+      expect(Object.keys(localStorage).sort()).toEqual(['flexarr.bookPlace.b', 'flexarr.profile'])
+      expect(readLocalPlace('b')).toBeNull()
+
+      forgetPlayed({ signedOut: true })
+      saveLocalPlace('b', 700, 2000, key)
+      saveLocalPlace('c', 30, 2000)
+      expect(Object.keys(localStorage)).toEqual(['flexarr.profile'])
+    } finally {
+      localStorage.clear()
+      sessionStorage.clear()
+    }
+  })
+
+  it('is forgotten a month after the book was last played here, whichever profile played it', () => {
+    const day = 24 * 60 * 60 * 1000
+    const now = Date.UTC(2026, 10, 6)
+    saveLocalPlace('lately', 600, now - 29 * day)
+    saveLocalPlace('long-ago', 600, now - 31 * day)
+    localStorage.setItem('flexarr.profile', 'kid-1.signature')
+    saveLocalPlace('lately', 30, now - day)
+    saveLocalPlace('long-ago', 30, now - 400 * day)
+    localStorage.setItem('flexarr.bookPlace.broken', 'not json')
+    localStorage.setItem('flexarr.sound', '{}')
+    try {
+      forgetOldPlaces(now)
+
+      expect(Object.keys(localStorage).sort()).toEqual(['flexarr.bookPlace.lately', 'flexarr.bookPlace.lately.p-kid-1', 'flexarr.profile', 'flexarr.sound'])
+      expect(readLocalPlace('lately')).toEqual({ position: 30, savedAt: now - day })
+    } finally {
+      localStorage.clear()
+    }
   })
 })
 

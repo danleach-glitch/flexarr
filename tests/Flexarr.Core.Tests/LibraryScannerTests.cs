@@ -675,6 +675,45 @@ public sealed class LibraryScannerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Music_ATracksReplayGain_IsKeptWithItsFile_AndReadAgainWhenTheFileChanges()
+    {
+        var root = Touch("music/Dire Straits/Communiqué (1979)/02 - News.flac", "music/Dire Straits/Communiqué (1979)/03 - Untagged.flac", "movies/Heat (1995)/Heat (1995).mkv");
+        _probe.Tags["02 - News.flac"] = new()
+        {
+            ["artist"] = "Dire Straits", ["album"] = "Communiqué", ["title"] = "News", ["track"] = "2",
+            ["REPLAYGAIN_TRACK_GAIN"] = "-7.52 dB", ["REPLAYGAIN_TRACK_PEAK"] = "0.988525", ["REPLAYGAIN_ALBUM_GAIN"] = "-8.10 dB", ["REPLAYGAIN_ALBUM_PEAK"] = "1.000000",
+        };
+        var music = await AddLibrary(LibraryType.Music, Path.Combine(root, "music"));
+        var movies = await AddLibrary(LibraryType.Movies, Path.Combine(root, "movies"));
+
+        await Scanner().ScanAsync(music, null, default);
+        await Scanner().ScanAsync(movies, null, default);
+
+        async Task<string?> KeptAsync(string name) => (await _db.MediaFiles.AsNoTracking().SingleAsync(f => f.Path.EndsWith(name))).Loudness;
+        Assert.Equal(new Flexarr.Core.Parsing.Loudness(-7.52, -8.10, 0.988525, 1.0), Flexarr.Core.Parsing.Loudness.FromJson(await KeptAsync("News.flac")));
+        // A track without the tags is known to have none (which isn't "not looked at"); a film has nothing kept.
+        Assert.Equal(Flexarr.Core.Parsing.Loudness.Unknown, Flexarr.Core.Parsing.Loudness.FromJson(await KeptAsync("Untagged.flac")));
+        Assert.Null(await KeptAsync("Heat (1995).mkv"));
+
+        // Retagged (the file changed): the next scan keeps what it says now.
+        _probe.Tags["02 - News.flac"]["REPLAYGAIN_TRACK_GAIN"] = "-6.00 dB";
+        var news = Path.Combine(root, "music/Dire Straits/Communiqué (1979)/02 - News.flac");
+        File.SetLastWriteTimeUtc(news, File.GetLastWriteTimeUtc(news).AddMinutes(1));
+        _db.ChangeTracker.Clear();
+        await Scanner().ScanAsync(music, null, default);
+
+        Assert.Equal(-6.0, Flexarr.Core.Parsing.Loudness.FromJson(await KeptAsync("News.flac"))!.TrackGain);
+
+        // A file that can no longer be read keeps nothing, rather than what it used to say.
+        _probe.Fail = true;
+        File.SetLastWriteTimeUtc(news, File.GetLastWriteTimeUtc(news).AddMinutes(1));
+        _db.ChangeTracker.Clear();
+        await Scanner().ScanAsync(music, null, default);
+
+        Assert.Null(await KeptAsync("News.flac"));
+    }
+
+    [Fact]
     public async Task AFolderThatCantBeRead_KeepsItsFiles()
     {
         if (OperatingSystem.IsWindows())
@@ -952,6 +991,89 @@ public sealed class LibraryScannerTests : IAsyncLifetime
         Assert.Equal(["2021", "2022", "2023"], seasons);
         Assert.Equal(walk.Id, (await _db.MediaItems.SingleAsync(i => i.Title == "Walk")).Id);
         Assert.Equal(3, await _db.MediaItems.CountAsync(i => i.Kind == MediaKind.Episode));
+    }
+
+    [Fact]
+    public async Task ARescan_HoldsOnlyTheFilesItChanges_AndSavesEachChange()
+    {
+        var root = Touch(
+            "tv/Show/Season 01/Show - S01E01.mkv",
+            "tv/Show/Season 01/Show - S01E02.mkv",
+            "tv/Show/Season 01/Show - S01E03.mkv",
+            "tv/Show/Season 01/Show - S01E04.mkv",
+            "tv/Other/Season 01/Other - S01E01.mkv");
+        var library = await AddLibrary(LibraryType.TvShows, Path.Combine(root, "tv"));
+        await Scanner().ScanAsync(library, null, default);
+        // A scan starts from a fresh context, as the scan worker's do.
+        _db.ChangeTracker.Clear();
+        library = await _db.Libraries.Include(l => l.Folders).SingleAsync(l => l.Id == library.Id);
+
+        // Nothing changed: no file is held.
+        var unchanged = await Scanner().ScanAsync(library, null, default);
+        Assert.Equal((0, 0, 5, 0), (unchanged.Added, unchanged.Updated, unchanged.Unchanged, unchanged.Missing));
+        Assert.Empty(_db.ChangeTracker.Entries<MediaFile>());
+        _db.ChangeTracker.Clear();
+        library = await _db.Libraries.Include(l => l.Folders).SingleAsync(l => l.Id == library.Id);
+
+        // One changed, one gone, one back after going missing, one new: only those are held, and each is saved.
+        var back = Path.Combine(root, "tv/Show/Season 01/Show - S01E03.mkv");
+        await _db.MediaFiles.Where(f => f.Path == back).ExecuteUpdateAsync(u => u.SetProperty(f => f.MissingSince, DateTime.UtcNow.AddHours(-1)));
+        File.AppendAllText(Path.Combine(root, "tv/Show/Season 01/Show - S01E01.mkv"), "more bytes");
+        File.Delete(Path.Combine(root, "tv/Show/Season 01/Show - S01E02.mkv"));
+        Touch("tv/Show/Season 01/Show - S01E05.mkv");
+        var result = await Scanner().ScanAsync(library, null, default);
+
+        Assert.Equal((1, 1, 3, 1), (result.Added, result.Updated, result.Unchanged, result.Missing));
+        Assert.Equal(4, _db.ChangeTracker.Entries<MediaFile>().Count());
+        _db.ChangeTracker.Clear();
+        var files = await _db.MediaFiles.IgnoreQueryFilters().AsNoTracking().OrderBy(f => f.Path).ToListAsync();
+        Assert.Equal(
+            [("Other - S01E01.mkv", false), ("Show - S01E01.mkv", false), ("Show - S01E02.mkv", true), ("Show - S01E03.mkv", false), ("Show - S01E04.mkv", false), ("Show - S01E05.mkv", false)],
+            files.Select(f => (Path.GetFileName(f.Path), f.MissingSince is not null)));
+        var changed = files.Single(f => f.Path.EndsWith("S01E01.mkv", StringComparison.Ordinal) && f.Path.Contains("/Show/", StringComparison.Ordinal));
+        Assert.Equal(new FileInfo(Path.Combine(root, "tv/Show/Season 01/Show - S01E01.mkv")).Length, changed.Size);
+        Assert.NotEmpty(await _db.MediaStreams.Where(s => s.MediaFileId == changed.Id).ToListAsync());
+    }
+
+    [Fact]
+    public async Task ARescan_HoldsNoSeasonOrEpisode_AndKeepsTheSameTree()
+    {
+        var root = Touch(
+            "tv/Show/Season 01/Show - S01E01.mkv",
+            "tv/Show/Season 01/Show - S01E02.mkv",
+            "tv/Other/Season 02/Other - S02E01.mkv");
+        var library = await AddLibrary(LibraryType.TvShows, Path.Combine(root, "tv"));
+        await Scanner().ScanAsync(library, null, default);
+        var before = await Tree();
+        _db.ChangeTracker.Clear();
+        library = await _db.Libraries.Include(l => l.Folders).SingleAsync(l => l.Id == library.Id);
+
+        // Nothing changed: the same items, and no season or episode held.
+        await Scanner().ScanAsync(library, null, default);
+        Assert.DoesNotContain(_db.ChangeTracker.Entries<MediaItem>(), e => e.Entity.Kind is MediaKind.Season or MediaKind.Episode);
+        Assert.Equal(before, await Tree());
+        _db.ChangeTracker.Clear();
+        library = await _db.Libraries.Include(l => l.Folders).SingleAsync(l => l.Id == library.Id);
+
+        // A new episode in a known season and one in a new season go under the known series and season.
+        Touch("tv/Show/Season 01/Show - S01E03.mkv", "tv/Show/Season 02/Show - S02E01.mkv");
+        var result = await Scanner().ScanAsync(library, null, default);
+        Assert.Equal(2, result.Added);
+        var after = await Tree();
+        Assert.Equal(before.Count + 3, after.Count);
+        Assert.All(before, b => Assert.Contains(b, after));
+        var show = after.Single(i => i.Kind == MediaKind.Series && i.Title == "Show");
+        var season1 = after.Single(i => i.Kind == MediaKind.Season && i.Parent == show.Id && i.Number == 1);
+        var season2 = after.Single(i => i.Kind == MediaKind.Season && i.Parent == show.Id && i.Number == 2);
+        Assert.Equal([1, 2, 3], after.Where(i => i.Kind == MediaKind.Episode && i.Parent == season1.Id).Select(i => i.Number).Order());
+        Assert.Equal([1], after.Where(i => i.Kind == MediaKind.Episode && i.Parent == season2.Id).Select(i => i.Number));
+        Assert.Equal(5, await _db.MediaFiles.CountAsync());
+        Assert.Equal(5, await _db.MediaFiles.Select(f => f.MediaItemId).Distinct().CountAsync());
+
+        async Task<List<(Guid Id, MediaKind Kind, Guid? Parent, string Title, int? Number)>> Tree() =>
+            (await _db.MediaItems.IgnoreQueryFilters().AsNoTracking().ToListAsync())
+                .Select(i => (i.Id, i.Kind, i.ParentId, i.Title, i.Kind == MediaKind.Episode ? i.EpisodeNumber : i.SeasonNumber))
+                .OrderBy(i => i.Id).ToList();
     }
 
     private LibraryScanner Scanner() => new(_db, _probe, new ScanProgress(), NullLogger<LibraryScanner>.Instance);

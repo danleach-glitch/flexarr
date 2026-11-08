@@ -56,15 +56,40 @@ public static class FfmpegCommand
     public static readonly string[] LocalFile = ["-protocol_whitelist", "file"];
 
     /// <summary>
+    /// Before an input that came from the internet and should be sound (a podcast episode): the only kinds of file
+    /// ffmpeg may read it as (MP3, MP4/M4A, AAC, Ogg/Opus, FLAC, WAV, AIFF, WebM/Matroska, WMA). Left to go by what's in
+    /// the file, it would follow a playlist to any sound file on the server's disks and hand that back.
+    /// </summary>
+    public static readonly string[] SoundFiles = ["-format_whitelist", "aac,aiff,asf,flac,matroska,mov,mp3,ogg,wav"];
+
+    /// <summary>
     /// A stream got ready ahead of Play makes this much, then stops until a player takes it up: enough to open on,
     /// without encoding minutes of a title nobody may play. It starts with the full <see cref="RunAheadSeconds"/> burst,
     /// so a player that takes it up while it's still going gets the whole run-ahead (see
-    /// <see cref="TranscodeSession.StopWarmRunAsync"/>).
+    /// <see cref="TranscodeSession.StopWarmRunAsync"/>). A copied (repackaged) stream starts with this as its burst
+    /// instead, and starts again with the full one once a player takes it up.
     /// </summary>
     public const int WarmingRunAheadSeconds = 30;
 
-    /// <summary>ffmpeg's own pacing: the burst, then real time (ffmpeg 6 and later for the burst).</summary>
-    private static string[] Pacing(int burstSeconds) => ["-readrate", "1.0", "-readrate_initial_burst", burstSeconds.ToString(CultureInfo.InvariantCulture)];
+    /// <summary>The fastest a stream is made once its burst is done: the fastest a player plays.</summary>
+    public const double FastestPace = 4;
+
+    /// <summary>
+    /// The pace a stream watched at <paramref name="speed"/> is made at: that speed, never slower than real time (a
+    /// viewer at half speed may go back to normal) nor faster than <see cref="FastestPace"/>.
+    /// </summary>
+    public static double Pace(double speed) => double.IsFinite(speed) ? Math.Clamp(speed, 1, FastestPace) : 1;
+
+    /// <summary>
+    /// ffmpeg's own pacing: the burst, then the speed it's watched at, which is real time unless the viewer plays
+    /// faster (ffmpeg 6 and later for the burst). At real time, someone watching at 1.5× would use the burst up in
+    /// minutes and then wait for every segment.
+    /// </summary>
+    private static string[] Pacing(int burstSeconds, double speed = 1) =>
+    [
+        "-readrate", Pace(speed) is var pace && pace > 1 ? pace.ToString("0.##", CultureInfo.InvariantCulture) : "1.0",
+        "-readrate_initial_burst", burstSeconds.ToString(CultureInfo.InvariantCulture),
+    ];
 
     /// <summary>
     /// Whether the encoder makes keyframes only where they're forced, so the short opening segments cut where the
@@ -82,15 +107,16 @@ public static class FfmpegCommand
     /// </summary>
     /// <param name="opening">Whether the segments start with short ones (see <see cref="HasOpening"/>); by default, when the plan and encoder allow.</param>
     /// <param name="burstSeconds">How far ahead to make in the first burst (<see cref="RunAheadSeconds"/> by default).</param>
+    /// <param name="speed">The speed it's being watched at (see <see cref="Pace"/>).</param>
     public static IReadOnlyList<string> Hls(string input, TranscodePlan plan, int startSegment, string outputDirectory, TranscodeSettings settings,
-        bool? opening = null, int burstSeconds = RunAheadSeconds)
+        bool? opening = null, int burstSeconds = RunAheadSeconds, double speed = 1)
     {
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(settings);
 
         if (plan.Repackage is { } repackage)
         {
-            return Repackaged(input, plan, repackage, startSegment, outputDirectory, burstSeconds);
+            return Repackaged(input, plan, repackage, startSegment, outputDirectory, burstSeconds, speed);
         }
 
         // Audio-only plans (music) have no video stream, so nothing to decode on the GPU.
@@ -141,15 +167,16 @@ public static class FfmpegCommand
                 break;
         }
 
-        args.AddRange([.. Pacing(burstSeconds), "-ss", start, .. LocalFile, "-i", input]);
+        args.AddRange([.. Pacing(burstSeconds, speed), "-ss", start, .. LocalFile, "-i", input]);
         var inputs = 1;
         if (burn?.ExternalPath is { } subtitleFile)
         {
-            args.AddRange(["-ss", start, .. LocalFile, "-i", subtitleFile]);
+            // Read strictly as the subtitle it says it is, as for streaming (see Subtitles.SidecarFormat).
+            args.AddRange(["-ss", start, .. LocalFile, .. Subtitles.SidecarFormat(subtitleFile), "-i", subtitleFile]);
             inputs++;
         }
 
-        var audioInput = AddShiftedAudioInput(args, input, plan, startSeconds, copyTs: false, inputs, burstSeconds);
+        var audioInput = AddShiftedAudioInput(args, input, plan, startSeconds, copyTs: false, inputs, burstSeconds, speed);
 
         // ---- Video
         if (!audioOnly)
@@ -166,12 +193,13 @@ public static class FfmpegCommand
     /// cut at every keyframe (frag0.m4s, frag1.m4s…). The session finds each fragment's place by its own timestamp and
     /// serves a segment as the fragments between two of <see cref="Repackage.SegmentStarts"/>.
     /// </summary>
-    private static List<string> Repackaged(string input, TranscodePlan plan, Repackage repackage, int startSegment, string outputDirectory, int burstSeconds)
+    private static List<string> Repackaged(string input, TranscodePlan plan, Repackage repackage, int startSegment, string outputDirectory, int burstSeconds,
+        double speed = 1)
     {
         var startSeconds = repackage.SegmentStarts[Math.Clamp(startSegment, 0, repackage.SegmentStarts.Count - 1)];
         var start = startSeconds.ToString("0.###", CultureInfo.InvariantCulture);
-        List<string> args = ["-hide_banner", "-v", "error", "-nostdin", "-y", .. Pacing(burstSeconds), "-ss", start, .. LocalFile, "-i", input];
-        var audioInput = AddShiftedAudioInput(args, input, plan, startSeconds, copyTs: true, inputs: 1, burstSeconds);
+        List<string> args = ["-hide_banner", "-v", "error", "-nostdin", "-y", .. Pacing(burstSeconds, speed), "-ss", start, .. LocalFile, "-i", input];
+        var audioInput = AddShiftedAudioInput(args, input, plan, startSeconds, copyTs: true, inputs: 1, burstSeconds, speed);
         args.AddRange(["-map", $"0:{plan.VideoStreamIndex}", "-c:v", "copy", "-tag:v", repackage.CodecTag]);
         if (repackage.StripDolbyVision)
         {
@@ -238,7 +266,8 @@ public static class FfmpegCommand
         var sidecars = textSubtitles.Where(t => t.ExternalPath is not null).ToList();
         foreach (var sidecar in sidecars)
         {
-            args.AddRange([.. LocalFile, "-i", sidecar.ExternalPath!]);
+            // Read strictly as the subtitle it says it is, so a sidecar can't pass itself off as a playlist of other files.
+            args.AddRange([.. LocalFile, .. Subtitles.SidecarFormat(sidecar.ExternalPath!), "-i", sidecar.ExternalPath!]);
         }
 
         if (plan is not null)
@@ -303,13 +332,17 @@ public static class FfmpegCommand
     /// Arguments to make an M4A of a track for keeping on a phone: its sound (stream <paramref name="audioIndex"/>)
     /// as AAC at <see cref="DownloadPlanner.TrackBitrate"/>, folded to stereo if there's more. Progress goes to stdout.
     /// </summary>
-    public static IReadOnlyList<string> M4a(string input, int audioIndex, int channels, string output)
+    /// <remarks>
+    /// <paramref name="soundFileOnly"/> is for a file that came from the internet (a podcast episode): ffmpeg then
+    /// refuses anything that isn't one of <see cref="SoundFiles"/>, whatever the file says it is.
+    /// </remarks>
+    public static IReadOnlyList<string> M4a(string input, int audioIndex, int channels, string output, bool soundFileOnly = false)
     {
         var rate = (DownloadPlanner.TrackBitrate / 1000).ToString(CultureInfo.InvariantCulture) + "k";
         return
         [
             "-hide_banner", "-v", "error", "-nostdin", "-y", "-progress", "pipe:1", "-nostats",
-            .. LocalFile, "-i", input,
+            .. LocalFile, .. soundFileOnly ? SoundFiles : [], "-i", input,
             "-map", $"0:{audioIndex}", "-vn", "-sn", "-dn",
             "-c:a", "aac", "-ac", Math.Clamp(channels, 1, 2).ToString(CultureInfo.InvariantCulture), "-b:a", rate,
             "-map_metadata", "-1", "-map_chapters", "-1", "-movflags", "+faststart", "-f", "ipod", output,
@@ -401,7 +434,7 @@ public static class FfmpegCommand
     /// by the delay. Returns the input the sound comes from: 0, the picture's, when it's in sync.
     /// </summary>
     private static int AddShiftedAudioInput(List<string> args, string input, TranscodePlan plan, double startSeconds, bool copyTs, int inputs,
-        int burstSeconds = RunAheadSeconds)
+        int burstSeconds = RunAheadSeconds, double speed = 1)
     {
         var delay = plan.AudioDelaySeconds;
         if (delay == 0 || plan.AudioStreamIndex is null || plan.VideoStreamIndex < 0)
@@ -413,7 +446,7 @@ public static class FfmpegCommand
         var offset = copyTs ? delay : Math.Max(0, delay - startSeconds);
         args.AddRange([
             "-itsoffset", offset.ToString("0.###", CultureInfo.InvariantCulture),
-            .. Pacing(burstSeconds), "-ss", seek.ToString("0.###", CultureInfo.InvariantCulture), .. LocalFile, "-i", input,
+            .. Pacing(burstSeconds, speed), "-ss", seek.ToString("0.###", CultureInfo.InvariantCulture), .. LocalFile, "-i", input,
         ]);
         return inputs;
     }

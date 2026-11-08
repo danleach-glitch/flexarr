@@ -18,7 +18,7 @@ public static class SecurityHeaders
         headers["Referrer-Policy"] = "same-origin";
         headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
         headers.ContentSecurityPolicy = ContentSecurityPolicy;
-        if (http.Request.IsHttps)
+        if (RequestPeer.SaysHttps(http))
         {
             headers.StrictTransportSecurity = "max-age=31536000";
         }

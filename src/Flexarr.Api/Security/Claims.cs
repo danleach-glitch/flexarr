@@ -31,6 +31,13 @@ public static class FlexarrClaims
     /// </summary>
     public const string KidsHome = "flexarr:kids-home";
 
+    /// <summary>
+    /// Present ("true") when the request would be the main profile, whose own PIN was never given here, from a client
+    /// that says it can ask who's watching (see <see cref="Authentication.ApiKeyAuthenticationHandler.ProfileChoiceHeader"/>):
+    /// it's answered as no profile chosen until one is (see <see cref="Profiles.ProfileChoiceGate"/>).
+    /// </summary>
+    public const string ChooseProfile = "flexarr:choose-profile";
+
     /// <summary>The browser or device sign-in the request used, if any.</summary>
     public const string SignIn = "flexarr:sign-in";
 
@@ -63,4 +70,19 @@ public static class RequestPeer
 
     /// <summary>The Host header as it arrived, which a proxy's (or a script's) X-Forwarded-Host can't change.</summary>
     public static HostString HostOf(HttpContext http) => http.Items[HostKey] is HostString host ? host : http.Request.Host;
+
+    /// <summary>
+    /// Whether the browser reached Flexarr over HTTPS, as far as anyone says: the connection itself, a trusted proxy
+    /// (forwarded headers have made the request HTTPS by now), or <c>X-Forwarded-Proto: https</c> from a proxy that
+    /// isn't listed in <c>TrustedProxies</c>, whose headers are otherwise left alone. Only for marking cookies Secure
+    /// and sending HSTS, where a false claim costs nobody but the one making it: their own cookie stops being sent over
+    /// plain HTTP, and browsers ignore HSTS that arrives over it.
+    /// </summary>
+    public static bool SaysHttps(HttpContext http)
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        // The first value is the scheme the browser used; later ones are hops between proxies.
+        return http.Request.IsHttps
+            || string.Equals(http.Request.Headers["X-Forwarded-Proto"].ToString().Split(',')[0].Trim(), "https", StringComparison.OrdinalIgnoreCase);
+    }
 }

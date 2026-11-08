@@ -84,6 +84,33 @@ public class SubtitleSearchTests : IClassFixture<FlexarrApiFactory>
     }
 
     [Fact]
+    public async Task AResultTheServerDidntHandOut_IsRefused_AndNeverReachesBazarr()
+    {
+        var bazarr = new FakeBazarr();
+        var (film, _) = await AddFilmAsync(radarrId: 13);
+        bazarr.Film(13, "/data/movies/Film (2020)/Film (2020).mkv", profileId: 1);
+        bazarr.Responses["GET /api/providers/movies?radarrid=13"] = Results;
+        bazarr.Responses["POST /api/providers/movies"] = "";
+        using var app = bazarr.Serve(factory);
+        var client = Client(app);
+        var search = await client.GetFromJsonAsync<Search>(new Uri($"/api/v1/items/{film}/subtitles/search", UriKind.Relative));
+        // A result made up by the caller, as results looked before they were signed, and a real one whose contents were swapped.
+        var madeUp = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(
+            """{"provider":"podnapisi","subtitle":"made-up","language":"en","hi":false,"forced":false,"originalFormat":false}""")).TrimEnd('=');
+        var real = search!.Results[1].Id;
+        var swapped = madeUp + real[real.IndexOf('.', StringComparison.Ordinal)..];
+
+        foreach (var result in new[] { madeUp, swapped, madeUp + ".", madeUp + ".zz", real + "0" })
+        {
+            var response = await client.PostAsJsonAsync(new Uri($"/api/v1/items/{film}/subtitles/download", UriKind.Relative), new { result });
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        Assert.DoesNotContain("POST /api/providers/movies", bazarr.Requests);
+    }
+
+    [Fact]
     public async Task LettingFlexarrPick_PrefersPlainSubtitles_OverHearingImpairedOnes()
     {
         var bazarr = new FakeBazarr();
@@ -190,6 +217,38 @@ public class SubtitleSearchTests : IClassFixture<FlexarrApiFactory>
         Assert.Equal(
             "action=sync&language=en&path=%2Fdata%2Fmovies%2FFilm+%282020%29%2FFilm+%282020%29.en.srt&type=movie&id=11&forced=False&hi=False",
             bazarr.Forms["PATCH /api/subtitles"].Single());
+    }
+
+    [Fact]
+    public async Task WhenBazarrFails_OnlyTheMainProfileIsToldItsOwnWords()
+    {
+        var bazarr = new FakeBazarr();
+        var (film, _) = await AddFilmAsync(radarrId: 14);
+        // What .NET says when nothing answers: it names where Bazarr is.
+        bazarr.OnRequest = _ => throw new HttpRequestException("Connection refused (bazarr.test:6767)");
+        using var app = bazarr.Serve(factory);
+        var admin = Client(app);
+        var profile = (await (await admin.PostAsJsonAsync(new Uri("/api/v1/profiles", UriKind.Relative), new { name = $"Sam {Guid.NewGuid():N}"[..20] }))
+            .Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("id").GetString();
+        var token = (await (await admin.PostAsJsonAsync(new Uri("/api/v1/session/device", UriKind.Relative), new { deviceName = "Sam's phone" }))
+            .Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("token").GetString();
+        var sam = app.CreateClient();
+        sam.DefaultRequestHeaders.Add("X-Api-Key", token);
+        Assert.True((await sam.PostAsJsonAsync(new Uri($"/api/v1/profiles/{profile}/select", UriKind.Relative), new { })).IsSuccessStatusCode);
+
+        var mine = await admin.GetAsync(new Uri($"/api/v1/items/{film}/subtitles/search", UriKind.Relative));
+        var theirs = await sam.GetAsync(new Uri($"/api/v1/items/{film}/subtitles/search", UriKind.Relative));
+        var theirDownload = await sam.PostAsJsonAsync(new Uri($"/api/v1/items/{film}/subtitles/download", UriKind.Relative), new { });
+
+        Assert.Equal(HttpStatusCode.BadGateway, mine.StatusCode);
+        Assert.Contains("bazarr.test:6767", await mine.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        foreach (var response in new[] { theirs, theirDownload })
+        {
+            Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+            var body = await response.Content.ReadAsStringAsync();
+            Assert.DoesNotContain("bazarr.test", body, StringComparison.Ordinal);
+            Assert.Contains("Bazarr isn’t answering", body, StringComparison.Ordinal);
+        }
     }
 
     private static HttpClient Client(WebApplicationFactory<Program> app)

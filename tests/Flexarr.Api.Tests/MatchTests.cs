@@ -91,6 +91,56 @@ public sealed class MatchTests(FlexarrApiFactory factory) : IClassFixture<Flexar
     }
 
     [Fact]
+    public async Task SearchingAgain_DoesntFetchSonarrsWholeCatalogueAgain_ButTheChoiceAsksAfresh()
+    {
+        var sonarr = new FakeSonarr();
+        sonarr.Library.Add(Managed(Shogun1980, 4, "/data/tv/Shogun (1980)"));
+        var app = WithSonarr(sonarr);
+        var id = await AddShowAsync(app, "Shogun", "/Volumes/Media/data/tv/Shogun", wrong: true);
+        async Task<List<(int Id, string? ManagedBy, string? ManagedPath)>> SearchAsync(string q) =>
+            [.. (await Client(app).GetFromJsonAsync<JsonArray>(new Uri($"/api/v1/items/{id}/match?q={q}", UriKind.Relative)))!
+                .Select(c => (c!["id"]!.GetValue<int>(), c["managedBy"]?.GetValue<string>(), c["managedPath"]?.GetValue<string>()))];
+
+        // Each letter typed is a search; every one is marked the same, from one fetch of what Sonarr manages.
+        var first = await SearchAsync("sho");
+        var second = await SearchAsync("shog");
+        var third = await SearchAsync("shogun");
+
+        Assert.Equal([(80284, "Sonarr", "/Volumes/Media/data/tv/Shogun (1980)"), (392573, null, null)], first);
+        Assert.Equal(first, second);
+        Assert.Equal(first, third);
+        Assert.Equal(3, sonarr.Asked.Count(r => r == "GET /api/v3/series/lookup"));
+        Assert.Equal(1, sonarr.Asked.Count(r => r == "GET /api/v3/series"));
+
+        // Sonarr takes the 2024 show on meanwhile, in this show's folder. The choice doesn't go by what the searches
+        // remembered: it finds Sonarr has it and links it, rather than adding it a second time.
+        sonarr.Library.Add(Managed(Shogun2024, 9, "/data/tv/Shogun"));
+        var response = await Client(app).PostAsJsonAsync(new Uri($"/api/v1/items/{id}/match", UriKind.Relative), new { id = 392573 });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Empty(sonarr.Added);
+        Assert.Equal(9, (await ItemAsync(app, id)).ArrId);
+        Assert.True(sonarr.Asked.Count(r => r == "GET /api/v3/series") > 1);
+    }
+
+    [Fact]
+    public async Task AShowFixMatchAdds_IsMarkedAsSonarrsInTheNextSearch()
+    {
+        var sonarr = new FakeSonarr();
+        var app = WithSonarr(sonarr);
+        var id = await AddShowAsync(app, "Shogun", "/Volumes/Media/data/tv/Shogun", wrong: true);
+        async Task<string?> ManagedByAsync() =>
+            (await Client(app).GetFromJsonAsync<JsonArray>(new Uri($"/api/v1/items/{id}/match?q=shogun", UriKind.Relative)))!
+                .Single(c => c!["id"]!.GetValue<int>() == 392573)!["managedBy"]?.GetValue<string>();
+
+        Assert.Null(await ManagedByAsync());
+        (await Client(app).PostAsJsonAsync(new Uri($"/api/v1/items/{id}/match", UriKind.Relative), new { id = 392573 })).EnsureSuccessStatusCode();
+
+        Assert.Single(sonarr.Added);
+        Assert.Equal("Sonarr", await ManagedByAsync());
+    }
+
+    [Fact]
     public async Task FixMatch_RefusesWhenSonarrHasTheFolderAsAnotherShow()
     {
         var sonarr = new FakeSonarr();
@@ -413,9 +463,13 @@ public sealed class MatchTests(FlexarrApiFactory factory) : IClassFixture<Flexar
 
         public List<JsonObject> Added { get; } = [];
 
+        /// <summary>Every request, as "METHOD /path".</summary>
+        public System.Collections.Concurrent.ConcurrentQueue<string> Asked { get; } = new();
+
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var path = request.RequestUri!.AbsolutePath;
+            Asked.Enqueue($"{request.Method.Method} {path}");
             JsonNode? body = (request.Method.Method, path) switch
             {
                 ("GET", "/api/v3/series") => new JsonArray([.. Library.Select(s => s.DeepClone())]),

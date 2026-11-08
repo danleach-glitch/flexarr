@@ -117,8 +117,9 @@ fun MusicDownloadButton(model: AppModel, source: MusicDownloadSource) {
     val status = collection?.let(store::status)
     var removing by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
-    // An album's size (or a playlist's first track's) is what servers from before music downloads didn't know.
-    val offered by produceState(initialValue = true, source.id, model.client) {
+    // An album's size (or a playlist's first track's) is what servers from before music downloads didn't know. Keyed on
+    // the sign-in, not model.client: that's a new object at every read, so every progress tick would ask again.
+    val offered by produceState(initialValue = true, source.id, model.credentials) {
         val client = model.client ?: return@produceState
         val probe = (source as? MusicDownloadSource.Album)?.album?.id ?: source.tracks.firstOrNull()?.id ?: return@produceState
         value = try {
@@ -238,7 +239,12 @@ fun CollectionArtwork(model: AppModel, collection: LocalCollection, modifier: Mo
     val store = model.downloads
     Box(modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.seat), contentAlignment = Alignment.Center) {
         val own = store.image(collection.imageFileName)
-        val covers = remember(collection, store.all) { store.tracks(collection).mapNotNull { it.imageFileName }.distinct().mapNotNull(store::image) }
+        // The mosaic's four, when there's no cover of its own: not every track's picture looked for on the phone each
+        // time the downloads list changes, which for a long playlist coming down was hundreds of files a time.
+        val covers = remember(collection, store.all, own == null) {
+            if (own != null) emptyList()
+            else store.tracks(collection).asSequence().mapNotNull { it.imageFileName }.distinct().mapNotNull(store::image).take(4).toList()
+        }
         when {
             own != null -> AsyncImage(model = own, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             covers.size >= 4 -> Column(Modifier.fillMaxSize()) {

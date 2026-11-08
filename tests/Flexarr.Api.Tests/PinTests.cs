@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Flexarr.Api.Profiles;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Flexarr.Api.Tests;
 
@@ -113,6 +115,47 @@ public class PinTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
     }
 
     [Fact]
+    public async Task APatientGuesser_GetsOnlyADaysAllowance_OfGuessesAtAProfile()
+    {
+        var clock = new ManualClock();
+        var guard = new PinGuard(clock);
+        var start = clock.Now;
+        // One wrong PIN at a time, each after a quiet spell has halved the strikes, so no lockout is ever waited for.
+        for (var i = 0; i < PinGuard.CallerDailyAllowance; i++)
+        {
+            Assert.Equal(PinCheck.Wrong, (await guard.CheckAsync("kid", "patient", () => false, CancellationToken.None)).Result);
+            clock.Now += PinGuard.QuietPeriod + TimeSpan.FromMinutes(1);
+        }
+
+        var spent = await guard.CheckAsync("kid", "patient", () => true, CancellationToken.None);
+        var someoneElse = await guard.CheckAsync("kid", "parent", () => true, CancellationToken.None);
+        var otherProfile = await guard.CheckAsync("teen", "patient", () => true, CancellationToken.None);
+        clock.Now = start + TimeSpan.FromDays(1) + TimeSpan.FromSeconds(1);
+        var nextDay = await guard.CheckAsync("kid", "patient", () => true, CancellationToken.None);
+
+        Assert.Equal(PinCheck.LockedOut, spent.Result);
+        Assert.Equal(PinCheck.Right, someoneElse.Result);
+        Assert.Equal(PinCheck.Right, otherProfile.Result);
+        Assert.Equal(PinCheck.Right, nextDay.Result);
+    }
+
+    [Fact]
+    public async Task APinForgivenAsTheRightOneForAnotherCheck_DoesntSpendTheDaysAllowance()
+    {
+        var clock = new ManualClock();
+        var guard = new PinGuard(clock);
+        // The owner choosing the main profile with the admin PIN, many times in a day.
+        for (var i = 0; i <= PinGuard.CallerDailyAllowance; i++)
+        {
+            await guard.CheckAsync("main", "sign-in:laptop", () => false, CancellationToken.None);
+            guard.Forgive("main", ["sign-in:laptop"], mayManage: false);
+            clock.Now += PinGuard.ProfileThrottle;
+        }
+
+        Assert.Equal(PinCheck.Right, (await guard.CheckAsync("main", "sign-in:laptop", () => true, CancellationToken.None)).Result);
+    }
+
+    [Fact]
     public async Task ABrowserThatKnowsThePin_IsntLockedOut_ByGuessesFromItsAddress()
     {
         var clock = new ManualClock();
@@ -210,6 +253,35 @@ public class PinTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
         Assert.Equal(PinCheck.LockedOut, otherAddress.Result);
         Assert.Equal(PinCheck.LockedOut, otherLogin.Result);
         Assert.Equal(PinCheck.Right, someoneElse.Result);
+    }
+
+    [Theory]
+    [InlineData("2001:db8:1:2:aaaa:bbbb:cccc:dddd", "range:2001:db8:1:2::/64")]
+    [InlineData("fe80::1234:5678", "range:fe80::/64")]
+    [InlineData("192.168.1.20", null)]
+    [InlineData("::ffff:192.168.1.20", null)]
+    [InlineData("fd7a:115c:a1e0::42", null)]
+    public void AnIPv6AddressWithoutASignIn_AlsoCountsUnderItsSlash64(string address, string? range) =>
+        Assert.Equal(range, ProfileEndpoints.PinRange(IPAddress.Parse(address)));
+
+    [Fact]
+    public async Task AGuesserTakingAFreshIPv6AddressInItsRange_IsStillLockedOut_ButAnotherRangeIsnt()
+    {
+        var clock = new ManualClock();
+        var guard = new PinGuard(clock);
+        string[] Caller(string address) => [$"address:{address}", ProfileEndpoints.PinRange(IPAddress.Parse(address))!];
+        for (var i = 0; i < 4; i++)
+        {
+            await guard.CheckAsync("owner", Caller($"2001:db8:1:2::{i + 1:x}"), () => false, CancellationToken.None);
+        }
+
+        clock.Now += PinGuard.ProfileThrottle + TimeSpan.FromSeconds(1);
+
+        var fresh = await guard.CheckAsync("owner", Caller("2001:db8:1:2::99"), () => true, CancellationToken.None);
+        var otherRange = await guard.CheckAsync("owner", Caller("2001:db8:1:3::1"), () => true, CancellationToken.None);
+
+        Assert.Equal(PinCheck.LockedOut, fresh.Result);
+        Assert.Equal(PinCheck.Right, otherRange.Result);
     }
 
     [Fact]
@@ -316,6 +388,105 @@ public class PinTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
         Assert.Equal(PinCheck.Right, owner.Result);
         Assert.Equal(PinCheck.Right, kid.Result);
         Assert.Equal(PinCheck.Right, tomorrow.Result);
+    }
+
+    [Fact]
+    public async Task OnceTheDaysAdminPinGuessesAreSpent_TheOwnersSignedInDevices_AndABrowserThatGaveItBefore_StillGetIn()
+    {
+        var clock = new ManualClock();
+        var guard = new PinGuard(clock);
+        // The owner's browser at home (no sign-in) has given the admin PIN before.
+        await guard.CheckAsync(PinGuard.AdminKey, "address:192.168.1.20", () => true, CancellationToken.None, browser: "owners-laptop");
+        for (var i = 0; i < PinGuard.AdminDailyAllowance; i++)
+        {
+            await guard.CheckAsync(PinGuard.AdminKey, $"address:10.1.{i / 250}.{i % 250}", () => false, CancellationToken.None);
+            clock.Now += PinGuard.ProfileThrottle;
+        }
+
+        // Neither may manage the server yet: the PIN is what would let them.
+        var phone = await guard.CheckAsync(PinGuard.AdminKey, "sign-in:owners-phone", () => true, CancellationToken.None);
+        var laptop = await guard.CheckAsync(PinGuard.AdminKey, "address:192.168.1.20", () => true, CancellationToken.None, browser: "owners-laptop");
+        var stranger = await guard.CheckAsync(PinGuard.AdminKey, "address:192.168.1.20", () => true, CancellationToken.None, browser: "someone-else");
+
+        Assert.Equal(PinCheck.Right, phone.Result);
+        Assert.Equal(PinCheck.Right, laptop.Result);
+        Assert.Equal(PinCheck.LockedOut, stranger.Result);
+    }
+
+    [Fact]
+    public async Task ASignedInDeviceGuessingTheAdminPin_IsLockedOutItself_WithoutSpendingTheDaysGuessesForOthers()
+    {
+        var clock = new ManualClock();
+        var guard = new PinGuard(clock);
+        // Household tablets pace themselves: a few guesses, then a wait long enough for half their strikes to be
+        // forgotten, each until its own day's allowance is spent; together, as many as the day's for callers by address.
+        var started = clock.Now;
+        var guesses = 0;
+        var tablets = PinGuard.AdminDailyAllowance / PinGuard.CallerDailyAllowance;
+        for (var n = 0; n < tablets; n++)
+        {
+            var mine = 0;
+            while (mine < PinGuard.CallerDailyAllowance)
+            {
+                var (result, retryAfter) = await guard.CheckAsync(PinGuard.AdminKey, $"sign-in:tablet{n}", () => false, CancellationToken.None);
+                if (result == PinCheck.Wrong)
+                {
+                    mine++;
+                    guesses++;
+                }
+
+                clock.Now += retryAfter + (retryAfter >= TimeSpan.FromMinutes(8) ? PinGuard.QuietPeriod : TimeSpan.Zero) + PinGuard.ProfileThrottle;
+            }
+        }
+
+        var tablet = await guard.CheckAsync(PinGuard.AdminKey, $"sign-in:tablet{tablets - 1}", () => true, CancellationToken.None);
+        clock.Now += PinGuard.ProfileThrottle;
+        var owner = await guard.CheckAsync(PinGuard.AdminKey, "address:192.168.1.20", () => true, CancellationToken.None);
+
+        Assert.Equal(PinGuard.AdminDailyAllowance, guesses);
+        Assert.True(clock.Now - started < TimeSpan.FromHours(23)); // all within the day
+        Assert.Equal(PinCheck.LockedOut, tablet.Result); // its own day's allowance is spent
+        Assert.Equal(PinCheck.Right, owner.Result);
+    }
+
+    [Fact]
+    public async Task BrowsersMovedOverFromEarlierVersionsCookie_SpendTheDaysAdminPinGuesses_HoweverManySignInsTheyAskFor()
+    {
+        // Whoever holds the cookie earlier versions gave every browser is given a sign-in for the asking (one for each
+        // browser name here), so such a sign-in is no count it can't shed: a guess from each must still run out.
+        var clock = new ManualClock();
+        using var factory = new FlexarrApiFactory();
+        using var server = factory.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.AddSingleton(new PinGuard(clock))));
+        var admin = server.CreateClient();
+        admin.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        await admin.PostAsJsonAsync(Api("/admin/pin"), new { pin = "5319" });
+        // The owner's phone, signed in with the key, has been watching as someone else, so it can't manage the server.
+        var kid = (await (await admin.PostAsJsonAsync(Api("/profiles"), new { name = "Kid" })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
+        var phone = server.CreateClient();
+        phone.DefaultRequestHeaders.Add("X-Api-Key", (await (await admin.PostAsJsonAsync(Api("/session/device"), new { deviceName = "Owner's phone" }))
+            .Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString());
+        await phone.PostAsJsonAsync(Api($"/profiles/{kid}/select"), new { });
+        HttpClient Moved(int browser)
+        {
+            var client = server.CreateClient();
+            client.DefaultRequestHeaders.Add("Cookie",
+                $"{Authentication.ApiKeyAuthenticationHandler.SessionCookieName}={Authentication.ApiKeyAuthenticationHandler.LegacySessionValue(FlexarrApiFactory.ApiKey)}");
+            client.DefaultRequestHeaders.Add("User-Agent", $"Browser/{browser}");
+            client.DefaultRequestHeaders.Add("X-Requested-With", "flexarr");
+            return client;
+        }
+
+        for (var i = 0; i < PinGuard.AdminDailyAllowance; i++)
+        {
+            Assert.Equal(HttpStatusCode.Forbidden, (await Moved(i).PostAsJsonAsync(Api("/profiles/owner/select"), new { pin = "0000" })).StatusCode);
+            clock.Now += PinGuard.ProfileThrottle;
+        }
+
+        var another = await Moved(PinGuard.AdminDailyAllowance).PostAsJsonAsync(Api("/profiles/owner/select"), new { pin = "5319" });
+        var owner = await phone.PostAsJsonAsync(Api("/profiles/owner/select"), new { pin = "5319" });
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, another.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, owner.StatusCode);
     }
 
     private sealed class ManualClock : TimeProvider

@@ -137,6 +137,7 @@ class PlayerActivity : ComponentActivity() {
     /** Its titles going to a Chromecast while the phone is connected to one. */
     private var casting: VideoCasting? = null
 
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class) // setBitmapLoader
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge(SystemBarStyle.dark(AndroidColor.TRANSPARENT), SystemBarStyle.dark(AndroidColor.TRANSPARENT))
         super.onCreate(savedInstanceState)
@@ -154,7 +155,7 @@ class PlayerActivity : ComponentActivity() {
         val tv = usesTvInterface
         val casting = Casting.shared?.takeIf { !tv }?.let { VideoCasting(this, controller, it) }.also { casting = it }
         // Headphone and Bluetooth buttons, the system's media controls and the corner window's play and pause.
-        session = MediaSession.Builder(this, VideoSessionPlayer(controller)).setId("video").build()
+        session = MediaSession.Builder(this, VideoSessionPlayer(controller)).setId("video").setBitmapLoader(sessionBitmapLoader(this)).build()
         // Another picture still up (a live channel in the corner, say) gives way: one at a time, as on iPhone.
         model.commands.active?.stop()
         model.commands.active = playback
@@ -364,7 +365,7 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        VideoSurface(controller.player)
+        VideoSurface(controller.player, controller.keepsScreenOn)
         SubtitleLayer(controller)
         // In the corner window, the picture is all there is.
         if (inPictureInPicture) return@Box
@@ -444,10 +445,14 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
     }
 }
 
-/** The picture, filling the screen at its own shape, kept awake while it's up. The phone's players and the TV's. */
+/**
+ * The picture, filling the screen at its own shape. The screen stays on over it only while [keepAwake] (playing or
+ * loading, see [screenStaysOn]): paused, the phone's screen times out and the TV's screensaver starts as usual. The
+ * phone's player and the TV's.
+ */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
-internal fun VideoSurface(player: androidx.media3.common.Player) {
+internal fun VideoSurface(player: androidx.media3.common.Player, keepAwake: Boolean) {
     var matcher by remember { mutableStateOf<FrameRateMatcher?>(null) }
     DisposableEffect(matcher) {
         matcher?.start()
@@ -458,7 +463,6 @@ internal fun VideoSurface(player: androidx.media3.common.Player) {
             PlayerView(context).apply {
                 useController = false
                 resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                keepScreenOn = true
                 setShutterBackgroundColor(AndroidColor.BLACK)
                 // Subtitles are drawn by SubtitleLayer, at the profile's size and height.
                 subtitleView?.visibility = android.view.View.GONE
@@ -468,6 +472,7 @@ internal fun VideoSurface(player: androidx.media3.common.Player) {
             }
         },
         modifier = Modifier.fillMaxSize(),
+        update = { it.keepScreenOn = keepAwake },
     )
 }
 

@@ -50,7 +50,7 @@ class GuestInviteTest {
     fun `refuses anything that could point elsewhere`() {
         assertNull(GuestInvite.parse("https://evil.example/join#${payload()}"))
         assertNull(GuestInvite.parse("https://evilflexarr.io/join#${payload()}"))
-        assertNull(GuestInvite.parse(payload("a" to "192.168.1.106:8383"))) // not a tailnet address
+        assertNull(GuestInvite.parse(payload("a" to "192.168.1.50:8383"))) // not a tailnet address
         assertNull(GuestInvite.parse(payload("a" to "100.101.102.103"))) // no port
         assertNull(GuestInvite.parse(payload("a" to "100.128.0.1:8383"))) // past 100.64.0.0/10
         assertNull(GuestInvite.parse(payload("a" to "mini.tail.ts.net:8383"))) // a name, which could be looked up anywhere
@@ -135,6 +135,26 @@ class GuestInviteTest {
     }
 
     @Test
+    fun `loopback requests carry the tunnel's token, and no other request does`() {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse.Builder().body("ok").build())
+            server.enqueue(MockResponse.Builder().body("ok").build())
+            val tunnel = object : LoopbackTunnel {
+                override fun port() = server.port
+                override fun restart(failed: Int) = server.port
+                override val token = "app-secret"
+            }
+            val http = OkHttpClient.Builder().addInterceptor(LoopbackTunnel.interceptor { tunnel }).build()
+            http.newCall(Request.Builder().url(server.url("/x").newBuilder().host("127.0.0.1").build()).build()).execute().close()
+            assertEquals("app-secret", server.takeRequest().headers[LoopbackTunnel.TOKEN_HEADER])
+            // Anywhere else (the server at home, say) never hears it.
+            http.newCall(Request.Builder().url(server.url("/y").newBuilder().host("localhost").build()).build()).execute().close()
+            assertEquals(null, server.takeRequest().headers[LoopbackTunnel.TOKEN_HEADER])
+        }
+    }
+
+    @Test
     fun `a TV opens the shared vector as the server seals it`() {
         val vector = FlexarrClient.json.parseToJsonElement(javaClass.classLoader!!.getResource("tv-invite.json")!!.readText()).jsonObject
         fun bytes(name: String) = Base64.getDecoder().decode(vector[name]!!.jsonPrimitive.content)
@@ -155,6 +175,17 @@ class GuestInviteTest {
         assertEquals(tv.code.take(4).toList().joinToString(" ") + ", " + tv.code.takeLast(4).toList().joinToString(" "), tv.spoken)
         assertTrue(tv.secret.matches(Regex("^[A-Za-z0-9_-]{32,128}$")))
         assertEquals(65, Base64.getDecoder().decode(tv.publicKey).size)
+    }
+
+    @Test
+    fun `a TV code is made from its public key, as the server and relay check it`() {
+        // The vectors in docs/remote-guests.md ("The code proves the key"), also in relay/test/pair.test.js and RemoteGuestTests.
+        assertEquals("P5GSPMQP", GuestTvCode.codeFor("BAabxf2q9hMu/dxG+nGp5nYWsRDth260mBqx6U/8TU9miOPz86o/f4xuMSzrZ/YVxS1EHcdBY/JxFPKujcWATRA="))
+        assertEquals("VFAZC453", GuestTvCode.codeFor("BJeO6XNfhIDBbIdQxtPpYlj3Cjk7nlUzjg+xJFmk20ChvzfI1jdWs2T5CgsWu1MmBW4iXHxrMfK9/MTDb9Nb1mM="))
+        assertEquals("7EAR565J", GuestTvCode.codeFor("BBikfwYmLGipShyfrqxMWA/kv+NWBDrgrZotgMESONlNQfZ0um1pjfF8J+1iarUDMOzmd5+F9czYFE5xxV+pIvo="))
+        val tv = GuestTvCode.create()
+        assertEquals(GuestTvCode.codeFor(tv.publicKey), tv.code)
+        assertTrue(GuestTvCode.create().code != tv.code)
     }
 
     @Test

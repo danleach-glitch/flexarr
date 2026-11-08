@@ -45,16 +45,18 @@ import { episodeCode, formatClock } from '../lib/format'
 import { belongsToFocused } from '../lib/focusedKeys'
 import { mediaErrorRecovery } from '../lib/hlsRecovery'
 import { speedLabel } from '../lib/podcasts'
-import { drawStyled, type StyledSubtitles } from '../lib/styledSubtitles'
+import { drawStyled, fontsFor, type StyledSubtitles } from '../lib/styledSubtitles'
 import { cueLine, pictureIn } from '../lib/subtitlePlacement'
 import { skipAt, skipCancelled, skipFresh, skipPressed, skipSeeked, type SkipNow, type SkipState } from '../lib/skipTiming'
 import { NEXT_EPISODE_COUNTDOWN_SECONDS, nextEpisodeTiming, upNextAt, upNextAtEnd, upNextFresh, upNextMoved, type UpNextState } from '../lib/upNext'
 import { dialogueBoostChoices, isShaping, nightModeChoices, readSoundSettings, shapingFor, speakerChoices, timeOfDay, unshaped, useSoundSettings, useSoundShaping, writeSoundSettings } from '../lib/soundSettings'
 import { detectProfile, prefersNativeHls } from '../lib/profile'
+import { prepareVideo, rememberCopyingFailed, startVideo, wasCopyAsked } from '../lib/copiedVideo'
 import { EARLY_STALL_MS, reportEarlyStall, reportStart, type StartTiming } from '../lib/startTiming'
 import { drop as dropPrepared, getReady, holds as holdsPrepared, take as takePrepared } from '../lib/preparedPlayback'
 import { extended, FADE_SECONDS, minutesLeft, secondsLeft, sleepChoices, sleepLabel, STILL_WATCHING_SECONDS, type SleepTimer } from '../lib/sleepTimer'
 import { t, tk, Words } from '../i18n'
+import '../styles/player.lazy.css'
 
 type Quality = 'auto' | 1080 | 720 | 480
 const qualities: { value: Quality; label: string; bitrate?: number }[] = [
@@ -160,6 +162,8 @@ interface StartOptions {
   startPositionSeconds?: number
   quality?: Quality
   forceTranscode?: boolean
+  /** Asked the old way, with the picture converted: a copied one just failed to play (lib/copiedVideo). */
+  noCopy?: boolean
 }
 
 /** Why the server ended this transcode for another viewer, if it did (its playlist answers 410 with the reason). */
@@ -168,6 +172,12 @@ async function takenOverReason(sessionId: string): Promise<string | undefined> {
   if (response?.status !== 410) return undefined
   const problem = (await response.json().catch(() => null)) as { detail?: string } | null
   return problem?.detail ?? t(TAKEN_OVER)
+}
+
+/** Whether the server still serves this stream: one that stopped (a server restart, another screen) isn't the browser's fault. */
+async function streamAnswers(sessionId: string): Promise<boolean> {
+  const response = await fetch(`/api/v1/playback/${sessionId}/main.m3u8`, { signal: AbortSignal.timeout(REASON_TIMEOUT_MS) }).catch(() => null)
+  return response?.ok === true
 }
 
 export function PlayerPage() {
@@ -196,6 +206,10 @@ export function PlayerPage() {
   const hideTimer = useRef<number | undefined>(undefined)
   const recoverRef = useRef<() => Promise<void>>(async () => undefined)
   const convertInsteadRef = useRef<() => void>(() => undefined)
+  /** Whether the stream playing was asked for with its picture copied (lib/copiedVideo). */
+  const copyAsked = useRef(false)
+  /** A copied stream failed to play: true when it's asked for again the old way (once), false when it wasn't one. */
+  const copyFailedRef = useRef<() => Promise<boolean>>(async () => false)
   const recovering = useRef(false)
   const lastRecovery = useRef(0)
   // Ends when the item changes or the page closes, so a recovery in progress gives up.
@@ -335,11 +349,13 @@ export function PlayerPage() {
       // ever one quality, so no bandwidth test first.
       const player = new Hls({ startPosition: position, maxBufferLength: 60, backBufferLength: 90, startFragPrefetch: true, testBandwidth: false })
       // Media errors get hls.js's own recovery first; one that keeps coming back asks the server for a fresh stream.
-      const onMediaError = mediaErrorRecovery(player, () => void recoverRef.current())
+      // A stream with its picture copied that this browser can't play after all is asked for again the old way.
+      const onMediaError = mediaErrorRecovery(player, () => void copyFailedRef.current().then((done) => (done ? undefined : recoverRef.current())))
       player.on(Hls.Events.ERROR, (_, data) => {
         if (!data.fatal) return
         if (data.type === Hls.ErrorTypes.MEDIA_ERROR) onMediaError()
-        else void recoverRef.current()
+        else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) void recoverRef.current()
+        else void copyFailedRef.current().then((done) => (done ? undefined : recoverRef.current()))
       })
       player.loadSource(`${playback.url}?subtitles=false`)
       player.attachMedia(el)
@@ -377,7 +393,7 @@ export function PlayerPage() {
         // stream: it opens straight away. Anything else got ready is let go.
         const ready = replaces ? null : await takePrepared(wanted)
         if (replaces) dropPrepared()
-        const playback = ready ?? await startPlayback({ ...wanted, profile: detectProfile(), replacesSessionId: replaces })
+        const playback = ready ?? await startVideo({ ...wanted, replacesSessionId: replaces }, startPlayback, !options.noCopy)
         if (!life.alive || life !== lifetime.current || request !== requests.current) {
           void stopPlayback(playback.sessionId)
           // Nothing left for this request to do: a newer one (or none, the page has moved on) is in charge.
@@ -388,6 +404,7 @@ export function PlayerPage() {
           Object.assign(timing.current, { answeredAt: performance.now(), warmed: ready !== null, method: playback.method, playbackId: playback.playbackId })
         }
         session.current = playback.sessionId
+        copyAsked.current = wasCopyAsked(playback)
         // The same title again (another audio track, a recovery) keeps its speed; another starts at its show's.
         const sameTitle = playingItem.current === playback.item.id
         playingItem.current = playback.item.id
@@ -462,9 +479,28 @@ export function PlayerPage() {
   // A browser that claimed it could play the file but can't: converted instead, on the audio and subtitles chosen.
   const convertInstead = () =>
     void restartHere({ forceTranscode: true, audioStreamIndex: info?.selectedAudioIndex ?? undefined, subtitleKey: subtitleKey ?? 'off' })
+  // A copied stream this browser can't play: asked for again the old way from where it got to, and from now on. Only
+  // while the server still serves it: a stream lost to a server restart or another screen (which Safari can report as
+  // unplayable too) is a recovery's, and isn't remembered against copying.
+  const copyFailed = async () => {
+    const failed = session.current
+    if (!copyAsked.current || failed === undefined) return false
+    copyAsked.current = false
+    const answers = await streamAnswers(failed)
+    // Another stream started meanwhile (a recovery, another audio track): it's in charge.
+    if (session.current !== failed) return true
+    if (!answers) {
+      copyAsked.current = true
+      return false
+    }
+    rememberCopyingFailed()
+    void restartHere({ noCopy: true, audioStreamIndex: info?.selectedAudioIndex ?? undefined, subtitleKey: subtitleKey ?? 'off' })
+    return true
+  }
   useEffect(() => {
     recoverRef.current = recover
     convertInsteadRef.current = convertInstead
+    copyFailedRef.current = copyFailed
   })
 
   useEffect(() => {
@@ -541,11 +577,21 @@ export function PlayerPage() {
     const timer = setInterval(() => !video.current?.paused && report(), 10_000)
     const onHide = () => document.visibilityState === 'hidden' && session.current && beaconProgress(session.current, video.current?.currentTime ?? 0)
     document.addEventListener('visibilitychange', onHide)
+    // A closed tab or window never unmounts the page, so its stream would run on for nobody until the server's idle
+    // check. Hiding sent the place already; this ends the session. Not for a page kept to come back to (`persisted`).
+    const onPageHide = (event: PageTransitionEvent) => {
+      if (event.persisted || !session.current) return
+      const ending = session.current
+      session.current = undefined
+      void stopPlayback(ending)
+    }
+    window.addEventListener('pagehide', onPageHide)
     const el = video.current
     el?.addEventListener('pause', report)
     return () => {
       clearInterval(timer)
       document.removeEventListener('visibilitychange', onHide)
+      window.removeEventListener('pagehide', onPageHide)
       el?.removeEventListener('pause', report)
     }
   }, [])
@@ -588,8 +634,14 @@ export function PlayerPage() {
       setMuted(el.muted)
     }
     const onError = () => {
+      // Safari's own player can't decode a copied stream (rather than losing the connection): asked the old way.
+      // MediaError's MEDIA_ERR_DECODE (3) and MEDIA_ERR_SRC_NOT_SUPPORTED (4).
+      const undecodable = el.error?.code === 3 || el.error?.code === 4
       if (method.current === 'DirectPlay') convertInsteadRef.current()
-      else if (method.current === 'Transcode') void recoverRef.current()
+      else if (method.current === 'Transcode') {
+        if (undecodable) void copyFailedRef.current().then((done) => (done ? undefined : recoverRef.current()))
+        else void recoverRef.current()
+      }
       else setError({ message: t('This file couldn’t be played.'), kind: 'other' })
     }
     const onEnded = () => {
@@ -696,7 +748,8 @@ export function PlayerPage() {
   const styledTrack = info?.subtitles.find((s) => s.key === subtitleKey && s.styledUrl && `${info.sessionId}:${s.key}` !== styledFailed)
   const styledSource = styledTrack?.styledUrl ? `${styledTrack.styledUrl}${subtitleVersion ? `?v=${subtitleVersion}` : ''}` : undefined
   const sessionId = info?.sessionId
-  const fontsUrl = info?.fontsUrl
+  // Only the fonts this track's script names (the key is part of `styledSource`, so a new track draws afresh).
+  const fontsUrl = styledTrack ? fontsFor(info?.fontsUrl, styledTrack.key) : null
   useEffect(() => {
     const el = video.current
     if (!el || !styledSource || !sessionId) return
@@ -1069,7 +1122,7 @@ export function PlayerPage() {
       maxBitrate: preset?.bitrate,
       forceTranscode: q !== 'auto' || undefined,
       shuffle: shuffle || undefined,
-    })
+    }, prepareVideo)
   }, [wantReady, info, ended, quality, shuffle])
 
   // Leaving the player lets an unused next episode go.
@@ -1141,9 +1194,19 @@ export function PlayerPage() {
   function chooseSpeed(next: number) {
     setMenu(null)
     setSpeed(next)
-    // Kept for the show (a film's is for this time only).
-    if (info?.item.kind === 'Episode') void setPlaybackSpeed(info.item.id, next).catch(() => undefined)
+    // Kept for the show (a film's is for this time only). A film's is said too, so a stream being converted is made as
+    // fast as it's watched rather than falling behind at 1.5× or 2×.
+    if (info?.item.kind === 'Episode' || info?.method === 'Transcode') void setPlaybackSpeed(info.item.id, next).catch(() => undefined)
   }
+
+  // A new converted stream of a film watched faster or slower (another audio track, a recovery) starts at normal pace
+  // on the server: it's told the speed again. An episode's new stream already starts at its show's.
+  const streamId = info?.sessionId
+  useEffect(() => {
+    if (!info || info.method !== 'Transcode' || info.item.kind === 'Episode' || speed === 1) return
+    void setPlaybackSpeed(info.item.id, speed).catch(() => undefined)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per stream; choosing a speed says it itself
+  }, [streamId])
 
   // ---------- Sleep timer
 
@@ -1380,7 +1443,8 @@ export function PlayerPage() {
         )}
         {info?.transcodeSummary && (
           <span className="player-badge" title={info.reasons.join('\n')}>
-            {t('Converting: {summary}', { summary: info.transcodeSummary })}
+            {/* A copied picture ("Original H.264, repackaged") isn't converted, so it isn't called that. */}
+            {/^Original\b/.test(info.transcodeSummary) ? info.transcodeSummary : t('Converting: {summary}', { summary: info.transcodeSummary })}
           </span>
         )}
       </header>

@@ -397,7 +397,10 @@ fun TvMainScreen(model: AppModel) {
             val showsDiscover = model.currentProfile?.hidesFromMenu(MenuItem.DISCOVER) != true
             // The watchlist: the server keeps one, it isn't a kids profile, and the profile didn't hide it from the menu.
             val showsWatchlist = model.hasWatchlist && !model.isKids && model.currentProfile?.hidesFromMenu(MenuItem.WATCHLIST) != true
-            val tabs = listOf(TvTab.Home) + libraryTabs + listOfNotNull(TvTab.Discover.takeIf { showsDiscover }, TvTab.Watchlist.takeIf { showsWatchlist }, TvTab.Search, TvTab.Settings)
+            val showsSettings = tvShowsSettings(model.isKids, model.kidsLock, model.profiles.size)
+            // A child chosen (or the device locked) while Settings shows: they go Home.
+            LaunchedEffect(showsSettings) { if (!showsSettings && tabRoute == TvTab.Settings.route) select(TvTab.Home) }
+            val tabs = listOf(TvTab.Home) + libraryTabs + listOfNotNull(TvTab.Discover.takeIf { showsDiscover }, TvTab.Watchlist.takeIf { showsWatchlist }, TvTab.Search, TvTab.Settings.takeIf { showsSettings })
             Sidebar(model, sidebarOpen, tabs, tabRoute, onSelect = ::select, onProfile = {
                 closeSidebar()
                 choosingProfile = true
@@ -417,6 +420,14 @@ fun TvMainScreen(model: AppModel) {
         }
     }
 }
+
+/**
+ * Whether the sidebar offers Settings (Sign out, Server, Trakt, the profile's own settings). Not to a child, as on the
+ * phone: a kids profile on a locked device, or one with other profiles to switch to. A kids profile that is the only one
+ * keeps it, as the TV would otherwise have no way to sign out or change server.
+ */
+internal fun tvShowsSettings(isKids: Boolean, kidsLock: Boolean, profileCount: Int): Boolean =
+    !isKids || (!kidsLock && profileCount <= 1)
 
 /**
  * The sidebar, over the left of the screen: who's watching (with several profiles), the tabs, and the logo and
@@ -457,6 +468,9 @@ private fun Sidebar(model: AppModel, open: Boolean, tabs: List<TvTab>, selected:
                     if (hasFocus && !it.hasFocus) onFocusLeft()
                     hasFocus = it.hasFocus
                 }
+                // One group, so focus moving inside it (from the tabs up to who's watching) isn't seen as leaving: without
+                // it the sidebar read as unfocused for a moment on the way to the profile row, and closed.
+                .focusGroup()
                 .onKeyEvent { event ->
                     (event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight).also { if (it) onClose() }
                 },

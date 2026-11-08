@@ -18,6 +18,19 @@ struct TraktTests {
         #expect(status.pending?.state.problem == nil)
     }
 
+    @Test func onlyAWebPageOpensForTheCode() {
+        func link(_ address: String) -> URL? {
+            TraktPendingConnect(state: .waiting, userCode: "ABCD1234", verificationUrl: address, qrUrl: address, expiresAt: nil).verificationLink
+        }
+        #expect(link("https://trakt.tv/activate")?.host == "trakt.tv")
+        #expect(link("HTTPS://trakt.tv/activate") != nil)
+        #expect(link("tel:+441234567890") == nil)
+        #expect(link("otherapp://do-something") == nil)
+        #expect(link("http://trakt.tv/activate") == nil)
+        #expect(link("javascript:alert(1)") == nil)
+        #expect(link("") == nil)
+    }
+
     @Test func newerStatesReadAsUnknown() throws {
         let json = """
         {"available":true,"state":"paused","watchlistFull":true,"importing":false,"queued":3}

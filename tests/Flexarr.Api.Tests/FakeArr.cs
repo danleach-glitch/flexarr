@@ -22,14 +22,22 @@ public sealed class FakeArr : HttpMessageHandler
     /// <summary>Runs as each request arrives, before it's answered.</summary>
     public Action<HttpRequestMessage>? OnRequest { get; set; }
 
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    /// <summary>As <see cref="OnRequest"/>, for holding a request back until something else has happened.</summary>
+    public Func<HttpRequestMessage, CancellationToken, Task>? Before { get; set; }
+
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var key = $"{request.Method} {request.RequestUri!.PathAndQuery}";
         Requests.Enqueue(key);
         OnRequest?.Invoke(request);
-        return Task.FromResult(Responses.TryGetValue($"{request.Method} //{request.RequestUri.Host}{request.RequestUri.PathAndQuery}", out var body) || Responses.TryGetValue(key, out body)
+        if (Before is { } before)
+        {
+            await before(request, cancellationToken);
+        }
+
+        return Responses.TryGetValue($"{request.Method} //{request.RequestUri.Host}{request.RequestUri.PathAndQuery}", out var body) || Responses.TryGetValue(key, out body)
             ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") }
-            : new HttpResponseMessage(HttpStatusCode.NotFound));
+            : new HttpResponseMessage(HttpStatusCode.NotFound);
     }
 
     /// <summary>The test server, with a Sonarr and a Radarr (both named after their kind) answered by this.</summary>

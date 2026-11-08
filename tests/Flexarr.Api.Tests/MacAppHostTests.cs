@@ -1,10 +1,13 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Net.Sockets;
 using System.Text;
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Endpoints;
 using Flexarr.Streaming;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Flexarr.Api.Tests;
 
@@ -14,6 +17,39 @@ public class MacAppHostTests
     public void WithoutTheMacApp_IsNotAvailable()
     {
         Assert.False(new MacAppHost(new ConfigurationBuilder().Build()).IsAvailable);
+    }
+
+    [Theory]
+    [InlineData(true, "from-input\n", "from-input")]
+    [InlineData(true, "", "from-environment")]
+    [InlineData(false, "from-input\n", "from-environment")]
+    public void TheToken_ComesOnStandardInput_WhenTheAppSaysSo_ElseFromTheEnvironment(bool onInput, string input, string expected)
+    {
+        var configuration = new ConfigurationManager();
+        configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Flexarr:MacApp:Port"] = "1",
+            ["Flexarr:MacApp:Token"] = "from-environment",
+            [MacAppHost.TokenOnInputKey] = onInput ? "true" : null,
+        });
+        using var reader = new StringReader(input);
+
+        MacAppHost.ReadTokenFromInput(configuration, reader);
+
+        Assert.Equal(expected, configuration["Flexarr:MacApp:Token"]);
+        // Not read at all unless the app said it wrote there.
+        Assert.Equal(onInput ? -1 : input.Length > 0 ? 'f' : -1, reader.Peek());
+    }
+
+    [Fact]
+    public void WithTheTokenOnlyOnStandardInput_IsAvailable()
+    {
+        var configuration = new ConfigurationManager();
+        configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["Flexarr:MacApp:Port"] = "1", [MacAppHost.TokenOnInputKey] = "true" });
+
+        MacAppHost.ReadTokenFromInput(configuration, new StringReader("secret\n"));
+
+        Assert.True(new MacAppHost(configuration).IsAvailable);
     }
 
     [Theory]
@@ -113,5 +149,68 @@ public class MacAppPlexAvatarTests(FlexarrApiFactory factory) : IClassFixture<Fl
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.Contains("The Mac app can’t read Plex’s sign-in", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+}
+
+/// <summary>The Mac app's Reset Admin PIN, sealed with its launch token so neither the API key nor the PIN travels.</summary>
+public class MacAppPinResetTests
+{
+    private const string Token = "4C1F7E2A-9B3D-4E5F-8A6B-1C2D3E4F5A6B";
+
+    /// <summary>What AdminPinReset.swift sends: the PIN and the time, sealed as CryptoKit's AES.GCM combined box.</summary>
+    private static object Seal(string token, string pin, DateTimeOffset at, byte[]? nonce = null)
+    {
+        nonce ??= System.Security.Cryptography.RandomNumberGenerator.GetBytes(32);
+        var key = System.Security.Cryptography.HKDF.DeriveKey(System.Security.Cryptography.HashAlgorithmName.SHA256, System.Text.Encoding.UTF8.GetBytes(token), 32, nonce,
+            MacAppHost.PinResetInfo);
+        var plaintext = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new { pin, at = at.ToUnixTimeSeconds() });
+        var box = new byte[12 + plaintext.Length + 16];
+        System.Security.Cryptography.RandomNumberGenerator.Fill(box.AsSpan(0, 12));
+        using var aes = new System.Security.Cryptography.AesGcm(key, 16);
+        aes.Encrypt(box.AsSpan(0, 12), plaintext, box.AsSpan(12, plaintext.Length), box.AsSpan(12 + plaintext.Length));
+        return new { nonce = Convert.ToBase64String(nonce), @sealed = Convert.ToBase64String(box) };
+    }
+
+    private static HttpClient From(WebApplicationFactory<Program> app, string peer)
+    {
+        var client = app.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Test-Peer", peer);
+        return client;
+    }
+
+    [Fact]
+    public async Task TheMacApp_SetsANewAdminPin_WithItsLaunchToken_AndNothingElseDoes()
+    {
+        using var factory = new FlexarrApiFactory();
+        using var app = factory.WithWebHostBuilder(b => b.UseSetting("Flexarr:MacApp:Port", "1").UseSetting("Flexarr:MacApp:Token", Token));
+        var admin = app.CreateClient();
+        admin.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        await admin.PostAsJsonAsync(new Uri("/api/v1/admin/pin", UriKind.Relative), new { pin = "5319" });
+        var mac = From(app, "127.0.0.1");
+        var url = new Uri("/api/v1/admin/pin/mac-app", UriKind.Relative);
+        var now = DateTimeOffset.UtcNow;
+
+        // Sealed with another token, or too old, or from another machine: refused.
+        Assert.Equal(HttpStatusCode.Forbidden, (await mac.PostAsJsonAsync(url, Seal("someone-else", "1111", now))).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await mac.PostAsJsonAsync(url, Seal(Token, "1111", now - TimeSpan.FromMinutes(10)))).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await From(app, "192.168.1.30").PostAsJsonAsync(url, Seal(Token, "1111", now))).StatusCode);
+
+        var nonce = System.Security.Cryptography.RandomNumberGenerator.GetBytes(32);
+        Assert.Equal(HttpStatusCode.NoContent, (await mac.PostAsJsonAsync(url, Seal(Token, "2468", now, nonce))).StatusCode);
+        // The same request again (a replay) is refused.
+        Assert.Equal(HttpStatusCode.Forbidden, (await mac.PostAsJsonAsync(url, Seal(Token, "1357", now, nonce))).StatusCode);
+
+        // The new PIN unlocks; the old one doesn't.
+        var main = app.Services.CreateScope().ServiceProvider.GetRequiredService<Flexarr.Core.Data.FlexarrDbContext>().Profiles.Single(p => p.Id == Flexarr.Core.Media.PlaybackState.DefaultUser);
+        Assert.True(main.CheckAdminPin("2468"));
+        Assert.False(main.CheckAdminPin("5319"));
+    }
+
+    [Fact]
+    public async Task OutsideTheMacApp_ThereIsNoResetWithAToken()
+    {
+        using var factory = new FlexarrApiFactory();
+        var response = await From(factory, "127.0.0.1").PostAsJsonAsync(new Uri("/api/v1/admin/pin/mac-app", UriKind.Relative), Seal(Token, "2468", DateTimeOffset.UtcNow));
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 }

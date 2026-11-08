@@ -7,9 +7,14 @@ import SwiftUI
 @MainActor
 @Observable
 final class PlayingEpisode {
-    private(set) var episode: PodcastEpisode?
+    private(set) var episode: PodcastEpisode? {
+        // Worked out once per episode, not each time Now Playing is drawn (twice a second, as the clock moves).
+        didSet { notes = episode?.overview.map { episodeNotes($0, duration: episode?.durationSeconds) } }
+    }
     private(set) var chapters: [PodcastChapter] = []
     private(set) var podcast: Podcast?
+    /// The episode's notes, with their times and web addresses made links (see `episodeNotes`).
+    private(set) var notes: AttributedString?
 
     func load(_ id: String?, client: FlexarrClient?) async {
         guard let id, let client else {

@@ -74,7 +74,7 @@ struct PosterArtwork: View {
             .overlay(alignment: .topTrailing) {
                 if item.userData.watched { WatchedBadge(label: item.isBook ? t("Finished") : t("Watched")).padding(6) }
             }
-            .downloadedMark(downloads.entry(for: item.id)?.isDownloaded == true, raised: item.progress != nil)
+            .downloadedMark(downloads.isDownloaded(trackId: item.id), raised: item.progress != nil)
             .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
     }
 }

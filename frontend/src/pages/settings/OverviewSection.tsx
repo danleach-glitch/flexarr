@@ -1,4 +1,4 @@
-import { getActivity, getAllLibraries, getArrStatus, getLibraryHealth, getRequestStatus, getSystemStatus } from '../../api/client'
+import { getActivity, getAllLibraries, getArrStatus, getLibraryHealthScore, getRequestStatus, getSystemStatus } from '../../api/client'
 import { ScanProgress } from '../../components/ScanProgress'
 import { useApi } from '../../hooks/useApi'
 import { usePolling } from '../../hooks/usePolling'
@@ -16,7 +16,7 @@ export function OverviewSection() {
   usePolling(activity.reload, 5000)
   const status = useApi(getSystemStatus, []).data
   const libraries = useApi(getAllLibraries, []).data?.filter((l) => l.type !== 'Podcasts')
-  const health = useApi(getLibraryHealth, []).data?.score
+  const health = useApi(getLibraryHealthScore, []).data
   const arr = useApi(getArrStatus, []).data
   const seerr = useApi(getRequestStatus, []).data
   const data = activity.data

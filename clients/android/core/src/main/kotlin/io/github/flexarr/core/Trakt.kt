@@ -63,6 +63,23 @@ data class TraktPendingConnect(
 ) {
     /** "trakt.tv/activate" for "https://trakt.tv/activate". */
     val shortVerificationUrl: String get() = verificationUrl.replace(Regex("^https?://"), "").trimEnd('/')
+
+    /**
+     * Where Copy code and open Trakt goes: the server's [verificationUrl] when it's an https page on trakt.tv, else
+     * Trakt's own activation page, so a server can't send someone to a look-alike sign-in page.
+     */
+    val openableVerificationUrl: String get() = if (isTraktPage(verificationUrl)) verificationUrl else TRAKT_ACTIVATE
+
+    companion object {
+        const val TRAKT_ACTIVATE = "https://trakt.tv/activate"
+
+        internal fun isTraktPage(url: String): Boolean {
+            val uri = runCatching { java.net.URI(url) }.getOrNull() ?: return false
+            val host = uri.host?.lowercase() ?: return false
+            return uri.scheme.equals("https", ignoreCase = true) && uri.rawUserInfo == null &&
+                (uri.port == -1 || uri.port == 443) && (host == "trakt.tv" || host.endsWith(".trakt.tv"))
+        }
+    }
 }
 
 @Serializable

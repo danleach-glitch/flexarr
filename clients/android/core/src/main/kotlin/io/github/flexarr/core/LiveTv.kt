@@ -84,6 +84,25 @@ data class LiveProgramme(
         get() = if (subtitle == null || subtitle == title || subtitle.length >= 60) title else "$title: $subtitle"
 }
 
+/**
+ * When the live player asks again what's on the channel it shows. The answer is the whole channel list, large with a big
+ * IPTV line-up, so not every minute: once the programme shown has ended ([shownEnd]), and otherwise every
+ * [EVERY_MS] (the guide may fill in, or change). [lastAsked] is when the server was last asked, null when what's shown
+ * came from elsewhere (the channel list the channel was picked from), which may be older. For [GRACE_MS] after the
+ * programme ends it's asked at every chance, in case the server (its clock a little behind, say) still answered with it.
+ */
+object LiveNowRefresh {
+    const val EVERY_MS = 600_000L
+    const val GRACE_MS = 180_000L
+
+    fun isDue(shownEnd: Instant?, lastAsked: Instant?, now: Instant): Boolean {
+        val ended = shownEnd != null && !now.isBefore(shownEnd)
+        if (lastAsked == null) return shownEnd == null || ended
+        if (ended && lastAsked.isBefore(shownEnd!!.plusMillis(GRACE_MS))) return true
+        return now.toEpochMilli() - lastAsked.toEpochMilli() >= EVERY_MS
+    }
+}
+
 @Serializable
 data class LiveChannel(
     val id: String,
@@ -251,6 +270,70 @@ suspend fun FlexarrClient.liveTvStatus(): LiveTvStatus? =
 /** Every channel's programmes from [from] for [hours] (at most a day). */
 suspend fun FlexarrClient.liveGuide(from: Instant, hours: Int): LiveGuide =
     decodeText(serializer(), send("GET", "livetv/guide", mapOf("from" to from.toString(), "hours" to hours.toString())))
+
+/**
+ * Which channels to ask the guide for: only those a screen shows, so a big line-up isn't sent whole for a handful of
+ * favourites. Parameters of servers after 0.62.1; an older one sends every channel, which the screens sort through
+ * themselves, so nothing changes there.
+ */
+data class GuideFilter(val query: Map<String, String>) {
+    companion object {
+        /** Every channel. */
+        val Everything = GuideFilter(emptyMap())
+
+        /** The most channels asked for by id: their ids fill about 3.7 kB of the address. */
+        const val MOST_IDS = 100
+
+        /** [shown] by id, when there are few enough; otherwise every channel, and the screen picks out its own. */
+        fun byIds(shown: List<LiveChannel>): GuideFilter =
+            if (shown.isEmpty() || shown.size > MOST_IDS) Everything else GuideFilter(mapOf("channels" to shown.joinToString(",") { it.id }))
+
+        /**
+         * The question for [shown], out of [all] the channels: nothing narrower when it's every one; their ids when
+         * there are few enough; a [favouritesOnly] view's favourites; or the one group (as the source names it) they
+         * make up whole. Otherwise every channel, and the screen picks out its own.
+         */
+        fun forShown(shown: List<LiveChannel>, all: List<LiveChannel>, favouritesOnly: Boolean): GuideFilter {
+            if (shown.isEmpty() || shown.size >= all.size) return Everything
+            if (shown.size <= MOST_IDS) return GuideFilter(mapOf("channels" to shown.joinToString(",") { it.id }))
+            if (favouritesOnly && shown.all { it.isFavourite } && all.count { it.isFavourite } == shown.size) return GuideFilter(mapOf("favourites" to "true"))
+            val group = shown.first().group?.takeIf { it.isNotBlank() } ?: return Everything
+            val ids = shown.mapTo(HashSet()) { it.id }
+            val whole = shown.all { it.group == group } && all.filter { it.group == group }.all { it.id in ids }
+            return if (whole) GuideFilter(mapOf("group" to group)) else Everything
+        }
+    }
+}
+
+/** A guide fetch: the guide, or null when it hadn't changed since [etag] was given (a 304); and its new ETag, if any. */
+data class GuideFetch(val guide: LiveGuide?, val etag: String?)
+
+/**
+ * The programmes of [filter]'s channels from [from] for [hours] (at most a day). [descriptions] false leaves out each
+ * programme's description ([liveProgramme] has it). [etag], the one a guide came with: answered with a null guide
+ * when nothing in it has changed. A server up to 0.62.1 ignores all three and sends the whole guide.
+ */
+suspend fun FlexarrClient.liveGuide(from: Instant, hours: Int, filter: GuideFilter, descriptions: Boolean, etag: String?): GuideFetch {
+    val query = mapOf("from" to from.toString(), "hours" to hours.toString()) + filter.query + (if (descriptions) emptyMap() else mapOf("descriptions" to "false"))
+    var answeredTag: String? = null
+    val text = try {
+        sendWithHeaders("livetv/guide", query, etag?.let { mapOf("If-None-Match" to it) }.orEmpty()) { answeredTag = it["ETag"] }
+    } catch (e: FlexarrException.Http) {
+        if (e.status == 304 && etag != null) return GuideFetch(null, etag)
+        throw e
+    }
+    return GuideFetch(decodeText(serializer(), text), answeredTag)
+}
+
+/** One programme with its description, for a guide fetched without them. Null when it's gone, or the server is 0.62.1 or older. */
+suspend fun FlexarrClient.liveProgramme(id: Long): LiveProgramme? =
+    try {
+        decodeText(serializer(), sendRaw("GET", "livetv/programmes/$id"))
+    } catch (e: FlexarrException.Http) {
+        if (e.status == 404 || e.status == 405) null else throw e
+    } catch (_: FlexarrException.UnexpectedResponse) {
+        null
+    }
 
 /** Every channel in number order, with what's on now and next. */
 suspend fun FlexarrClient.liveChannels(): List<LiveChannel> = decodeText(serializer(), sendRaw("GET", "livetv/channels"))

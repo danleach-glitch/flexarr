@@ -1066,6 +1066,10 @@ public struct SignInInfo: Decodable, Sendable, Equatable {
     public var isGuest: Bool? = nil
     /// The profile's chosen language (a BCP 47 code); nil follows the device. Absent from servers before 0.61.
     public var language: String? = nil
+    /// Nobody has chosen who's watching on this device, and being the main profile takes its own PIN: show "Who's
+    /// watching?". Until a profile is chosen, the server refuses anything else (`FlexarrClient.onChooseProfile`).
+    /// Absent from servers before 0.63.
+    public var chooseProfile: Bool? = nil
 }
 
 /// What `POST /admin/unlock` answers.

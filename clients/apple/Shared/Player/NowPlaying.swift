@@ -18,6 +18,7 @@ final class NowPlaying {
     var onRate: ((Double) -> Void)?
 
     private var info: [String: Any] = [:]
+    private var clock = NowPlayingClock()
     private var targets: [(MPRemoteCommand, Any)] = []
 
     func activate(skipSeconds: Double) {
@@ -118,6 +119,7 @@ final class NowPlaying {
         for (command, target) in targets { command.removeTarget(target) }
         targets = []
         info = [:]
+        clock = NowPlayingClock()
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
         #if os(macOS)
         MPNowPlayingInfoCenter.default().playbackState = .stopped
@@ -162,7 +164,16 @@ final class NowPlaying {
         // A Mac doesn't work this out from an audio session as the phones do: Control Centre and the media keys go by it.
         MPNowPlayingInfoCenter.default().playbackState = rate > 0 ? .playing : .paused
         #endif
+        clock.told(position: position, duration: duration, rate: Double(rate))
         push()
+    }
+
+    /// While playback runs on: `setTime` only when the system's own count of the time has drifted from `position` (a
+    /// stall, a jump), the rate or length changed, or what it shows has gone. Playing as told, nothing is sent.
+    func keepTime(position: Double, duration: Double, rate: Float, defaultRate: Float = 1) {
+        guard clock.isOff(position: position, duration: duration, rate: Double(rate))
+            || MPNowPlayingInfoCenter.default().nowPlayingInfo == nil else { return }
+        setTime(position: position, duration: duration, rate: rate, defaultRate: defaultRate)
     }
 
     /// The system asks for the image on its own queue, so the request handler must not be main-actor bound.

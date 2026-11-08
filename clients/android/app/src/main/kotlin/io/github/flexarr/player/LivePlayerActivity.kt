@@ -120,6 +120,7 @@ class LivePlayerActivity : ComponentActivity() {
     /** Fetching the channels before the first one starts: closing meanwhile lets it go. */
     private var loading: Job? = null
 
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class) // setBitmapLoader
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge(SystemBarStyle.dark(AndroidColor.TRANSPARENT), SystemBarStyle.dark(AndroidColor.TRANSPARENT))
         super.onCreate(savedInstanceState)
@@ -133,7 +134,7 @@ class LivePlayerActivity : ComponentActivity() {
         val model = appModel
         val client = model.client ?: return finish()
         val controller = LiveTvController(this, model, client, onClose = ::finish).also { controller = it }
-        session = MediaSession.Builder(this, controller.player).setId("live").build()
+        session = MediaSession.Builder(this, controller.player).setId("live").setBitmapLoader(sessionBitmapLoader(this)).build()
         // Another picture still up (a film in the corner, say) gives way: one at a time, as on iPhone.
         model.commands.active?.stop()
         model.commands.active = playback
@@ -249,18 +250,20 @@ private fun LivePlayerScreen(controller: LiveTvController, onClose: () -> Unit, 
         }
     }
 
+    // The screen stays on only while the channel plays or loads: paused, it times out as usual.
+    val keepAwake = controller.keepsScreenOn
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         AndroidView(
             factory = { context ->
                 PlayerView(context).apply {
                     useController = false
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    keepScreenOn = true
                     setShutterBackgroundColor(AndroidColor.BLACK)
                     player = controller.player
                 }
             },
             modifier = Modifier.fillMaxSize(),
+            update = { it.keepScreenOn = keepAwake },
         )
         // In the corner window, the picture is all there is.
         if (inPictureInPicture) return@Box

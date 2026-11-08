@@ -101,6 +101,22 @@ public sealed class LocTests
         Assert.Equal(("Play", "Play", "Fix:: this"), (Loc.English("music::Play"), Loc.English("Play"), Loc.English("Fix:: this")));
 
     [Fact]
+    public void Refuses_values_nested_deeper_than_eight_without_overflowing()
+    {
+        static string Nest(int levels) => string.Concat(Enumerable.Repeat("{a, select, other {", levels)) + "x" + string.Concat(Enumerable.Repeat("}}", levels));
+
+        Assert.NotEmpty(MessageFormat.Parse(Nest(MessageFormat.MaxDepth)));
+        Assert.Throws<FormatException>(() => MessageFormat.Parse(Nest(MessageFormat.MaxDepth + 1)));
+        // Run on a small stack, as a deeply nested pack would overflow any: without the limit this ends the process.
+        Exception? thrown = null;
+        var thread = new Thread(() => thrown = Record.Exception(() => MessageFormat.Parse(Nest(100_000))), 256 * 1024);
+        thread.Start();
+        thread.Join();
+        Assert.IsType<FormatException>(thrown);
+        Assert.False(LanguagePack.Usable("Play", Nest(100_000)));
+    }
+
+    [Fact]
     public void Reading_a_pack_drops_messages_whose_values_differ()
     {
         var json = """{"format":1,"code":"de","name":"Deutsch","direction":"ltr","version":1,"messages":{"Hi {name}":"Hallo {nom}","Play":"Abspielen"},"scopes":{}}""";

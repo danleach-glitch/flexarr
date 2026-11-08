@@ -144,7 +144,9 @@ struct PlaylistView: View {
     @State private var error: String?
 
     private var summary: PlaylistSummary { detail?.summary ?? playlist }
-    private var tracks: [ItemSummary] { detail?.tracks.map(\.track) ?? [] }
+    /// The playlist's tracks, read out of `detail` once when it loads: every row is handed the whole list (for its
+    /// menu, and to play from there), so working it out afresh each time made a long playlist's page slow to draw.
+    @State private var tracks: [ItemSummary] = []
 
     var body: some View {
         ZStack {
@@ -159,11 +161,14 @@ struct PlaylistView: View {
                     } else if tracks.isEmpty {
                         StatusView(state: .empty(t("Nothing in this playlist yet."))).frame(height: 160)
                     } else {
-                        VStack(alignment: .leading, spacing: 0) {
+                        // Which tracks are downloaded, found once rather than by a search of every download per row.
+                        let downloaded = downloads.downloadedIds
+                        // Only the rows on screen are built: a long playlist opens, and redraws as it plays, at once.
+                        LazyVStack(alignment: .leading, spacing: 0) {
                             ForEach(Array(tracks.enumerated()), id: \.offset) { index, track in
                                 TrackRow(track: track, number: index + 1,
                                          isCurrent: model.music.current?.id == track.id, isPlaying: model.music.isPlaying,
-                                         isDownloaded: downloads.isDownloaded(trackId: track.id),
+                                         isDownloaded: downloaded.contains(track.id),
                                          menu: .row(track, in: tracks, at: index)) {
                                     if model.music.current?.id == track.id {
                                         model.music.togglePlayPause()
@@ -223,7 +228,9 @@ struct PlaylistView: View {
     private func load() async {
         guard let client = model.client else { return }
         do {
-            detail = try await client.playlist(playlist.id)
+            let loaded = try await client.playlist(playlist.id)
+            detail = loaded
+            tracks = loaded.tracks.map(\.track)
             error = nil
         } catch {
             if detail == nil { self.error = ConnectionError(error).message }

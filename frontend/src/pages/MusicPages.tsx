@@ -19,8 +19,7 @@ import { formatClock, formatDuration } from '../lib/format'
 
 import { shuffled } from '../lib/shuffle'
 import { albumTypeLabel } from '../lib/albums'
-import { DetailsEditor } from '../components/DetailsEditor'
-import { MusicMatchDialog } from '../components/MusicMatchDialog'
+import { DetailsEditor, MusicMatchDialog } from '../components/onDemand'
 import { t, tk, Words } from '../i18n'
 
 /**

@@ -104,15 +104,27 @@ object Localization {
 
     // ---- packs on the device ----
 
+    private val codeShape = Regex("^[A-Za-z0-9]{1,8}(-[A-Za-z0-9]{1,8})*$")
+
+    /**
+     * A language code fit to name a file: letters, digits and hyphens (de, pt-BR, zh-Hans, es-419), so a code from a
+     * server or a file can't reach outside the languages folder.
+     */
+    internal fun isFileSafe(code: String): Boolean = code.length <= 35 && codeShape.matches(code)
+
     /** The pack built into this app for a language (de-AT tries de-AT then de). */
-    fun bundled(code: String): LanguagePack? = fallbacks(code).firstNotNullOfOrNull { c ->
+    fun bundled(code: String): LanguagePack? = fallbacks(code).filter(::isFileSafe).firstNotNullOfOrNull { c ->
         Localization::class.java.getResourceAsStream("/languages/$c.json")?.use { runCatching { json.decodeFromString<LanguagePack>(it.reader().readText()) }.getOrNull() }
     }
 
-    private fun kept(code: String): LanguagePack? =
-        cacheDir?.resolve("languages/$code.json")?.takeIf { it.exists() }?.let { runCatching { json.decodeFromString<LanguagePack>(it.readText()) }.getOrNull() }
+    private fun kept(code: String): LanguagePack? {
+        if (!isFileSafe(code)) return null
+        return cacheDir?.resolve("languages/$code.json")?.takeIf { it.exists() }?.let { runCatching { json.decodeFromString<LanguagePack>(it.readText()) }.getOrNull() }
+            ?.takeIf { it.code == code }
+    }
 
     private fun keep(pack: LanguagePack) {
+        if (!isFileSafe(pack.code)) return
         val dir = cacheDir?.resolve("languages") ?: return
         runCatching {
             dir.mkdirs()
@@ -120,6 +132,15 @@ object Localization {
             tmp.writeText(json.encodeToString(LanguagePack.serializer(), pack))
             tmp.renameTo(File(dir, "${pack.code}.json"))
         }
+    }
+
+    /**
+     * Forgets the packs downloaded from the server signed out of, so one that claimed a far newer version doesn't
+     * keep replacing the built-in words once signed in to another. The pack showing stays until the next settle.
+     */
+    fun forgetDownloaded() {
+        val dir = cacheDir?.resolve("languages") ?: return
+        runCatching { dir.listFiles()?.filter { it.name.endsWith(".json") || it.name.endsWith(".json.part") }?.forEach { it.delete() } }
     }
 
     /** The language this device showed last, to start in it before the server answers. */
@@ -183,7 +204,8 @@ object Localization {
         // The most specific the server has (de-AT, then de); English is never a pack.
         val published = fallbacks(code).filter { it != "en" }.firstNotNullOfOrNull { c -> offered.firstOrNull { it.code == c } }
         if (published != null && published.version > (onDevice?.version ?: -1)) {
-            download(published.code)?.let { keep(it); show(it) }
+            // Only the pack asked for: one naming another language (or a code that isn't one) is dropped.
+            download(published.code)?.takeIf { it.code == published.code && isFileSafe(it.code) }?.let { keep(it); show(it) }
         } else if (published == null && onDevice == null) {
             show(null)
         }

@@ -135,6 +135,9 @@ final class PlaybackController: NSObject {
     @ObservationIgnored private var engineSuppressedItem: String?
     /// Playing a show on shuffle: each next episode is a random one.
     @ObservationIgnored private var shuffling = false
+    /// On shuffle, where this episode gets the next one ready: half a minute after it started, not only in the credits,
+    /// since Next is pressed mid-episode far more often there. Nil until the episode's first tick.
+    @ObservationIgnored private var shuffleReadyAt: Double?
     /// What was played before the current title in this sitting, for Previous Episode (on shuffle, the server can't say).
     @ObservationIgnored private var trail: [ItemSummary] = []
     /// The profile's auto-play and skip choices, from the session.
@@ -476,6 +479,7 @@ final class PlaybackController: NSObject {
             }
         }
         hasPlayed = false
+        shuffleReadyAt = nil
         lastPosition = info.startPositionSeconds
         prompt = .none
         preferences = info.preferences ?? .standard
@@ -874,6 +878,12 @@ final class PlaybackController: NSObject {
         }
         // The sleep timer stops this episode at its end (or has run out): it doesn't go on to the next by itself.
         let sleepHolds = screen?.sleepHoldsEpisode == true
+        // On shuffle the next episode is a cold file, and Next is usually pressed long before the credits: get it ready
+        // once this one has settled. Only beside a file played as it is, so the server isn't asked to convert two.
+        if shuffling, info.method == .directPlay, !sleepHolds {
+            // Asked once: a busy server's no means the usual start, as in the credits.
+            if let at = shuffleReadyAt { if seconds >= at { shuffleReadyAt = .infinity; prepareNext() } } else { shuffleReadyAt = seconds + 30 }
+        }
         // The sleep timer took the episode over mid-countdown: it stops here instead.
         if sleepHolds, isFinishing, countdownTask == nil { endFinishing() }
         if var timing = info.nextEpisodeTiming(preferences), !nextCancelled, !sleepHolds, countdownTask == nil {
@@ -905,7 +915,8 @@ final class PlaybackController: NSObject {
             updatePrompt()
             reportForRemotes()
             // Next Episode showed: get it ready. Back out before it: let it go.
-            if next == .nextEpisode { if !sleepHolds { prepareNext() } } else if !isFinishing { dropPrepared() }
+            // On shuffle it's kept: it was got ready early on purpose (above).
+            if next == .nextEpisode { if !sleepHolds { prepareNext() } } else if !isFinishing, !shuffling { dropPrepared() }
         }
         if Date().timeIntervalSince(lastReport) >= Self.reportInterval, transport?.phase == .playing {
             report(paused: false)
@@ -1479,7 +1490,8 @@ final class PlaybackController: NSObject {
         timing = StartTiming(.video)
         Task {
             defer { isAdvancing = false }
-            try? await client.stopPlayback(sessionId: finished)
+            // Ended alongside asking for the next one, rather than first: one wait on the server instead of two.
+            Task { try? await client.stopPlayback(sessionId: finished) }
             do {
                 let request = nextRequest(target, after: current)
                 viewerSubtitleKey = request.subtitleKey == "off" ? .some(nil) : nil
@@ -1488,7 +1500,7 @@ final class PlaybackController: NSObject {
                 if let ready = prepared, ready.info.item.id == target.id, ready.request.subtitleKey == request.subtitleKey,
                    Date().timeIntervalSince(ready.at) < PreparedStream.nextEpisodeMaxAge {
                     prepared = nil
-                    log.info("Using the next episode got ready during the credits")
+                    log.info("Using the next episode got ready ahead")
                     info = ready.info
                     timing?.answered(info, warmed: true)
                 } else {

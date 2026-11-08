@@ -329,6 +329,46 @@ public sealed class PodcastTests : IDisposable
     }
 
     [Fact]
+    public async Task Refreshing_AFeedWhoseHostNeverSays304_SkipsTheEpisodesWhenItsBytesAreTheSame()
+    {
+        await AddLibraryAsync();
+        var client = Client();
+        var id = Guid.Parse((await AddPodcastAsync(client)).GetProperty("id").GetString()!);
+
+        // A host without ETags or dates: every refresh downloads the feed. An episode changed here (as if by the feed
+        // earlier) shows whether the episodes were applied again.
+        async Task ForgetValidatorsAndRenameAsync(string? title)
+        {
+            using var scope = _server.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            await db.PodcastFeeds.ExecuteUpdateAsync(u => u.SetProperty(f => f.ETag, (string?)null).SetProperty(f => f.LastModified, (string?)null));
+            if (title is not null)
+            {
+                await db.MediaItems.Where(i => i.ParentId == id && i.Title == "Episode 1").ExecuteUpdateAsync(u => u.SetProperty(i => i.Title, title));
+            }
+        }
+
+        async Task<List<string>> TitlesAsync() => (await GetAsync(client, $"podcasts/{id}/episodes")).GetProperty("items").EnumerateArray()
+            .Select(e => e.GetProperty("title").GetString()!).ToList();
+
+        await ForgetValidatorsAndRenameAsync("Renamed");
+        var before = _host.Requests.Count;
+        var refreshed = await (await client.PostAsync(Api($"podcasts/{id}/refresh"), null)).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains(_host.Requests.Skip(before), r => r.RequestUri!.AbsoluteUri == FeedUrl && !r.Headers.Contains("If-None-Match"));
+        Assert.Equal(4, refreshed.GetProperty("episodeCount").GetInt32());
+        Assert.Contains("Renamed", await TitlesAsync()); // the same bytes: not applied again
+
+        // Different bytes: applied, the old episode put right and the new one added.
+        _host.Feed(FeedUrl, Feed(4));
+        await ForgetValidatorsAndRenameAsync(null);
+        refreshed = await (await client.PostAsync(Api($"podcasts/{id}/refresh"), null)).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(5, refreshed.GetProperty("episodeCount").GetInt32());
+        var titles = await TitlesAsync();
+        Assert.DoesNotContain("Renamed", titles);
+        Assert.Equal(["Episode 4", "Episode 3", "Episode 2", "Episode 1", "Trailer"], titles);
+    }
+
+    [Fact]
     public async Task AutoPlay_GoesOnToTheShowsNextEpisode_ThenTheNewestFromFollowedShows()
     {
         await AddLibraryAsync();
@@ -591,6 +631,107 @@ public sealed class PodcastTests : IDisposable
     }
 
     [Fact]
+    public async Task AnEpisodeThatWouldLeaveTheDriveWithoutRoomToSpare_IsntFetched_AndSaysWhy()
+    {
+        var folder = await AddLibraryAsync();
+        var client = Client();
+        var id = (await AddPodcastAsync(client)).GetProperty("id").GetString();
+        var episode = (await GetAsync(client, $"podcasts/{id}/episodes")).GetProperty("items")[0].GetProperty("id").GetString();
+        var preparer = _server.Services.GetRequiredService<Flexarr.Api.Downloads.DownloadPreparer>();
+        var asked = new List<string>();
+        preparer.FreeBytes = drive =>
+        {
+            asked.Add(drive);
+            return Flexarr.Api.Downloads.DownloadPreparer.SpareBytes + 999; // room to spare, but not after this episode's 1,000 bytes
+        };
+
+        var created = await (await client.PostAsJsonAsync(Api("offline"), new { itemId = episode, quality = "Original" })).Content.ReadFromJsonAsync<JsonElement>();
+        var downloadId = created.GetProperty("id").GetString()!;
+        await preparer.RunOnceAsync(CancellationToken.None);
+        var refused = await GetAsync(client, $"offline/{downloadId}");
+
+        Assert.Equal("Failed", refused.GetProperty("status").GetString());
+        Assert.Contains("short of space", refused.GetProperty("error").GetString(), StringComparison.Ordinal);
+        // Asked of the drive the episode would be kept on, and nothing was fetched onto it.
+        Assert.Equal(Path.Combine(folder, "The History Hour"), Assert.Single(asked));
+        Assert.Empty(Directory.GetFiles(Path.Combine(folder, "The History Hour")));
+    }
+
+    [Fact]
+    public async Task WhenFfmpegIsInstalled_AnEpisodeThatsReallyAPlaylistOfTheServersFiles_IsRefused_AndASoundFileIsConverted()
+    {
+        if (!await HasFfmpegAsync())
+        {
+            return;
+        }
+
+        // A track on the server's disks, and a feed whose first episode is a playlist naming it; its second is honest FLAC.
+        var track = Path.Combine(_factory.MediaDirectory, "private.flac");
+        await RunFfmpegAsync("-v", "error", "-f", "lavfi", "-i", "sine=frequency=440", "-t", "2", track);
+        _host.Files["https://cdn.example.com/stolen.m3u8"] = (Encoding.UTF8.GetBytes(
+            $"#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:10\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:2.0,\n{track}\n#EXT-X-ENDLIST\n"), "application/vnd.apple.mpegurl");
+        _host.Files["https://cdn.example.com/honest.flac"] = (await File.ReadAllBytesAsync(track), "audio/flac");
+        _host.Feed("https://feeds.example.com/sly", """
+            <rss version="2.0"><channel><title>Sly</title>
+            <item><title>Stolen</title><guid>stolen</guid><pubDate>Tue, 08 Sep 2026 09:00:00 GMT</pubDate>
+            <enclosure url="https://cdn.example.com/stolen.m3u8" length="100" type="audio/ogg"/></item>
+            <item><title>Honest</title><guid>honest</guid><pubDate>Tue, 01 Sep 2026 09:00:00 GMT</pubDate>
+            <enclosure url="https://cdn.example.com/honest.flac" length="100" type="audio/flac"/></item>
+            </channel></rss>
+            """);
+        var folder = await AddLibraryAsync();
+        var client = Client();
+        var id = (await AddPodcastAsync(client, "https://feeds.example.com/sly")).GetProperty("id").GetString();
+        var episodes = (await GetAsync(client, $"podcasts/{id}/episodes")).GetProperty("items").EnumerateArray()
+            .ToDictionary(e => e.GetProperty("title").GetString()!, e => e.GetProperty("id").GetString());
+        var preparer = _server.Services.GetRequiredService<Flexarr.Api.Downloads.DownloadPreparer>();
+
+        async Task<JsonElement> DownloadAsync(string title)
+        {
+            var created = await (await client.PostAsJsonAsync(Api("offline"), new { itemId = episodes[title], quality = "Original" })).Content.ReadFromJsonAsync<JsonElement>();
+            await preparer.RunOnceAsync(CancellationToken.None);
+            return await GetAsync(client, $"offline/{created.GetProperty("id").GetString()}");
+        }
+
+        var stolen = await DownloadAsync("Stolen");
+        Assert.Equal("Failed", stolen.GetProperty("status").GetString());
+        Assert.Empty(Directory.GetFiles(Path.Combine(folder, "Sly")));
+
+        var honest = await DownloadAsync("Honest");
+        Assert.Equal("Ready", honest.GetProperty("status").GetString());
+        Assert.EndsWith(".m4a", honest.GetProperty("fileName").GetString(), StringComparison.Ordinal);
+    }
+
+    private static async Task<bool> HasFfmpegAsync()
+    {
+        try
+        {
+            await RunFfmpegAsync("-version");
+            return true;
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return false;
+        }
+    }
+
+    private static async Task RunFfmpegAsync(params string[] args)
+    {
+        var start = new System.Diagnostics.ProcessStartInfo("ffmpeg") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+        foreach (var arg in args)
+        {
+            start.ArgumentList.Add(arg);
+        }
+
+        using var process = System.Diagnostics.Process.Start(start)!;
+        var output = process.StandardOutput.ReadToEndAsync();
+        var errors = process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+        await output;
+        Assert.True(process.ExitCode == 0, $"ffmpeg failed: {await errors}");
+    }
+
+    [Fact]
     public async Task OpmlImport_SubscribesToEachFeed_AndExportGivesThemBack()
     {
         await AddLibraryAsync();
@@ -617,6 +758,17 @@ public sealed class PodcastTests : IDisposable
 
         var invalid = await client.PostAsync(Api("podcasts/opml"), new StringContent("<html/>", Encoding.UTF8, "text/xml"));
         Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+    }
+
+    [Fact]
+    public void AnOpmlFileOfOutlinesInsideOutlinesWithoutEnd_IsRefused_ButFoldersInsideFoldersAreFine()
+    {
+        static List<string> Read(int depth) => Flexarr.Api.Podcasts.Opml.FeedUrls(new MemoryStream(Encoding.UTF8.GetBytes(
+            "<opml version=\"2.0\"><body>" + string.Concat(Enumerable.Repeat("<outline text=\"f\">", depth))
+            + "<outline type=\"rss\" xmlUrl=\"https://feeds.example.com/deep\"/>" + string.Concat(Enumerable.Repeat("</outline>", depth)) + "</body></opml>")));
+
+        Assert.Equal(["https://feeds.example.com/deep"], Read(20));
+        Assert.Throws<FormatException>(() => Read(20_000));
     }
 
     [Fact]
@@ -757,7 +909,7 @@ public sealed class PodcastTests : IDisposable
     [InlineData("127.0.0.1", false)]
     [InlineData("10.1.2.3", false)]
     [InlineData("172.20.0.5", false)]
-    [InlineData("192.168.1.106", false)]
+    [InlineData("192.168.1.50", false)]
     [InlineData("100.101.102.103", false)] // a tailnet
     [InlineData("169.254.169.254", false)] // cloud metadata
     [InlineData("::1", false)]
@@ -769,8 +921,34 @@ public sealed class PodcastTests : IDisposable
     [InlineData("2002:c0a8:101::1", false)] // 6to4 from 192.168.1.1
     [InlineData("::c0a8:101", false)] // IPv4-compatible
     [InlineData("2001:0:4136:e378::1", false)] // Teredo
+    [InlineData("fec0::1", false)] // the old site-local range
     public void OnlyTheInternet_IsFetchedFrom(string address, bool allowed) =>
         Assert.Equal(allowed, PodcastFetcher.IsPublic(IPAddress.Parse(address)));
+
+    [Theory]
+    [InlineData("2a02:c7c:1234:5600::1", true)] // the router's address on the internet's ranges
+    [InlineData("2a02:c7c:1234:5600:abcd::9", true)]
+    [InlineData("2a02:c7c:1234:5601::1", false)]
+    [InlineData("192.168.1.20", true)]
+    [InlineData("::ffff:192.168.1.20", true)]
+    [InlineData("8.8.8.8", false)]
+    public void TheNetworksThisMachineIsOn_AreHome(string address, bool home)
+    {
+        IReadOnlyList<IPNetwork> attached = [IPNetwork.Parse("2a02:c7c:1234:5600::/64"), IPNetwork.Parse("192.168.1.0/24")];
+        Assert.Equal(home, PodcastFetcher.OnNetwork(IPAddress.Parse(address), attached));
+    }
+
+    [Fact]
+    public void ThisMachinesOwnAddresses_AreOnItsNetworks()
+    {
+        var attached = PodcastFetcher.AttachedNetworks();
+        var own = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+            .SelectMany(n => n.GetIPProperties().UnicastAddresses)
+            .Where(u => !IPAddress.IsLoopback(u.Address) && u.PrefixLength >= (u.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork ? 16 : 32))
+            .Select(u => u.Address);
+        Assert.All(own, a => Assert.True(PodcastFetcher.OnNetwork(a, attached), a.ToString()));
+        Assert.DoesNotContain(attached, n => n.Contains(IPAddress.Parse("8.8.8.8")) || n.Contains(IPAddress.Parse("2606:4700::1111")));
+    }
 
     [Fact]
     public async Task Artwork_ReachesTheHomeNetwork_OnlyFromAConfiguredServer()

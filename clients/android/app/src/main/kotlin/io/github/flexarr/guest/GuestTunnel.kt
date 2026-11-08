@@ -2,6 +2,7 @@ package io.github.flexarr.guest
 
 import android.content.Context
 import androidx.core.content.edit
+import io.github.flexarr.BuildConfig
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.LoopbackTunnel
 import io.github.flexarr.core.i18n.t
@@ -11,6 +12,7 @@ import io.github.flexarr.tunnel.Tunnel
 import kotlinx.serialization.Serializable
 import java.io.File
 import java.io.IOException
+import java.security.SecureRandom
 import kotlin.random.Random
 
 private val flexarrLog = FlexarrLog("tunnel")
@@ -18,14 +20,18 @@ private val flexarrLog = FlexarrLog("tunnel")
 /**
  * The Tailscale node inside the app that a family guest reaches its host's server through (clients/tunnel, see
  * docs/remote-guests.md). It listens on 127.0.0.1 and forwards each connection to the server on the host's tailnet, so
- * the API, artwork, ExoPlayer and downloads all just use `http://127.0.0.1:<port>`.
+ * the API, artwork, ExoPlayer and downloads all just use `http://127.0.0.1:<port>`. Only those carrying [token] (added
+ * by [LoopbackTunnel.interceptor], on the app's own connections) get through.
  *
  * It runs in the app's process. A minute after the app goes to the background it stops, unless music, a podcast or a
  * download is still using it ([io.github.flexarr.AppModel.wentToBackground]). Requests made before it's up wait for it
  * ([FlexarrClient.loopbackTunnel]), and one that finds nothing listening starts it again. The node's identity is kept in a folder that isn't backed up; the invite's auth key
  * is used once, so losing that folder means needing a new invite.
+ *
+ * [available]: this build has family invites, and so the Go library. One without (a release build until invites are
+ * turned on, see app/build.gradle.kts) leaves the library out and never starts the node.
  */
-class GuestTunnel(context: Context) : LoopbackTunnel {
+class GuestTunnel(context: Context, private val available: Boolean = BuildConfig.GUEST_INVITES) : LoopbackTunnel {
     private val context = context.applicationContext
     private val lock = Any()
 
@@ -80,15 +86,24 @@ class GuestTunnel(context: Context) : LoopbackTunnel {
     val isInUse: Boolean get() = info != null
 
     /**
+     * Asked of every connection to the tunnel's port (127.0.0.1 is open to every app on the phone), so only this app's
+     * requests reach the server through it. New each time the app starts; never stored.
+     */
+    override val token: String = ByteArray(32).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
+
+    /**
      * Starts the node, or gives its port if it's up already. Blocks until it's on the tailnet (up to a minute), so only
      * off the main thread. [authKey] is needed only the first time; after that the saved identity is used. Throws
      * [TunnelException] when it can't start.
      */
     fun start(authKey: String = ""): Int = synchronized(lock) {
         val info = info ?: throw TunnelException("No guest sign-in", needsLogin = false)
+        // No library to load in a build without family invites: said as any other start that didn't work.
+        if (!available) throw TunnelException(t("The tunnel didn’t start"), needsLogin = false)
         listening?.let { port -> if (state() == "running") return port }
         loadLibrary()
         Tunnel.setPreferredPort(preferredPort.toLong())
+        Tunnel.setClientToken(token)
         val port = try {
             Tunnel.start(stateDir.path, info.hostname, authKey, info.target, "").toInt()
         } catch (e: Exception) {

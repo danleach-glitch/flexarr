@@ -86,6 +86,81 @@ public class AudiobookApiTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         Assert.Equal(36000, book.DurationSeconds);
     }
 
+    [Fact]
+    public async Task ABookSummary_NamesItsSmallestSeries_WithItsNumberThere()
+    {
+        var lib = await SeedAsync();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            BookSeries Series(string name) => new() { LibraryId = lib.Library, Name = name, SortName = name.ToLowerInvariant() };
+            var (universe, left, right, unnumbered) = (Series("Discworld Universe"), Series("Left"), Series("Right"), Series("Unnumbered"));
+            db.AddRange(universe, left, right, unnumbered);
+            void In(BookSeries series, string title, string? sequence) =>
+                db.Add(new BookSeriesEntry { SeriesId = series.Id, BookId = lib.Books[title], Sequence = sequence, SortOrder = BookAssembler.SequenceOrder(sequence) });
+            // Discworld (two books) is inside its universe (four): the smaller names the book, with its number there.
+            In(universe, "The Colour of Magic", "41");
+            In(universe, "Guards! Guards!", "48");
+            In(universe, "The Bullet That Missed", "7");
+            In(universe, "The Man Who Died Twice", "9");
+            // In two series the same size: either, but its name and number from the same one.
+            In(left, "Project Hail Mary", "L1");
+            In(right, "Project Hail Mary", "R9");
+            In(unnumbered, "The Man Who Died Twice", null);
+            In(unnumbered, "The Thursday Murder Club", null);
+            await db.SaveChangesAsync();
+        }
+
+        var books = (await GetAsync<PagedDto<ItemSummaryDto>>($"/api/v1/libraries/{lib.Library}/books")).Items.ToDictionary(b => b.Title, b => (b.Book!.Series, b.Book.Sequence));
+
+        Assert.Equal(("Discworld", "1"), books["The Colour of Magic"]);
+        Assert.Equal(("Discworld", "8"), books["Guards! Guards!"]);
+        Assert.Equal(("Thursday Murder Club", "3"), books["The Bullet That Missed"]);
+        Assert.Contains(books["Project Hail Mary"], new (string?, string?)[] { ("Left", "L1"), ("Right", "R9") });
+        Assert.Equal(("Unnumbered", null), books["The Man Who Died Twice"]);
+    }
+
+    [Fact]
+    public async Task ABookInNoSeries_AndATitleThatIsntABook_HaveNone()
+    {
+        var lib = await SeedAsync();
+        var films = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies };
+        var film = new MediaItem { LibraryId = films.Id, Kind = MediaKind.Movie, Title = "A Film", SortTitle = "film" };
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            db.AddRange(films, film);
+            await db.SaveChangesAsync();
+        }
+
+        var book = (await GetAsync<PagedDto<ItemSummaryDto>>($"/api/v1/libraries/{lib.Library}/books")).Items.Single(b => b.Title == "Project Hail Mary");
+        var listed = (await GetAsync<PagedDto<ItemSummaryDto>>($"/api/v1/libraries/{films.Id}/items")).Items.Single();
+
+        Assert.Equal(new BookSummaryDto("Andy Weir", 1, "Ray Porter", null, null, 16 * 3600, null), book.Book);
+        Assert.Equal(film.Id, listed.Id);
+        Assert.Null(listed.Book);
+    }
+
+    /// <summary>
+    /// Every list of titles is made by <see cref="ItemQueries.Summaries"/>, films and episodes included, so what it
+    /// asks about a book's series is asked for every row of everything: it must be a look-up for that one book.
+    /// </summary>
+    [Fact]
+    public void Summaries_LookUpABooksSeriesForBooksOnly_NeverNumberingEveryBooksSeries()
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+
+        var sql = db.MediaItems.OrderBy(i => i.SortTitle).Take(20).Summaries(PlaybackState.DefaultUser).ToQueryString();
+
+        // ROW_NUMBER() OVER (PARTITION BY BookId …) is worked out for the whole table before a single row is picked.
+        Assert.DoesNotContain("ROW_NUMBER", sql, StringComparison.Ordinal);
+        // The series' name and the book's number in it: each once, each only when the row is a book.
+        Assert.Equal(2, System.Text.RegularExpressions.Regex.Count(sql,
+            """WHEN "m\d*"\."Kind" <> 'Audiobook' THEN NULL\s+ELSE \(\s+SELECT "b\d+"\."(?:Name|Sequence)"\s+FROM "BookSeriesEntries" """));
+        Assert.Equal(4, System.Text.RegularExpressions.Regex.Count(sql, "FROM \"BookSeriesEntries\""));
+    }
+
     [Theory]
     [InlineData("progress=inprogress", new[] { "The Man Who Died Twice" })]
     [InlineData("progress=notstarted&sort=title", new[] { "The Bullet That Missed", "Guards! Guards!", "Project Hail Mary" })]

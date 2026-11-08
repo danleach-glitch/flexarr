@@ -82,7 +82,8 @@ private val log = FlexarrLog("widget")
  * part-heard, with a play button) and Up Next. Both show [PodcastWidgets.load]'s snapshot: asked of the server whenever
  * the widgets update (every hour, and when something's been played, paused or added to Up Next in the app), the episode
  * playing taken from the app's own player, and kept for when the server can't be reached; an episode's picture is
- * fetched only when it's new to the widgets.
+ * fetched only when it's new to the widgets. With nobody chosen on a server with more than one profile ("Who's watching?"
+ * is up), they ask for someone to be chosen rather than showing whoever was listening last, as the Watchlist widget does.
  */
 object PodcastWidgets {
     /** An episode as the widgets keep it between updates. */
@@ -105,6 +106,7 @@ object PodcastWidgets {
 
     internal sealed interface State {
         data object SignedOut : State
+        data object ChooseProfile : State
         data class Episodes(val current: Shown?, val upNext: List<Shown>, val isPlaying: Boolean) : State
     }
 
@@ -118,6 +120,14 @@ object PodcastWidgets {
     internal suspend fun load(context: Context): State = withContext(Dispatchers.IO) {
         val model = context.appModel
         val credentials = model.credentials ?: CredentialStore(context).load() ?: return@withContext State.SignedOut
+        // Nobody chosen where there's a choice: the server would answer as whoever was listening last. What the widgets
+        // kept of theirs goes, and they ask for someone to be chosen.
+        if (model.awaitsProfile) {
+            loading.withLock { asked = null }
+            File(context.cacheDir, "widget-podcasts").deleteRecursively()
+            bookIds = emptySet()
+            return@withContext State.ChooseProfile
+        }
         val folder = File(context.cacheDir, "widget-podcasts").apply { mkdirs() }
         val saved = File(folder, "podcasts.json")
         fun pictureFile(id: String) = File(folder, "$id.jpg")
@@ -299,6 +309,7 @@ class ContinueListeningWidget : GlanceAppWidget() {
         ) {
             when {
                 state == PodcastWidgets.State.SignedOut -> Note(t("Open Flexarr to connect it to your server."))
+                state == PodcastWidgets.State.ChooseProfile -> Note(t("Open Flexarr to choose who’s watching"))
                 shown == null -> Note(t("Nothing to carry on with. What you’re listening to shows up here."))
                 LocalSize.current.width >= WIDE.width -> Wide(context, shown, (state as PodcastWidgets.State.Episodes).isPlaying)
                 else -> Small(context, shown, (state as PodcastWidgets.State.Episodes).isPlaying)
@@ -390,6 +401,7 @@ class UpNextWidget : GlanceAppWidget() {
             Spacer(GlanceModifier.height(8.dp))
             when {
                 state == PodcastWidgets.State.SignedOut -> Note(t("Open Flexarr to connect it to your server."))
+                state == PodcastWidgets.State.ChooseProfile -> Note(t("Open Flexarr to choose who’s watching"))
                 episodes.isEmpty() -> Note(t("Nothing in Up next"))
                 small -> {
                     val first = episodes.first()

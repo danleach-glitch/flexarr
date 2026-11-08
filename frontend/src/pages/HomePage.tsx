@@ -1,7 +1,7 @@
 import { Fragment, useEffect } from 'react'
 import { PageError } from '../components/PageStatus'
 import { Link, Navigate } from 'react-router'
-import { getHome, getNewEpisodes, getSetupGuide, type Library } from '../api/client'
+import { getHome, getNewEpisodes, getSetupGuideForHome, type Library } from '../api/client'
 import { EpisodeCard } from '../components/EpisodeCard'
 import { Hero } from '../components/Hero'
 import { HomeRows } from '../components/HomeRows'
@@ -36,7 +36,8 @@ export function HomePage() {
   // Settings locked or not: the list is the main profile's either way.
   const main = me?.isAdmin === true || me?.canUnlock === true
   const admin = me?.isAdmin === true
-  const guide = useApi((signal) => (main ? getSetupGuide(signal).catch(() => null) : Promise.resolve(null)), [main])
+  // Kept as long as Home's own answer: Home waits for it, and back from a title neither is asked for again.
+  const guide = useApi((signal) => (main ? getSetupGuideForHome(signal).catch(() => null) : Promise.resolve(null)), [main])
 
   if (error) return <PageError error={error} onRetry={reload} />
   if (!data || guide.loading) return <div className="hero hero-loading" aria-busy="true" />
