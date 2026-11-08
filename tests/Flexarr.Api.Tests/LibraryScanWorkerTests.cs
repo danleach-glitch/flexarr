@@ -51,6 +51,69 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
     }
 
     [Fact]
+    public async Task AWatchedFolder_IsFullyScannedWeekly_OthersEvery12Hours_AndBothAtStartup()
+    {
+        var watched = Directory.CreateDirectory(Path.Combine(factory.MediaDirectory, $"watched-{Guid.NewGuid():N}")).FullName;
+        var missing = Path.Combine(factory.MediaDirectory, $"missing-{Guid.NewGuid():N}");
+        var dayAgo = DateTime.UtcNow.AddDays(-1);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            db.Libraries.Add(new Library
+            {
+                Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies,
+                Folders = [new LibraryFolder { Path = watched, FullScanAt = dayAgo }, new LibraryFolder { Path = missing, FullScanAt = dayAgo }],
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var options = new Flexarr.Api.Configuration.FlexarrOptions();
+        using var watcher = new FolderWatcher(new RecordingScanQueue(), factory.Services.GetRequiredService<IServiceScopeFactory>(), new StaticOptions(options),
+            TimeProvider.System, NullLogger<FolderWatcher>.Instance);
+        await watcher.SyncAsync(default);
+        Assert.True(watcher.KeepsUpWith(watched));
+        Assert.False(watcher.KeepsUpWith(missing));
+
+        List<string> Queued(RecordingScanQueue q) => q.Requests.Select(r => r.Path).Where(p => p == watched || p == missing).ToList();
+        LibraryScanWorker Worker(RecordingScanQueue q) => new(q, factory.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance,
+            factory.Services.GetRequiredService<LibraryWorkGate>(), watcher);
+
+        var scheduled = new RecordingScanQueue();
+        using (var worker = Worker(scheduled))
+        {
+            await worker.EnqueueAllAsync("Scheduled", default);
+        }
+
+        Assert.Equal([missing], Queued(scheduled));
+
+        var startup = new RecordingScanQueue();
+        using (var worker = Worker(startup))
+        {
+            await worker.EnqueueAllAsync(LibraryScanWorker.StartupReason, default);
+        }
+
+        Assert.Equal(new[] { watched, missing }.Order(), Queued(startup).Order());
+
+        // Switched off, the watched folder is back on 12 hours.
+        options.WatchFolders.Enabled = false;
+        await watcher.SyncAsync(default);
+        var off = new RecordingScanQueue();
+        using (var worker = Worker(off))
+        {
+            await worker.EnqueueAllAsync("Scheduled", default);
+        }
+
+        Assert.Contains(watched, Queued(off));
+    }
+
+    private sealed class StaticOptions(Flexarr.Api.Configuration.FlexarrOptions value) : Microsoft.Extensions.Options.IOptionsMonitor<Flexarr.Api.Configuration.FlexarrOptions>
+    {
+        public Flexarr.Api.Configuration.FlexarrOptions CurrentValue => value;
+        public Flexarr.Api.Configuration.FlexarrOptions Get(string? name) => value;
+        public IDisposable? OnChange(Action<Flexarr.Api.Configuration.FlexarrOptions, string?> listener) => null;
+    }
+
+    [Fact]
     public async Task TheMetadataTimer_RefreshesOutOfDateTitles_AFewAtATime()
     {
         var library = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = $"/films-{Guid.NewGuid():N}" }] };

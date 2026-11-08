@@ -16,10 +16,19 @@ public sealed partial class LibraryScanWorker(
     ILibraryScanQueue queue,
     IServiceScopeFactory scopes,
     ILogger<LibraryScanWorker> logger,
-    LibraryWorkGate gate) : BackgroundService
+    LibraryWorkGate gate,
+    FolderWatcher? watcher = null) : BackgroundService
 {
     private static readonly TimeSpan Debounce = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan ScheduledScanInterval = TimeSpan.FromHours(12);
+
+    /// <summary>
+    /// The schedule's interval for a folder <see cref="FolderWatcher"/> keeps up with: its changes are noticed as they
+    /// happen, so the full scan is only a backstop for an event the system dropped, and the drive is woken less.
+    /// </summary>
+    internal static readonly TimeSpan WatchedScanInterval = TimeSpan.FromDays(7);
+
+    internal const string StartupReason = "Startup";
 
     /// <summary>How often the schedule looks for a library folder whose last full scan is <see cref="ScheduledScanInterval"/> old.</summary>
     private static readonly TimeSpan ScheduleCheck = TimeSpan.FromMinutes(15);
@@ -31,7 +40,7 @@ public sealed partial class LibraryScanWorker(
     {
         // Catch up on anything that changed while the server was down (and finish interrupted scans). A folder scanned
         // in full less than 12 hours ago waits until then: a restart doesn't scan everything again.
-        await EnqueueAllSafelyAsync("Startup", stoppingToken);
+        await EnqueueAllSafelyAsync(StartupReason, stoppingToken);
 
         _ = ScheduleAsync(stoppingToken);
 
@@ -103,7 +112,8 @@ public sealed partial class LibraryScanWorker(
 
     /// <summary>
     /// Each library folder whose last full scan finished <see cref="ScheduledScanInterval"/> ago or more (or that never
-    /// had one), unless the schedule queued it within that time.
+    /// had one), unless the schedule queued it within that time; <see cref="WatchedScanInterval"/> for a folder that's
+    /// being watched, except at startup.
     /// </summary>
     internal async Task EnqueueAllAsync(string reason, CancellationToken ct)
     {
@@ -118,7 +128,9 @@ public sealed partial class LibraryScanWorker(
                 last = queued; // Queued and not done yet, or it failed: tried again when the interval is up, as before.
             }
 
-            if (last is { } at && at <= now && now - at < ScheduledScanInterval)
+            // At startup the watcher wasn't running while the server was down, so whatever changed then was missed.
+            var interval = reason != StartupReason && watcher?.KeepsUpWith(folder.Path) == true ? WatchedScanInterval : ScheduledScanInterval;
+            if (last is { } at && at <= now && now - at < interval)
             {
                 continue;
             }
@@ -187,7 +199,7 @@ public sealed partial class LibraryScanWorker(
             var result = await scanner.ScanAsync(library, target, request.ForceMetadata, request.Deleted, ct);
             foreach (var folder in library.Folders.Where(f => PathComparison.IsUnder(f.Path, target)))
             {
-                // A scan of the whole folder: the schedule's next one is 12 hours from now, restart or not.
+                // A scan of the whole folder: the schedule's next one is 12 hours (a week, if watched) from now, restart or not.
                 var finished = DateTime.UtcNow;
                 await db.LibraryFolders.Where(f => f.Id == folder.Id).ExecuteUpdateAsync(u => u.SetProperty(f => f.FullScanAt, finished), ct);
             }
