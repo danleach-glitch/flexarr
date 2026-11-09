@@ -318,7 +318,23 @@ export function FolderWatchNote({ watch }: { watch?: FolderWatch }) {
           : watch.problem === 'Limit'
             ? t('Watch limit reached: checked every 12 hours')
             : t('Can’t be watched: checked every 12 hours')
-  return text && <span className="folder-watch">{text}</span>
+  // These two have something to do about them, which is in the guide.
+  const why = watch?.state === 'Unavailable' && watch.problem !== 'Missing'
+  return (
+    text && (
+      <span className="folder-watch">
+        {text}
+        {why && (
+          <>
+            {' '}
+            <a href="https://flexarr.io/guide/troubleshooting#new-downloads-don-t-appear" target="_blank" rel="noreferrer">
+              {t('Why?')}
+            </a>
+          </>
+        )}
+      </span>
+    )
+  )
 }
 
 /** In place of the library's title: the name it goes by in the sidebar and on every device. Escape puts it back. */
