@@ -90,15 +90,23 @@ public static class VersionPicker
         return filling.Count > 0 ? filling.MinBy(Equivalent)! : cut[0];
     }
 
-    /// <summary>The file a choice means: the one chosen or, if an upgrade replaced it, one with the same label and edition.</summary>
+    /// <summary>
+    /// The file a choice means: the one chosen or, if an upgrade replaced it, one with the same label and edition. A
+    /// better copy arriving makes the chosen file a spare, and the choice moves to that copy, the one Version shows.
+    /// </summary>
     public static MediaFile? Chosen(IReadOnlyList<MediaFile> files, VersionChoice choice)
     {
         ArgumentNullException.ThrowIfNull(files);
         ArgumentNullException.ThrowIfNull(choice);
 
-        return files.FirstOrDefault(f => f.Id == choice.MediaFileId)
-            ?? VersionRules.BestFirst(files).FirstOrDefault(f => VersionRules.Label(f) == choice.Label
-                && string.Equals(VersionRules.Edition(f), choice.Edition, StringComparison.OrdinalIgnoreCase));
+        var best = VersionRules.BestFirst(files).ToList();
+        if (files.FirstOrDefault(f => f.Id == choice.MediaFileId) is { } file)
+        {
+            return VersionRules.Sort(best).Kept.FirstOrDefault(k => !VersionRules.Distinct(k, file)) ?? file;
+        }
+
+        return best.FirstOrDefault(f => VersionRules.Label(f) == choice.Label
+            && string.Equals(VersionRules.Edition(f), choice.Edition, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>The best picture; between two alike, the one that plays as it is.</summary>

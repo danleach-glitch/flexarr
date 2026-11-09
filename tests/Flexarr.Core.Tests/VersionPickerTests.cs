@@ -148,6 +148,16 @@ public class VersionPickerTests
     }
 
     [Fact]
+    public void AChoiceMovesToABetterCopyOfItself()
+    {
+        var old = File("Film old", 1080);
+        var better = File("Film new", 1080);
+        better.Bitrate = (old.Bitrate ?? 0) + 1_000_000;
+        Assert.Same(better, VersionPicker.Chosen([old, better, _uhd], Choice(old)));
+        Assert.Same(_uhd, VersionPicker.Chosen([old, better, _uhd], Choice(_uhd)));
+    }
+
+    [Fact]
     public void Downloads_KeepToTheChosenVersionsCut()
     {
         var directors = File("Film (2020) {edition-Director's Cut}", 1080, duration: 9000);
