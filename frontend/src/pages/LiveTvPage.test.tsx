@@ -209,6 +209,29 @@ describe('refreshing the Live TV guide', () => {
     expect(screen.queryByText('Guide refreshed')).toBeNull()
   }, 15000)
 
+  it('doesn’t take a scheduled refresh the page hadn’t seen yet for the one just asked for', async () => {
+    let finished = 4
+    mockApi({
+      '/livetv/status': () => ({ configured: true, channels: 20, refreshing: false, refreshedAt: null, error: null, rewindMinutes: 0, refreshesFinished: finished }),
+      '/livetv/channels': [],
+      '/livetv/refresh': () => ({}),
+    })
+    openPage(true)
+    const button = await screen.findByRole('button', { name: 'Refresh guide' })
+    // One finishes on its own after the page last looked, and before the press.
+    finished = 5
+
+    fireEvent.click(button)
+    await waitFor(() => expect(button).toHaveAccessibleName('Refreshing…'))
+    await new Promise((done) => setTimeout(done, 300))
+    expect(button).toHaveAccessibleName('Refreshing…')
+    expect(screen.queryByText('Guide refreshed')).toBeNull()
+
+    finished = 6
+    await screen.findByText('Guide refreshed', undefined, { timeout: 5000 })
+    expect(button).toHaveAccessibleName('Refresh guide')
+  }, 15000)
+
   it('isn’t offered to other profiles', async () => {
     mockApi({
       '/livetv/status': { configured: true, channels: 20, refreshing: false, refreshedAt: null, error: null, rewindMinutes: 0, channelsWithoutListings: 3 },

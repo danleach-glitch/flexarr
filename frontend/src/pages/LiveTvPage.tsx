@@ -42,8 +42,10 @@ export default function LiveTvPage() {
   const status = useApi(getLiveTvStatus, [])
   const { me } = useSession()
   const mainProfile = !!me?.isAdmin || !!me?.canUnlock
-  // A refresh asked for: how the status looked just before, and whether it has been seen under way since.
-  const [refresh, setRefresh] = useState<{ before: LiveTvStatus; seen: boolean; at: number }>()
+  // A refresh asked for: how the status looked just before, the look on screen then (older than that, so it says nothing
+  // about this refresh), and whether it has been seen under way since.
+  const [refresh, setRefresh] = useState<{ before: LiveTvStatus; stale?: LiveTvStatus; seen: boolean; at: number }>()
+  const onScreen = useRef<LiveTvStatus>(undefined)
   /** Bumped when a refresh finishes, so what's shown is fetched again. */
   const [refreshed, setRefreshed] = useState(0)
   const [refreshFailed, setRefreshFailed] = useState<string>()
@@ -65,7 +67,10 @@ export default function LiveTvPage() {
     setRefreshFailed(failed)
   }, [])
   useEffect(() => {
-    if (!refresh || !status.data) return
+    onScreen.current = status.data
+  }, [status.data])
+  useEffect(() => {
+    if (!refresh || !status.data || status.data === refresh.stale) return
     badLooks.current = 0
     const { refreshing, refreshedAt, error, downloadError, refreshesFinished } = status.data
     const { before, seen, at } = refresh
@@ -121,7 +126,9 @@ export default function LiveTvPage() {
     try {
       const before = await freshly(() => getLiveTvStatus())
       await refreshLiveTv()
-      setRefresh({ before, seen: false, at: Date.now() })
+      setRefresh({ before, stale: onScreen.current, seen: false, at: Date.now() })
+      // Also drops any look still on its way from before the press.
+      reloadStatus()
     } catch (e) {
       setRefreshFailed(e instanceof Error ? e.message : String(e))
     }
