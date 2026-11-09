@@ -389,14 +389,15 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /**
      * The server's version (null if it couldn't be asked) and the video profile the player asks with
      * ([DeviceCapabilities.withServer]): shared by the player and warm-ups, so both ask for exactly the same stream.
-     * The profile is worked out each time, since what's plugged in (an amplifier switched on) and the sound settings change it.
+     * The profile is worked out each time, since what's plugged in (an amplifier switched on) and the sound settings change
+     * it; a warm-up, which only guesses at what Play will ask, takes the one from a moment ago ([fresh] false).
      */
-    suspend fun server(): Pair<String?, DeviceProfile>? {
+    suspend fun server(fresh: Boolean = true): Pair<String?, DeviceProfile>? {
         if (client == null) return null
         val version = serverVersion()
         // Asking the system (decoders, the display, the HDMI output) takes a while: not on the main thread, which
         // the TV's focus warm-ups call this from.
-        val profile = withContext(Dispatchers.Default) { DeviceCapabilities.profile(context) }
+        val profile = withContext(Dispatchers.Default) { if (fresh) DeviceCapabilities.profile(context) else DeviceCapabilities.recentProfile(context) }
         return version to DeviceCapabilities.withServer(profile, version)
     }
 
@@ -413,7 +414,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         warmJob?.second?.cancel()
         warmJob = item.id to scope.launch {
             // A server before 0.59 would show the warm-up as playing and give it a transcode slot.
-            val (version, profile) = server() ?: return@launch
+            val (version, profile) = server(fresh = false) ?: return@launch
             if (version == null || !ServerVersion.atLeast(version, 0, 59)) return@launch
             if (item.kind == MediaKind.Audiobook) {
                 books.getReady(item)

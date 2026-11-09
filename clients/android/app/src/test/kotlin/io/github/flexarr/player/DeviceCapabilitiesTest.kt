@@ -108,4 +108,24 @@ class DeviceCapabilitiesTest {
         assertEquals("60", DeviceCapabilities.rate(60f))
         assertEquals("59,94", DeviceCapabilities.rate(59.94f, java.util.Locale.GERMANY))
     }
+
+    @Test fun aRecentAnswer_isKeptUntilItsTimeOrAChange() {
+        var clock = 0L
+        var asked = 0
+        val recent = RecentAnswer<String, Int>(30_000) { clock }
+        fun get(key: String) = recent.get(key) { ++asked }
+        assertEquals(1, get("sound"))
+        clock = 29_999
+        assertEquals(1, get("sound"))
+        // The sound settings changed.
+        assertEquals(2, get("other sound"))
+        // An audio device came or went.
+        recent.clear()
+        assertEquals(3, get("other sound"))
+        clock += 30_000
+        assertEquals(4, get("other sound"))
+        // Play's own answer is what a warm-up goes on to ask with.
+        recent.put("other sound", 99)
+        assertEquals(99, get("other sound"))
+    }
 }

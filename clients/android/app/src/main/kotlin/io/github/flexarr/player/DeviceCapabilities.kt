@@ -2,9 +2,15 @@ package io.github.flexarr.player
 
 import android.content.Context
 import android.hardware.display.DisplayManager
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
 import android.media.MediaCodecInfo
 import android.media.MediaCodecList
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.view.Display
 import androidx.annotation.OptIn
 import androidx.media3.common.C
@@ -13,6 +19,7 @@ import androidx.media3.exoplayer.audio.AudioCapabilities
 import io.github.flexarr.core.DeviceProfile
 import io.github.flexarr.core.ServerVersion
 import io.github.flexarr.data.SoundSettings
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
 /**
@@ -90,7 +97,29 @@ object DeviceCapabilities {
         )
     }
 
-    fun profile(context: Context): DeviceProfile = profile(facts(context))
+    fun profile(context: Context): DeviceProfile = profile(facts(context)).also { recent.put(SoundSettings.current(context), it) }
+
+    /**
+     * [profile] as it was a moment ago, for focus warm-ups, which browsing on a slow box would otherwise ask the display
+     * and the HDMI output for at every move. Worked out again after a change of sound settings or audio device. Only a
+     * guess that saves Play's wait, so a miss costs no more than that: Play itself asks [profile].
+     */
+    fun recentProfile(context: Context): DeviceProfile {
+        watchAudioDevices(context)
+        return recent.get(SoundSettings.current(context)) { profile(facts(context)) }
+    }
+
+    private val recent = RecentAnswer<SoundSettings, DeviceProfile>(RECENT_MS)
+    private val watchingAudioDevices = AtomicBoolean(false)
+
+    private fun watchAudioDevices(context: Context) {
+        if (!watchingAudioDevices.compareAndSet(false, true)) return
+        val callback = object : AudioDeviceCallback() {
+            override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) = recent.clear()
+            override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) = recent.clear()
+        }
+        context.applicationContext.getSystemService(AudioManager::class.java).registerAudioDeviceCallback(callback, Handler(Looper.getMainLooper()))
+    }
 
     /**
      * [profile] with only what this device decodes itself, nothing passed through to a receiver: for music (whose
@@ -214,6 +243,8 @@ object DeviceCapabilities {
         if (Build.VERSION.SDK_INT >= 29) info.isHardwareAccelerated
         else !info.name.startsWith("OMX.google.") && !info.name.startsWith("c2.android.")
 
+    private const val RECENT_MS = 30_000L
+
     const val HDR10 = 2 // Display.HdrCapabilities.HDR_TYPE_HDR10
     const val HLG = 3 // HDR_TYPE_HLG
     const val HDR10_PLUS = 4 // HDR_TYPE_HDR10_PLUS
@@ -236,4 +267,24 @@ object DeviceCapabilities {
     private val PASSTHROUGH_CODECS = mapOf(
         "ac3" to "ac3", "eac3" to "eac3", "eac3-joc" to "eac3", "dts" to "dts", "dts-hd" to "dts", "truehd" to "truehd",
     )
+}
+
+/** The last answer for [K], kept for [freshMs]: another key, or having been told to [clear], asks again. */
+internal class RecentAnswer<K, V>(private val freshMs: Long, private val now: () -> Long = SystemClock::elapsedRealtime) {
+    private var held: Triple<K, Long, V>? = null
+
+    @Synchronized
+    fun put(key: K, value: V) {
+        held = Triple(key, now(), value)
+    }
+
+    @Synchronized
+    fun clear() {
+        held = null
+    }
+
+    fun get(key: K, ask: () -> V): V {
+        synchronized(this) { held?.let { (owner, at, value) -> if (owner == key && now() - at < freshMs) return value } }
+        return ask().also { put(key, it) }
+    }
 }
