@@ -6,6 +6,7 @@ using Flexarr.Core.Paths;
 using Flexarr.Integrations.Arr;
 using Flexarr.Metadata;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Flexarr.Core.Tests;
@@ -192,7 +193,8 @@ public sealed class MusicMetadataRefreshTests : IAsyncLifetime
     [Fact]
     public async Task ScansOfOneFolder_ShareLidarrsArtistList_UntilItDoesntKnowAnArtist()
     {
-        var list = new LidarrArtistList(TimeProvider.System);
+        using var memory = new MemoryCache(new MemoryCacheOptions());
+        var list = new LidarrArtistList(memory);
 
         await Refresher(list).RefreshScannedAsync(_library, false, [MakingMoviesFolder], null, null, default);
         await Refresher(list).RefreshScannedAsync(_library, false, [MakingMoviesFolder], null, null, default);
@@ -207,6 +209,29 @@ public sealed class MusicMetadataRefreshTests : IAsyncLifetime
         // A refresh asked for, or of the whole library, asks afresh.
         await Refresher(list).RefreshScannedAsync(_library, true, [MakingMoviesFolder], null, null, default);
         Assert.Equal(3, _lidarr.Paths.Count(p => p == "/api/v1/artist"));
+    }
+
+    private sealed class Clock : Microsoft.Extensions.Internal.ISystemClock
+    {
+        public DateTimeOffset UtcNow { get; set; } = DateTimeOffset.UtcNow;
+    }
+
+    [Fact]
+    public async Task LidarrsArtistList_LeavesMemoryWhenItsTimeIsUp()
+    {
+        var clock = new Clock();
+        using var memory = new MemoryCache(new MemoryCacheOptions { Clock = clock });
+        var list = new LidarrArtistList(memory);
+
+        await Refresher(list).RefreshScannedAsync(_library, false, [MakingMoviesFolder], null, null, default);
+        Assert.Equal(1, memory.Count);
+
+        clock.UtcNow += LidarrArtistList.KeptFor + TimeSpan.FromSeconds(1);
+        memory.Compact(0); // what the cache does for itself as it's used; this makes it now
+        Assert.Equal(0, memory.Count);
+
+        await Refresher(list).RefreshScannedAsync(_library, false, [MakingMoviesFolder], null, null, default);
+        Assert.Equal(2, _lidarr.Paths.Count(p => p == "/api/v1/artist"));
     }
 
     [Fact]

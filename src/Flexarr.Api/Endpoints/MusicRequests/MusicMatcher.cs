@@ -76,12 +76,6 @@ public sealed class OwnedMusic(Dictionary<string, Guid> artists, Dictionary<stri
 /// </summary>
 public static class MusicMatcher
 {
-    /// <summary>
-    /// How long a Lidarr's artist list is kept: it's dropped after every request Flexarr places, so only changes made in
-    /// Lidarr itself wait this long.
-    /// </summary>
-    private static readonly TimeSpan LidarrArtistsFor = TimeSpan.FromMinutes(5);
-
     /// <summary>A Lidarr that didn't answer isn't asked again for this long, so every page doesn't wait on it.</summary>
     private static readonly TimeSpan LidarrDownFor = TimeSpan.FromSeconds(30);
 
@@ -171,7 +165,7 @@ public static class MusicMatcher
     /// </summary>
     public static async Task<IReadOnlyList<LidarrArtist>> LidarrArtistsAsync(ArrClient client, ArrInstance lidarr, IMemoryCache cache, CancellationToken ct)
     {
-        var key = $"lidarr-artists:{lidarr.BaseUrl}";
+        var key = LidarrArtistList.KeyFor(lidarr);
         if (cache.TryGetValue(key, out IReadOnlyList<LidarrArtist>? hit) && hit is not null)
         {
             return hit;
@@ -182,7 +176,7 @@ public static class MusicMatcher
             using var quick = CancellationTokenSource.CreateLinkedTokenSource(ct);
             quick.CancelAfter(TimeSpan.FromSeconds(10));
             var artists = await client.GetArtistsAsync(lidarr, quick.Token);
-            cache.Set(key, artists, LidarrArtistsFor);
+            cache.Set(key, artists, LidarrArtistList.KeptFor);
             return artists;
         }
         catch (Exception ex) when (ex is HttpRequestException || (ex is OperationCanceledException && !ct.IsCancellationRequested))
@@ -211,7 +205,7 @@ public static class MusicMatcher
     public static bool IsDown(IMemoryCache cache, ArrInstance lidarr) => cache.TryGetValue($"lidarr-down:{lidarr.BaseUrl}", out _);
 
     /// <summary>A Lidarr's artists will have changed (one was just added or followed).</summary>
-    public static void Forget(IMemoryCache cache, ArrInstance lidarr) => cache.Remove($"lidarr-artists:{lidarr.BaseUrl}");
+    public static void Forget(IMemoryCache cache, ArrInstance lidarr) => cache.Remove(LidarrArtistList.KeyFor(lidarr));
 
     /// <summary>
     /// The MusicBrainz artist behind a Deezer artist: Lidarr's lookup results with the same name, preferring one Lidarr
