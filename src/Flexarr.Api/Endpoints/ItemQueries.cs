@@ -48,6 +48,11 @@ public static class ItemQueries
         query.Select(i => new
             {
                 Item = i,
+                // A linked parent is reported as the copy its page lists (OnePerTitle), since apps look for it there:
+                // an episode of another copy still has to light up its season.
+                ParentId = i.Parent != null && i.Parent.LinkGroupId != null
+                    ? i.Parent.LinkGroup!.Items.OrderBy(o => o.Id).Select(o => (Guid?)o.Id).FirstOrDefault() ?? i.ParentId
+                    : i.ParentId,
                 // A linked title counts across its copies, each child once.
                 ChildCount = i.LinkGroupId == null ? i.Children.Count
                     : i.LinkGroup!.Items.SelectMany(c => c.Children).Count(c => c.LinkGroupId == null || !c.LinkGroup!.Items.Any(o => o.Id.CompareTo(c.Id) < 0)),
@@ -100,7 +105,7 @@ public static class ItemQueries
                         : (int?)null,
             })
             .Select(x => new ItemSummaryDto(
-                x.Item.Id, x.Item.LibraryId, x.Item.ParentId, x.Item.Kind, x.Item.Title, x.Item.Year, x.Item.SeasonNumber, x.Item.EpisodeNumber,
+                x.Item.Id, x.Item.LibraryId, x.ParentId, x.Item.Kind, x.Item.Title, x.Item.Year, x.Item.SeasonNumber, x.Item.EpisodeNumber,
                 x.Item.EpisodeNumberEnd, x.Item.AirDate, x.ChildCount,
                 x.Book != null ? x.Book.Duration : x.Best == null ? x.PodcastDuration : x.Best.DurationSeconds,
                 x.Best == null ? null : Resolution.Label(x.Best.Width, x.Best.Height),

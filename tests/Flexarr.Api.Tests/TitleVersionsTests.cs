@@ -456,6 +456,38 @@ public sealed class TitleVersionsTests : IAsyncLifetime
         Assert.Equal(_hdItem, (await Flexarr.Api.Devices.DeviceEndpoints.CopyTheProfileSeesAsync(uhd, PlaybackState.DefaultUser, db, default)).Id);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task NextUp_NamesASeasonThePageLists_WhicheverCopysIdIsLowest(bool hdSeasonFirst)
+    {
+        Guid show;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            MediaItem Show(Guid library) => new() { LibraryId = library, Kind = MediaKind.Series, Title = "Order", SortTitle = "order", TvdbId = "777" };
+            MediaItem Season(Guid library, MediaItem parent, Guid id) => new() { Id = id, LibraryId = library, ParentId = parent.Id, Kind = MediaKind.Season, Title = "Season 1", SortTitle = "001", SeasonNumber = 1 };
+            MediaItem Episode(Guid library, MediaItem season, Guid id) => new() { Id = id, LibraryId = library, ParentId = season.Id, Kind = MediaKind.Episode, Title = "E1", SortTitle = "001001", SeasonNumber = 1, EpisodeNumber = 1 };
+            var low = Guid.Parse("00000000-0000-7000-8000-000000000001");
+            var high = Guid.Parse("00000000-0000-7000-8000-000000000002");
+            var (hdShow, uhdShow) = (Show(_hdLibrary), Show(_uhdLibrary));
+            var hdSeason = Season(_hdLibrary, hdShow, hdSeasonFirst ? low : high);
+            var uhdSeason = Season(_uhdLibrary, uhdShow, hdSeasonFirst ? high : low);
+
+            // The lowest episode is in the other copy from the lowest season.
+            var hdEpisode = Episode(_hdLibrary, hdSeason, Guid.Parse(hdSeasonFirst ? "00000000-0000-7000-8000-000000000004" : "00000000-0000-7000-8000-000000000003"));
+            var uhdEpisode = Episode(_uhdLibrary, uhdSeason, Guid.Parse(hdSeasonFirst ? "00000000-0000-7000-8000-000000000003" : "00000000-0000-7000-8000-000000000004"));
+            db.AddRange(hdShow, uhdShow, hdSeason, uhdSeason, hdEpisode, uhdEpisode);
+            await db.SaveChangesAsync();
+            await TitleLinker.LinkAsync(db, default);
+            show = hdShow.Id;
+        }
+
+        var detail = await Client().GetFromJsonAsync<JsonElement>(Api($"/items/{show}?includeSeason=true"));
+        var season = Assert.Single(detail.GetProperty("children").EnumerateArray()).GetProperty("id").GetGuid();
+        Assert.Equal(season, detail.GetProperty("nextUp").GetProperty("parentId").GetGuid());
+    }
+
     [Fact]
     public async Task AHiddenCopy_AddsNothingToAShow()
     {
