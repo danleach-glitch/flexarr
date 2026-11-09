@@ -159,7 +159,12 @@ struct LiveTvView: View {
             if let count = model.liveTvStatus?.channelsWithoutListings, count > 0 {
                 let text = Text(t("{count, plural, one {# channel has no listings} other {# channels have no listings}}", ["count": count]))
                     .foregroundStyle(Color.usher)
-                let why = Link(t("Why?"), destination: URL(string: "https://flexarr.io/guide/live-tv#channels-with-no-listings")!)
+                // Footnote-sized words, but a finger-sized place to tap them.
+                let why = Link(destination: URL(string: "https://flexarr.io/guide/live-tv#channels-with-no-listings")!) {
+                    Text(t("Why?"))
+                        .frame(minWidth: 44, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
                 // Beside each other when they fit; at the largest text sizes, one under the other.
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 6) { text; why }
