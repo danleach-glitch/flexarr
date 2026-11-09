@@ -46,6 +46,41 @@ final class ParityTour: XCTestCase {
         }
     }
 
+    /// Chooses a version through ⋯ and plays it, on the title TEST_RUNNER_PARITY_CHOOSE_VERSION names (its id), to the
+    /// version whose name starts with TEST_RUNNER_PARITY_CHOOSE_LABEL. Unlike the tour this changes the profile's choice,
+    /// so it runs only when asked to, and goes back to Automatic at the end.
+    func testChooseVersion() async throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let id = env["PARITY_CHOOSE_VERSION"], let label = env["PARITY_CHOOSE_LABEL"] else {
+            throw XCTSkip("Set TEST_RUNNER_PARITY_CHOOSE_VERSION and TEST_RUNNER_PARITY_CHOOSE_LABEL to run this.")
+        }
+        addTeardownBlock { [client] in try? await client?.setVersion(id, fileId: nil) }
+        let versions = try await client.item(id).versions
+        let wanted = try XCTUnwrap(versions?.first { $0.label.hasPrefix(label) })
+
+        open("flexarr://item/\(id)", wait: 6)
+        press(.right, times: 5, wait: 1)
+        press(.select, wait: 2)
+        XCTAssertTrue(app.buttons["Version"].firstMatch.exists, "No Version in ⋯")
+        press(.select, wait: 2)
+        let entry = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", label)).firstMatch
+        XCTAssertTrue(entry.exists, "No \(label) in the Version list")
+        for _ in 0..<5 where !entry.hasFocus { press(.down, wait: 1) }
+        XCTAssertTrue(entry.hasFocus, "Couldn't reach \(label) in the Version list")
+        shot("11-version-focused")
+        press(.select, wait: 3)
+
+        let chosen = try await client.item(id).versions?.first(where: \.chosen)
+        XCTAssertEqual(chosen?.fileId, wanted.fileId, "The server didn't take the choice")
+
+        // The page's own Play, the first of the row, which asks for no particular file.
+        press(.left, times: 5, wait: 1)
+        shot("12-version-chosen")
+        press(.select, wait: 20)
+        shot("13-version-playing")
+        press(.menu, wait: 3)
+    }
+
     func testParityTour() async throws {
         let libraries = try await client.libraries()
         let movies = libraries.first { $0.type == .movies }
@@ -74,6 +109,7 @@ final class ParityTour: XCTestCase {
                 press(.select, wait: 2)
                 if app.buttons["Version"].firstMatch.exists {
                     press(.select, wait: 2)
+                    XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label ENDSWITH %@", "Automatic")).firstMatch.exists, "The Version list didn't open")
                     shot("10-version")
                     press(.menu, wait: 2)
                 } else {

@@ -41,7 +41,7 @@ Without a request for a particular file:
 
 1. The profile's remembered choice for that title. If the file was replaced, a file with the same label and edition stands in, and if a better copy has made it a spare, the choice moves to that copy. If nothing does, the choice is ignored but kept.
 2. A remembered choice gives way only when it would need converting and another version of the same cut wouldn't.
-3. Otherwise the automatic pick looks at the main cut, the cut of the best-quality file, so it never changes cut by itself. It runs the playback decider on each version: plays as it is, then repackaged, then converted. Within a tier, the highest resolution then bitrate wins. `MediaFile.DolbyVisionProfile` lets it tell a profile 5 file, which most devices can't show, from 7 and 8. An interlaced file still counts as playing as it is, though it may be deinterlaced in the end.
+3. Otherwise the automatic pick looks at the main cut, the cut of the best-quality file, so it never changes cut by itself. It runs the playback decider on each version: plays as it is, then repackaged, then converted. Within a tier, the highest resolution then bitrate wins. `MediaFile.DolbyVisionProfile` lets it tell profile 5, which has no HDR10 picture underneath and so needs a Dolby Vision device, from 7 and 8. An interlaced file still counts as playing as it is, though it may be deinterlaced in the end.
 
 A request naming a file (`FileId`, used when restarting a stream) gets that file. If it isn't a version this profile can see (gone since, or in a hidden library), the request carries on as if it hadn't named one, as it always has: the file can't be reached, and a stream isn't lost because an upgrade replaced its file. The response's `fileId` says what's playing.
 

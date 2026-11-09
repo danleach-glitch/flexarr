@@ -8,11 +8,14 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Rect
+import android.net.Uri
 import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -46,6 +49,61 @@ class ParityTour {
 
     @Test
     fun tour() {
+        val (movies, shows, query) = Triple(arguments.getString("movies") ?: "Movies", arguments.getString("shows") ?: "TV Shows", arguments.getString("query") ?: "the")
+        sidebarPlaces = listOf("Home", "Search", "Settings", "Discover", "Watchlist", "Live TV", "Music", movies, shows)
+        signIn()
+        if (tv) tvTour(movies, shows, query) else phoneTour(movies, shows, query)
+    }
+
+    /**
+     * Chooses a version through ⋯ and plays it, on the title `-e chooseVersion <id>`, to the version whose name starts
+     * with `-e chooseLabel <name>`. Unlike the tour this changes the profile's choice, so it runs only when asked to
+     * (`-e class io.github.flexarr.ParityTour#chooseVersion`), and whoever runs it checks and resets that on the server.
+     */
+    @Test
+    fun chooseVersion() {
+        val id = arguments.getString("chooseVersion")
+        val label = arguments.getString("chooseLabel")
+        assumeTrue("No version to choose", id != null && label != null)
+        signIn()
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("flexarr://item/$id")).setPackage(context.packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        settle(6_000)
+        if (tv) {
+            var onMore = false
+            repeat(6) { if (!onMore) { key("DPAD_RIGHT"); settle(500); onMore = focusedHas("More") } }
+            assertTrue("No ⋯ on the title", onMore)
+            key("DPAD_CENTER"); settle(1_500)
+            assertNotNull("No Version in ⋯", find("Version"))
+            key("DPAD_CENTER"); settle(1_500)
+            repeat(5) { if (!focusedStartsWith(label!!)) { key("DPAD_DOWN"); settle(500) } }
+            assertTrue("Couldn't reach $label in the Version list", focusedStartsWith(label!!))
+            shot("11-version-focused")
+            key("DPAD_CENTER"); settle(3_000)
+            shot("12-version-chosen")
+            repeat(6) { if (!focusedStartsWith("Play") && !focusedStartsWith("Resume")) { key("DPAD_LEFT"); settle(500) } }
+            assertTrue("Play didn't take focus", focusedStartsWith("Play") || focusedStartsWith("Resume"))
+            key("DPAD_CENTER")
+        } else {
+            assertTrue("No ⋯ on the title", tap("More"))
+            settle(1_000)
+            assertTrue("No Version in ⋯", tap("Version"))
+            settle(1_000)
+            val entry = nodes().firstOrNull { it.label().startsWith(label!!) }
+            assertNotNull("No $label in the Version list", entry)
+            tapNode(entry!!)
+            settle(3_000)
+            shot("12-version-chosen")
+            val play = nodes().firstOrNull { node -> node.label().let { it.startsWith("Play") || it.startsWith("Resume") } }
+            assertNotNull("No Play", play)
+            tapNode(play!!)
+        }
+        settle(20_000)
+        if (tap("Got it")) settle(1_000)
+        shot("13-version-playing")
+    }
+
+    /** The app, signed in, past the profile picker. */
+    private fun signIn() {
         // Windows other than the focused one (menus, sheets), and views that only hold text.
         automation.serviceInfo = automation.serviceInfo.apply {
             flags = flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS or AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS
@@ -53,10 +111,6 @@ class ParityTour {
         val server = arguments.getString("server")
         val key = arguments.getString("apiKey")
         assumeTrue("No server given", server != null && key != null)
-        val movies = arguments.getString("movies") ?: "Movies"
-        val shows = arguments.getString("shows") ?: "TV Shows"
-        val query = arguments.getString("query") ?: "the"
-        sidebarPlaces = listOf("Home", "Search", "Settings", "Discover", "Watchlist", "Live TV", "Music", movies, shows)
 
         context.startActivity(
             Intent(Intent.ACTION_MAIN)
@@ -69,7 +123,6 @@ class ParityTour {
         // Android's own "Viewing full screen" note would cover the player the first time it goes full screen.
         shell("settings put secure immersive_mode_confirmations confirmed")
         chooseProfile()
-        if (tv) tvTour(movies, shows, query) else phoneTour(movies, shows, query)
     }
 
     private fun chooseProfile() {
@@ -112,6 +165,7 @@ class ParityTour {
             settle(1_000)
             if (tap("Version")) {
                 settle(1_000)
+                assertNotNull("The Version list didn't open", find("Automatic"))
                 shot("10-version")
             }
             shell("input keyevent BACK"); settle(1_000)
@@ -188,13 +242,14 @@ class ParityTour {
             if (tvOpenTitle()) {
                 settle(5_000)
                 shot("03-movie")
-                // A title with more than one version: the list in ⋯. Only ever pressed on ⋯, whose name shows while it has focus.
+                // A title with more than one version: the list in ⋯. Only ever pressed once ⋯ itself has focus: its name is always on screen, and the buttons before it change things.
                 var onMore = false
-                repeat(6) { if (!onMore) { key("DPAD_RIGHT"); settle(500); onMore = find("More") != null } }
+                repeat(6) { if (!onMore) { key("DPAD_RIGHT"); settle(500); onMore = focusedHas("More") } }
                 if (onMore) {
                     key("DPAD_CENTER"); settle(1_500)
                     if (find("Version") != null) {
                         key("DPAD_CENTER"); settle(1_500)
+                        assertNotNull("The Version list didn't open", find("Automatic"))
                         shot("10-version")
                     }
                     key("BACK"); settle(1_000)
@@ -271,6 +326,11 @@ class ParityTour {
      * first poster, which has focus. False when neither is there, so nothing plays.
      */
     private fun tvOpenTitle(): Boolean {
+        // A library opens on its tabs: the first poster is below them.
+        if (focusedHas("Browse")) {
+            key("DPAD_DOWN")
+            settle(1_000)
+        }
         if (focusedStartsWith("Play") || focusedStartsWith("Resume")) {
             key("DPAD_RIGHT")
             if (!focusedHas("More info")) return false
