@@ -27,7 +27,7 @@ describe('Dispatcharr’s admin API key', () => {
     return screen.findByRole('form', { name: 'Edit Dispatcharr' })
   }
 
-  const setUp = (status: Record<string, unknown> = {}) => {
+  const setUp = (status: Record<string, unknown> = {}, testAnswer?: unknown) => {
     const sent: { liveTv?: { adminApiKey?: string } }[] = []
     mockApi({
       'GET /settings': settings,
@@ -36,6 +36,7 @@ describe('Dispatcharr’s admin API key', () => {
         return settings
       },
       '/livetv/status': { configured: true, channels: 3, refreshing: false, error: null, ...status },
+      'POST /settings/livetv/test': testAnswer,
     })
     render(
       <MemoryRouter>
@@ -60,11 +61,93 @@ describe('Dispatcharr’s admin API key', () => {
     expect(sent[1].liveTv?.adminApiKey).toBeUndefined()
   })
 
-  it('removes a saved key with an empty one', async () => {
+  it('asks before removing a saved key, then removes it with an empty one', async () => {
+    const asked = vi.fn(() => false)
+    vi.stubGlobal('confirm', asked)
     const sent = setUp()
     const form = await openForm()
-    fireEvent.click(within(form).getByRole('button', { name: 'Remove admin API key' }))
+    const remove = within(form).getByRole('button', { name: 'Remove admin API key' })
+    expect(remove).toHaveClass('danger')
+
+    fireEvent.click(remove)
+    expect(asked).toHaveBeenCalledOnce()
+    expect(sent).toHaveLength(0)
+    expect(screen.getByRole('form', { name: 'Edit Dispatcharr' })).toBeInTheDocument()
+
+    asked.mockReturnValue(true)
+    fireEvent.click(remove)
     await waitFor(() => expect(sent.at(-1)?.liveTv?.adminApiKey).toBe(''))
+  })
+
+  it('says saved keys don’t follow a change of address', async () => {
+    setUp()
+    const form = await openForm()
+    const password = within(form).getByLabelText('Key (XC password)')
+    const key = within(form).getByLabelText('Admin API key (optional)')
+    expect(password).toHaveAttribute('placeholder', 'Saved; type to replace')
+    expect(key).toHaveAttribute('placeholder', 'Saved; type to replace')
+
+    fireEvent.change(within(form).getByLabelText('Address'), { target: { value: 'http://elsewhere:9191' } })
+    expect(password).toHaveAttribute('placeholder', 'Retype for this address')
+    expect(key).toHaveAttribute('placeholder', 'Retype for this address')
+
+    fireEvent.change(within(form).getByLabelText('Address'), { target: { value: 'http://dispatcharr:9191/' } })
+    expect(key).toHaveAttribute('placeholder', 'Saved; type to replace')
+  })
+
+  describe('testing', () => {
+    const tested = { ok: true, channels: 12, maxConnections: null, expiresAt: null, error: null }
+    const key = (form: HTMLElement) => within(form).getByLabelText('Admin API key (optional)')
+    const test = (form: HTMLElement) => fireEvent.click(within(form).getByRole('button', { name: 'Test' }))
+
+    it('only says a key was accepted when one was tried, and forgets the result when a field changes', async () => {
+      const unsaved = { ...settings, liveTv: { ...liveTv, hasAdminApiKey: false } }
+      mockApi({ 'GET /settings': unsaved, '/livetv/status': { configured: true, channels: 3, refreshing: false, error: null }, 'POST /settings/livetv/test': tested })
+      render(
+        <MemoryRouter>
+          <ConnectionsSection />
+        </MemoryRouter>,
+      )
+      const form = await openForm()
+      test(form)
+      await screen.findByText('Connected: 12 channels')
+
+      fireEvent.change(key(form), { target: { value: 'typed afterwards' } })
+      expect(screen.queryByText(/Connected: 12 channels/)).toBeNull()
+      expect(screen.queryByText(/admin key accepted/)).toBeNull()
+
+      test(form)
+      await screen.findByText('Connected: 12 channels, admin key accepted')
+    })
+
+    it('doesn’t count a saved key at another address, which the server doesn’t try', async () => {
+      setUp({}, tested)
+      const form = await openForm()
+      fireEvent.change(within(form).getByLabelText('Address'), { target: { value: 'http://elsewhere:9191' } })
+      test(form)
+      await screen.findByText('Connected: 12 channels')
+    })
+
+    it('counts a saved key at its own address, however it’s written', async () => {
+      setUp({}, tested)
+      const form = await openForm()
+      fireEvent.change(within(form).getByLabelText('Address'), { target: { value: 'HTTP://Dispatcharr:9191/' } })
+      test(form)
+      await screen.findByText('Connected: 12 channels, admin key accepted')
+    })
+
+    it('drops an answer to fields that have since changed', async () => {
+      let answer: (value: unknown) => void = () => {}
+      setUp({}, () => new Promise((resolve) => (answer = resolve)))
+      const form = await openForm()
+      test(form)
+      await screen.findByText('Testing…')
+      fireEvent.change(key(form), { target: { value: 'another' } })
+      answer(tested)
+      await waitFor(() => expect(screen.queryByText('Testing…')).toBeNull())
+      await new Promise((done) => setTimeout(done, 20))
+      expect(screen.queryByText(/Connected: 12 channels/)).toBeNull()
+    })
   })
 
   it('says on the row when the key ran into trouble', async () => {

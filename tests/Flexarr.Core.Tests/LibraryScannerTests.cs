@@ -740,6 +740,102 @@ public sealed class LibraryScannerTests : IAsyncLifetime
         }
     }
 
+    [Theory]
+    [InlineData("movies/#recycle")]
+    [InlineData("movies/@Recycle")]
+    [InlineData("movies/#snapshot/daily")] // A readable bin with someone else's folder inside it.
+    public async Task AFolderOfTheNasOwnThatCantBeRead_LeavesTheScanComplete_AndIsntPurged(string bin)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var root = Touch("movies/Heat (1995)/Heat (1995).mkv", "movies/Alien (1979)/Alien (1979).mkv", bin + "/Old (2001)/Old (2001).mkv");
+        var library = await AddLibrary(LibraryType.Movies, Path.Combine(root, "movies"));
+        await Scanner().ScanAsync(library, null, default);
+        var alien = Path.Combine(root, "movies/Alien (1979)/Alien (1979).mkv");
+        File.Delete(alien);
+        await _db.MediaFiles.Where(f => f.Path == alien || f.Path.Contains("Old (2001)"))
+            .ExecuteUpdateAsync(u => u.SetProperty(f => f.MissingSince, DateTime.UtcNow.AddDays(-2)));
+        _db.ChangeTracker.Clear();
+        var locked = Path.Combine(root, bin);
+        var mode = File.GetUnixFileMode(locked);
+        File.SetUnixFileMode(locked, UnixFileMode.None);
+        try
+        {
+            var result = await Scanner().ScanAsync(library, null, default);
+
+            Assert.False(result.Incomplete);
+            Assert.Equal(1, result.Removed);
+            Assert.False(await _db.MediaFiles.IgnoreQueryFilters().AnyAsync(f => f.Path == alien));
+            Assert.True(await _db.MediaFiles.IgnoreQueryFilters().AnyAsync(f => f.Path.Contains("Old (2001)")));
+        }
+        finally
+        {
+            File.SetUnixFileMode(locked, mode);
+        }
+    }
+
+    [Fact]
+    public async Task AnUnreadableFolder_ThatsOnlyCalledSomethingLikeABin_StillMarksTheScanIncomplete()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var root = Touch("#recycle/Heat (1995)/Heat (1995).mkv", "#recycle/#Alive (2020)/#Alive (2020).mkv");
+        // The library's own folder may be called anything: only what's below it counts.
+        var library = await AddLibrary(LibraryType.Movies, Path.Combine(root, "#recycle"));
+        await Scanner().ScanAsync(library, null, default);
+        var locked = Path.Combine(root, "#recycle/#Alive (2020)");
+        var mode = File.GetUnixFileMode(locked);
+        File.SetUnixFileMode(locked, UnixFileMode.None);
+        try
+        {
+            Assert.True((await Scanner().ScanAsync(library, null, default)).Incomplete);
+        }
+        finally
+        {
+            File.SetUnixFileMode(locked, mode);
+        }
+    }
+
+    [Fact]
+    public async Task ATitlesScan_PurgesOnlyWhatItLookedAt()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var root = Touch("movies/Heat (1995)/Heat (1995).mkv", "movies/Heat (1995)/Heat (1995) Cut.mkv", "movies/Alien (1979)/Alien (1979).mkv");
+        var library = await AddLibrary(LibraryType.Movies, Path.Combine(root, "movies"));
+        await Scanner().ScanAsync(library, null, default);
+        var cut = Path.Combine(root, "movies/Heat (1995)/Heat (1995) Cut.mkv");
+        var alien = Path.Combine(root, "movies/Alien (1979)/Alien (1979).mkv");
+        File.Delete(cut);
+        await _db.MediaFiles.Where(f => f.Path == cut || f.Path == alien).ExecuteUpdateAsync(u => u.SetProperty(f => f.MissingSince, DateTime.UtcNow.AddDays(-2)));
+        _db.ChangeTracker.Clear();
+        var locked = Path.GetDirectoryName(alien)!;
+        var mode = File.GetUnixFileMode(locked);
+        File.SetUnixFileMode(locked, UnixFileMode.None);
+        try
+        {
+            // Alien's folder can't be read, which a scan of Heat's has no way of knowing.
+            var result = await Scanner().ScanAsync(library, Path.Combine(root, "movies/Heat (1995)"), default);
+
+            Assert.Equal(1, result.Removed);
+            Assert.False(await _db.MediaFiles.IgnoreQueryFilters().AnyAsync(f => f.Path == cut));
+            Assert.True(await _db.MediaFiles.IgnoreQueryFilters().AnyAsync(f => f.Path == alien));
+        }
+        finally
+        {
+            File.SetUnixFileMode(locked, mode);
+        }
+    }
+
     [Fact]
     public async Task Music_AnUpgradedOrRenamedTrack_KeepsItsTrack()
     {
@@ -993,6 +1089,31 @@ public sealed class LibraryScannerTests : IAsyncLifetime
         Assert.Equal(3, await _db.MediaItems.CountAsync(i => i.Kind == MediaKind.Episode));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task HomeVideos_ALooseClip_ScannedAlone_JoinsTheFoldersOwnSeason(bool slashAtTheEnd)
+    {
+        var root = Touch("home/First.mp4");
+        var home = Path.Combine(root, "home");
+        var library = await AddLibrary(LibraryType.HomeVideos, slashAtTheEnd ? home + "/" : home);
+        await Scanner().ScanAsync(library, null, default);
+
+        // Each as the folder watcher would ask, from a fresh context, as the scan worker's are.
+        foreach (var clip in new[] { "Second.mp4", "Third.mp4" })
+        {
+            Touch($"home/{clip}");
+            _db.ChangeTracker.Clear();
+            library = await _db.Libraries.Include(l => l.Folders).SingleAsync(l => l.Id == library.Id);
+            await Scanner().ScanAsync(library, Path.Combine(home, clip), default);
+        }
+
+        var season = await _db.MediaItems.AsNoTracking().SingleAsync(i => i.Kind == MediaKind.Season);
+        var numbers = await _db.MediaItems.AsNoTracking().Where(i => i.Kind == MediaKind.Episode).Select(i => new { i.ParentId, i.EpisodeNumber }).ToListAsync();
+        Assert.All(numbers, n => Assert.Equal(season.Id, n.ParentId));
+        Assert.Equal([1, 2, 3], numbers.Select(n => n.EpisodeNumber ?? 0).Order());
+    }
+
     [Fact]
     public async Task ARescan_HoldsOnlyTheFilesItChanges_AndSavesEachChange()
     {
@@ -1077,6 +1198,43 @@ public sealed class LibraryScannerTests : IAsyncLifetime
     }
 
     private LibraryScanner Scanner() => new(_db, _probe, new ScanProgress(), NullLogger<LibraryScanner>.Instance);
+
+    [Fact]
+    public async Task AScanOfOneFilm_TracksOnlyThatFilm()
+    {
+        var root = Touch("movies/Heat (1995)/Heat (1995).mkv", "movies/Alien (1979)/Alien (1979).mkv");
+        var library = await AddLibrary(LibraryType.Movies, Path.Combine(root, "movies"));
+        await Scanner().ScanAsync(library, null, default);
+        _db.ChangeTracker.Clear();
+
+        Touch("movies/Heat (1995)/Heat (1995) [Remux].mkv");
+        await Scanner().ScanAsync(library, Path.Combine(root, "movies", "Heat (1995)"), default);
+
+        var tracked = _db.ChangeTracker.Entries<MediaItem>().Where(e => e.Entity.Kind == MediaKind.Movie).Select(e => e.Entity.Title).ToList();
+        Assert.Equal(["Heat"], tracked);
+        Assert.Equal(2, await _db.MediaItems.CountAsync(i => i.Kind == MediaKind.Movie));
+    }
+
+    [Fact]
+    public async Task AScanOfOneArtistFolder_FindsAnAlbumKeptElsewhere_RatherThanMakingItAgain()
+    {
+        var root = Touch("music/Radiohead/OK Computer/01 - Airbag.flac", "music/Other/Radiohead Bits/09 - Lucky.flac");
+        _probe.Tags["01 - Airbag.flac"] = new() { ["artist"] = "Radiohead", ["album"] = "OK Computer", ["title"] = "Airbag", ["track"] = "1" };
+        _probe.Tags["09 - Lucky.flac"] = new() { ["artist"] = "Blur", ["album"] = "Parklife", ["title"] = "Lucky", ["track"] = "9" };
+        var library = await AddLibrary(LibraryType.Music, Path.Combine(root, "music"));
+        await Scanner().ScanAsync(library, null, default);
+        _db.ChangeTracker.Clear();
+
+        // A track of the same album, in a folder of its own somewhere else.
+        Touch("music/Spare/Karma/02 - Karma Police.flac");
+        _probe.Tags["02 - Karma Police.flac"] = new() { ["artist"] = "Radiohead", ["album"] = "OK Computer", ["title"] = "Karma Police", ["track"] = "2" };
+        await Scanner().ScanAsync(library, Path.Combine(root, "music", "Spare"), default);
+
+        Assert.Equal(1, await _db.MediaItems.CountAsync(i => i.Kind == MediaKind.Album && i.Title == "OK Computer"));
+        Assert.Equal(1, await _db.MediaItems.CountAsync(i => i.Kind == MediaKind.Artist && i.Title == "Radiohead"));
+        Assert.Equal(2, await _db.MediaItems.CountAsync(i => i.Kind == MediaKind.Track && i.Parent!.Title == "OK Computer"));
+        Assert.DoesNotContain(_db.ChangeTracker.Entries<MediaItem>(), e => e.Entity.Kind == MediaKind.Album && e.Entity.Title == "Parklife");
+    }
 
     private async Task<Library> AddLibrary(LibraryType type, string folder)
     {

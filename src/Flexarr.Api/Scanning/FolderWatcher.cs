@@ -82,6 +82,12 @@ public sealed partial class FolderWatcher(
     internal TimeSpan LookForMissingEvery { get; set; } = TimeSpan.FromMinutes(5);
 
     /// <summary>
+    /// How often a watched network share is checked for still being the same folder: each look reaches the machine it's
+    /// on, which may be trying to sleep. Local folders are checked at every resync.
+    /// </summary>
+    internal TimeSpan LookAtSharesEvery { get; set; } = TimeSpan.FromMinutes(30);
+
+    /// <summary>
     /// A title that never goes quiet is scanned anyway after this long: no later than the 12-hour scan it replaced. Not
     /// sooner, since a slow copy of a big film can take hours, and scanning it half-written would show a broken film.
     /// </summary>
@@ -106,8 +112,34 @@ public sealed partial class FolderWatcher(
     /// <summary>Makes a watcher for a folder. Tests replace it, to have a watch refused.</summary>
     internal Func<string, FileSystemWatcher> NewWatcher { get; set; } = root => new FileSystemWatcher(root);
 
+    /// <summary>Whether a folder is on another machine. Tests replace it, having no share to hand.</summary>
+    internal Func<string, bool> IsShare { get; set; } = FolderKind.IsShare;
+
+    /// <summary>How long a resync waits for its folders to start before getting on with the next one.</summary>
+    internal TimeSpan StartsWaitedFor { get; set; } = TimeSpan.FromSeconds(30);
+
     /// <summary>Starts a watcher: this is where the system walks the folder's tree, and can refuse.</summary>
     internal Action<FileSystemWatcher> Enable { get; set; } = watcher => watcher.EnableRaisingEvents = true;
+
+    /// <summary>Tells which folder a path is, to notice one swapped. Tests replace it, having no hung mount to hand.</summary>
+    internal Func<string, string?> Identify { get; set; } = FolderKind.Identity;
+
+    /// <summary>How long a resync waits for its looks at the folders before getting on without the ones still looking.</summary>
+    internal TimeSpan LooksWaitedFor { get; set; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>Reads a title's files. Tests replace it, having no hung mount to hand.</summary>
+    internal Func<string, string> ReadSnapshot { get; set; } = Snapshot;
+
+    /// <summary>How long a flush waits for each library folder's titles before the next flush can start on the others.</summary>
+    internal TimeSpan FlushesWaitedFor { get; set; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// This many titles gone from one library folder within <see cref="GoneWithin"/> is no longer someone deleting or
+    /// renaming a film: only a scan of the library folder asks whether most of it has vanished, and holds it if so.
+    /// </summary>
+    internal const int ManyTitlesGone = 3;
+
+    internal TimeSpan GoneWithin { get; set; } = TimeSpan.FromMinutes(10);
 
     /// <summary>More titles than this waiting in one folder (a whole drive copied in): the folder is scanned as a whole.</summary>
     internal const int MaxPendingPerFolder = 50;
@@ -117,7 +149,23 @@ public sealed partial class FolderWatcher(
     private readonly Dictionary<string, Pending> _pending = new(StringComparer.Ordinal);
     private readonly List<FileSystemWatcher> _broken = [];
     private readonly Dictionary<string, DateTimeOffset> _forcedAt = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, List<DateTimeOffset>> _goneAt = new(StringComparer.Ordinal);
     private bool _synced;
+
+    /// <summary>Folders whose watch is on its way: a mount that's stopped answering can take as long as it likes.</summary>
+    private readonly HashSet<string> _starting = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Looks at folders still going: a mount that's stopped answering can take as long as it likes, so each holds a thread,
+    /// and there's only ever one to a folder.
+    /// </summary>
+    private readonly Dictionary<string, Task<string?>> _looking = new(StringComparer.Ordinal);
+
+    /// <summary>Library folders whose waiting titles are being looked at, which are only ever looked at one lot at a time for the same reason.</summary>
+    private readonly HashSet<string> _flushing = new(StringComparer.Ordinal);
+
+    /// <summary>Stopped for good: a start finishing now has nowhere to go.</summary>
+    private bool _stopped;
     private volatile bool _syncSoon;
 
     /// <summary>
@@ -212,6 +260,11 @@ public sealed partial class FolderWatcher(
 
     public override void Dispose()
     {
+        lock (_lock)
+        {
+            _stopped = true;
+        }
+
         StopWatching();
         base.Dispose();
     }
@@ -229,6 +282,7 @@ public sealed partial class FolderWatcher(
             _broken.Clear();
             _folders.Clear();
             _pending.Clear();
+            _goneAt.Clear();
         }
     }
 
@@ -254,13 +308,15 @@ public sealed partial class FolderWatcher(
         var toStart = new List<string>();
         var limits = WatchLimits();
         // Nothing tells a watcher its folder was unmounted, or deleted and made again: only looking does.
+        var now = time.GetUtcNow();
         List<string> live;
         lock (_lock)
         {
-            live = _folders.Where(f => f.Value.Watcher is not null).Select(f => f.Key).ToList();
+            live = _folders.Where(f => f.Value.Watcher is not null && (f.Value.Status.State != FolderWatchState.Share || now - f.Value.LookedAt >= LookAtSharesEvery))
+                .Select(f => f.Key).ToList();
         }
 
-        var found = live.ToDictionary(path => path, FolderKind.Identity, StringComparer.Ordinal);
+        var found = await LookAtAsync(live, ct);
         lock (_lock)
         {
             finished.AddRange(_broken);
@@ -298,12 +354,25 @@ public sealed partial class FolderWatcher(
                     continue;
                 }
 
+                if (_starting.Contains(path))
+                {
+                    continue;
+                }
+
                 if (current?.Watcher is { } running)
                 {
-                    if (found.TryGetValue(path, out var identity) && identity != current.Identity)
+                    if (found.TryGetValue(path, out var identity))
                     {
-                        finished.Add(running);
-                        toStart.Add(path);
+                        if (identity != current.Identity)
+                        {
+                            finished.Add(running);
+                            toStart.Add(path);
+                            _starting.Add(path);
+                        }
+                        else
+                        {
+                            _folders[path] = current with { LookedAt = now };
+                        }
                     }
 
                     continue;
@@ -313,6 +382,7 @@ public sealed partial class FolderWatcher(
                 if (!waiting)
                 {
                     toStart.Add(path);
+                    _starting.Add(path);
                 }
             }
         }
@@ -323,42 +393,130 @@ public sealed partial class FolderWatcher(
         }
 
         // Outside the lock: on Linux starting a watch walks the folder's whole tree, and a network mount that's stopped
-        // answering would hang here. The libraries list and the change events only ever wait for the lock.
-        var back = new List<string>();
-        foreach (var path in toStart)
+        // answering would hang here. The libraries list and the change events only ever wait for the lock. Each on its
+        // own, so one like that holds up neither the other folders nor, past a while, this resync: it finishes when it
+        // finishes, and isn't started twice.
+        bool catchUp;
+        lock (_lock)
+        {
+            catchUp = _synced;
+            _synced = true;
+        }
+
+        var starts = toStart.Select(path => Task.Run(() => StartAndInstallAsync(path, catchUp, ct), CancellationToken.None)).ToList();
+        try
+        {
+            await Task.WhenAll(starts).WaitAsync(StartsWaitedFor, time, ct);
+        }
+        catch (TimeoutException)
+        {
+            // Still going, which is theirs to sort out.
+        }
+    }
+
+    /// <summary>
+    /// Which folder each path is, for those that answer. One that doesn't is left out, which leaves it as it is: it's asked
+    /// again once that look has finished, and whatever that look says by then is out of date, so it's not kept.
+    /// </summary>
+    private async Task<Dictionary<string, string?>> LookAtAsync(List<string> paths, CancellationToken ct)
+    {
+        var fresh = new List<Task<string?>>();
+        var looks = new List<(string Path, Task<string?> Look)>();
+        lock (_lock)
+        {
+            foreach (var path in paths)
+            {
+                if (_looking.ContainsKey(path))
+                {
+                    continue; // Still on the last one, and not worth waiting for again.
+                }
+
+                var look = Task.Run(() => LookAt(path), CancellationToken.None);
+                _looking[path] = look;
+                fresh.Add(look);
+                looks.Add((path, look));
+            }
+        }
+
+        try
+        {
+            await Task.WhenAll(fresh).WaitAsync(LooksWaitedFor, time, ct);
+        }
+        catch (TimeoutException)
+        {
+            // Still going, which is theirs to sort out.
+        }
+
+        return looks.Where(l => l.Look.IsCompletedSuccessfully).ToDictionary(l => l.Path, l => l.Look.Result, StringComparer.Ordinal);
+    }
+
+    private string? LookAt(string path)
+    {
+        try
+        {
+            return Identify(path);
+        }
+        finally
+        {
+            lock (_lock)
+            {
+                _looking.Remove(path);
+            }
+        }
+    }
+
+    /// <summary>Starts a folder's watch and puts it in place. Runs alone: nothing it hits may be left to the caller, who may have moved on.</summary>
+    private async Task StartAndInstallAsync(string path, bool catchUp, CancellationToken ct)
+    {
+        try
         {
             var (started, starting) = Start(path);
             Exception? late;
+            bool back;
+            bool stopped;
             lock (_lock)
             {
+                _starting.Remove(path);
+                stopped = _stopped;
                 // A library folder new to the server was queued when it was added.
                 var existed = _folders.ContainsKey(path);
-                _folders[path] = started;
+                if (!stopped)
+                {
+                    _folders[path] = started;
+                }
+
                 starting.Installed = true;
                 late = starting.Error;
                 // Watching again after it couldn't be (a drive that's back, the switch turned on): whatever changed in the
                 // meantime was missed, so the folder is scanned. Not at startup, which the schedule already covers.
-                if (existed && _synced && started.Watcher is not null && late is null)
-                {
-                    back.Add(path);
-                }
+                back = existed && catchUp && !stopped && started.Watcher is not null && late is null;
+            }
+
+            if (stopped)
+            {
+                started.Watcher?.Dispose();
+                return;
             }
 
             if (late is not null && started.Watcher is { } refused)
             {
                 Failed(path, refused, late);
             }
-        }
 
-        lock (_lock)
-        {
-            _synced = true;
+            if (back)
+            {
+                LogWatchingAgain(PathComparison.Printable(path));
+                await queue.EnqueueAsync(new LibraryScanRequest(path, Reason), ct);
+            }
         }
-
-        foreach (var path in back)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            LogWatchingAgain(PathComparison.Printable(path));
-            await queue.EnqueueAsync(new LibraryScanRequest(path, Reason), ct);
+            lock (_lock)
+            {
+                _starting.Remove(path);
+            }
+
+            LogChangeFailed(ex, PathComparison.Printable(path));
         }
     }
 
@@ -412,9 +570,9 @@ public sealed partial class FolderWatcher(
                 return (Refused(root, watcher, refused), starting);
             }
 
-            var share = FolderKind.IsShare(root);
+            var share = IsShare(root);
             LogWatching(PathComparison.Printable(root), share);
-            return (new Watched(watcher, new FolderWatchStatus(share ? FolderWatchState.Share : FolderWatchState.Watching)) { Identity = identity }, starting);
+            return (new Watched(watcher, new FolderWatchStatus(share ? FolderWatchState.Share : FolderWatchState.Watching)) { Identity = identity, LookedAt = time.GetUtcNow() }, starting);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or PlatformNotSupportedException)
         {
@@ -575,9 +733,11 @@ public sealed partial class FolderWatcher(
 
         var target = Path.Combine(root, segments[0]);
         var artwork = IsArtworkOrNfo(name);
-        // The title's own folder changing says nothing either way: it does whenever anything's added to it.
+        // The title's own folder changing says nothing either way: it does whenever anything's added to it. But alone,
+        // with no file heard of, it's a folder moved in whole, which is a new title like any other.
         var extension = Path.GetExtension(name).ToLowerInvariant();
-        var subtitles = extension is ".srt" or ".ass" or ".ssa" or ".vtt" or ".sub" or ".idx" or ".sup" || (extension.Length == 0 && segments.Length == 1);
+        var subtitle = extension is ".srt" or ".ass" or ".ssa" or ".vtt" or ".sub" or ".idx" or ".sup";
+        var subtitles = subtitle || (extension.Length == 0 && segments.Length == 1);
         var now = time.GetUtcNow();
         lock (_lock)
         {
@@ -598,6 +758,7 @@ public sealed partial class FolderWatcher(
                 pending.Snapshot = null;
                 pending.ForceMetadata |= artwork;
                 pending.OnlySubtitles &= subtitles;
+                pending.HeardSubtitle |= subtitle;
             }
             else if (_pending.Values.Count(p => p.Root == root) >= MaxPendingPerFolder)
             {
@@ -606,7 +767,7 @@ public sealed partial class FolderWatcher(
             }
             else
             {
-                _pending[target] = new Pending(root, now) { ForceMetadata = artwork, OnlySubtitles = subtitles };
+                _pending[target] = new Pending(root, now) { ForceMetadata = artwork, OnlySubtitles = subtitles, HeardSubtitle = subtitle };
             }
         }
     }
@@ -632,13 +793,59 @@ public sealed partial class FolderWatcher(
     internal async Task FlushAsync(CancellationToken ct)
     {
         var now = time.GetUtcNow();
-        List<(string Path, Pending Pending)> quiet;
+        List<IGrouping<string, (string Path, Pending Pending)>> roots;
         lock (_lock)
         {
-            quiet = _pending.Where(p => Overdue(p.Value, now) || (now - p.Value.LastEvent >= QuietFor && (p.Value.Snapshot is null || now - p.Value.SnapshotAt >= SettleFor)))
-                .Select(p => (p.Key, p.Value)).ToList();
+            // Each library folder on its own, so one on a mount that's stopped answering holds up nobody else's titles.
+            roots = _pending.Where(p => !_flushing.Contains(p.Value.Root)
+                    && (Overdue(p.Value, now) || (now - p.Value.LastEvent >= QuietFor && (p.Value.Snapshot is null || now - p.Value.SnapshotAt >= SettleFor))))
+                .Select(p => (Path: p.Key, Pending: p.Value)).GroupBy(p => p.Pending.Root).ToList();
+            _flushing.UnionWith(roots.Select(r => r.Key));
         }
 
+        if (roots.Count == 0)
+        {
+            return;
+        }
+
+        var flushes = roots.Select(root => Task.Run(() => FlushRootAsync(root.Key, [.. root], now, ct), CancellationToken.None)).ToList();
+        try
+        {
+            await Task.WhenAll(flushes).WaitAsync(FlushesWaitedFor, time, ct);
+        }
+        catch (TimeoutException)
+        {
+            // Still going, which is theirs to sort out.
+        }
+    }
+
+    /// <summary>One library folder's quiet titles. Runs alone: nothing it hits may be left to the caller, who may have moved on.</summary>
+    private async Task FlushRootAsync(string root, List<(string Path, Pending Pending)> quiet, DateTimeOffset now, CancellationToken ct)
+    {
+        try
+        {
+            await FlushTitlesAsync(root, quiet, now, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogFlushFailed(ex);
+        }
+        catch (OperationCanceledException)
+        {
+            // The server's stopping; what's waiting is looked at by the next one's scan.
+        }
+        finally
+        {
+            lock (_lock)
+            {
+                _flushing.Remove(root);
+            }
+        }
+    }
+
+    private async Task FlushTitlesAsync(string root, List<(string Path, Pending Pending)> quiet, DateTimeOffset now, CancellationToken ct)
+    {
+        var gone = new List<(string Path, Pending Pending)>();
         foreach (var (path, pending) in quiet)
         {
             // Not for a whole library folder, which would mean walking all of it (twice) to see if it had settled, and not
@@ -646,7 +853,7 @@ public sealed partial class FolderWatcher(
             var overdue = Overdue(pending, now);
             var settled = overdue || path == pending.Root;
             // Read outside the lock: listing a big show's folder takes a moment, and events keep arriving meanwhile.
-            var snapshot = settled ? null : Snapshot(path);
+            var snapshot = settled ? null : ReadSnapshot(path);
             var ready = false;
             lock (_lock)
             {
@@ -657,18 +864,8 @@ public sealed partial class FolderWatcher(
 
                 if (snapshot == Gone)
                 {
-                    // A whole title gone looks the same as the first of many. Only a scan of the library folder asks whether
-                    // most of it has vanished, and holds it if so, so all that goes at once waits for one of those.
                     _pending.Remove(path);
-                    if (_pending.TryGetValue(pending.Root, out var whole))
-                    {
-                        whole.LastEvent = time.GetUtcNow();
-                    }
-                    else
-                    {
-                        _pending[pending.Root] = new Pending(pending.Root, time.GetUtcNow());
-                    }
-
+                    gone.Add((path, pending));
                     continue;
                 }
 
@@ -688,8 +885,72 @@ public sealed partial class FolderWatcher(
             {
                 LogChanged(PathComparison.Printable(path));
                 var whole = path == pending.Root;
-                await queue.EnqueueAsync(new LibraryScanRequest(path, Reason, ForceMetadata: pending.ForceMetadata && !whole && MayForce(path), LastChange: pending.LastEvent, OnlySubtitles: pending.OnlySubtitles && !whole), ct);
+                await queue.EnqueueAsync(new LibraryScanRequest(path, Reason, ForceMetadata: pending.ForceMetadata && !whole && MayForce(path), LastChange: pending.LastEvent, OnlySubtitles: pending.OnlySubtitles && pending.HeardSubtitle && !whole), ct);
             }
+        }
+
+        if (gone.Count > 0)
+        {
+            await TitlesGoneAsync(root, gone, ct);
+        }
+    }
+
+    /// <summary>
+    /// A title gone may be one film deleted or renamed, which is only worth a scan of that title, or the first sign of a
+    /// drive going. Only a scan of the library folder holds a vanished drive's titles (see LibraryScanner's mass-removal
+    /// guard), so that's what happens when the library folder has emptied or is unreadable, or when many have gone at once.
+    /// </summary>
+    private async Task TitlesGoneAsync(string root, List<(string Path, Pending Pending)> titles, CancellationToken ct)
+    {
+        // Read outside the lock, as the snapshots are: this is one folder's top level, not every title's.
+        var rootGone = NothingLeftIn(root);
+        var now = time.GetUtcNow();
+        bool whole;
+        lock (_lock)
+        {
+            if (!_goneAt.TryGetValue(root, out var times))
+            {
+                _goneAt[root] = times = [];
+            }
+
+            times.RemoveAll(t => now - t >= GoneWithin);
+            times.AddRange(titles.Select(_ => now));
+            whole = rootGone || times.Count >= ManyTitlesGone;
+            if (whole)
+            {
+                if (_pending.TryGetValue(root, out var waiting))
+                {
+                    waiting.LastEvent = now;
+                }
+                else
+                {
+                    _pending[root] = new Pending(root, now);
+                }
+            }
+        }
+
+        if (whole)
+        {
+            return;
+        }
+
+        foreach (var (path, pending) in titles)
+        {
+            LogChanged(PathComparison.Printable(path));
+            await queue.EnqueueAsync(new LibraryScanRequest(path, Reason, LastChange: pending.LastEvent), ct);
+        }
+    }
+
+    /// <summary>The library folder isn't there, can't be read, or holds nothing a scan would care about: an unmounted drive's look.</summary>
+    private static bool NothingLeftIn(string root)
+    {
+        try
+        {
+            return !Directory.EnumerateFileSystemEntries(root).Any(entry => !Ignored(Path.GetFileName(entry)));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return true;
         }
     }
 
@@ -757,7 +1018,7 @@ public sealed partial class FolderWatcher(
     {
         foreach (var segment in name.Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries))
         {
-            if (segment.StartsWith('.') || segment.EndsWith('~') || NotMedia.Contains(segment))
+            if (segment.StartsWith('.') || segment.EndsWith('~') || MediaFileEnumerator.NotMedia.Contains(segment))
             {
                 return true;
             }
@@ -765,12 +1026,6 @@ public sealed partial class FolderWatcher(
 
         return Path.GetExtension(name).ToLowerInvariant() is ".part" or ".partial" or ".tmp" or ".temp" or ".!qb" or ".crdownload" or ".download" or ".filepart";
     }
-
-    /// <summary>What Windows and NAS systems keep in media folders. By name: a film can be called <c>#Alive</c> or <c>@Home</c>.</summary>
-    private static readonly HashSet<string> NotMedia = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "Thumbs.db", "desktop.ini", "#recycle", "#snapshot", "@eaDir", "@tmp", "@Recycle", "@Recently-Snapshot", "@__thumb", "@SynoResource", "$RECYCLE.BIN", "System Volume Information", "lost+found",
-    };
 
     /// <summary>
     /// A cover, poster or other picture kept beside the title, or its <c>.nfo</c>: the title's details are read afresh.
@@ -807,6 +1062,9 @@ public sealed partial class FolderWatcher(
 
         /// <summary>The folder this watcher is on (see <see cref="FolderKind.Identity"/>).</summary>
         public string? Identity { get; init; }
+
+        /// <summary>When that was last checked (see <see cref="LookAtSharesEvery"/>).</summary>
+        public DateTimeOffset LookedAt { get; init; }
     }
 
     /// <summary>A watcher on its way to being in <see cref="_folders"/>, which errors can't reach until it is. Under the lock.</summary>
@@ -825,6 +1083,7 @@ public sealed partial class FolderWatcher(
         public DateTimeOffset SnapshotAt { get; set; }
         public bool ForceMetadata { get; set; }
         public bool OnlySubtitles { get; set; }
+        public bool HeardSubtitle { get; set; }
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Watching {Path} for changes{Share}")]

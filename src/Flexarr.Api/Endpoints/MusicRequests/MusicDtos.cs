@@ -97,6 +97,7 @@ public sealed record MusicUndoBody(long? DeezerId = null, string? MusicBrainzId 
 /// <param name="State">"upcoming" (not out yet), "searching", "downloading", "importing" or "couldNotImport" (downloaded, and Lidarr gave up importing it; since 0.64).</param>
 /// <param name="Progress">While downloading: how far, 0 to 1.</param>
 /// <param name="ArtistLibraryItemId">The artist in the library, when they're there (a placeholder counts).</param>
+/// <param name="CanRetry">Whether this profile's Try again would act on it: asked for, and not a guest. Absent from servers before 0.64.</param>
 public sealed record MusicRequestedDto(
     string MusicBrainzId,
     string Title,
@@ -106,4 +107,5 @@ public sealed record MusicRequestedDto(
     DateOnly? ReleaseDate,
     string State,
     double? Progress,
-    Guid? ArtistLibraryItemId);
+    Guid? ArtistLibraryItemId,
+    bool? CanRetry = null);

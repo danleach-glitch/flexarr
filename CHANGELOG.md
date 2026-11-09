@@ -9,6 +9,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Age limits now use the US's names on a server set to the US: **G**, **PG**, **PG-13**, **TV-14** and **R**. Everywhere else they stay **U**, **PG**, **12**, **15** and **18**.
 - **Country** is now its own setting in **Settings › Overview**, moved from Podcasts, and the setup guide asks for it. It sets the names of age limits, whose ratings titles show first (now including titles from Discover), podcast charts, and the Audible store unless you've chosen one.
 - A film looked up on TMDB now counts towards age limits by the strictest of your country's, the UK's and the US's ratings, whichever it shows, so moving between the UK and the US can't let more through. Some films may go over a profile's limit when their details next refresh; **Allow for kids** on a film's page lets one through.
+- On the web, **Country** reads **Automatic** with the country it found, fits on a phone, says when it’s saved, and tells you if a save failed after you’d moved on.
 
 ### Live TV
 
@@ -16,6 +17,16 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - The main profile can see how many channels have no listings, and the [guide](https://flexarr.io/guide/live-tv#channels-with-no-listings) explains how to fix them.
 - While a channel has nothing listed, Flexarr checks for a fuller guide sooner than the usual six hours: after one hour at first, then less often while the guide stays the same.
 - You can add an optional Dispatcharr admin API key in **Settings › Connections**, so that Refresh has Dispatcharr download its guides first. Your guide sources are contacted at most once every 15 minutes.
+- While **Refresh guide** runs on the web, it says **Refreshing…**. A slow refresh is a quiet note, and the guide updates when it ends, even if you left the page or the server stopped answering for a while.
+- If you leave Live TV during a refresh on iPhone, iPad, Apple TV, Android or Android TV, the result is waiting when you come back within two minutes. A red refresh error goes once the problem has.
+- If you refresh again within 15 minutes, Live TV says its sources weren’t asked again, so an old failure doesn’t look like a new one.
+- A Dispatcharr admin key that’s refused is turned down when you save it, and **Test** only says a key was accepted if it tried that key. A saved key isn’t sent to a changed address.
+- The usual Live TV connection errors now appear in your language.
+- **On now** on the web keeps its channels when a load fails, and offers **Try again**.
+- When the guide can’t load, on the web, iPhone, iPad, Android, or Android TV and over the picture on Apple TV, it says so and offers **Try again** instead of spinning.
+- On Apple TV, the guide over the picture opens on the channel you’re watching, even with nothing listed for it right now.
+- On Apple TV, the Live TV sidebar scrolls when there are many groups, and channels with no listings can be reached in the guide and played from there.
+- On the web, iPhone, iPad, Apple TV, Android and Android TV, Live TV goes back to its usual view if the group you chose disappears.
 
 ### Music
 
@@ -26,27 +37,46 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - An album you request by an artist new to Lidarr now stays on Lidarr's wanted list, so it keeps being looked for if the first search finds nothing. Albums already stuck this way are put back on the list and searched for.
 - An album you request is now searched for within about five minutes. Before, some waited for Lidarr's daily refresh, up to a day.
 - A requested album that downloads but can't be imported now says **Couldn't import** instead of waiting forever. If the download was missing tracks, Flexarr rejects it and looks for another copy, up to three times.
+- A **Couldn’t import** album someone asked for has **Try again** on the web, and a **Why?** link to the [guide](https://flexarr.io/guide/requests#couldn-t-import). It keeps a complete copy for you to import by hand, says when an album isn’t stuck or was only just tried, and counts towards the daily limit.
+- A cover that won’t load in **Requested** shows the album’s title.
+- A request shows **Downloading** when a new copy is on its way, even if an earlier copy couldn’t import, and a stalled download says **Downloading** and how far it got rather than **Importing**. This goes for films and shows too.
 
 ### iPhone, iPad and Apple TV
 
 - Pictures already on screen, such as Continue watching's, no longer turn into blank placeholders after a while.
 - **Request album** and **Follow** change to **Requested** and **Following** the moment you press them, and so does taking them back. If it doesn't go through, the button changes back and says why.
+- On Apple TV, a music request that fails tells you, even if you’ve left the page.
 
 ### Libraries
 
 - New files show up within a minute of being copied in, whoever put them there. Your server watches your library folders and scans just the title that changed, once it has finished copying. A cover or `.nfo` file you replace shows up too. To turn it off, use **Notice new files straight away** in **Settings › Libraries**.
 - Watched folders are read through in full once a week instead of every 12 hours, and after a restart, so your drives are woken less. Network shares keep the 12-hour scan, because they often don't report files added from other computers. A folder that can't be watched says why in **Settings › Libraries**.
+- The **Fine for kids** switches on **Settings › Libraries** now line up, and a folder that can’t be watched links to how to fix it.
+- Music libraries without Lidarr no longer run black-and-white covers through FFmpeg again at every scan, or have apps download them again.
+- A scan interrupted by a share or drive that stops answering is tried again, never removes titles, and doesn’t hold up other folders.
+- New home videos in a library’s main folder no longer create a duplicate season.
 
 ### Home Assistant
 
 - The events stream sends **added** for each film, episode, album or book new to your library, with its details, so an automation can announce a new episode as it arrives. A big import (more than 25 at once) sends none.
 
+### Android
+
+- **Request album** and **Follow** change the moment you press them, and change back if it doesn’t go through. A second press does nothing while the first is being sent.
+- A slow Live TV guide refresh now says how it ended.
+- Phones limited to 1440p now play 1440p files without converting them.
+
 ### Android TV
 
-- What you're part way through, your shows' next episodes and albums you've played lately show in **Continue watching** on the Google TV and Android TV home screen. Choose one to carry on; remove it there and it leaves Flexarr's Continue Watching too. It stays empty while a profile with a PIN is watching.
+- What you're part way through, your shows' next episodes and albums you've played lately show in **Continue watching** on the Google TV and Android TV home screen. Choose a movie or episode to carry on playing, or an album to open its page; remove it there and it leaves Flexarr's Continue Watching too. It stays empty while a profile with a PIN is watching.
 - Movies ask the TV for their own frame rate, so 24-frame movies play without judder when the TV's **Match content frame rate** setting allows.
 - **Lossless surround** in **Settings › Playback** sends Dolby Digital, Dolby Atmos, DTS, DTS-HD and TrueHD to your receiver or soundbar as they are. Movies with DTS or TrueHD sound now play without the server converting them. While Dialogue boost, Night mode or Speakers is on, the sound is decoded first so they apply: Dolby on the TV, DTS and TrueHD by the server.
 - The TV tells your server what it really shows (HDR10, HLG or Dolby Vision, and whether it plays 4K), and **Settings › Diagnostics** lists it, with the TV's refresh rates and the surround formats your equipment takes.
+- The Continue watching row empties when the profile watching is given a PIN.
+- Pausing while the TV changes frame rate stays paused.
+- Live TV opens on the category it’s showing rather than an empty Favourites, and its rows stay put after a refresh.
+- **Settings › Diagnostics** has its own row for 4K, and TalkBack reads each row in full. **Lossless surround** says when your equipment takes none of them.
+
 
 ## 0.63.0 · 8 November 2026
 

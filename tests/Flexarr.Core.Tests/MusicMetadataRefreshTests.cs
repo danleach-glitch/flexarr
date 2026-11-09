@@ -6,6 +6,7 @@ using Flexarr.Core.Paths;
 using Flexarr.Integrations.Arr;
 using Flexarr.Metadata;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Flexarr.Core.Tests;
@@ -190,6 +191,50 @@ public sealed class MusicMetadataRefreshTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ScansOfOneFolder_ShareLidarrsArtistList_UntilItDoesntKnowAnArtist()
+    {
+        using var memory = new MemoryCache(new MemoryCacheOptions());
+        var list = new LidarrArtistList(memory);
+
+        await Refresher(list).RefreshScannedAsync(_library, false, [MakingMoviesFolder], null, null, default);
+        await Refresher(list).RefreshScannedAsync(_library, false, [MakingMoviesFolder], null, null, default);
+        Assert.Single(_lidarr.Paths, p => p == "/api/v1/artist");
+
+        // Someone new, added to Lidarr since: the import that started this scan.
+        _db.MediaItems.Add(new MediaItem { LibraryId = _library.Id, Kind = MediaKind.Artist, Title = "New Name", SortTitle = "new name" });
+        await _db.SaveChangesAsync();
+        await Refresher(list).RefreshScannedAsync(_library, false, [MakingMoviesFolder], null, null, default);
+        Assert.Equal(2, _lidarr.Paths.Count(p => p == "/api/v1/artist"));
+
+        // A refresh asked for, or of the whole library, asks afresh.
+        await Refresher(list).RefreshScannedAsync(_library, true, [MakingMoviesFolder], null, null, default);
+        Assert.Equal(3, _lidarr.Paths.Count(p => p == "/api/v1/artist"));
+    }
+
+    private sealed class Clock : Microsoft.Extensions.Internal.ISystemClock
+    {
+        public DateTimeOffset UtcNow { get; set; } = DateTimeOffset.UtcNow;
+    }
+
+    [Fact]
+    public async Task LidarrsArtistList_LeavesMemoryWhenItsTimeIsUp()
+    {
+        var clock = new Clock();
+        using var memory = new MemoryCache(new MemoryCacheOptions { Clock = clock });
+        var list = new LidarrArtistList(memory);
+
+        await Refresher(list).RefreshScannedAsync(_library, false, [MakingMoviesFolder], null, null, default);
+        Assert.Equal(1, memory.Count);
+
+        clock.UtcNow += LidarrArtistList.KeptFor + TimeSpan.FromSeconds(1);
+        memory.Compact(0); // what the cache does for itself as it's used; this makes it now
+        Assert.Equal(0, memory.Count);
+
+        await Refresher(list).RefreshScannedAsync(_library, false, [MakingMoviesFolder], null, null, default);
+        Assert.Equal(2, _lidarr.Paths.Count(p => p == "/api/v1/artist"));
+    }
+
+    [Fact]
     public async Task WithoutLidarr_TagsStand_AndOnlyColoursAreAdded()
     {
         var result = await Refresher(lidarr: false).RefreshLibraryAsync(_library, force: false, default);
@@ -197,6 +242,75 @@ public sealed class MusicMetadataRefreshTests : IAsyncLifetime
         Assert.Equal(0, result.FromArr);
         Assert.DoesNotContain(_lidarr.Paths, p => p.StartsWith("/api", StringComparison.Ordinal));
         Assert.Equal("Making movies", (await _db.MediaItems.SingleAsync(i => i.Path == MakingMoviesFolder)).Title);
+    }
+
+    [Fact]
+    public async Task WithoutLidarr_ACoverWithNoColour_IsOnlyTriedOnce_AndKeepsItsTime()
+    {
+        await GiveCoversAsync(_artist.Id, (await _db.MediaItems.SingleAsync(i => i.Path == $"{Root}/Dire Straits/Love Over Gold (1982)")).Id);
+        var ffmpeg = GreyFfmpeg();
+
+        var first = await Refresher(lidarr: false, ffmpeg).RefreshLibraryAsync(_library, force: false, default);
+        Assert.Equal(2, first.FromLookup); // the artist's and Love Over Gold's: the only artwork here, and no colour to find
+
+        var times = await _db.MediaItems.AsNoTracking().Where(i => i.PosterUrl != null).Select(i => i.MetadataUpdatedAt).ToListAsync();
+        Assert.All(times, t => Assert.NotNull(t));
+
+        var again = await Refresher(lidarr: false, ffmpeg).RefreshLibraryAsync(_library, force: false, default);
+        Assert.Equal(0, again.FromLookup);
+
+        // Asked to, it looks again, and the time still says nothing changed (it's in the artwork's address).
+        var forced = await Refresher(lidarr: false, ffmpeg).RefreshLibraryAsync(_library, force: true, default);
+        Assert.Equal(2, forced.FromLookup);
+        Assert.Equal(times, await _db.MediaItems.AsNoTracking().Where(i => i.PosterUrl != null).Select(i => i.MetadataUpdatedAt).ToListAsync());
+    }
+
+    [Fact]
+    public async Task WithoutLidarr_ACoverThatCouldntBeRead_IsTriedAgainNextTime()
+    {
+        // The share asleep: the track holding the cover can't be found, so nothing is known of its colours.
+        var asleep = await Refresher(lidarr: false, GreyFfmpeg()).RefreshLibraryAsync(_library, force: false, default);
+        Assert.Equal(0, asleep.FromLookup);
+
+        var album = await _db.MediaItems.AsNoTracking().SingleAsync(i => i.Path == $"{Root}/Dire Straits/Love Over Gold (1982)");
+        Assert.Null(album.MetadataUpdatedAt);
+        Assert.Null(album.MetadataSource);
+
+        // A cover that's there, with ffmpeg failing on it.
+        await GiveCoversAsync(album.Id);
+        var failing = await Refresher(lidarr: false).RefreshLibraryAsync(_library, force: false, default);
+        Assert.Equal(0, failing.FromLookup);
+        Assert.Null((await _db.MediaItems.AsNoTracking().SingleAsync(i => i.Id == album.Id)).MetadataUpdatedAt);
+    }
+
+    [Fact]
+    public async Task WithoutLidarr_ACoverReadOnlyAfterAFailure_GetsItsTurn()
+    {
+        var album = await _db.MediaItems.SingleAsync(i => i.Path == $"{Root}/Dire Straits/Love Over Gold (1982)");
+
+        await Refresher(lidarr: false, GreyFfmpeg()).RefreshLibraryAsync(_library, force: false, default); // not there yet
+        await GiveCoversAsync(album.Id);
+
+        var awake = await Refresher(lidarr: false, GreyFfmpeg()).RefreshLibraryAsync(_library, force: false, default);
+        Assert.Equal(1, awake.FromLookup);
+
+        _db.ChangeTracker.Clear();
+        var read = await _db.MediaItems.SingleAsync(i => i.Id == album.Id);
+        Assert.NotNull(read.MetadataUpdatedAt);
+        Assert.Equal(MetadataRefresher.Tags, read.MetadataSource);
+    }
+
+    [Fact]
+    public async Task WithoutLidarr_AScanOfOneFolder_OnlyLooksAtColoursInThatFolder()
+    {
+        var other = await _db.MediaItems.SingleAsync(i => i.Path == MakingMoviesFolder);
+        await GiveCoversAsync(other.Id);
+
+        var result = await Refresher(lidarr: false, GreyFfmpeg()).RefreshScannedAsync(_library, force: false, [MakingMoviesFolder], null, null, default);
+
+        Assert.Equal(1, result.FromLookup);
+        Assert.Equal(MetadataRefresher.Tags, (await _db.MediaItems.AsNoTracking().SingleAsync(i => i.Path == MakingMoviesFolder)).MetadataSource);
+        Assert.Null((await _db.MediaItems.AsNoTracking().SingleAsync(i => i.Path == $"{Root}/Dire Straits/Love Over Gold (1982)")).MetadataSource);
     }
 
     [Fact]
@@ -325,15 +439,47 @@ public sealed class MusicMetadataRefreshTests : IAsyncLifetime
         PosterUrl = poster,
     };
 
-    private MetadataRefresher Refresher(bool lidarr = true)
+    /// <summary>Real files for these items' covers, so what's read is the file and not its absence.</summary>
+    private async Task GiveCoversAsync(params Guid[] ids)
     {
-        var settings = new Settings(_dir, lidarr);
-        var http = new HttpClient(_lidarr);
-        return new MetadataRefresher(_db, new ArrClient(http), new TvMazeClient(http),
-            new ImageCache(http, settings, NullLogger<ImageCache>.Instance), settings, NullLogger<MetadataRefresher>.Instance);
+        var cover = Path.Combine(_dir, "cover.jpg");
+        await File.WriteAllBytesAsync(cover, [0xFF, 0xD8, 0xFF, 0xE0, 0, 0, 0, 0]);
+        foreach (var item in await _db.MediaItems.Where(i => ids.Contains(i.Id)).ToListAsync())
+        {
+            item.PosterUrl = $"file://{cover}";
+        }
+
+        await _db.SaveChangesAsync();
     }
 
-    private sealed class Settings(string cache, bool lidarr) : IMetadataSettings
+    /// <summary>An ffmpeg whose every image is black: a picture read, with no colour to speak of.</summary>
+    private string GreyFfmpeg()
+    {
+        var path = Path.Combine(_dir, "grey-ffmpeg.sh");
+        File.WriteAllText(path, """
+            #!/bin/sh
+            for a; do last=$a; done
+            if [ "$last" = "-" ]; then head -c 3072 /dev/zero; else printf x > "$last"; fi
+            """);
+        if (!OperatingSystem.IsWindows())
+        {
+            File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+
+        return path;
+    }
+
+    private MetadataRefresher Refresher(bool lidarr = true, string ffmpeg = "false") => Refresher(null, lidarr, ffmpeg);
+
+    private MetadataRefresher Refresher(LidarrArtistList? list, bool lidarr = true, string ffmpeg = "false")
+    {
+        var settings = new Settings(_dir, lidarr, ffmpeg);
+        var http = new HttpClient(_lidarr);
+        return new MetadataRefresher(_db, new ArrClient(http), new TvMazeClient(http),
+            new ImageCache(http, settings, NullLogger<ImageCache>.Instance), settings, NullLogger<MetadataRefresher>.Instance, artistList: list);
+    }
+
+    private sealed class Settings(string cache, bool lidarr, string ffmpeg) : IMetadataSettings
     {
         public IReadOnlyList<ArrInstance> ArrInstances { get; } = lidarr
             ? [new ArrInstance { Name = "Lidarr", Kind = ArrKind.Lidarr, BaseUrl = new Uri("http://lidarr.test"), ApiKey = "key" }]
@@ -341,7 +487,7 @@ public sealed class MusicMetadataRefreshTests : IAsyncLifetime
 
         public IReadOnlyList<PathMapping> PathMappings { get; } = [new PathMapping { From = "/data", To = "/Volumes/Media/data" }];
         public string CacheDirectory => cache;
-        public string FfmpegPath => "false"; // no resizing: artwork answers are not images here anyway
+        public string FfmpegPath => ffmpeg; // "false", no resizing: artwork answers are not images here anyway
     }
 
     /// <summary>Lidarr with the fixtures in it, answering by path and query; artwork requests get a 404.</summary>

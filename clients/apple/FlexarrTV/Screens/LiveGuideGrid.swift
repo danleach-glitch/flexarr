@@ -22,8 +22,16 @@ struct LiveGuideGrid: View {
     var records = true
     /// The end of the window, each time it moves: the guide is fetched further ahead as it nears the end of it.
     var onWindow: ((Date) -> Void)? = nil
+    /// Said quietly above the channels (the guide couldn't be fetched for some of them).
+    var note: String? = nil
 
-    @FocusState private var focusedProgramme: Int64?
+    /// Where focus is in the grid: a programme, or the cell of a channel with nothing listed in the window.
+    private enum GridFocus: Hashable {
+        case programme(Int64)
+        case noListings(String)
+    }
+
+    @FocusState private var focused: GridFocus?
 
     @State private var windowStart = LiveGuideGrid.halfHour(before: Date())
     @State private var details: LiveProgramme?
@@ -54,6 +62,9 @@ struct LiveGuideGrid: View {
             let perSecond = width / Self.window
             VStack(alignment: .leading, spacing: 0) {
                 timeline(width: width)
+                if let note {
+                    Text(note).font(.system(size: 22)).foregroundStyle(Color.usher).lineLimit(1)
+                }
                 if guide == nil {
                     StatusView(state: .loading)
                 } else {
@@ -70,6 +81,8 @@ struct LiveGuideGrid: View {
                             .overlay(alignment: .topLeading) { nowLine(perSecond: perSecond) }
                         }
                         .scrollClipDisabled()
+                        // All of it, so Right finds the guide from a sidebar row lower down than its channels go.
+                        .focusSection()
                         .task(id: guide?.from) { await startFocus(proxy) }
                     }
                 }
@@ -79,6 +92,14 @@ struct LiveGuideGrid: View {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(30))
                 now = Date()
+            }
+        }
+        // Listings came for the channel focus is on (a wider guide, or the window moved), whose cell has gone with them.
+        .onChange(of: listedWhileFocused) { _, channel in
+            guard let channel else { return }
+            Task {
+                try? await Task.sleep(for: .milliseconds(60))
+                focused = landing(on: channel)
             }
         }
         .alert(details?.displayTitle ?? "", isPresented: Binding(get: { details != nil }, set: { if !$0 { details = nil } })) {
@@ -131,8 +152,7 @@ struct LiveGuideGrid: View {
 
     private func row(_ channel: LiveChannel, width: CGFloat, perSecond: CGFloat) -> some View {
         let windowEnd = windowStart.addingTimeInterval(Self.window)
-        let programmes = (guide?.channels.first { $0.id == channel.id }?.programmes ?? [])
-            .filter { $0.end > windowStart && $0.start < windowEnd && min($0.end, windowEnd).timeIntervalSince(max($0.start, windowStart)) >= 5 * 60 }
+        let programmes = programmes(on: channel.id)
         return HStack(spacing: 0) {
             HStack(spacing: 14) {
                 Text(channel.numberText)
@@ -155,11 +175,32 @@ struct LiveGuideGrid: View {
             .frame(width: Self.channelWidth, alignment: .leading)
 
             ZStack(alignment: .leading) {
-                if programmes.isEmpty {
-                    Text(t("No listings"))
-                        .font(.system(size: 22))
-                        .foregroundStyle(Color.usher)
-                        .padding(.leading, 20)
+                // Nothing listed: still a place to stop on and watch the channel from, so up and down don't skip it. A
+                // channel the guide hasn't got yet (it was asked for favourites, say) isn't known to have nothing.
+                if programmes.isEmpty, guide?.channels.contains(where: { $0.id == channel.id }) == true {
+                    Button {
+                        onWatch(channel)
+                    } label: {
+                        Text(t("No listings"))
+                            .font(.system(size: 22))
+                            .padding(.leading, 20)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(GuideCellStyle(onNow: false, past: false, recording: false, quiet: true))
+                    .focused($focused, equals: .noListings(channel.id))
+                    .contextMenu { favouriteButton(channel) }
+                    .frame(width: width - 6, height: Self.rowHeight)
+                    // As past either edge of a programme, the window moves. The same goes for Left at its start: on to
+                    // the sidebar.
+                    .onMoveCommand { direction in
+                        if direction == .right {
+                            move(by: Self.step)
+                        }
+                        if direction == .left, windowStart > earliest {
+                            move(by: -Self.step)
+                            keepFocus(on: channel)
+                        }
+                    }
                 }
                 ForEach(Array(programmes.enumerated()), id: \.element.id) { index, programme in
                     let start = max(programme.start, windowStart)
@@ -174,7 +215,7 @@ struct LiveGuideGrid: View {
                     .accessibilityLabel(programme.displayTitle)
                     .buttonStyle(GuideCellStyle(onNow: programme.start <= now && programme.end > now, past: programme.end <= now,
                                                 recording: programme.isSetToRecord))
-                    .focused($focusedProgramme, equals: programme.id)
+                    .focused($focused, equals: .programme(programme.id))
                     .contextMenu {
                         if records, programme.end > now {
                             Button { act { try await toggleRecording(programme, on: channel) } } label: {
@@ -184,25 +225,21 @@ struct LiveGuideGrid: View {
                                 Label(DvrActions.seriesLabel(programme), systemImage: "square.stack")
                             }
                         }
-                        if let onFavourite {
-                            Button { onFavourite(channel) } label: {
-                                Label(channel.isFavourite ? t("Remove from favourites") : t("Add to favourites"),
-                                      systemImage: channel.isFavourite ? "star.slash" : "star")
-                            }
-                        }
+                        favouriteButton(channel)
                     }
                     .frame(width: cellWidth, height: Self.rowHeight)
                     .offset(x: CGFloat(start.timeIntervalSince(windowStart)) * perSecond)
-                    // Past either edge of the window, it moves, and focus stays on this programme (still in view). Left
-                    // from the first programme at the start of the guide goes on to the sidebar.
+                    // Past either edge of the window, it moves, and focus stays on this programme while it's in view, or
+                    // otherwise on this channel. Left from the first programme at the start of the guide goes on to the
+                    // sidebar.
                     .onMoveCommand { direction in
-                        if direction == .right, index == programmes.count - 1 { move(by: Self.step) }
+                        if direction == .right, index == programmes.count - 1 {
+                            move(by: Self.step)
+                            keepFocus(on: programme, of: channel, refocusing: false)
+                        }
                         if direction == .left, index == 0, windowStart > earliest {
                             move(by: -Self.step)
-                            Task {
-                                try? await Task.sleep(for: .milliseconds(60))
-                                focusedProgramme = programme.id
-                            }
+                            keepFocus(on: programme, of: channel, refocusing: true)
                         }
                     }
                 }
@@ -210,6 +247,20 @@ struct LiveGuideGrid: View {
             .frame(width: width, height: Self.rowHeight, alignment: .leading)
         }
         .focusSection()
+        // Spanning the window, a channel with nothing listed has no column of its own, and going on from it would land
+        // level with its middle, an hour or more ahead, where Select opens details rather than playing.
+        .defaultFocus($focused, landing(on: channel.id), priority: isOnNoListings ? .userInitiated : .automatic)
+    }
+
+    /// Adds a channel to Favourites or takes it off, where there's a menu for it.
+    @ViewBuilder
+    private func favouriteButton(_ channel: LiveChannel) -> some View {
+        if let onFavourite {
+            Button { onFavourite(channel) } label: {
+                Label(channel.isFavourite ? t("Remove from favourites") : t("Add to favourites"),
+                      systemImage: channel.isFavourite ? "star.slash" : "star")
+            }
+        }
     }
 
     private func cell(_ programme: LiveProgramme) -> some View {
@@ -252,6 +303,49 @@ struct LiveGuideGrid: View {
 
     private static let recordRed = Color.record
 
+    /// What's listed on a channel in the window.
+    private func programmes(on channel: String) -> [LiveProgramme] {
+        let windowEnd = windowStart.addingTimeInterval(Self.window)
+        return (guide?.channels.first { $0.id == channel }?.programmes ?? [])
+            .filter { $0.end > windowStart && $0.start < windowEnd && min($0.end, windowEnd).timeIntervalSince(max($0.start, windowStart)) >= 5 * 60 }
+    }
+
+    private var isOnNoListings: Bool {
+        if case .noListings = focused { true } else { false }
+    }
+
+    /// The channel with nothing listed that focus is on, once it has listings after all.
+    private var listedWhileFocused: String? {
+        guard case .noListings(let channel) = focused, !programmes(on: channel).isEmpty else { return nil }
+        return channel
+    }
+
+    /// Where focus goes on a channel when it isn't coming from a programme: what's on now, or the first thing shown.
+    private func landing(on channel: String) -> GridFocus {
+        let shown = programmes(on: channel)
+        return (shown.first { $0.start <= now && $0.end > now } ?? shown.first).map { .programme($0.id) } ?? .noListings(channel)
+    }
+
+    /// Moving back from a channel with nothing listed: the remote's press also takes focus left, so it's brought back.
+    private func keepFocus(on channel: LiveChannel) {
+        Task {
+            try? await Task.sleep(for: .milliseconds(60))
+            focused = landing(on: channel.id)
+        }
+    }
+
+    /// Once the window has moved. Moving back, the remote's press also takes focus left, so it's always brought back
+    /// (`refocusing`). Otherwise focus only needs help when the programme has gone from the window with the move.
+    private func keepFocus(on programme: LiveProgramme, of channel: LiveChannel, refocusing: Bool) {
+        let shown = programmes(on: channel.id)
+        let inView = shown.contains { $0.id == programme.id }
+        guard refocusing || !inView else { return }
+        Task {
+            try? await Task.sleep(for: .milliseconds(60))
+            focused = inView ? .programme(programme.id) : shown.first.map { .programme($0.id) } ?? .noListings(channel.id)
+        }
+    }
+
     private func toggleRecording(_ programme: LiveProgramme, on channel: LiveChannel) async throws {
         guard let client else { return }
         notice = try await DvrActions.toggleRecording(programme, on: channel.id, client: client)
@@ -285,12 +379,11 @@ struct LiveGuideGrid: View {
 
     /// Opens on the channel being watched, at what's on now.
     private func startFocus(_ proxy: ScrollViewProxy) async {
-        guard let focusChannel, let guide else { return }
+        guard let focusChannel, guide != nil else { return }
         proxy.scrollTo(focusChannel, anchor: .center)
-        let on = guide.channels.first { $0.id == focusChannel }?.programmes.first { $0.start <= Date() && $0.end > Date() }
         // Once the row is laid out, or focus has nowhere to land.
         try? await Task.sleep(for: .milliseconds(300))
-        focusedProgramme = on?.id
+        focused = landing(on: focusChannel)
     }
 
     /// The window goes back no further than the guide does.
@@ -336,14 +429,16 @@ struct LiveGuideGrid: View {
 }
 
 /// A programme: quiet until focused (white, dark text, as tvOS does); what's on now carries a bar, what's past is dim.
+/// `quiet` is a channel with nothing listed: fainter, and as wide as the guide, so it hardly grows.
 private struct GuideCellStyle: ButtonStyle {
     let onNow: Bool
     let past: Bool
     /// Set to record: outlined in red.
     let recording: Bool
+    var quiet = false
 
     func makeBody(configuration: Configuration) -> some View {
-        CellBody(configuration: configuration, onNow: onNow, past: past, recording: recording)
+        CellBody(configuration: configuration, onNow: onNow, past: past, recording: recording, quiet: quiet)
     }
 
     private struct CellBody: View {
@@ -351,14 +446,15 @@ private struct GuideCellStyle: ButtonStyle {
         let onNow: Bool
         let past: Bool
         let recording: Bool
+        let quiet: Bool
         @Environment(\.isFocused) private var isFocused
 
         var body: some View {
             configuration.label
-                .foregroundStyle(isFocused ? Color.room : Color.screen)
+                .foregroundStyle(isFocused ? Color.room : quiet ? Color.usher : Color.screen)
                 .background {
                     RoundedRectangle(cornerRadius: Radius.control, style: .continuous)
-                        .fill(isFocused ? Color.screen : Color.seat.opacity(onNow ? 0.95 : 0.6))
+                        .fill(isFocused ? Color.screen : Color.seat.opacity(quiet ? 0.3 : onNow ? 0.95 : 0.6))
                 }
                 .overlay(alignment: .leading) {
                     if onNow, !isFocused {
@@ -372,7 +468,7 @@ private struct GuideCellStyle: ButtonStyle {
                     }
                 }
                 .opacity(past && !isFocused ? 0.55 : 1)
-                .scaleEffect(isFocused ? 1.04 : 1)
+                .scaleEffect(isFocused ? (quiet ? 1.01 : 1.04) : 1)
                 .animation(.spring(response: 0.25, dampingFraction: 0.8), value: isFocused)
         }
     }

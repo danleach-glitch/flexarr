@@ -37,6 +37,8 @@ val uploadSigning = Properties().apply {
 }
 
 android {
+    // WorkManager and Compose read the app's resources in tests that run the real model and screens.
+    testOptions.unitTests.isIncludeAndroidResources = true
     namespace = "io.github.flexarr"
     compileSdk = 37
 
@@ -265,6 +267,11 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.robolectric)
+    // Buttons pressed and the app's model run for real, against a stand-in server.
+    testImplementation(platform(libs.compose.bom))
+    testImplementation(libs.compose.ui.test.junit4)
+    testImplementation(libs.okhttp.mockwebserver)
+    debugImplementation(libs.compose.ui.test.manifest)
     androidTestImplementation(libs.androidx.test.junit)
     androidTestImplementation(libs.androidx.test.runner)
 }

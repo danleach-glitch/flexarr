@@ -16,8 +16,10 @@ import androidx.work.WorkerParameters
 import io.github.flexarr.AppLink
 import io.github.flexarr.appModel
 import io.github.flexarr.core.FlexarrClient
+import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.MediaKind
+import io.github.flexarr.core.Profile
 import io.github.flexarr.data.CredentialStore
 import io.github.flexarr.isTelevision
 import io.github.flexarr.logging.FlexarrLog
@@ -163,18 +165,44 @@ object WatchNext {
         val credentials = context.appModel.credentials ?: CredentialStore(context).load()
         if (credentials == null || credentials.isGuest) return write(context, emptyList())
         val client = credentials.client()
-        // The app's own list when it's up and signed in the same way, else asked.
-        val model = context.appModel
-        val profiles = model.profiles.takeIf { model.profilesLoaded && it.isNotEmpty() && model.credentials == credentials } ?: client.profiles()
+        try {
+            // Asked every time, never the app's own list: a PIN added elsewhere has to empty the row, the 6-hourly refresh's included.
+            val watching = watching(client.profiles(), credentials.profileToken) ?: return write(context, emptyList())
+            val videos = client.continueWatching(take = MAX_VIDEOS)
+            val cards = cards(videos, recentAlbums(client, watching.id), System.currentTimeMillis()) { item -> picture(item, client) }
+            write(context, cards, watching.id)
+        } catch (e: FlexarrException) {
+            // Offline keeps the row; refused, its titles are no longer for this TV.
+            if (!isRefused(e)) throw e
+            write(context, emptyList())
+        }
+    }
+
+    /**
+     * Whose titles the row shows, of [profiles] as the server just listed them for this sign-in; null keeps it empty.
+     * [profileToken] is the choice this TV holds ("{profile id}.{signature}"), and null before anyone's chosen.
+     */
+    internal fun watching(profiles: List<Profile>, profileToken: String?): Profile? {
         // Before anyone's chosen the server acts as the main profile, whose titles aren't for whoever's at "Who's
         // watching?" in a house with several.
-        if (credentials.profileToken == null && profiles.size > 1) return write(context, emptyList())
-        val watching = profiles.firstOrNull { it.isCurrent } ?: profiles.firstOrNull { it.isMain }
+        if (profileToken == null && profiles.size > 1) return null
+        val current = profiles.firstOrNull { it.isCurrent } ?: return null
+        // Adding a PIN retires a token, and on a server-key or home-network sign-in a retired one answers as the main
+        // profile: so it's only trusted to be who it names.
+        if (profileToken != null && profileToken.substringBeforeLast('.') != current.id) return null
         // Its PIN, or the admin PIN that choosing the main profile can take, guards it: so the row stays empty.
-        if (watching == null || watching.takesPin) return write(context, emptyList())
-        val videos = client.continueWatching(take = MAX_VIDEOS)
-        val cards = cards(videos, recentAlbums(client, watching.id), System.currentTimeMillis()) { item -> picture(item, client) }
-        write(context, cards, watching.id)
+        return current.takeUnless { it.takesPin }
+    }
+
+    /**
+     * The server answered and won't have this sign-in or profile, rather than couldn't be asked. A 403 only when it says
+     * why: a bare one can be a reverse proxy during an outage, which is no reason to forget the row and the cards taken
+     * out of it.
+     */
+    internal fun isRefused(error: FlexarrException): Boolean = when (error) {
+        is FlexarrException.Unauthorized, is FlexarrException.ParentPinNeeded, is FlexarrException.OwnPinWrong, is FlexarrException.KidsLocked -> true
+        is FlexarrException.Http -> error.status == 401 || error.guestRemoved || error.chooseProfile
+        else -> false
     }
 
     /** The last answer for recently played albums: whose they were, when they were asked for, and them. */
@@ -243,8 +271,12 @@ object WatchNext {
     private fun key(owner: String, id: String) = "$owner/$id"
 
 
+    /**
+     * A card as a row. Position, length and art are always set, to 0 or null when there's none: an update leaves alone
+     * any column it isn't given, so an episode that's gone back to Next would keep its progress bar.
+     */
     @SuppressLint("RestrictedApi")
-    private fun program(context: Context, card: Card, key: String): WatchNextProgram = WatchNextProgram.Builder()
+    internal fun program(context: Context, card: Card, key: String): WatchNextProgram = WatchNextProgram.Builder()
         .setWatchNextType(card.watchNextType)
         .setType(card.programType)
         .setTitle(card.title)
@@ -252,11 +284,12 @@ object WatchNext {
         .apply {
             card.season?.let { setSeasonNumber(it) }
             card.episode?.let { setEpisodeNumber(it) }
-            card.durationMillis?.let { setDurationMillis(it) }
-            card.positionMillis?.let { setLastPlaybackPositionMillis(it) }
             card.author?.let { setAuthor(it) }
-            card.image?.let { setPosterArtUri(Uri.parse(it.url)); setPosterArtAspectRatio(it.aspect) }
+            card.image?.let { setPosterArtAspectRatio(it.aspect) }
         }
+        .setDurationMillis(card.durationMillis ?: 0)
+        .setLastPlaybackPositionMillis(card.positionMillis ?: 0)
+        .setPosterArtUri(card.image?.let { Uri.parse(it.url) })
         .setLastEngagementTimeUtcMillis(card.lastEngagement)
         .setInternalProviderId(key)
         .setIntent(card.link.launcherIntent(context))

@@ -63,7 +63,10 @@ public sealed class DispatcharrGuides(HttpClient http)
     /// <summary>How many looks in a row may fail before Dispatcharr counts as gone.</summary>
     internal int BadLooksAtMost { get; init; } = 10;
 
-    /// <summary>Whether the key is an admin's on that server.</summary>
+    /// <summary>
+    /// Whether the key is an admin's on that server. Only a level below an admin's says it isn't: an answer without one (a
+    /// version that's renamed it, say) doesn't say, and <see cref="DownloadAsync"/> finds out if it matters.
+    /// </summary>
     public async Task<GuideDownloadProblem> CheckKeyAsync(Uri root, string key, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(root);
@@ -77,7 +80,7 @@ public sealed class DispatcharrGuides(HttpClient http)
 
             using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
             return doc.RootElement.ValueKind == JsonValueKind.Object && doc.RootElement.TryGetProperty("user_level", out var level)
-                && level.TryGetInt32(out var value) && value >= AdminLevel ? GuideDownloadProblem.None : GuideDownloadProblem.KeyRefused;
+                && level.ValueKind == JsonValueKind.Number && level.TryGetInt32(out var value) && value < AdminLevel ? GuideDownloadProblem.KeyRefused : GuideDownloadProblem.None;
         }
         catch (Exception ex) when (Unreachable(ex, ct))
         {

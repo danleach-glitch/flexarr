@@ -43,6 +43,8 @@ public sealed class MusicRequestTests : IAsyncLifetime
                 s.AddHttpClient<DeezerClient>().ConfigurePrimaryHttpMessageHandler(() => _deezer);
                 s.AddHttpClient(nameof(DeezerClient)).ConfigurePrimaryHttpMessageHandler(() => _deezer);
                 s.AddHttpClient<MusicBrainzClient>().ConfigurePrimaryHttpMessageHandler(() => _musicBrainz);
+                s.AddHttpContextAccessor();
+                s.AddSingleton<Microsoft.AspNetCore.Authentication.IClaimsTransformation, GuestWhenSaid>();
             });
         });
         _lidarr.OnRequest = r => _sent.Enqueue(($"{r.Method} {r.RequestUri!.AbsolutePath}", r.Content is null ? null : JsonNode.Parse(r.Content.ReadAsStringAsync().Result)));
@@ -232,6 +234,94 @@ public sealed class MusicRequestTests : IAsyncLifetime
         var charts = discover.GetProperty("rows").EnumerateArray().Single(r => r.GetProperty("id").GetString() == "music-charts").GetProperty("items").EnumerateArray();
         Assert.Equal(730000661, Assert.Single(charts).GetProperty("deezerId").GetInt64());
         Assert.DoesNotContain(_deezer.Requests, r => r.Contains("/album/100", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Discover_is_kept_ready_so_opening_it_asks_Deezer_nothing()
+    {
+        var (library, artist, _) = await SeedOwnedAsync();
+        await InDbAsync(async db =>
+        {
+            var album = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Album, Title = "Played", SortTitle = "played", ParentId = artist.Id };
+            var track = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Track, Title = "CPR", SortTitle = "cpr", Parent = album };
+            db.MediaItems.AddRange(album, track);
+            db.PlaybackStates.Add(new PlaybackState { UserId = PlaybackState.DefaultUser, MediaItem = track, PlayCount = 3 });
+            return await db.SaveChangesAsync();
+        });
+        _deezer.Responses["GET /artist/5/albums?limit=100"] = """{"data":[{"id":51,"title":"The Overload","record_type":"album","fans":4000}]}""";
+        _deezer.Responses["GET /artist/6/albums?limit=100"] = """{"data":[]}""";
+        _deezer.Responses["GET /album/51"] = """{"id":51,"title":"The Overload","record_type":"album","artist":{"id":5,"name":"Yard Act"}}""";
+        _deezer.Responses["GET /artist/134334152/albums?limit=100"] = """{"data":[]}""";
+
+        await _server.Services.GetRequiredService<Endpoints.MusicRequests.MusicDiscoverWarmer>().RunOnceAsync(CancellationToken.None);
+        var asked = _deezer.Requests.Count;
+        Assert.True(asked > 0);
+
+        var discover = await Client().GetFromJsonAsync<JsonElement>(Api("/requests/music/discover"));
+
+        Assert.Equal(asked, _deezer.Requests.Count);
+        Assert.Contains(discover.GetProperty("rows").EnumerateArray(), r => r.GetProperty("id").GetString() == "music-charts");
+    }
+
+    [Fact]
+    public async Task Keeping_Discover_ready_loads_nothing_while_the_charts_are_still_kept()
+    {
+        await SeedOwnedAsync();
+        var warmer = _server.Services.GetRequiredService<Endpoints.MusicRequests.MusicDiscoverWarmer>();
+        var chart = _deezer.Responses["GET /chart/0/tracks?limit=100"];
+        _deezer.Responses.TryRemove("GET /chart/0/tracks?limit=100", out _);
+
+        // Deezer not giving the charts: nothing's kept, so the next look works it out again.
+        await warmer.RunOnceAsync(CancellationToken.None);
+        _deezer.Responses["GET /chart/0/tracks?limit=100"] = chart;
+        await warmer.RunOnceAsync(CancellationToken.None);
+        Assert.Equal(2, _deezer.Requests.Count(r => r.Contains("/chart/0/tracks", StringComparison.Ordinal)));
+
+        // What Lidarr's list and the library are kept for has run out, as it has by every half-hourly look.
+        ((Microsoft.Extensions.Caching.Memory.MemoryCache)_server.Services.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>()).Clear();
+        var sent = _sent.Count;
+        var asked = _deezer.Requests.Count;
+
+        await warmer.RunOnceAsync(CancellationToken.None);
+
+        Assert.Equal(sent, _sent.Count);
+        Assert.Equal(asked, _deezer.Requests.Count);
+    }
+
+    [Fact]
+    public async Task Discover_isnt_kept_ready_while_music_cant_be_requested()
+    {
+        // No music library.
+        await _server.Services.GetRequiredService<Endpoints.MusicRequests.MusicDiscoverWarmer>().RunOnceAsync(CancellationToken.None);
+        Assert.Empty(_deezer.Requests);
+    }
+
+    [Fact]
+    public async Task AlbumsYouMightLike_PassesOverACompilationAnArtistIsMerelyOn()
+    {
+        var (library, artist, _) = await SeedOwnedAsync();
+        await InDbAsync(async db =>
+        {
+            var album = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Album, Title = "Played", SortTitle = "played", ParentId = artist.Id };
+            var track = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Track, Title = "CPR", SortTitle = "cpr", Parent = album };
+            db.MediaItems.AddRange(album, track);
+            db.PlaybackStates.Add(new PlaybackState { UserId = "owner", MediaItem = track, PlayCount = 3 });
+            return await db.SaveChangesAsync();
+        });
+        _deezer.Responses["GET /artist/5/albums?limit=100"] = """
+            {"data":[
+                {"id":60,"title":"City Lounge, Vol 1.1","record_type":"album","fans":9000},
+                {"id":51,"title":"The Overload","record_type":"album","fans":4000}
+            ]}
+            """;
+        _deezer.Responses["GET /album/60"] = """{"id":60,"title":"City Lounge, Vol 1.1","record_type":"album","artist":{"id":5080,"name":"Various Artists"}}""";
+        _deezer.Responses["GET /artist/6/albums?limit=100"] = """{"data":[{"id":70,"title":"Hits Mix","record_type":"album","fans":100}]}""";
+        _deezer.Responses["GET /album/70"] = """{"id":70,"title":"Hits Mix","record_type":"compile","artist":{"id":6,"name":"Dry Cleaning"}}""";
+
+        var discover = await Client().GetFromJsonAsync<JsonElement>(Api("/requests/music/discover"));
+
+        var row = discover.GetProperty("rows").EnumerateArray().Single(r => r.GetProperty("id").GetString() == "music-like-albums");
+        Assert.Equal(["The Overload"], row.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("title").GetString())); // nothing of Dry Cleaning's but the compilation
     }
 
     [Fact]
@@ -690,6 +780,105 @@ public sealed class MusicRequestTests : IAsyncLifetime
         Assert.Equal(Endpoints.MusicRequests.MusicImportRetry.MaxRetries, _sent.Count(s => s.Request == "DELETE /api/v1/queue/5"));
     }
 
+    private async Task LidarrHoldsABadCopyAsync()
+    {
+        _lidarr.Responses["GET /api/v1/queue?page=1&pageSize=200&includeArtist=true&includeAlbum=true"] = $$$"""
+            {"page":1,"pageSize":200,"totalRecords":1,"records":[
+              {"id":5,"albumId":9,"artistId":3,"title":"partial","downloadId":"partial","status":"completed","size":100,"sizeleft":0,"trackedDownloadStatus":"warning","trackedDownloadState":"importFailed",
+               "statusMessages":[{"title":"partial","messages":["Has missing tracks"]}],
+               "album":{"id":9,"artistId":3,"title":"moisturizer","foreignAlbumId":"{{{Moisturizer}}}","monitored":true} }]}
+            """;
+        _lidarr.Responses["DELETE /api/v1/queue/5?removeFromClient=true&blocklist=true&skipRedownload=true"] = "{}";
+        _lidarr.Responses[$"GET /api/v1/album?foreignAlbumId={Moisturizer}"] = "[]";
+        await InDbAsync(async db =>
+        {
+            db.MediaRequests.Add(new Core.Notifications.MediaRequest { ProfileId = "owner", Kind = MediaKind.Album, MusicBrainzId = Moisturizer, Title = "moisturizer", ArtistName = "Wet Leg" });
+            return await db.SaveChangesAsync();
+        });
+    }
+
+    [Fact]
+    public async Task A_Lidarr_blip_doesnt_use_up_an_import_retry()
+    {
+        await LidarrHoldsABadCopyAsync();
+        var refusing = true;
+        _lidarr.Before = (r, _) => refusing && r.Method == HttpMethod.Delete ? throw new HttpRequestException("Connection refused") : Task.CompletedTask;
+        var retry = _server.Services.GetRequiredService<Endpoints.MusicRequests.MusicImportRetry>();
+
+        for (var i = 0; i < Endpoints.MusicRequests.MusicImportRetry.MaxRetries + 1; i++)
+        {
+            await retry.SweepAsync(CancellationToken.None);
+        }
+
+        refusing = false;
+        _sent.Clear();
+        for (var i = 0; i < Endpoints.MusicRequests.MusicImportRetry.MaxRetries + 1; i++)
+        {
+            await retry.SweepAsync(CancellationToken.None);
+        }
+
+        Assert.Equal(Endpoints.MusicRequests.MusicImportRetry.MaxRetries, _sent.Count(s => s.Request == "DELETE /api/v1/queue/5"));
+    }
+
+    [Fact]
+    public async Task A_search_that_failed_after_the_blocklist_is_made_at_the_next_sweep()
+    {
+        await LidarrHoldsABadCopyAsync();
+        var refusing = true;
+        _lidarr.Before = (r, _) => refusing && r.RequestUri!.AbsolutePath == "/api/v1/command" ? throw new HttpRequestException("Connection refused") : Task.CompletedTask;
+        var retry = _server.Services.GetRequiredService<Endpoints.MusicRequests.MusicImportRetry>();
+
+        await retry.SweepAsync(CancellationToken.None);
+        Assert.Single(_sent, s => s.Request == "DELETE /api/v1/queue/5");
+        Assert.Single(_sent, s => s.Request == "POST /api/v1/command");
+
+        // The bad copy has gone from the queue, so nothing there would bring it back to mind.
+        _lidarr.Responses["GET /api/v1/queue?page=1&pageSize=200&includeArtist=true&includeAlbum=true"] = """{"page":1,"pageSize":200,"totalRecords":0,"records":[]}""";
+        refusing = false;
+        _sent.Clear();
+        await retry.SweepAsync(CancellationToken.None);
+        Assert.Equal(9, _sent.Single(s => s.Request == "POST /api/v1/command").Body!["albumIds"]![0]!.GetValue<int>());
+
+        // Paid: not again.
+        _sent.Clear();
+        await retry.SweepAsync(CancellationToken.None);
+        Assert.DoesNotContain(_sent, s => s.Request == "POST /api/v1/command");
+    }
+
+    [Fact]
+    public async Task A_Lidarr_dropping_the_connection_mid_read_only_waits_for_the_next_sweep()
+    {
+        await InDbAsync(async db =>
+        {
+            db.MediaRequests.Add(new Core.Notifications.MediaRequest { ProfileId = "owner", Kind = MediaKind.Album, MusicBrainzId = Moisturizer, Title = "moisturizer", ArtistName = "Wet Leg" });
+            return await db.SaveChangesAsync();
+        });
+        _lidarr.Before = (_, _) => throw new HttpIOException(HttpRequestError.ResponseEnded);
+        var retry = _server.Services.GetRequiredService<Endpoints.MusicRequests.MusicImportRetry>();
+
+        await retry.SweepAsync(CancellationToken.None); // Lidarr being away isn't a failure of the sweep
+    }
+
+    [Fact]
+    public async Task A_sweep_failing_for_any_reason_never_leaves_the_background_service()
+    {
+        await InDbAsync(async db =>
+        {
+            db.MediaRequests.Add(new Core.Notifications.MediaRequest { ProfileId = "owner", Kind = MediaKind.Album, MusicBrainzId = Moisturizer, Title = "moisturizer", ArtistName = "Wet Leg" });
+            return await db.SaveChangesAsync();
+        });
+        _lidarr.Before = (_, _) => throw new InvalidOperationException("Not one the sweep expects");
+        var retry = _server.Services.GetRequiredService<Endpoints.MusicRequests.MusicImportRetry>();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => retry.SweepAsync(CancellationToken.None));
+        await retry.TickAsync(CancellationToken.None);
+
+        // Shutting down still gets out.
+        using var stopping = new CancellationTokenSource();
+        await stopping.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => retry.TickAsync(stopping.Token));
+    }
+
     [Fact]
     public async Task An_artist_a_request_added_is_monitored_with_the_album_while_it_is_missing()
     {
@@ -760,6 +949,58 @@ public sealed class MusicRequestTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_sweep_doesnt_ask_Lidarr_again_about_what_is_settled()
+    {
+        const string Artist = "artist-settled";
+        _lidarr.Responses["GET /api/v1/artist"] = $$"""[{"id":3,"artistName":"Someone","foreignArtistId":"{{Artist}}","monitored":true}]""";
+        _lidarr.Responses["GET /api/v1/album?artistId=3"] = """[{"id":1,"artistId":3,"title":"Done","foreignAlbumId":"rg-settled","monitored":true,"lastSearchTime":"2026-01-01T00:00:00Z","statistics":{"trackFileCount":0,"trackCount":9}}]""";
+        _lidarr.Responses["GET /api/v1/album?foreignAlbumId=rg-settled"] = """[{"id":1,"artistId":3,"title":"Done","foreignAlbumId":"rg-settled","monitored":true,"lastSearchTime":"2026-01-01T00:00:00Z","statistics":{"trackFileCount":0,"trackCount":9}}]""";
+        _lidarr.Responses["GET /api/v1/album?foreignAlbumId=rg-young"] = "[]";
+        _lidarr.Responses["GET /api/v1/album?foreignAlbumId=rg-old"] = "[]";
+        _lidarr.Responses["GET /api/v1/queue?page=1&pageSize=200&includeArtist=true&includeAlbum=true"] = """{"page":1,"pageSize":200,"totalRecords":0,"records":[]}""";
+        await InDbAsync(async db =>
+        {
+            db.MediaRequests.AddRange(
+                new Core.Notifications.MediaRequest { ProfileId = "owner", Kind = MediaKind.Album, MusicBrainzId = "rg-settled", ArtistMusicBrainzId = Artist, AddedArtist = true, Title = "Done", ArtistName = "Someone" },
+                new Core.Notifications.MediaRequest { ProfileId = "owner", Kind = MediaKind.Album, MusicBrainzId = "rg-young", Title = "New", ArtistName = "Someone" },
+                new Core.Notifications.MediaRequest { ProfileId = "owner", Kind = MediaKind.Album, MusicBrainzId = "rg-old", Title = "Old", ArtistName = "Someone", RequestedAt = DateTime.UtcNow.AddDays(-3) });
+            return await db.SaveChangesAsync();
+        });
+        var retry = _server.Services.GetRequiredService<Endpoints.MusicRequests.MusicImportRetry>();
+        await retry.SweepAsync(CancellationToken.None);
+        _sent.Clear();
+
+        await retry.SweepAsync(CancellationToken.None);
+
+        // Only rg-young's: a new request's album may be about to appear, once Lidarr has scanned the artist. The queue is always read.
+        Assert.Equal(["GET /api/v1/album"], _sent.Select(s => s.Request).Where(r => !r.Contains("/queue", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task An_album_Lidarr_never_marks_as_searched_is_not_searched_for_every_sweep()
+    {
+        _lidarr.Responses[$"GET /api/v1/album?foreignAlbumId={Moisturizer}"] = $$$"""
+            [{"id":9,"artistId":3,"title":"moisturizer","foreignAlbumId":"{{{Moisturizer}}}","monitored":true,"statistics":{"trackFileCount":0,"trackCount":9}}]
+            """;
+        _lidarr.Responses["GET /api/v1/queue?page=1&pageSize=200&includeArtist=true&includeAlbum=true"] = """{"page":1,"pageSize":200,"totalRecords":0,"records":[]}""";
+        await InDbAsync(async db =>
+        {
+            db.MediaRequests.Add(new Core.Notifications.MediaRequest { ProfileId = "owner", Kind = MediaKind.Album, MusicBrainzId = Moisturizer, Title = "moisturizer", ArtistName = "Wet Leg" });
+            return await db.SaveChangesAsync();
+        });
+        var retry = _server.Services.GetRequiredService<Endpoints.MusicRequests.MusicImportRetry>();
+
+        await retry.SweepAsync(CancellationToken.None);
+        await retry.SweepAsync(CancellationToken.None);
+        Assert.Single(_sent, s => s.Request == "POST /api/v1/command");
+
+        // Hours later it's worth another go.
+        retry.SearchAgainAfter = TimeSpan.Zero;
+        await retry.SweepAsync(CancellationToken.None);
+        Assert.Equal(2, _sent.Count(s => s.Request == "POST /api/v1/command"));
+    }
+
+    [Fact]
     public async Task An_album_the_artist_sweep_just_searched_for_is_not_searched_for_twice()
     {
         var artist = """{"id":3,"artistName":"Wet Leg","foreignArtistId":"artist-added","monitored":false}""";
@@ -818,6 +1059,491 @@ public sealed class MusicRequestTests : IAsyncLifetime
         Assert.NotNull((await InDbAsync(db => db.MediaRequests.SingleAsync())).FulfilledAt);
         var page = await Client().GetFromJsonAsync<JsonElement>(Api("/requests/music/album/730000661"));
         Assert.Equal("None", page.GetProperty("availability").GetString());
+    }
+
+    private void LidarrGaveUpOnMoisturizer()
+    {
+        LidarrAwaitsMoisturizer();
+        var queue = $$$"""
+            {"id":5,"albumId":9,"artistId":3,"title":"partial","downloadId":"partial","status":"completed","size":100,"sizeleft":0,"trackedDownloadStatus":"warning","trackedDownloadState":"importFailed",
+             "statusMessages":[{"title":"partial","messages":["Has missing tracks"]}],
+             "album":{"id":9,"artistId":3,"title":"moisturizer","foreignAlbumId":"{{{Moisturizer}}}","monitored":true} }
+            """;
+        _lidarr.Responses["GET /api/v1/queue?page=1&pageSize=200&includeArtist=true&includeAlbum=true"] = $$"""{"page":1,"pageSize":200,"totalRecords":1,"records":[{{queue}}]}""";
+        _lidarr.Responses["GET /api/v1/queue/details?albumIds=9"] = $"[{queue}]";
+        _lidarr.Responses["DELETE /api/v1/queue/5?removeFromClient=true&blocklist=true&skipRedownload=true"] = "{}";
+    }
+
+    [Fact]
+    public async Task Unrequesting_GivesAnAlbumAskedForAgain_ItsFullShareOfTries()
+    {
+        await MusicLibraryAsync();
+        LidarrGaveUpOnMoisturizer();
+        await AskedForMoisturizerAsync(addedArtist: false);
+        var retry = _server.Services.GetRequiredService<Endpoints.MusicRequests.MusicImportRetry>();
+        for (var i = 0; i < Endpoints.MusicRequests.MusicImportRetry.MaxRetries + 1; i++)
+        {
+            await retry.SweepAsync(CancellationToken.None);
+        }
+
+        Assert.Equal(HttpStatusCode.NoContent, (await Client().PostAsJsonAsync(Api("/requests/music/unrequest"), new { musicBrainzId = Moisturizer })).StatusCode);
+        await AskedForMoisturizerAsync(addedArtist: false);
+        _sent.Clear();
+
+        await retry.SweepAsync(CancellationToken.None);
+
+        Assert.Contains(_sent, s => s.Request == "DELETE /api/v1/queue/5");
+    }
+
+    [Fact]
+    public async Task TryAgain_BlocklistsWhatFailed_SearchesAgain_AndStartsTheTriesOver()
+    {
+        await MusicLibraryAsync();
+        LidarrGaveUpOnMoisturizer();
+        await AskedForMoisturizerAsync(addedArtist: false);
+        var retry = _server.Services.GetRequiredService<Endpoints.MusicRequests.MusicImportRetry>();
+        for (var i = 0; i < Endpoints.MusicRequests.MusicImportRetry.MaxRetries + 1; i++)
+        {
+            await retry.SweepAsync(CancellationToken.None);
+        }
+
+        _sent.Clear();
+        var response = await Client().PostAsJsonAsync(Api("/requests/music/retry"), new { musicBrainzId = Moisturizer });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal("/api/v1/queue/5", Assert.Single(_lidarr.Requests.TakeLast(10), r => r.StartsWith("DELETE", StringComparison.Ordinal)).Split(' ')[1].Split('?')[0]);
+        Assert.Contains("blocklist=true", _lidarr.Requests.Last(r => r.StartsWith("DELETE", StringComparison.Ordinal)), StringComparison.Ordinal);
+        var search = _sent.Single(s => s.Request == "POST /api/v1/command").Body!;
+        Assert.Equal(("AlbumSearch", 9), (search["name"]!.GetValue<string>(), search["albumIds"]![0]!.GetValue<int>()));
+        Assert.Null((await InDbAsync(db => db.MediaRequests.SingleAsync())).FulfilledAt); // still asked for
+
+        // The sweep has its tries back.
+        _sent.Clear();
+        await retry.SweepAsync(CancellationToken.None);
+        Assert.Contains(_sent, s => s.Request == "DELETE /api/v1/queue/5");
+    }
+
+    /// <summary>A complete copy Lidarr won't import for scoring low, as Lidarr's queue puts it.</summary>
+    private void LidarrScoredMoisturizerLow()
+    {
+        LidarrAwaitsMoisturizer();
+        var queue = $$$"""
+            {"id":5,"albumId":9,"artistId":3,"title":"complete","downloadId":"complete","status":"completed","size":100,"sizeleft":0,"trackedDownloadStatus":"warning","trackedDownloadState":"importBlocked",
+             "statusMessages":[{"title":"complete","messages":["Album match is not close enough: 78.9% vs 80% [album, year]"]}],
+             "album":{"id":9,"artistId":3,"title":"moisturizer","foreignAlbumId":"{{{Moisturizer}}}","monitored":true} }
+            """;
+        _lidarr.Responses["GET /api/v1/queue?page=1&pageSize=200&includeArtist=true&includeAlbum=true"] = $$"""{"page":1,"pageSize":200,"totalRecords":1,"records":[{{queue}}]}""";
+        _lidarr.Responses["GET /api/v1/queue/details?albumIds=9"] = $"[{queue}]";
+    }
+
+    /// <summary>A copy still downloading.</summary>
+    private void LidarrIsDownloadingMoisturizer(string status = "downloading", string state = "downloading")
+    {
+        LidarrAwaitsMoisturizer();
+        var queue = $$$"""
+            {"id":5,"albumId":9,"artistId":3,"title":"going","downloadId":"going","status":"{{{status}}}","size":100,"sizeleft":50,"trackedDownloadStatus":"ok","trackedDownloadState":"{{{state}}}",
+             "album":{"id":9,"artistId":3,"title":"moisturizer","foreignAlbumId":"{{{Moisturizer}}}","monitored":true} }
+            """;
+        _lidarr.Responses["GET /api/v1/queue?page=1&pageSize=200&includeArtist=true&includeAlbum=true"] = $$"""{"page":1,"pageSize":200,"totalRecords":1,"records":[{{queue}}]}""";
+        _lidarr.Responses["GET /api/v1/queue/details?albumIds=9"] = $"[{queue}]";
+        var today = DateTime.UtcNow.Date;
+        _lidarr.Responses["GET /api/v1/wanted/missing?page=1&pageSize=1000&includeArtist=false&monitored=true&sortKey=releaseDate&sortDirection=descending"] =
+            $$"""{"page":1,"pageSize":200,"totalRecords":1,"records":[{"id":9,"artistId":3,"title":"moisturizer","foreignAlbumId":"{{Moisturizer}}","monitored":true}]}""";
+        _lidarr.Responses[$"GET /api/v1/calendar?start={today:yyyy-MM-dd}&end={today.AddYears(1):yyyy-MM-dd}&unmonitored=false&includeArtist=false"] = "[]";
+    }
+
+    private bool WroteToLidarr() => _sent.Any(s => s.Request == "POST /api/v1/command" || s.Request == "PUT /api/v1/album/monitor" || s.Request.StartsWith("DELETE", StringComparison.Ordinal));
+
+    private Endpoints.MusicRequests.MusicImportRetry Sweep => _server.Services.GetRequiredService<Endpoints.MusicRequests.MusicImportRetry>();
+
+    private Task<HttpResponseMessage> TryAgainAsync(string? token = null) => Client(token).PostAsJsonAsync(Api("/requests/music/retry"), new { musicBrainzId = Moisturizer });
+
+    [Fact]
+    public async Task TryAgain_LeavesACompleteCopyWhereItIs_AndJustSearches()
+    {
+        await MusicLibraryAsync();
+        LidarrScoredMoisturizerLow();
+        await AskedForMoisturizerAsync(addedArtist: false);
+        _sent.Clear();
+
+        var response = await TryAgainAsync();
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.DoesNotContain(_sent, s => s.Request.StartsWith("DELETE", StringComparison.Ordinal));
+        Assert.Contains(_sent, s => s.Request == "POST /api/v1/command");
+    }
+
+    [Fact]
+    public async Task TryAgain_OnAnAlbumThatIsntStuck_Says409_AndTouchesNothing()
+    {
+        await MusicLibraryAsync();
+        LidarrIsDownloadingMoisturizer();
+        await AskedForMoisturizerAsync(addedArtist: false);
+        _sent.Clear();
+
+        var response = await TryAgainAsync();
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Contains("isn’t stuck", (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("detail").GetString(), StringComparison.Ordinal);
+        Assert.False(WroteToLidarr());
+    }
+
+    /// <summary>The copy Lidarr gave up on, still in its queue, and another a search grabbed beside it, in the order given.</summary>
+    private void LidarrHasAStuckCopyAndAMovingOne(bool stuckFirst, string statusOfTheOther = "downloading", string stateOfTheOther = "downloading", bool monitored = true,
+        string stuckSays = "Album match is not close enough: 78.9% vs 80% [album, year]")
+    {
+        LidarrAwaitsMoisturizer();
+        var flag = monitored ? "true" : "false";
+        var album = "\"album\":" + $$"""{"id":9,"artistId":3,"title":"moisturizer","foreignAlbumId":"{{Moisturizer}}","monitored":{{flag}} }""";
+        var stuck = $$$"""
+            {"id":5,"albumId":9,"artistId":3,"title":"complete","downloadId":"complete","status":"completed","size":100,"sizeleft":0,"trackedDownloadStatus":"warning","trackedDownloadState":"importBlocked",
+             "statusMessages":[{"title":"complete","messages":["{{{stuckSays}}}"]}],{{{album}}} }
+            """;
+        var other = $$$"""
+            {"id":6,"albumId":9,"artistId":3,"title":"going","downloadId":"going","status":"{{{statusOfTheOther}}}","size":100,"sizeleft":50,"trackedDownloadStatus":"ok","trackedDownloadState":"{{{stateOfTheOther}}}",{{{album}}} }
+            """;
+        var records = stuckFirst ? $"{stuck},{other}" : $"{other},{stuck}";
+        _lidarr.Responses["GET /api/v1/queue?page=1&pageSize=200&includeArtist=true&includeAlbum=true"] = $$"""{"page":1,"pageSize":200,"totalRecords":2,"records":[{{records}}]}""";
+        _lidarr.Responses["GET /api/v1/queue/details?albumIds=9"] = $"[{records}]";
+        var today = DateTime.UtcNow.Date;
+        _lidarr.Responses["GET /api/v1/wanted/missing?page=1&pageSize=1000&includeArtist=false&monitored=true&sortKey=releaseDate&sortDirection=descending"] = monitored
+            ? $$"""{"page":1,"pageSize":200,"totalRecords":1,"records":[{"id":9,"artistId":3,"title":"moisturizer","foreignAlbumId":"{{Moisturizer}}","monitored":true}]}"""
+            : """{"page":1,"pageSize":200,"totalRecords":0,"records":[]}""";
+        _lidarr.Responses[$"GET /api/v1/calendar?start={today:yyyy-MM-dd}&end={today.AddYears(1):yyyy-MM-dd}&unmonitored=false&includeArtist=false"] = "[]";
+    }
+
+    private async Task<string> RequestedStateAsync() =>
+        (await Client().GetFromJsonAsync<JsonElement>(Api("/requests/music/requested"))).EnumerateArray().Single(r => r.GetProperty("title").GetString() == "moisturizer").GetProperty("state").GetString()!;
+
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    [InlineData(true, false)] // Off Lidarr's Wanted list, so the request's own row
+    [InlineData(false, false)]
+    public async Task A_stuck_copy_doesnt_hide_another_on_its_way(bool stuckFirst, bool monitored)
+    {
+        await MusicLibraryAsync();
+        LidarrHasAStuckCopyAndAMovingOne(stuckFirst, monitored: monitored);
+        await AskedForMoisturizerAsync(addedArtist: false);
+
+        Assert.Equal("downloading", await RequestedStateAsync());
+    }
+
+    [Fact]
+    public async Task A_stuck_copy_is_said_beside_a_download_that_failed()
+    {
+        await MusicLibraryAsync();
+        LidarrHasAStuckCopyAndAMovingOne(stuckFirst: false, statusOfTheOther: "failed", stateOfTheOther: "failedPending");
+        await AskedForMoisturizerAsync(addedArtist: false);
+
+        Assert.Equal("couldNotImport", await RequestedStateAsync());
+    }
+
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    public async Task A_stuck_copy_is_said_beside_a_stalled_one(bool stuckFirst, bool monitored)
+    {
+        await MusicLibraryAsync();
+        LidarrHasAStuckCopyAndAMovingOne(stuckFirst, statusOfTheOther: "warning", monitored: monitored);
+        await AskedForMoisturizerAsync(addedArtist: false);
+
+        Assert.Equal("couldNotImport", await RequestedStateAsync());
+    }
+
+    [Fact]
+    public async Task TryAgain_BesideAStalledCopy_BlocklistsOnlyTheStuckOne_AndSearches()
+    {
+        await MusicLibraryAsync();
+        LidarrHasAStuckCopyAndAMovingOne(stuckFirst: true, statusOfTheOther: "warning", stuckSays: "Has missing tracks");
+        _lidarr.Responses["DELETE /api/v1/queue/5?removeFromClient=true&blocklist=true&skipRedownload=true"] = "{}";
+        await AskedForMoisturizerAsync(addedArtist: false);
+        _sent.Clear();
+
+        Assert.Equal(HttpStatusCode.NoContent, (await TryAgainAsync()).StatusCode);
+
+        Assert.Equal("DELETE /api/v1/queue/5", Assert.Single(_sent, s => s.Request.StartsWith("DELETE", StringComparison.Ordinal)).Request);
+        Assert.Single(_sent, s => s.Request == "POST /api/v1/command");
+    }
+
+    [Fact]
+    public async Task TryAgain_OnAStalledCopyAlone_Says409_AndTouchesNothing()
+    {
+        await MusicLibraryAsync();
+        LidarrIsDownloadingMoisturizer(status: "warning");
+        await AskedForMoisturizerAsync(addedArtist: false);
+        _sent.Clear();
+
+        Assert.Equal(HttpStatusCode.Conflict, (await TryAgainAsync()).StatusCode);
+        Assert.False(WroteToLidarr());
+    }
+
+    [Fact]
+    public async Task A_stalled_copy_alone_says_downloading_with_how_far_it_got()
+    {
+        await MusicLibraryAsync();
+        LidarrIsDownloadingMoisturizer(status: "warning");
+        await AskedForMoisturizerAsync(addedArtist: false);
+
+        var row = (await Client().GetFromJsonAsync<JsonElement>(Api("/requests/music/requested"))).EnumerateArray().Single(r => r.GetProperty("title").GetString() == "moisturizer");
+
+        Assert.Equal(("downloading", 0.5), (row.GetProperty("state").GetString(), row.GetProperty("progress").GetDouble()));
+    }
+
+    [Theory]
+    [InlineData("importPending")]
+    [InlineData("importing")]
+    public async Task A_warning_on_a_copy_lidarr_has_taken_on_still_says_importing(string state)
+    {
+        await MusicLibraryAsync();
+        LidarrIsDownloadingMoisturizer(status: "warning", state: state);
+        await AskedForMoisturizerAsync(addedArtist: false);
+
+        Assert.Equal("importing", await RequestedStateAsync());
+    }
+
+    [Fact]
+    public async Task A_copy_lidarr_is_importing_counts_as_moving_even_with_a_warning()
+    {
+        await MusicLibraryAsync();
+        LidarrHasAStuckCopyAndAMovingOne(stuckFirst: true, statusOfTheOther: "warning", stateOfTheOther: "importing");
+        await AskedForMoisturizerAsync(addedArtist: false);
+        _sent.Clear();
+
+        Assert.Equal("importing", await RequestedStateAsync());
+        Assert.Equal(HttpStatusCode.Conflict, (await TryAgainAsync()).StatusCode);
+        Assert.False(WroteToLidarr());
+    }
+
+    [Fact]
+    public async Task TryAgain_WithAnotherCopyOnItsWay_Says409_AndTouchesNothing()
+    {
+        await MusicLibraryAsync();
+        LidarrHasAStuckCopyAndAMovingOne(stuckFirst: true);
+        await AskedForMoisturizerAsync(addedArtist: false);
+        _sent.Clear();
+
+        Assert.Equal(HttpStatusCode.Conflict, (await TryAgainAsync()).StatusCode);
+        Assert.False(WroteToLidarr());
+    }
+
+    [Fact]
+    public async Task TryAgain_PressedAgainTooSoon_Says409_AndSearchesOnce()
+    {
+        await MusicLibraryAsync();
+        LidarrGaveUpOnMoisturizer();
+        await AskedForMoisturizerAsync(addedArtist: false);
+        _sent.Clear();
+
+        var answers = await Task.WhenAll(TryAgainAsync(), TryAgainAsync());
+
+        Assert.Equal([HttpStatusCode.NoContent, HttpStatusCode.Conflict], answers.Select(a => a.StatusCode).Order());
+        Assert.Single(_sent, s => s.Request == "POST /api/v1/command");
+
+        // Once the wait's over it can be tried again.
+        Sweep.TryAgainEvery = TimeSpan.Zero;
+        Assert.Equal(HttpStatusCode.NoContent, (await TryAgainAsync()).StatusCode);
+    }
+
+    [Fact]
+    public async Task TryAgain_CountsAgainstTheDaysAsking()
+    {
+        await MusicLibraryAsync();
+        LidarrGaveUpOnMoisturizer();
+        await AskedForMoisturizerAsync(addedArtist: false);
+        Sweep.TryAgainEvery = TimeSpan.Zero;
+        for (var i = 0; i < Endpoints.MusicRequests.MusicRequestEndpoints.DailyLimit; i++)
+        {
+            Assert.Equal(HttpStatusCode.NoContent, (await TryAgainAsync()).StatusCode);
+        }
+
+        _sent.Clear();
+        var refused = await TryAgainAsync();
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, refused.StatusCode);
+        Assert.False(WroteToLidarr());
+    }
+
+    [Fact]
+    public async Task TryAgain_ThatBlocklistsNothing_DoesntMonitorAnAlbumLidarrHasUnmonitored_AndForgetsOnlyThatAlbumsAnswers()
+    {
+        await MusicLibraryAsync();
+        LidarrScoredMoisturizerLow();
+        const string Other = "aaaaaaaa-0000-4000-8000-000000000001";
+        var moisturizer = _lidarr.Responses["GET /api/v1/album?foreignAlbumId=" + Moisturizer];
+        _lidarr.Responses["GET /api/v1/album?foreignAlbumId=" + Moisturizer] = moisturizer.Replace("\"monitored\":true", "\"monitored\":false", StringComparison.Ordinal);
+        _lidarr.Responses["GET /api/v1/album?foreignAlbumId=" + Other] = """[{"id":77,"artistId":3,"title":"Other","foreignAlbumId":"aaaaaaaa-0000-4000-8000-000000000001","monitored":true,"lastSearchTime":"2026-01-01T00:00:00Z","statistics":{"trackCount":5,"trackFileCount":0}}]""";
+        await AskedForMoisturizerAsync(addedArtist: false);
+        await InDbAsync(async db =>
+        {
+            db.MediaRequests.Add(new Core.Notifications.MediaRequest { ProfileId = "owner", Kind = MediaKind.Album, Title = "Other", ArtistName = "Wet Leg", MusicBrainzId = Other });
+            return await db.SaveChangesAsync();
+        });
+        await Sweep.SweepAsync(CancellationToken.None); // the other album is settled: it's been searched for
+        _lidarr.Requests.Clear();
+        _sent.Clear();
+
+        Assert.Equal(HttpStatusCode.NoContent, (await TryAgainAsync()).StatusCode);
+
+        Assert.DoesNotContain(_sent, s => s.Request == "PUT /api/v1/album/monitor");
+        Assert.Contains(_sent, s => s.Request == "POST /api/v1/command");
+
+        _lidarr.Requests.Clear();
+        await Sweep.SweepAsync(CancellationToken.None);
+        Assert.DoesNotContain(_lidarr.Requests, r => r.Contains("foreignAlbumId=" + Other, StringComparison.Ordinal)); // still settled
+    }
+
+    [Fact]
+    public async Task TryAgain_ThatBlocklistsACopy_MonitorsAnAlbumLidarrHasUnmonitored_SoSomethingGoesOnLooking()
+    {
+        await MusicLibraryAsync();
+        LidarrGaveUpOnMoisturizer();
+        var moisturizer = _lidarr.Responses["GET /api/v1/album?foreignAlbumId=" + Moisturizer];
+        _lidarr.Responses["GET /api/v1/album?foreignAlbumId=" + Moisturizer] = moisturizer.Replace("\"monitored\":true", "\"monitored\":false", StringComparison.Ordinal);
+        await AskedForMoisturizerAsync(addedArtist: false);
+        _sent.Clear();
+
+        Assert.Equal(HttpStatusCode.NoContent, (await TryAgainAsync()).StatusCode);
+
+        var monitor = _sent.Single(s => s.Request == "PUT /api/v1/album/monitor");
+        Assert.Equal(9, monitor.Body!["albumIds"]![0]!.GetValue<int>());
+        Assert.True(monitor.Body!["monitored"]!.GetValue<bool>());
+        var order = _sent.Select(s => s.Request).ToList();
+        Assert.True(order.IndexOf("PUT /api/v1/album/monitor") < order.IndexOf("DELETE /api/v1/queue/5"));
+
+        // Lidarr refusing leaves the copy where it is, and the turn to try again.
+        _lidarr.Responses.TryRemove("PUT /api/v1/album/monitor", out _);
+        Sweep.TryAgainEvery = TimeSpan.Zero;
+        _sent.Clear();
+        Assert.Equal(HttpStatusCode.BadGateway, (await TryAgainAsync()).StatusCode);
+        Assert.DoesNotContain(_sent, s => s.Request.StartsWith("DELETE", StringComparison.Ordinal) || s.Request == "POST /api/v1/command");
+    }
+
+    [Fact]
+    public async Task TryAgain_WhoseSearchFails_IsOwedOne_AndCanBePressedAgain()
+    {
+        await MusicLibraryAsync();
+        LidarrGaveUpOnMoisturizer();
+        await AskedForMoisturizerAsync(addedArtist: false);
+        _lidarr.Responses.TryRemove("POST /api/v1/command", out _); // Lidarr goes away between the blocklist and the search
+        _sent.Clear();
+
+        Assert.Equal(HttpStatusCode.BadGateway, (await TryAgainAsync()).StatusCode);
+
+        Assert.Contains(_sent, s => s.Request == "DELETE /api/v1/queue/5");
+        // The copy's gone from the queue now, so only what's owed can bring this back to mind.
+        _lidarr.Responses["GET /api/v1/queue?page=1&pageSize=200&includeArtist=true&includeAlbum=true"] = """{"page":1,"pageSize":200,"totalRecords":0,"records":[]}""";
+        _lidarr.Responses["GET /api/v1/queue/details?albumIds=9"] = "[]";
+        _lidarr.Responses["POST /api/v1/command"] = "{}";
+        _sent.Clear();
+        await Sweep.SweepAsync(CancellationToken.None);
+        Assert.Contains(_sent, s => s.Request == "POST /api/v1/command");
+
+        // A failed try didn't use up the turn: only the sweep's search just now holds it off.
+        Sweep.SearchAgainAfter = TimeSpan.Zero;
+        Assert.Equal(HttpStatusCode.NoContent, (await TryAgainAsync()).StatusCode);
+    }
+
+    [Fact]
+    public async Task TryAgain_ThatSucceeds_OwesNothing()
+    {
+        await MusicLibraryAsync();
+        LidarrGaveUpOnMoisturizer();
+        await AskedForMoisturizerAsync(addedArtist: false);
+        Assert.Equal(HttpStatusCode.NoContent, (await TryAgainAsync()).StatusCode);
+        _lidarr.Responses["GET /api/v1/queue?page=1&pageSize=200&includeArtist=true&includeAlbum=true"] = """{"page":1,"pageSize":200,"totalRecords":0,"records":[]}""";
+        _sent.Clear();
+
+        await Sweep.SweepAsync(CancellationToken.None);
+
+        Assert.DoesNotContain(_sent, s => s.Request == "POST /api/v1/command");
+    }
+
+    [Fact]
+    public async Task TryAgain_ForAGuest_IsRefused_AndTheirListDoesntOfferIt()
+    {
+        await MusicLibraryAsync();
+        LidarrGaveUpOnMoisturizer();
+        await AskedForMoisturizerAsync(addedArtist: false);
+        var guest = Client();
+        guest.DefaultRequestHeaders.Add(GuestWhenSaid.Header, "true");
+        _sent.Clear();
+
+        var response = await guest.PostAsJsonAsync(Api("/requests/music/retry"), new { musicBrainzId = Moisturizer });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.False(WroteToLidarr());
+        var today = DateTime.UtcNow.Date;
+        _lidarr.Responses["GET /api/v1/wanted/missing?page=1&pageSize=1000&includeArtist=false&monitored=true&sortKey=releaseDate&sortDirection=descending"] = $$"""
+            {"page":1,"pageSize":1000,"totalRecords":1,"records":[{"id":9,"artistId":3,"title":"moisturizer","foreignAlbumId":"{{Moisturizer}}","monitored":true}]}
+            """;
+        _lidarr.Responses[$"GET /api/v1/calendar?start={today:yyyy-MM-dd}&end={today.AddYears(1):yyyy-MM-dd}&unmonitored=false&includeArtist=false"] = "[]";
+        var mine = await Client().GetFromJsonAsync<JsonElement>(Api("/requests/music/requested"));
+        var theirs = await guest.GetFromJsonAsync<JsonElement>(Api("/requests/music/requested"));
+        Assert.True(mine.EnumerateArray().Single().GetProperty("canRetry").GetBoolean());
+        Assert.False(theirs.EnumerateArray().Single().GetProperty("canRetry").GetBoolean());
+    }
+
+    [Fact]
+    public async Task TryAgain_ForAProfileWithAnAgeLimit_IsRefused()
+    {
+        await MusicLibraryAsync();
+        LidarrGaveUpOnMoisturizer();
+        await AskedForMoisturizerAsync(addedArtist: false);
+        var created = await (await Client().PostAsJsonAsync(Api("/profiles"), new { name = $"Sam {Guid.NewGuid():N}"[..12], maxRatingAge = 12 })).Content.ReadFromJsonAsync<JsonElement>();
+        var id = created.GetProperty("id").GetString();
+        var token = (await (await Client().PostAsJsonAsync(Api($"/profiles/{id}/select"), new { })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString();
+        _sent.Clear();
+
+        var response = await TryAgainAsync(token);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.False(WroteToLidarr());
+    }
+
+    [Fact]
+    public async Task TryAgain_OnAnAlbumInALibraryTheProfileCantSee_SaysNothing_AndDoesNothing()
+    {
+        // Sam sees a music library, only not the one Lidarr keeps this artist in.
+        var theirs = await MusicLibraryAsync();
+        LidarrGaveUpOnMoisturizer();
+        await AskedForMoisturizerAsync(addedArtist: false);
+        var other = Directory.CreateDirectory(Path.Combine(_factory.MediaDirectory, $"other-{Guid.NewGuid():N}")).FullName;
+        await InDbAsync(async db =>
+        {
+            db.Libraries.Add(new Library { Name = $"Other {Guid.NewGuid():N}", Type = LibraryType.Music, Folders = [new LibraryFolder { Path = other }] });
+            return await db.SaveChangesAsync();
+        });
+        var created = await (await Client().PostAsJsonAsync(Api("/profiles"), new { name = $"Sam {Guid.NewGuid():N}"[..12], hiddenLibraryIds = new[] { theirs.Id } })).Content.ReadFromJsonAsync<JsonElement>();
+        var id = created.GetProperty("id").GetString();
+        var token = (await (await Client().PostAsJsonAsync(Api($"/profiles/{id}/select"), new { })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString();
+        _sent.Clear();
+
+        var response = await TryAgainAsync(token);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode); // the same as an album that doesn't exist
+        Assert.False(WroteToLidarr());
+    }
+
+    [Fact]
+    public async Task TryAgain_LeavesAnAlbumNobodyHasAnOpenRequestFor()
+    {
+        await MusicLibraryAsync();
+        LidarrGaveUpOnMoisturizer();
+
+        var response = await Client().PostAsJsonAsync(Api("/requests/music/retry"), new { musicBrainzId = Moisturizer });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.DoesNotContain(_sent, s => s.Request == "POST /api/v1/command" || s.Request.StartsWith("DELETE", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task TryAgain_NamingNoAlbum_IsRefused()
+    {
+        await MusicLibraryAsync();
+        Assert.Equal(HttpStatusCode.BadRequest, (await Client().PostAsJsonAsync(Api("/requests/music/retry"), new { })).StatusCode);
     }
 
     [Fact]
@@ -927,5 +1653,21 @@ internal sealed class FakeMusicBrainz : HttpMessageHandler
         var query = Uri.UnescapeDataString(request.RequestUri!.Query);
         var body = Releases.FirstOrDefault(r => query.Contains(r.Key.TrimStart('0'), StringComparison.Ordinal)).Value ?? """{"count":0,"releases":[]}""";
         return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") });
+    }
+}
+
+/// <summary>Signs a request in as a family guest, as an invite's sign-in does: by the claim, through the usual authentication.</summary>
+internal sealed class GuestWhenSaid(Microsoft.AspNetCore.Http.IHttpContextAccessor http) : Microsoft.AspNetCore.Authentication.IClaimsTransformation
+{
+    public const string Header = "X-Test-Guest";
+
+    public Task<System.Security.Claims.ClaimsPrincipal> TransformAsync(System.Security.Claims.ClaimsPrincipal principal)
+    {
+        if (http.HttpContext?.Request.Headers.ContainsKey(Header) == true && !principal.HasClaim(Flexarr.Api.Security.FlexarrClaims.Guest, "true"))
+        {
+            principal.AddIdentity(new System.Security.Claims.ClaimsIdentity([new(Flexarr.Api.Security.FlexarrClaims.Guest, "true")]));
+        }
+
+        return Task.FromResult(principal);
     }
 }

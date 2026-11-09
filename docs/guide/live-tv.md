@@ -35,7 +35,7 @@ Then in Flexarr, as the main profile:
 2. Fill in **Address** (for example `http://localhost:9191`), **User name** and **Key (XC password)**.
 3. Choose **Test**. It should say how many channels it found and how many connections your source allows at a time. Then choose **Save**.
 
-The channels and guide come in straight away. The guide refreshes every six hours (every hour while any channel has nothing listed), and channels you add or remove in Dispatcharr show up within five minutes. **Refresh guide** on the Live TV page, or **Refresh channels and guide** here, fetches them now.
+The channels and guide come in straight away. The guide refreshes every six hours (sooner while a channel has nothing listed: after an hour at first, then less often), and channels you add or remove in Dispatcharr show up within five minutes. **Refresh guide**, on the Live TV page or here, fetches them now.
 
 ### Channels with no listings
 

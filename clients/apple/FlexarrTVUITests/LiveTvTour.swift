@@ -31,8 +31,8 @@ final class LiveTvTour: XCTestCase {
     func testLiveTv() async throws {
         guard try await client.liveTvStatus()?.configured == true else { throw XCTSkip("no Live TV source") }
         shot("49-home")
-        // Opened from the sidebar, focus is on the first category; then down past Recordings to All channels, across
-        // to the channels, and down a few.
+        // Opened from the sidebar, focus is on the category shown (Favourites, or All channels with none); then down
+        // past Recordings to All channels, across to the channels, and down a few.
         app.openSidebarRow("Live TV")
         shot("50-live-tv")
         shot("51-live-tv-categories")
@@ -60,7 +60,7 @@ final class LiveTvTour: XCTestCase {
     /// The guide: across from the categories, then around the grid, and a programme that's on now plays.
     func testGuide() async throws {
         guard try await client.liveTvStatus()?.configured == true else { throw XCTSkip("no Live TV source") }
-        // Opened from the sidebar, focus is on the first category; across into the guide, what's on now on the first
+        // Opened from the sidebar, focus is on the category shown; across into the guide, what's on now on the first
         // channel plays.
         app.openSidebarRow("Live TV")
         logFocus("categories")
@@ -102,9 +102,8 @@ final class LiveTvTour: XCTestCase {
     func testRecordings() async throws {
         guard try await client.liveTvStatus()?.configured == true else { throw XCTSkip("no Live TV source") }
         app.openSidebarRow("Live TV")
-        for _ in 0..<6 where !focused(prefix: "Recordings") {
-            press(.down, wait: 0.6)
-        }
+        // Just above All channels, where it opens with no favourites; just below Favourites otherwise.
+        press(focused(prefix: "All channels") ? .up : .down, wait: 0.6)
         logFocus("recordings")
         pause(3)
         shot("70-recordings")
@@ -118,6 +117,72 @@ final class LiveTvTour: XCTestCase {
         pause(2)
         shot("71-record-menu")
         press(.menu, wait: 1.5)
+    }
+
+    /// A channel with nothing listed can be stopped on (Up and Down don't skip it); Right and Left move the window, and Left
+    /// goes on to the category once it can't. A category with nothing listed at all takes focus too. Doesn't press Select.
+    func testNoListings() async throws {
+        guard try await client.liveTvStatus()?.configured == true else { throw XCTSkip("no Live TV source") }
+        let channels = try await client.liveChannels()
+        let guide = try await client.liveGuide(from: Date().addingTimeInterval(-1800), hours: 3, descriptions: false)
+        let bare = channels.filter { channel in guide.channels.first { $0.id == channel.id }?.programmes.isEmpty ?? true }
+        guard !bare.isEmpty else { throw XCTSkip("every channel has listings") }
+
+        app.openSidebarRow("Live TV")
+        for _ in 0..<3 where !focused(prefix: "All channels") { press(.down, wait: 2) }
+        XCTAssertTrue(focused(prefix: "All channels"))
+        press(.right, wait: 2)
+        reachNoListings(within: channels.count)
+        shot("72-no-listings")
+
+        // Right moves the window on, and Left back, as from a programme. On a channel still with nothing listed, focus stays.
+        press(.right, wait: 1)
+        if focused("No listings") {
+            press(.left, wait: 1.5)
+            XCTAssertTrue(focused("No listings"), "Left moves the window back and stays on the channel")
+        }
+        // Going on from it lands on what's on now, where Select plays, rather than level with the cell's middle.
+        for _ in 0..<3 where !focused("No listings") { press(.left, wait: 1.5) }
+        for _ in 0..<channels.count where focused("No listings") { press(.down, wait: 1) }
+        if !focused("No listings") {
+            let now = try await client.liveGuide(from: Date().addingTimeInterval(-1800), hours: 3, descriptions: false).channels
+                .flatMap { $0.programmes.filter { $0.start <= Date() && $0.end > Date() }.map(\.displayTitle) }
+            let label = app.descendants(matching: .any).matching(NSPredicate(format: "hasFocus == true")).firstMatch.label
+            XCTAssertTrue(now.contains(label), "\(label) isn't on now")
+            reachNoListings(within: channels.count)
+        }
+        for _ in 0..<4 where !focused(prefix: "All channels") { press(.left, wait: 1.5) }
+        XCTAssertTrue(focused(prefix: "All channels"), "Left comes to the category shown, once the window can go back no further")
+
+        // A group with nothing listed at all, when there is one.
+        let groups = Dictionary(grouping: channels.compactMap { channel in channel.groupName.map { ($0, channel) } }, by: \.0)
+        guard let group = groups.first(where: { _, members in members.allSatisfy { member in bare.contains(member.1) } })?.key else { return }
+        for _ in 0..<(groups.count + 2) where !focused(prefix: group) { press(.down, wait: 1) }
+        XCTAssertTrue(focused(prefix: group))
+        press(.right, wait: 2)
+        XCTAssertTrue(focused("No listings"), "Right reaches the guide of a group with no listings")
+        shot("73-no-listings-group")
+        press(.down, wait: 1)
+        XCTAssertTrue(focused("No listings"))
+        for _ in 0..<4 where !focused(prefix: group) { press(.left, wait: 1.5) }
+        XCTAssertTrue(focused(prefix: group), "Left comes back to the group")
+    }
+
+    /// Select on a channel with nothing listed watches it, so not for a server in use.
+    func testNoListingsPlays() async throws {
+        guard try await client.liveTvStatus()?.configured == true else { throw XCTSkip("no Live TV source") }
+        let channels = try await client.liveChannels()
+        app.openSidebarRow("Live TV")
+        for _ in 0..<3 where !focused(prefix: "All channels") { press(.down, wait: 2) }
+        press(.right, wait: 2)
+        reachNoListings(within: channels.count)
+        press(.select, wait: 5)
+        shot("74-no-listings-select")
+    }
+
+    private func reachNoListings(within rows: Int) {
+        for _ in 0..<rows where !focused("No listings") { press(.down, wait: 0.8) }
+        XCTAssertTrue(focused("No listings"), "Down reaches a channel with no listings")
     }
 
     private func focused(_ label: String) -> Bool {

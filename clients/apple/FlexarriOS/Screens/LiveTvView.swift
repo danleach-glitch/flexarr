@@ -13,6 +13,14 @@ struct LiveTvView: View {
     @State private var notice: String?
     @State private var refreshNotice: String?
     @State private var refreshProblem: String?
+    /// The red line is the server turning the press down: it stays until the next press.
+    @State private var refreshRefused = false
+    /// How the refresh ended was too late to say and may not have been heard (`tooLate`): the next status says it.
+    @State private var saysNextStatus = false
+    /// When a failed refresh was said.
+    @State private var refreshFailedAt = Date.distantPast
+    /// Up on screen, rather than gone behind a pushed page or another tab.
+    @State private var isVisible = false
     /// Unchosen, the view is Favourites when there are some, otherwise All.
     @State private var chosen: Filter?
     /// The list or the guide, remembered on this device.
@@ -55,7 +63,15 @@ struct LiveTvView: View {
         Group {
             if let channels {
                 if channels.isEmpty {
-                    StatusView(state: .empty(t("No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user.")))
+                    VStack(spacing: 12) {
+                        StatusView(state: .empty(t("No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user.")))
+                        // Nothing else on the screen says so once the banner's gone.
+                        VStack(spacing: 2) { refreshLines }
+                            .font(.footnote)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, Layout.edge)
+                            .padding(.bottom, 12)
+                    }
                 } else if macShowsRecordings {
                     #if os(macOS)
                     LiveRecordingsView()
@@ -63,7 +79,7 @@ struct LiveTvView: View {
                 } else if showsGuide {
                     VStack(spacing: 0) {
                         chips.padding(.vertical, 6)
-                        missingListings.padding(.bottom, 6)
+                        if hasMissingListingsNote { missingListings.padding(.bottom, 6) }
                         LiveGuideView(channels: shown, favouritesOnly: filter == .favourites, order: order, refreshed: refreshed,
                                       onFavourite: { setFavourite($0, !$0.isFavourite) })
                     }
@@ -107,12 +123,22 @@ struct LiveTvView: View {
                 // A channel plays over this screen rather than replacing it.
                 if !model.liveTv.isWatching {
                     await load()
-                    await model.reloadLiveTvStatus()
+                    if await model.reloadLiveTvStatus() { followStatusAfterLook() }
                 }
                 try? await Task.sleep(for: .seconds(60))
             }
         }
         .refreshable { await load() }
+        // How a refresh went is said here once the screen's up, however long after: it can finish while it's gone.
+        .onAppear {
+            isVisible = true
+            sayRefreshResult()
+        }
+        .onDisappear { isVisible = false }
+        .onChange(of: model.liveTvRefreshResult) { sayRefreshResult() }
+        .onChange(of: scenePhase) { sayRefreshResult() }
+        .onChange(of: model.liveTv.isWatching) { sayRefreshResult() }
+        .onChange(of: model.liveTvStatus) { followStatus() }
         .banner($notice, systemImage: "record.circle")
         .banner($refreshNotice, systemImage: refreshProblem == nil ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
     }
@@ -121,22 +147,14 @@ struct LiveTvView: View {
     @ViewBuilder private var refreshButton: some View {
         if model.canRefreshLiveTv {
             Button {
-                Task {
-                    refreshProblem = nil
-                    guard let result = await model.refreshLiveTv() else { return }
-                    switch result {
-                    case .worked: refreshNotice = t("Guide refreshed")
-                    case .failed(let problem):
-                        refreshProblem = problem
-                        refreshNotice = problem
-                    }
-                    await load()
-                    refreshed += 1
-                }
+                refreshProblem = nil
+                refreshRefused = false
+                saysNextStatus = false
+                Task { await model.refreshLiveTv() }
             } label: {
                 // The same size either way, or the Mac's labelled button jumps.
                 Label {
-                    Text(t("Refresh guide"))
+                    Text(t(Words.refreshGuide))
                 } icon: {
                     if model.isRefreshingLiveTv {
                         ProgressView().controlSize(.small)
@@ -146,32 +164,104 @@ struct LiveTvView: View {
                 }
             }
             .disabled(model.isRefreshingLiveTv)
-            .accessibilityLabel(model.isRefreshingLiveTv ? t("Refreshing…") : t("Refresh guide"))
+            .accessibilityLabel(model.isRefreshingLiveTv ? t(Words.refreshingGuide) : t(Words.refreshGuide))
+        }
+    }
+
+    /// The red line lasts as long as the problem: once the server has more to say (a scheduled refresh has been through
+    /// since, say), the line says that, or goes.
+    private func followStatus() {
+        guard !refreshRefused, refreshProblem != nil || saysNextStatus, let status = model.liveTvStatus, !status.refreshing else { return }
+        saysNextStatus = false
+        refreshProblem = status.error ?? status.downloadError
+        if refreshProblem == nil { refreshNotice = nil }
+    }
+
+    /// A press that failed never reached the status, so a look that finds it unchanged is news too: the server's fine, or
+    /// here's what it says is wrong. Not straight after saying it, or a look that happens to be due would take it away
+    /// before it's read.
+    private func followStatusAfterLook() {
+        guard Date().timeIntervalSince(refreshFailedAt) >= LiveTvRefreshEnd.seenFor else { return }
+        followStatus()
+    }
+
+    private func sayRefreshResult() {
+        // Not in the background (music keeps the app alive) or behind a channel's player: the banner would time out unseen.
+        guard isVisible, scenePhase == .active, !model.liveTv.isWatching, let result = model.takeLiveTvRefreshResult() else { return }
+        refreshRefused = false
+        saysNextStatus = result == .tooLate
+        switch result {
+        case .worked:
+            refreshProblem = nil
+            refreshNotice = t(Words.guideRefreshed)
+        case .failed(let problem):
+            refreshProblem = problem
+            refreshNotice = problem
+            refreshFailedAt = Date()
+        case .refused(let problem):
+            refreshProblem = problem
+            refreshNotice = problem
+            refreshRefused = true
+        case .stillGoing: break // Said by `isLiveTvRefreshTakingAWhile`.
+        // Not news any more, but still true: what's wrong now, quietly, with no banner.
+        case .tooLate: refreshProblem = model.liveTvStatus?.error ?? model.liveTvStatus?.downloadError
+        }
+        Task {
+            await load()
+            refreshed += 1
         }
     }
 
     /// For the main profile, who can do something about it, with where it says how.
-    @ViewBuilder private var missingListings: some View {
-        if model.isMainProfile {
-            VStack(alignment: .leading, spacing: 2) {
-                if let refreshProblem {
-                    Text(refreshProblem).foregroundStyle(Color.usher)
+    private var missingListings: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            refreshLines
+            if let count = model.liveTvStatus?.channelsWithoutListings, count > 0 {
+                let text = Text(t("{count, plural, one {# channel has no listings} other {# channels have no listings}}", ["count": count]))
+                    .foregroundStyle(Color.usher)
+                // Footnote-sized words, but a finger-sized place to tap them.
+                let why = Link(destination: URL(string: "https://flexarr.io/guide/live-tv#channels-with-no-listings")!) {
+                    Text(t("Why?"))
+                        .foregroundStyle(.tint)
+                        .frame(minWidth: 44, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
                 }
-                if let count = model.liveTvStatus?.channelsWithoutListings, count > 0 {
-                    let text = Text(t("{count, plural, one {# channel has no listings} other {# channels have no listings}}", ["count": count]))
-                        .foregroundStyle(Color.usher)
-                    let why = Link(t("Why?"), destination: URL(string: "https://flexarr.io/guide/live-tv#channels-with-no-listings")!)
-                    // Beside each other when they fit; at the largest text sizes, one under the other.
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 6) { text; why }
-                        VStack(alignment: .leading, spacing: 2) { text; why }
-                    }
+                // A list would otherwise make its whole row the link, and draw it in the text's colour.
+                .buttonStyle(.plain)
+                // Beside each other when they fit; at the largest text sizes, one under the other.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 6) { text; why }
+                    VStack(alignment: .leading, spacing: 2) { text; why }
                 }
             }
-            .font(.footnote)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, Layout.edge)
         }
+        .font(.footnote)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, Layout.edge)
+    }
+
+    /// How the last refresh went, while there's something to say about it.
+    @ViewBuilder private var refreshLines: some View {
+        if let refreshProblem {
+            Text(refreshProblem).foregroundStyle(Color.danger)
+            if model.liveTvStatus?.keptFailureWasntAskedAgain == true {
+                Text(t(Words.guideSourcesAskedRecently)).foregroundStyle(Color.usher)
+            }
+        }
+        if model.isLiveTvRefreshTakingAWhile { takingAWhile }
+    }
+
+    /// Whether `missingListings` has anything to say. Nothing means no row at all: a list's empty row would still be a
+    /// row's height of blank above the channels.
+    private var hasMissingListingsNote: Bool {
+        model.isMainProfile && (refreshProblem != nil || model.isLiveTvRefreshTakingAWhile || (model.liveTvStatus?.channelsWithoutListings ?? 0) > 0)
+    }
+
+    /// Quiet: not a failure, and not done yet either.
+    private var takingAWhile: some View {
+        Text(t(Words.guideTakingAWhile))
+            .font(.footnote)
+            .foregroundStyle(Color.usher)
     }
 
     private var favourites: [LiveChannel] { (channels ?? []).filter(\.isFavourite) }
@@ -206,10 +296,12 @@ struct LiveTvView: View {
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
 
-            missingListings
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
+            if hasMissingListingsNote {
+                missingListings
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+            }
 
             ForEach(shown) { channel in
                 ChannelRow(channel: channel, starting: model.liveTv.startingChannel == channel.id)
@@ -284,8 +376,11 @@ struct LiveTvView: View {
     private func load() async {
         guard let client = model.client else { return }
         do {
-            channels = try await client.liveChannels()
+            let loaded = try await client.liveChannels()
+            channels = loaded
             error = nil
+            // A refresh can take away the group being shown, which would leave an empty list.
+            if case .group(let name) = chosen, !loaded.offersGroup(name) { chosen = nil }
         } catch {
             if channels == nil { self.error = ConnectionError(error).message }
         }

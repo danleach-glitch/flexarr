@@ -56,6 +56,8 @@ data class LiveTvStatus(
     val downloadError: String? = null,
     /** Goes up as each refresh finishes, however it went. Absent from servers before the release after 0.63. */
     val refreshesFinished: Int? = null,
+    /** The last refresh didn't ask the sources: they were asked too recently, so [downloadError] is from then. Absent from servers before 0.64. */
+    val downloadSkipped: Boolean = false,
 ) {
     /**
      * Whether a refresh asked for when the status was [before] has finished, [looks] looks later. Older servers don't count
@@ -68,6 +70,13 @@ data class LiveTvStatus(
         if (refreshesFinished != null && was != null) return refreshesFinished != was
         return sawRefreshing || refreshedAt != before?.refreshedAt || error != before?.error || downloadError != before?.downloadError || looks >= 8
     }
+
+    /**
+     * Whether a refresh has finished since the count stood at [finishedBefore]. It starts again when the server does, so one
+     * that hasn't risen went with a restart and never got to finish. Older servers don't count: taken as having finished.
+     */
+    fun finishedSince(finishedBefore: Int?): Boolean =
+        refreshesFinished == null || finishedBefore == null || refreshesFinished > finishedBefore
 }
 
 /** A programme in the guide. */
@@ -287,30 +296,55 @@ suspend fun FlexarrClient.liveTvStatus(): LiveTvStatus? =
     }
 
 /**
- * Refreshes the channels and guide (the main profile only), and waits for it: the status once it's done, or as it stands
- * once it's been a while. With an admin key saved, the server has Dispatcharr download its guides first, which takes
+ * How a refresh ended. [status]: as it last stood. [stillGoing]: it hadn't finished when the wait ran out, which isn't a
+ * failure (the server carries on), so its last result isn't this refresh's [problem]. [noAnswer]: asked, then the server
+ * stopped answering as it was looked in on. [restarted]: the server restarted and the refresh went with it, so there's
+ * nothing to say. [finishedBefore]: for one not over, what [LiveTvStatus.finishedSince] should go by.
+ */
+data class LiveTvRefreshEnd(
+    val status: LiveTvStatus?,
+    val stillGoing: Boolean = false,
+    val noAnswer: Boolean = false,
+    val restarted: Boolean = false,
+    val finishedBefore: Int? = null,
+) {
+    val problem: String? get() = if (stillGoing) null else status?.error ?: status?.downloadError
+}
+
+/**
+ * Refreshes the channels and guide (the main profile only), and waits for it, until it's been a while. With an admin key saved, the server has Dispatcharr download its guides first, which takes
  * minutes at worst. Servers before the release after 0.63 refuse a locked main profile.
  */
-suspend fun FlexarrClient.refreshLiveTv(): LiveTvStatus? {
+suspend fun FlexarrClient.refreshLiveTv(): LiveTvRefreshEnd {
     val before = liveTvStatus()
     send("POST", "livetv/refresh")
     var sawRefreshing = false
     var badLooks = 0
+    // One seen running ends one above where the count is then, which after a restart (and its own refresh) is lower.
+    var finishedBefore = before?.refreshesFinished
     repeat(180) { look ->
         kotlinx.coroutines.delay(2_000)
         val status = try {
-            liveTvStatus().also { badLooks = 0 } ?: return null
+            liveTvStatus().also { badLooks = 0 } ?: return LiveTvRefreshEnd(null)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
             // The server carries on without us: a phone changing network doesn't make the refresh a failure.
-            if (++badLooks >= 3) throw e
+            if (++badLooks >= 3) return LiveTvRefreshEnd(null, noAnswer = true, finishedBefore = finishedBefore)
             return@repeat
         }
         sawRefreshing = sawRefreshing || status.refreshing
-        if (status.finishedRefresh(before, sawRefreshing, looks = look + 1)) return status
+        if (status.refreshing) finishedBefore = status.refreshesFinished
+        if (status.finishedRefresh(before, sawRefreshing, looks = look + 1)) return LiveTvRefreshEnd(status, restarted = !status.finishedSince(finishedBefore))
     }
-    return liveTvStatus()
+    val last = try {
+        liveTvStatus()
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        null
+    }
+    return LiveTvRefreshEnd(last, stillGoing = true, finishedBefore = finishedBefore)
 }
 
 /** Every channel's programmes from [from] for [hours] (at most a day). */

@@ -13,9 +13,16 @@ import AppKit
 private let log = FlexarrLog("signin")
 
 /// How a refresh of the Live TV guide went.
-enum LiveTvRefreshResult {
+enum LiveTvRefreshResult: Equatable {
     case worked
     case failed(String)
+    /// The server turned the press down (`LiveTvRefreshRefused`): no refresh ran, so its status has nothing to say about
+    /// it.
+    case refused(String)
+    /// The wait gave up with the refresh still running on the server: neither a success nor a failure yet.
+    case stillGoing
+    /// It ended too long ago to be news: nothing to say, but what's on screen is fetched again.
+    case tooLate
 }
 
 /// App-wide state: the signed-in server, who's watching, their libraries and the player.
@@ -57,7 +64,15 @@ final class AppModel {
     var canRefreshLiveTv: Bool { isMainProfile && (isAdmin || liveTvStatus?.channelsWithoutListings != nil) }
     /// The Live TV guide is being refreshed at this profile's asking.
     private(set) var isRefreshingLiveTv = false
-    @ObservationIgnored private var liveTvRefreshWait: Task<LiveTvStatus?, Error>?
+    @ObservationIgnored private var liveTvRefreshWait: Task<LiveTvRefreshEnd, Error>?
+    /// A refresh the wait gave up on is still running on the server, as far as is known: until a status says otherwise.
+    private(set) var isLiveTvRefreshTakingAWhile = false
+    /// How the last refresh went, until Live TV has said so (`takeLiveTvRefreshResult`). Held here as a refresh can
+    /// finish after its screen has gone: the news waits for the next time it's up.
+    private(set) var liveTvRefreshResult: LiveTvRefreshResult?
+    /// When the refresh was last known to be running, or to have ended. How long ago it really ended can't be known
+    /// better from a look that finds it over, so a look a while after the last says nothing rather than old news.
+    @ObservationIgnored private var liveTvRefreshLastKnown = Date.distantPast
     /// How this profile listens to podcasts (auto-download, how many to keep, speed, and from 0.58 the skips and smart
     /// rewind it shares with books); nil until loaded. The podcast player follows it.
     private(set) var podcastPreferences: PodcastPreferences? {
@@ -1252,18 +1267,58 @@ final class AppModel {
         needsProfileChoice = false
     }
 
-    /// Live TV's status again, for how many channels have no listings.
-    func reloadLiveTvStatus() async {
+    /// Live TV's status again, for how many channels have no listings. False when the server wasn't heard from.
+    @discardableResult
+    func reloadLiveTvStatus() async -> Bool {
         let asked = credentials
-        guard isMainProfile, let client, let status = try? await client.liveTvStatus(), credentials == asked else { return }
+        guard isMainProfile, let client, let status = try? await client.liveTvStatus(), credentials == asked else { return false }
         liveTvStatus = status
+        // One given up on has now finished: say how, as nobody's still waiting to.
+        if isLiveTvRefreshTakingAWhile {
+            if status.refreshing {
+                liveTvRefreshLastKnown = Date()
+            } else {
+                isLiveTvRefreshTakingAWhile = false
+                liveTvRefreshResult = Self.refreshResult(status)
+            }
+        }
+        return true
     }
 
-    /// Refreshes the channels and guide, and waits for it. Says how it went; nil when the wait was called off (someone
-    /// else was chosen meanwhile, whose status this isn't).
-    func refreshLiveTv() async -> LiveTvRefreshResult? {
-        guard let client, !isRefreshingLiveTv else { return nil }
+    /// How a finished refresh went, by its status.
+    private static func refreshResult(_ status: LiveTvStatus?) -> LiveTvRefreshResult {
+        (status?.error ?? status?.downloadError).map(LiveTvRefreshResult.failed) ?? .worked
+    }
+
+    /// Why a refresh's wait failed: refused only when the press was. Otherwise what's wrong with the connection when it's
+    /// that, the server's own words when it had some, or the words every client uses.
+    private static func refreshFailure(_ error: Error) -> LiveTvRefreshResult {
+        if let refused = error as? LiveTvRefreshRefused { return .refused(refused.message) }
+        if let error = error as? URLError {
+            return .failed(error.code == .cancelled ? t(Words.serverDidntAnswer) : ConnectionError(error).message)
+        }
+        switch error as? FlexarrClientError {
+        case .http(_, let message?): return .failed(message)
+        case .unreachable, .invalidAddress: return .failed(ConnectionError(error).message)
+        default: return .failed(t(Words.serverDidntAnswer))
+        }
+    }
+
+    /// How the last refresh went, once: for Live TV to say while it's up. Coming back to it later than that, success or
+    /// failure, it's `tooLate`.
+    func takeLiveTvRefreshResult() -> LiveTvRefreshResult? {
+        defer { liveTvRefreshResult = nil }
+        guard let result = liveTvRefreshResult else { return nil }
+        return Date().timeIntervalSince(liveTvRefreshLastKnown) > LiveTvRefreshEnd.newsFor ? .tooLate : result
+    }
+
+    /// Refreshes the channels and guide, and waits for it, leaving how it went in `liveTvRefreshResult`: nothing when the
+    /// wait was called off (someone else was chosen meanwhile, whose status this isn't).
+    func refreshLiveTv() async {
+        guard let client, !isRefreshingLiveTv else { return }
         isRefreshingLiveTv = true
+        isLiveTvRefreshTakingAWhile = false
+        liveTvRefreshResult = nil
         let wait = Task { try await client.refreshLiveTv() }
         liveTvRefreshWait = wait
         defer {
@@ -1273,12 +1328,28 @@ final class AppModel {
             }
         }
         do {
-            let status = try await wait.value
-            guard !wait.isCancelled else { return nil }
-            if let status { liveTvStatus = status }
-            return (status?.error ?? status?.downloadError).map(LiveTvRefreshResult.failed) ?? .worked
+            let end = try await wait.value
+            guard !wait.isCancelled else { return }
+            liveTvRefreshLastKnown = Date()
+            switch end {
+            case .finished(let status):
+                if let status { liveTvStatus = status }
+                liveTvRefreshResult = Self.refreshResult(status)
+            case .stillGoing:
+                isLiveTvRefreshTakingAWhile = true
+                liveTvRefreshResult = .stillGoing
+            case .unwatched(let status):
+                if let status { liveTvStatus = status }
+                if status?.refreshing == true {
+                    isLiveTvRefreshTakingAWhile = true
+                    liveTvRefreshResult = .stillGoing
+                } else {
+                    liveTvRefreshResult = .tooLate
+                }
+            }
         } catch {
-            return wait.isCancelled ? nil : .failed(ConnectionError(error).message)
+            liveTvRefreshLastKnown = Date()
+            if !wait.isCancelled { liveTvRefreshResult = Self.refreshFailure(error) }
         }
     }
 
@@ -1287,6 +1358,8 @@ final class AppModel {
         liveTvRefreshWait?.cancel()
         liveTvRefreshWait = nil
         isRefreshingLiveTv = false
+        isLiveTvRefreshTakingAWhile = false
+        liveTvRefreshResult = nil
     }
 
     func loadLibraries() async {

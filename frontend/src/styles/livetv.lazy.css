@@ -30,8 +30,27 @@
   margin-bottom: 20px;
 }
 
+/* A failed load is a line on the page, beside whatever is still on screen. */
+.livetv-page .page-status[role='alert'] {
+  padding: 0;
+  margin-bottom: 20px;
+}
+
 .livetv-refresh {
   margin-right: auto;
+}
+
+/* Its tip goes beside it, clear of the heading, as keyboard focus can keep it showing for minutes. */
+.livetv-refresh[data-tip]:is(:hover, :focus-visible)::before {
+  inset: 50% auto auto calc(100% + 8px);
+  translate: 0 -50%;
+  animation-name: livetv-refresh-tip-in;
+}
+
+@keyframes livetv-refresh-tip-in {
+  from {
+    opacity: 0;
+  }
 }
 
 .livetv-missing {

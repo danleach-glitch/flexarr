@@ -7,6 +7,7 @@ import SwiftUI
 /// are any. Recordings, under Favourites, lists what's set to record and the series.
 struct LiveTvView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
     /// Off on the Live TV tab, whose lit name in the sidebar already says where you are.
     var showsTitle = true
     @State private var channels: [LiveChannel]?
@@ -23,10 +24,23 @@ struct LiveTvView: View {
     /// A recording was set or taken off while the guide couldn't be fetched for it (Recordings was shown, or the guide
     /// was already being asked for): the next fetch is for its marks, whatever is kept.
     @State private var marksChanged = false
+    /// Why the guide couldn't be asked for just now.
+    @State private var guideProblem: String?
     /// How many recordings are coming up, for the sidebar.
     @State private var upcoming: Int?
     /// What went wrong refreshing the guide.
-    @State private var refreshNote: String?
+    @State private var refreshProblem: String?
+    /// The red line is the server turning the press down: it stays until the next press.
+    @State private var refreshRefused = false
+    /// How the refresh ended was too late to say and may not have been heard (`tooLate`): the next status says it.
+    @State private var saysNextStatus = false
+    /// When a failed refresh was said.
+    @State private var refreshFailedAt = Date.distantPast
+    /// It worked, a moment ago: the button says so itself, so nothing in the sidebar moves when it stops saying it.
+    @State private var justRefreshed = false
+    @State private var justRefreshedEnds: Task<Void, Never>?
+    /// Up on screen, rather than gone behind a player or another tab.
+    @State private var isVisible = false
 
     enum Category: Hashable {
         case favourites
@@ -57,7 +71,7 @@ struct LiveTvView: View {
                                           onWatch: { model.watch($0, among: order) },
                                           onFavourite: { setFavourite($0, !$0.isFavourite) },
                                           onRecordingsChanged: { Task { await loadGuide(force: true) } }, records: !model.hasAgeLimit,
-                                          onWindow: { showingUntil = $0 })
+                                          onWindow: { showingUntil = $0 }, note: guideIsShort ? guideProblem : nil)
                         }
                     }
                     .padding(.leading, Layout.edge)
@@ -76,7 +90,7 @@ struct LiveTvView: View {
                 // A channel plays over this screen rather than replacing it.
                 if !model.liveTv.isWatching {
                     await load()
-                    await model.reloadLiveTvStatus()
+                    if await model.reloadLiveTvStatus() { followStatusAfterLook() }
                 }
                 try? await Task.sleep(for: .seconds(60))
             }
@@ -90,12 +104,78 @@ struct LiveTvView: View {
                 try? await Task.sleep(for: .seconds(300))
             }
         }
+        // Rows with no way into them: sooner than the next look.
+        .task(id: guideIsShort && guideProblem != nil) {
+            guard guideIsShort, guideProblem != nil else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(30))
+                if !Task.isCancelled { await loadGuide() }
+            }
+        }
         // The list shown changes when the channels arrive, and when a favourite is starred on another device.
         .onChange(of: channels(in: category).map(\.id)) { Task { await loadGuide() } }
         .onChange(of: category) { Task { await loadGuide() } }
         .onChange(of: showingUntil) { Task { await loadGuide() } }
         .onChange(of: focusedCategory) { _, category in
             if let category { chosen = category }
+        }
+        // How a refresh went is said here once the screen's up, however long after: it can finish while it's gone.
+        .onAppear {
+            isVisible = true
+            sayRefreshResult()
+        }
+        .onDisappear { isVisible = false }
+        .onChange(of: model.liveTvRefreshResult) { sayRefreshResult() }
+        .onChange(of: scenePhase) { sayRefreshResult() }
+        .onChange(of: model.liveTv.isWatching) { sayRefreshResult() }
+        .onChange(of: model.liveTvStatus) { followStatus() }
+    }
+
+    /// The red line lasts as long as the problem: once the server has more to say (a scheduled refresh has been through
+    /// since, say), the line says that, or goes.
+    private func followStatus() {
+        guard !refreshRefused, refreshProblem != nil || saysNextStatus, let status = model.liveTvStatus, !status.refreshing else { return }
+        saysNextStatus = false
+        refreshProblem = status.error ?? status.downloadError
+    }
+
+    /// A press that failed never reached the status, so a look that finds it unchanged is news too: the server's fine, or
+    /// here's what it says is wrong. Not straight after saying it, or a look that happens to be due would take it away
+    /// before it's read.
+    private func followStatusAfterLook() {
+        guard Date().timeIntervalSince(refreshFailedAt) >= LiveTvRefreshEnd.seenFor else { return }
+        followStatus()
+    }
+
+    private func sayRefreshResult() {
+        // Not in the background or behind a channel's player: the button's few seconds of saying so would go unseen.
+        guard isVisible, scenePhase == .active, !model.liveTv.isWatching, let result = model.takeLiveTvRefreshResult() else { return }
+        refreshRefused = false
+        saysNextStatus = result == .tooLate
+        switch result {
+        case .worked: refreshProblem = nil
+        case .failed(let problem):
+            refreshProblem = problem
+            refreshFailedAt = Date()
+        case .refused(let problem):
+            refreshProblem = problem
+            refreshRefused = true
+        case .stillGoing: break // Said by `isLiveTvRefreshTakingAWhile`.
+        // Not news any more, but still true: what's wrong now, quietly.
+        case .tooLate: refreshProblem = model.liveTvStatus?.error ?? model.liveTvStatus?.downloadError
+        }
+        // Before fetching: a big line-up takes seconds, and the button would read Refresh guide again meanwhile.
+        if result == .worked {
+            justRefreshed = true
+            justRefreshedEnds?.cancel()
+            justRefreshedEnds = Task {
+                try? await Task.sleep(for: .seconds(6))
+                if !Task.isCancelled { justRefreshed = false }
+            }
+        }
+        Task {
+            await load()
+            await loadGuide(force: true)
         }
     }
 
@@ -128,28 +208,41 @@ struct LiveTvView: View {
     /// The order channel up and down go through: the list being looked at.
     private var order: [LiveChannel] { channels(in: category) }
 
+    /// Scrolls, as a source's groups can be more than fit, and the refresh button's notes take room too. The margins
+    /// inside it leave room for a focused row to grow, which the scroll view would clip.
     private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if showsTitle {
-                Text(t(Words.liveTv))
-                    .font(.marquee(56, weight: .black))
-                    .foregroundStyle(Color.screen)
-                    .padding(.bottom, 24)
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 10) {
+                if showsTitle {
+                    Text(t(Words.liveTv))
+                        .font(.marquee(56, weight: .black))
+                        .foregroundStyle(Color.screen)
+                        .padding(.bottom, 24)
+                }
+                categoryButton(.favourites, t("Favourites"), systemImage: "star.fill")
+                // A recording is for everyone, so a profile with an age limit has none to see or set.
+                if !model.hasAgeLimit {
+                    categoryButton(.recordings, t("Recordings"), systemImage: "record.circle")
+                }
+                categoryButton(.all, t("All channels"), systemImage: "square.grid.3x3.fill")
+                refreshButton
+                if groups.count > 1 {
+                    ForEach(groups, id: \.self) { categoryButton(.group($0), $0, systemImage: nil) }
+                }
             }
-            categoryButton(.favourites, t("Favourites"), systemImage: "star.fill")
-            // A recording is for everyone, so a profile with an age limit has none to see or set.
-            if !model.hasAgeLimit {
-                categoryButton(.recordings, t("Recordings"), systemImage: "record.circle")
-            }
-            categoryButton(.all, t("All channels"), systemImage: "square.grid.3x3.fill")
-            refreshButton
-            if groups.count > 1 {
-                ForEach(groups, id: \.self) { categoryButton(.group($0), $0, systemImage: nil) }
-            }
+            .frame(width: 400, alignment: .leading)
+            .padding(Self.sidebarMargin)
         }
-        .frame(width: 400, alignment: .leading)
+        .scrollIndicators(.hidden)
+        .frame(width: 400 + Self.sidebarMargin * 2)
+        .padding(-Self.sidebarMargin)
         .focusSection()
+        // Back from the guide: to the category it's showing, not whichever row is level with the channel (moving onto
+        // which would show that one instead).
+        .defaultFocus($focusedCategory, category, priority: .userInitiated)
     }
+
+    private static let sidebarMargin: CGFloat = 12
 
     /// For the main profile: refreshes the guide (and has Dispatcharr download it, with an admin key), and says how many
     /// channels still have no listings. Above the groups, of which there can be more than fit.
@@ -158,20 +251,11 @@ struct LiveTvView: View {
             Button {
                 // Stays focusable while it runs: disabled, focus would fall onto a category and show it.
                 guard !model.isRefreshingLiveTv else { return }
-                Task {
-                    refreshNote = nil
-                    guard let result = await model.refreshLiveTv() else { return }
-                    switch result {
-                    case .worked: refreshNote = t("Guide refreshed")
-                    case .failed(let problem): refreshNote = problem
-                    }
-                    await load()
-                    await loadGuide(force: true)
-                    if case .worked = result {
-                        try? await Task.sleep(for: .seconds(6))
-                        if refreshNote == t("Guide refreshed") { refreshNote = nil }
-                    }
-                }
+                refreshProblem = nil
+                refreshRefused = false
+                saysNextStatus = false
+                justRefreshed = false
+                Task { await model.refreshLiveTv() }
             } label: {
                 HStack(spacing: 14) {
                     // A spinner can't be seen on the focused button's light background, so it's the icon that turns.
@@ -179,14 +263,20 @@ struct LiveTvView: View {
                         .symbolEffect(.rotate, options: .repeat(.continuous), isActive: model.isRefreshingLiveTv)
                         .foregroundStyle(Color.usher)
                         .frame(width: 32)
-                    Text(model.isRefreshingLiveTv ? t("Refreshing…") : t("Refresh guide")).lineLimit(1)
+                    Text(model.isRefreshingLiveTv ? t(Words.refreshingGuide) : justRefreshed ? t(Words.guideRefreshed) : t(Words.refreshGuide)).lineLimit(1)
                     Spacer(minLength: 8)
                 }
             }
             .buttonStyle(CategoryButtonStyle(selected: false))
             Group {
-                if let refreshNote {
-                    Text(refreshNote).lineLimit(3)
+                if let refreshProblem {
+                    Text(refreshProblem).lineLimit(3).foregroundStyle(Color.danger)
+                    if model.liveTvStatus?.keptFailureWasntAskedAgain == true {
+                        Text(t(Words.guideSourcesAskedRecently)).lineLimit(3)
+                    }
+                }
+                if model.isLiveTvRefreshTakingAWhile {
+                    Text(t(Words.guideTakingAWhile)).lineLimit(3)
                 }
                 if let count = model.liveTvStatus?.channelsWithoutListings, count > 0 {
                     Text(t("{count, plural, one {# channel has no listings} other {# channels have no listings}}", ["count": count]))
@@ -202,9 +292,7 @@ struct LiveTvView: View {
         Button { chosen = value } label: {
             HStack(spacing: 14) {
                 if let systemImage {
-                    Image(systemName: systemImage)
-                        .foregroundStyle(value == .favourites ? Self.gold : Color.usher)
-                        .frame(width: 32)
+                    CategoryIcon(systemImage: systemImage, tint: value == .favourites ? Self.gold : Color.usher)
                 } else {
                     Color.clear.frame(width: 32, height: 1)
                 }
@@ -260,19 +348,30 @@ struct LiveTvView: View {
         }
         asking = request
         defer { if asking == request { asking = nil } }
-        if let loaded = try? await client.liveGuide(request, kept: kept) {
-            kept = loaded
+        do {
+            kept = try await client.liveGuide(request, kept: kept)
+            guideProblem = nil
             if force { marksChanged = false }
-        } else if force {
-            marksChanged = true
+        } catch {
+            if !Task.isCancelled { guideProblem = t("Couldn’t load the guide: {error}", ["error": ConnectionError(error).message]) }
+            if force { marksChanged = true }
         }
+    }
+
+    /// Channels on screen that the kept guide hasn't got, so whose rows have nothing in them.
+    private var guideIsShort: Bool {
+        let had = Set(kept?.guide.channels.map(\.id) ?? [])
+        return channels(in: category).contains { !had.contains($0.id) }
     }
 
     private func load() async {
         guard let client = model.client else { return }
         do {
-            channels = try await client.liveChannels()
+            let loaded = try await client.liveChannels()
+            channels = loaded
             error = nil
+            // A refresh can take away the group being shown, which would leave an empty guide.
+            if case .group(let name) = chosen, !loaded.offersGroup(name) { chosen = nil }
         } catch {
             if channels == nil { self.error = ConnectionError(error).message }
         }
@@ -317,6 +416,19 @@ private struct CategoryButtonStyle: ButtonStyle {
                 .scaleEffect(isFocused ? 1.04 : 1)
                 .animation(.spring(response: 0.25, dampingFraction: 0.8), value: isFocused)
         }
+    }
+}
+
+/// A category's icon, dark on the focused row's light fill, where its own colour could vanish.
+private struct CategoryIcon: View {
+    let systemImage: String
+    let tint: Color
+    @Environment(\.isFocused) private var isFocused
+
+    var body: some View {
+        Image(systemName: systemImage)
+            .foregroundStyle(isFocused ? Color.room : tint)
+            .frame(width: 32)
     }
 }
 

@@ -3410,6 +3410,17 @@ a.download-attention {
   color: var(--screen);
 }
 
+.requested-card .external-card-actions {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  row-gap: 0;
+}
+
+.requested-error {
+  margin: 8px 0 0;
+  font-size: var(--step--1);
+}
+
 .requested-couldNotImport {
   color: var(--danger);
 }

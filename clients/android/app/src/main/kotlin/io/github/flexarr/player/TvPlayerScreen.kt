@@ -179,7 +179,7 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
                 when (event.nativeKeyEvent.keyCode) {
                     KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> controller.togglePlayPause().let { show(); true }
                     KeyEvent.KEYCODE_MEDIA_PLAY -> controller.player.play().let { show(); true }
-                    KeyEvent.KEYCODE_MEDIA_PAUSE -> controller.player.pause().let { show(); true }
+                    KeyEvent.KEYCODE_MEDIA_PAUSE -> controller.pause().let { show(); true }
                     KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> skip(controller.skipSeconds).let { true }
                     KeyEvent.KEYCODE_MEDIA_REWIND -> skip(-controller.skipSeconds).let { true }
                     KeyEvent.KEYCODE_MEDIA_NEXT -> (controller.info?.next != null).also { if (it) controller.playNext() }
@@ -215,9 +215,9 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
                 }
             },
     ) {
-        VideoSurface(controller.player, controller.keepsScreenOn)
+        VideoSurface(controller.player, controller.keepsScreenOn, screenHolds = controller.screenHolds)
         SubtitleLayer(controller)
-        if ((controller.isBuffering || controller.isOpening) && controller.error == null) {
+        if ((controller.isBuffering || controller.isOpening || controller.screenSwitching) && controller.error == null) {
             CircularProgressIndicator(Modifier.align(Alignment.Center), color = Flexarr.screen)
         }
         flash?.let {

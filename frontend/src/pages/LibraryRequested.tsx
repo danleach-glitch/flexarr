@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import {
   getMusicRequested,
@@ -6,6 +6,7 @@ import {
   getRequestStatus,
   getTitlesRequested,
   imageUrl,
+  retryAlbum,
   unrequestAlbum,
   unrequestTitle,
   type Library,
@@ -19,12 +20,15 @@ import { useApi } from '../hooks/useApi'
 import { usePolling } from '../hooks/usePolling'
 import { requestedState } from '../lib/requestedState'
 import { undoFailure } from '../lib/musicUndo'
+import { errorText } from './settings/useSettings'
 import { t, Words } from '../i18n'
 
 /** How many cards show at first; Show more adds as many again. */
 const PAGE_SIZE = 200
 /** How often the view asks again while something is downloading or importing. */
 const REFRESH_MS = 30_000
+/** How long the view keeps asking after Try again, while a search has yet to turn into a download. */
+const AFTER_RETRY_MS = 5 * 60_000
 
 /** One card of the view, whichever library it's in. */
 interface Row {
@@ -40,6 +44,8 @@ interface Row {
   progress: number | null
   releaseDate: string | null
   undo: () => Promise<void>
+  /** Starts over on one that couldn't be imported (albums only). */
+  retry?: () => Promise<void>
 }
 
 /**
@@ -65,14 +71,20 @@ export function LibraryRequested({ library, viewSwitch }: { library: Library; vi
   const grid = useRef<HTMLDivElement>(null)
   const rows = data?.rows.filter((r) => !gone.has(r.key))
   const answering = data?.answering !== false
+  const [retries, setRetries] = useState(0)
+  useEffect(() => {
+    if (!retries) return
+    const done = setTimeout(() => setRetries(0), AFTER_RETRY_MS)
+    return () => clearTimeout(done)
+  }, [retries])
   // Downloading 40% moves on: asked again now and then while anything is on its way in, so it doesn't look stuck.
-  usePolling(reload, data?.rows.some((r) => r.state === 'downloading' || r.state === 'importing' || r.state === 'couldNotImport') ? REFRESH_MS : null)
+  usePolling(reload, retries || data?.rows.some((r) => r.state === 'downloading' || r.state === 'importing' || r.state === 'couldNotImport') ? REFRESH_MS : null)
 
   // The card that opened the dialog is gone: the keyboard moves on to the next one's Unrequest (or the grid).
   function remove(key: string, index: number) {
     setGone((g) => new Set(g).add(key))
     requestAnimationFrame(() => {
-      const buttons = grid.current?.querySelectorAll<HTMLButtonElement>('.requested-card .external-card-actions button')
+      const buttons = grid.current?.querySelectorAll<HTMLButtonElement>('.requested-card .requested-unrequest')
       const next = buttons?.[Math.min(index, buttons.length - 1)]
       if (next) next.focus()
       else grid.current?.focus()
@@ -103,7 +115,10 @@ export function LibraryRequested({ library, viewSwitch }: { library: Library; vi
           ) : (
             <div className={music ? 'poster-grid music-albums' : 'poster-grid'} ref={grid} tabIndex={-1}>
               {rows.slice(0, shown).map((r, i) => (
-                <RequestedCard key={r.key} row={r} square={music} offline={!answering} service={service} onGone={() => remove(r.key, i)} />
+                <RequestedCard key={r.key} row={r} square={music} offline={!answering} service={service} onGone={() => remove(r.key, i)} onRetried={() => {
+                  setRetries((n) => n + 1)
+                  reload()
+                }} />
               ))}
             </div>
           )}
@@ -134,6 +149,7 @@ function albumRow(item: MusicRequested): Row {
     progress: item.progress,
     releaseDate: item.releaseDate,
     undo: () => unrequestAlbum({ musicBrainzId: item.musicBrainzId }),
+    retry: item.canRetry === true ? () => retryAlbum({ musicBrainzId: item.musicBrainzId }) : undefined,
   }
 }
 
@@ -159,9 +175,11 @@ function titleRow(item: TitleRequested): Row {
   }
 }
 
-function RequestedCard({ row, square, offline, service, onGone }: { row: Row; square: boolean; offline: boolean; service: string; onGone: () => void }) {
+function RequestedCard({ row, square, offline, service, onGone, onRetried }: { row: Row; square: boolean; offline: boolean; service: string; onGone: () => void; onRetried: () => void }) {
   const [asking, setAsking] = useState(false)
   const [error, setError] = useState<string>()
+  // A cover that won't load shows the title, not the browser's broken-image mark.
+  const [brokenImage, setBrokenImage] = useState<string | null>(null)
 
   async function unrequest() {
     setError(undefined)
@@ -174,10 +192,38 @@ function RequestedCard({ row, square, offline, service, onGone }: { row: Row; sq
     }
   }
 
+  // Lidarr's queue keeps saying it for a while after a search starts: searching, until the next few looks have had their say.
+  const [retried, setRetried] = useState(false)
+  const [retryError, setRetryError] = useState<string>()
+  useEffect(() => {
+    if (!retried) return
+    const settle = setTimeout(() => setRetried(false), REFRESH_MS)
+    return () => clearTimeout(settle)
+  }, [retried])
+  const state = retried && row.state === 'couldNotImport' ? 'searching' : row.state
+  const stuck = state === 'couldNotImport'
+  const canTryAgain = stuck && !!row.retry
+  // Why it couldn't is only about a button that's there.
+  if (!canTryAgain && retryError) setRetryError(undefined)
+
+  async function retry(event: MouseEvent<HTMLButtonElement>) {
+    const button = event.currentTarget
+    setRetryError(undefined)
+    try {
+      await row.retry?.()
+      // The button goes now: the keyboard moves on to what's left of the card.
+      if (document.activeElement === button) button.parentElement?.querySelector<HTMLButtonElement>('.requested-unrequest')?.focus()
+      setRetried(true)
+      onRetried()
+    } catch (e) {
+      setRetryError(errorText(e))
+    }
+  }
+
   const art = (
     <div className="card-frame">
       <div className={square ? 'artwork artwork-square' : 'artwork artwork-poster'}>
-        {row.image ? <img src={imageUrl(row.image, 342)} alt="" loading="lazy" /> : <span className="artwork-fallback">{row.title}</span>}
+        {row.image && row.image !== brokenImage ? <img src={imageUrl(row.image, 342)} alt="" loading="lazy" onError={() => setBrokenImage(row.image)} /> : <span className="artwork-fallback">{row.title}</span>}
       </div>
     </div>
   )
@@ -193,12 +239,32 @@ function RequestedCard({ row, square, offline, service, onGone }: { row: Row; sq
       )}
       <span className="card-title">{square || !row.link ? row.title : <Link to={row.link}>{row.title}</Link>}</span>
       <span className="card-subtitle">{row.subtitle}</span>
-      <span className={`requested-state requested-${row.state}`}>{requestedState(row)}</span>
+      <span className={`requested-state requested-${state}`}>
+        {requestedState({ ...row, state })}
+        {stuck && (
+          <>
+            {' '}
+            <a href="https://flexarr.io/guide/requests#couldn-t-import" target="_blank" rel="noreferrer" aria-label={t('Why couldn’t {title} be imported?', { title: row.title })}>
+              {t('Why?')}
+            </a>
+          </>
+        )}
+      </span>
       {row.state === 'downloading' && row.progress != null && (
         <progress className="requested-progress" value={row.progress} max={1} aria-label={t('{title} downloading', { title: row.title })} />
       )}
+      {retryError && (
+        <p className="error requested-error" role="alert">
+          {retryError}
+        </p>
+      )}
       <div className="external-card-actions">
-        <AsyncButton className="button small quiet" aria-label={t('Unrequest {title}', { title: row.title })} onClick={() => setAsking(true)} disabled={offline} title={offline ? t('{service} isn’t answering.', { service }) : undefined}>
+        {canTryAgain && (
+          <AsyncButton className="button small" aria-label={t('Try again {title}', { title: row.title })} keepFocus onClick={retry} disabled={offline} title={offline ? t('{service} isn’t answering.', { service }) : undefined}>
+            {t('Try again')}
+          </AsyncButton>
+        )}
+        <AsyncButton className="button small quiet requested-unrequest" aria-label={t('Unrequest {title}', { title: row.title })} onClick={() => setAsking(true)} disabled={offline} title={offline ? t('{service} isn’t answering.', { service }) : undefined}>
           {t(Words.unrequest)}
         </AsyncButton>
       </div>

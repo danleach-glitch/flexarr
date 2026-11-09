@@ -1969,7 +1969,8 @@ describe('Library grid', () => {
     expect(within(rail).queryByRole('alert')).toBeNull()
   })
 
-  describe('jumping to a letter, where the server says where letters start', () => {
+  // Hundreds of cards drawn several times over: well within the limit alone, but not always alongside builds.
+  describe('jumping to a letter, where the server says where letters start', { timeout: 45_000 }, () => {
     // 2,600 films, a hundred to each letter: A at 0, B at 100 … Z at 2,500.
     const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
     const library = Array.from({ length: 2600 }, (_, i) => summary({ id: `a${i}`, title: `${alphabet[Math.floor(i / 100)]}film ${String(i).padStart(4, '0')}` }))

@@ -1,7 +1,11 @@
 package io.github.flexarr.ui.tv
 
 import io.github.flexarr.core.i18n.Words
+import io.github.flexarr.LiveTvRefreshOutcome
+import io.github.flexarr.following
+import io.github.flexarr.refreshFailure
 import io.github.flexarr.core.i18n.t
+import android.os.SystemClock
 import android.text.format.DateFormat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -39,6 +43,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -229,6 +234,9 @@ internal open class GuideKeeper(private val scope: CoroutineScope) {
 }
 
 /** Favourites' star: projected white, never gold. */
+/** How long a refresh's problem is up before a look at the status may take it away. */
+private const val REFRESH_PROBLEM_SEEN_FOR_MS = 30_000L
+
 private val StarColor = Flexarr.screen
 
 /** A programme set to record. */
@@ -238,7 +246,7 @@ private val RecordRed = Flexarr.record
  * Live TV, as the Apple TV's: categories down the left (Favourites, Recordings, All, the source's groups) and the guide
  * on the right, three hours across for the channels in the category. Moving onto a category shows it; choosing what's on
  * now plays it; holding a programme adds its channel to Favourites or takes it off, or records it. Favourites is where
- * it opens when there are any. [takeFocus]: arriving from the sidebar, the first category.
+ * it opens when there are any. [takeFocus]: arriving from the sidebar, the category shown.
  */
 @Composable
 fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit) {
@@ -247,16 +255,29 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
     val scope = rememberCoroutineScope()
     var channels by remember { mutableStateOf<List<LiveChannel>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    // What went wrong refreshing the guide.
-    var refreshNote by remember { mutableStateOf<String?>(null) }
+    // How refreshing the guide went: one that worked says so in its button for a while, a problem lasts as long as it does.
+    var refreshNote by remember { mutableStateOf<LiveTvRefreshOutcome?>(null) }
+    var refreshProblemSaidAt by remember { mutableLongStateOf(0L) }
     // The guide on screen, with what it was asked for and its ETag.
     var kept by remember { mutableStateOf<KeptGuide?>(null) }
+    // Why the guide couldn't be fetched, and for which question: said only while there's none to show for it.
+    var guideProblem by remember { mutableStateOf<Pair<GuideFilter, String>?>(null) }
+    // Focus is on the guide's Try again, which goes when the guide comes.
+    var guideRetryHasFocus by remember { mutableStateOf(false) }
+    // The question Try again is asking again: the spinner, until it's answered.
+    var guideRetrying by remember { mutableStateOf<GuideFilter?>(null) }
+    // A failure takes focus on opening and after Try again, not from someone moving through the categories.
+    var guideFailureTakesFocus by remember { mutableStateOf(true) }
     var upcoming by remember { mutableStateOf<Int?>(null) }
     var chosen by remember { mutableStateOf<Category?>(null) }
     // The category focus is on: shown once it rests there, so holding Down through the list doesn't build each guide.
     var focusedCategory by remember { mutableStateOf<Category?>(null) }
     var guideHours by remember { mutableIntStateOf(TvGuideCache.FIRST_HOURS) }
-    val firstCategory = remember { FocusRequester() }
+    val shownCategory = remember { FocusRequester() }
+    val categoryList = rememberLazyListState()
+    val allChannels = remember { FocusRequester() }
+    // Focus is on the empty screen's Refresh, which goes when the first channels come.
+    var refreshHasFocus by remember { mutableStateOf(false) }
 
     suspend fun load() {
         try {
@@ -271,7 +292,11 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
     // What's on moves on: fetched again each minute while the screen is up.
     RepeatWhileShowing(60_000, model.credentials) {
         load()
-        if (model.isMainProfile) model.reloadLiveTvStatus()
+        // A press that failed never reached the status, so a good look that finds it unchanged is news too. Not straight
+        // after saying it, or a look that happens to be due would take it away before it's read.
+        if (model.isMainProfile && model.reloadLiveTvStatus() && SystemClock.elapsedRealtime() - refreshProblemSaidAt >= REFRESH_PROBLEM_SEEN_FOR_MS) {
+            refreshNote = refreshNote?.following(model.liveTvStatus)
+        }
     }
     LaunchedEffect(focusedCategory) {
         val resting = focusedCategory ?: return@LaunchedEffect
@@ -283,9 +308,11 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
     // Worked out once per list of channels, not on every recomposition.
     val favourites = remember(all) { all.filter { it.isFavourite } }
     val byGroup = remember(all) { all.filter { it.groupName != null }.groupBy { it.groupName!! } }
-    // Where the screen opens: Favourites when there are any, otherwise All channels.
-    val category = chosen ?: if (favourites.isEmpty()) Category.All else Category.Favourites
     val groups = byGroup.keys.toList()
+    // A group a refresh took away (or the last but one, whose rows go): back to where it opens, not a blank guide.
+    val groupGone = (chosen as? Category.Group)?.let { it.name !in byGroup || groups.size < 2 } == true
+    // Where the screen opens: Favourites when there are any, otherwise All channels.
+    val category = chosen?.takeUnless { groupGone } ?: if (favourites.isEmpty()) Category.All else Category.Favourites
     fun channelsIn(category: Category) = when (category) {
         Category.Favourites -> favourites
         Category.All -> all
@@ -314,26 +341,41 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
             return
         }
         val asking = currentAsk
-        runCatching { TvGuideCache.guide(client, guideHours, model.currentProfile?.id, asking, currentIds, kept, fresh) }.onSuccess {
+        try {
+            val fetched = TvGuideCache.guide(client, guideHours, model.currentProfile?.id, asking, currentIds, kept, fresh)
             // A slower answer to an earlier question doesn't replace the guide of a category chosen since.
-            if (asking == currentAsk || kept?.covers(currentAsk, currentIds) != true) kept = it
+            if (asking == currentAsk || kept?.covers(currentAsk, currentIds) != true) kept = fetched
+            if (asking == currentAsk) guideProblem = null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            guideProblem = asking to t("Couldn’t load the guide: {error}", "error" to refreshFailure(e))
         }
     }
-    // How a refresh went, once each, and the guide fetched again: the note goes a while after one that worked.
+    // How a refresh went, once each, and the guide fetched again: the note goes a while after one that worked. Back on
+    // this screen after one ended elsewhere, it's said now, and the first load has it anyway.
     var refreshesSeen by remember { mutableIntStateOf(model.liveTvRefreshesEnded) }
     LaunchedEffect(model.isRefreshingLiveTv) { if (model.isRefreshingLiveTv) refreshNote = null }
     LaunchedEffect(model.liveTvRefreshesEnded) {
-        if (model.liveTvRefreshesEnded == refreshesSeen) return@LaunchedEffect
-        refreshesSeen = model.liveTvRefreshesEnded
-        val problem = model.liveTvRefreshProblem
-        refreshNote = problem ?: t("Guide refreshed")
-        load()
-        loadGuide(true)
-        if (problem == null) {
+        val ended = model.takeLiveTvRefreshEnd()
+        // Taking a while says itself, for as long as it does.
+        ended?.let { refreshNote = it.takeUnless { outcome -> outcome.isTakingAWhile } }
+        if (ended?.isProblem == true) refreshProblemSaidAt = SystemClock.elapsedRealtime()
+        if (model.liveTvRefreshesEnded != refreshesSeen) {
+            refreshesSeen = model.liveTvRefreshesEnded
+            // Ended too long ago to announce, but a red line doesn't outlast it.
+            if (ended == null) refreshNote = refreshNote?.following(model.liveTvStatus)
+            load()
+            loadGuide(true)
+        }
+        if (ended?.worked == true) {
             delay(6_000)
             refreshNote = null
         }
     }
+    // A later status (a scheduled refresh has been through since, say) replaces a problem, or clears it.
+    val liveTvStatus = model.liveTvStatus
+    LaunchedEffect(liveTvStatus) { refreshNote = refreshNote?.following(liveTvStatus) }
     // The count of what's set to record every five minutes, on its own: not again for each category moved onto.
     RepeatWhileShowing(300_000, model.credentials) { loadUpcoming() }
     // The guide (a few hours of it) every five minutes, and more of it as the guide's moved on or another category's
@@ -341,6 +383,8 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
     RepeatWhileShowing(300_000, model.credentials, guideHours, ask, showsGuide) { loadGuide() }
     // Another category chosen, its channels not in the guide yet: loading, rather than "No listings" for each.
     val guide = kept?.takeIf { it.covers(ask, shownIds) }?.guide
+    val guideFailure = guideProblem?.takeIf { showsGuide && guide == null && it.first == ask && guideRetrying != ask }?.second
+    val currentGuideFailure by rememberUpdatedState(guideFailure)
 
     fun setFavourite(channel: LiveChannel, favourite: Boolean) {
         channels = channels?.map { if (it.id == channel.id) it.copy(isFavourite = favourite) else it }
@@ -354,11 +398,66 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
         }
     }
 
+    // What's under the refresh button: its rows only appear and go when something lasting does.
+    val refreshLines = if (!model.canRefreshLiveTv) emptyList() else buildList {
+        refreshNote?.takeIf { it.isProblem }?.let { note ->
+            add(note.words to Flexarr.danger)
+            note.sourcesNote?.let { add(it to Flexarr.usher) }
+        }
+        // Not under "didn't answer", which is all that's known until the server answers again.
+        if (model.isLiveTvRefreshTakingAWhile && refreshNote?.isProblem != true) add(t(Words.guideTakingAWhile) to Flexarr.usher)
+        val missing = model.liveTvStatus?.channelsWithoutListings ?: 0
+        if (missing > 0) add(t("{count, plural, one {# channel has no listings} other {# channels have no listings}}", "count" to missing) to Flexarr.usher)
+    }
+    val refreshWords = when {
+        model.isRefreshingLiveTv -> t(Words.refreshingGuide)
+        refreshNote?.worked == true -> t(Words.guideRefreshed)
+        else -> t(Words.refreshGuide)
+    }
+    // Favourites, Recordings and All channels; then the refresh button and what's under it, above the groups.
+    val rowsBeforeGroups = 3 + if (model.canRefreshLiveTv) 1 + refreshLines.size else 0
+    val currentCategory by rememberUpdatedState(category)
+    val currentRowsBeforeGroups by rememberUpdatedState(rowsBeforeGroups)
+    val currentGroups by rememberUpdatedState(groups)
+
+    /** Focus on the category being shown (which focus on another would change), a group far down the list scrolled to first. */
+    suspend fun focusShownCategory() {
+        (currentCategory as? Category.Group)?.let { group ->
+            runCatching { categoryList.scrollToItem(currentRowsBeforeGroups + currentGroups.indexOf(group.name).coerceAtLeast(0)) }
+        }
+        delay(50)
+        // Already failed by now (a server answers fast), Try again has focus and keeps it.
+        if (currentGuideFailure == null) runCatching { shownCategory.requestFocus() }
+    }
     LaunchedEffect(takeFocus, channels != null) {
         if (!takeFocus || channels == null) return@LaunchedEffect
-        delay(50)
-        runCatching { firstCategory.requestFocus() }
+        focusShownCategory()
         onFocusTaken()
+    }
+    // The group shown has gone, with focus on it perhaps: it moves to what's shown now, or it would land anywhere.
+    LaunchedEffect(groupGone) {
+        if (!groupGone) return@LaunchedEffect
+        val hadFocus = focusedCategory == chosen
+        chosen = null
+        if (hadFocus) {
+            focusedCategory = null
+            focusShownCategory()
+        }
+    }
+    // Its button gone, focus would land anywhere, Favourites and its "No favourites yet" among them.
+    val hasChannels = channels?.isNotEmpty() == true
+    LaunchedEffect(hasChannels) {
+        if (!hasChannels || !refreshHasFocus) return@LaunchedEffect
+        refreshHasFocus = false
+        delay(50)
+        runCatching { allChannels.requestFocus() }
+    }
+
+    // Its button gone, focus would land anywhere.
+    LaunchedEffect(guideFailure == null) {
+        if (guideFailure != null || !guideRetryHasFocus) return@LaunchedEffect
+        guideRetryHasFocus = false
+        focusShownCategory()
     }
 
     RoomBackground(ambient = null) {
@@ -369,13 +468,19 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
             loaded.isEmpty() -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(t("No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user."), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
                 if (model.canRefreshLiveTv) {
-                    TvActionButton(if (model.isRefreshingLiveTv) t("Refreshing…") else t("Refresh guide"), onClick = model::refreshLiveTv, prominent = true)
-                    refreshNote?.let { Text(it, fontSize = 13.sp, color = Flexarr.usher) }
+                    TvActionButton(
+                        refreshWords,
+                        onClick = model::refreshLiveTv,
+                        prominent = true,
+                        // Only while it's here: leaving the screen as the channels arrive isn't focus moving away.
+                        modifier = Modifier.onFocusChanged { if (channels?.isEmpty() == true) refreshHasFocus = it.hasFocus },
+                    )
+                    refreshLines.forEach { (words, colour) -> Text(words, fontSize = 13.sp, color = colour) }
                 }
             }
             else -> Row(Modifier.fillMaxSize().padding(start = TvLayout.Edge, top = 15.dp), horizontalArrangement = Arrangement.spacedBy(25.dp)) {
                 // Back from the guide, focus returns to the category being shown, not whichever is nearest (which would show it).
-                LazyColumn(Modifier.width(200.dp).fillMaxHeight().focusRestorer(), verticalArrangement = Arrangement.spacedBy(5.dp), contentPadding = PaddingValues(bottom = 30.dp)) {
+                LazyColumn(Modifier.width(200.dp).fillMaxHeight().focusRestorer(), state = categoryList, verticalArrangement = Arrangement.spacedBy(5.dp), contentPadding = PaddingValues(bottom = 30.dp)) {
                     val entries = listOf<Pair<Category, String>>(Category.Favourites to t("Favourites"), Category.Recordings to t("Recordings"), Category.All to t("All channels"))
                     val groupEntries = if (groups.size > 1) groups.map { Category.Group(it) to it } else emptyList<Pair<Category, String>>()
                     val categoryRow: @Composable (Pair<Category, String>) -> Unit = { (value, title) ->
@@ -389,9 +494,14 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                                 else -> null
                             },
                             count = if (value == Category.Recordings) upcoming else channelsIn(value).size,
-                            onFocus = { focusedCategory = value },
+                            onFocus = {
+                                if (value != category) guideFailureTakesFocus = false
+                                focusedCategory = value
+                            },
                             onClick = { focusedCategory = value; chosen = value },
-                            modifier = if (value == Category.Favourites) Modifier.focusRequester(firstCategory) else Modifier,
+                            modifier = Modifier
+                                .then(if (value == Category.All) Modifier.focusRequester(allChannels) else Modifier)
+                                .then(if (value == category) Modifier.focusRequester(shownCategory) else Modifier),
                         )
                     }
                     items(entries, key = { it.second + it.first::class.simpleName }) { categoryRow(it) }
@@ -399,7 +509,7 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                     if (model.canRefreshLiveTv) {
                         item(key = "refresh") {
                             CategoryButton(
-                                if (model.isRefreshingLiveTv) t("Refreshing…") else t("Refresh guide"),
+                                refreshWords,
                                 selected = false,
                                 icon = FlexarrIcons.refresh,
                                 count = null,
@@ -408,9 +518,8 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                                 modifier = Modifier,
                             )
                         }
-                        val missing = model.liveTvStatus?.channelsWithoutListings ?: 0
-                        listOfNotNull(refreshNote, if (missing > 0) t("{count, plural, one {# channel has no listings} other {# channels have no listings}}", "count" to missing) else null).forEach { note ->
-                            item(key = "refresh-note-$note") { Text(note, fontSize = 12.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 11.dp)) }
+                        items(refreshLines) { (words, colour) ->
+                            Text(words, fontSize = 12.sp, color = colour, modifier = Modifier.padding(horizontal = 11.dp))
                         }
                     }
                     items(groupEntries, key = { it.second + it.first::class.simpleName }) { categoryRow(it) }
@@ -419,6 +528,23 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                     when {
                         category == Category.Recordings -> TvLiveRecordings(model, onChanged = { scope.launch { loadGuide(fresh = true) } }, onUpcoming = { upcoming = it })
                         category == Category.Favourites && favourites.isEmpty() -> NoFavourites()
+                        guideFailure != null -> TvStatusView(
+                            guideFailure,
+                            retry = {
+                                guideRetrying = ask
+                                guideFailureTakesFocus = true
+                                scope.launch {
+                                    try {
+                                        loadGuide()
+                                    } finally {
+                                        guideRetrying = null
+                                    }
+                                }
+                            },
+                            // Only while it's here: its going, for the spinner or the guide, isn't focus moving away.
+                            modifier = Modifier.onFocusChanged { if (currentGuideFailure != null) guideRetryHasFocus = it.hasFocus },
+                            takesFocus = guideFailureTakesFocus,
+                        )
                         else -> TvLiveGuideGrid(
                             client,
                             shown,

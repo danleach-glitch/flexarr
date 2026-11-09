@@ -27,6 +27,16 @@ class LiveTvTest {
     }
 
     @Test
+    fun `a count that hasn't risen means the refresh never finished, and no count can't say`() {
+        val status = LiveTvStatus(configured = true, channels = 1, refreshesFinished = 4)
+        assertTrue(status.finishedSince(3))
+        assertFalse(status.finishedSince(4))
+        assertFalse(status.finishedSince(9))
+        assertTrue(status.finishedSince(null))
+        assertTrue(status.copy(refreshesFinished = null).finishedSince(4))
+    }
+
+    @Test
     fun `a refresh is finished once it has come and gone or the answer changed`() {
         val before = LiveTvStatus(configured = true, channels = 1, refreshedAt = "a")
         assertFalse(before.copy(refreshing = true, refreshedAt = "b").finishedRefresh(before, sawRefreshing = true))

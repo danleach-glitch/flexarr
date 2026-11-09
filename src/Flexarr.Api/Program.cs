@@ -199,6 +199,8 @@ builder.Services.AddHostedService<PodcastRefreshWorker>();
 builder.Services.AddHostedService<PodcastChartWarmer>();
 builder.Services.AddSingleton<Flexarr.Api.Endpoints.MusicRequests.MusicImportRetry>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<Flexarr.Api.Endpoints.MusicRequests.MusicImportRetry>());
+builder.Services.AddSingleton<Flexarr.Api.Endpoints.MusicRequests.MusicDiscoverWarmer>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<Flexarr.Api.Endpoints.MusicRequests.MusicDiscoverWarmer>());
 builder.Services.AddSingleton<ProfileImages>();
 builder.Services.AddSingleton<PersonImages>();
 builder.Services.AddSingleton<PersonLookups>();
@@ -296,6 +298,7 @@ builder.Services.AddSingleton<IMetadataSettings, MetadataSettings>();
 builder.Services.AddHttpClient("books", c => c.Timeout = TimeSpan.FromSeconds(20));
 builder.Services.AddScoped(sp => new Flexarr.Metadata.Books.BookProviders(
     sp.GetRequiredService<IHttpClientFactory>().CreateClient("books"), sp.GetRequiredService<IMetadataSettings>));
+builder.Services.AddSingleton<LidarrArtistList>();
 builder.Services.AddScoped<MetadataRefresher>();
 builder.Services.AddScoped(sp => new AuthorInfo(sp.GetRequiredService<Flexarr.Core.Data.FlexarrDbContext>(),
     sp.GetRequiredService<Flexarr.Metadata.Books.BookProviders>(), sp.GetRequiredService<ILogger<AuthorInfo>>()));

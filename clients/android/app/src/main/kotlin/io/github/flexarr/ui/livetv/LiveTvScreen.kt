@@ -47,6 +47,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -76,6 +77,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import io.github.flexarr.AppModel
 import io.github.flexarr.appModel
+import io.github.flexarr.refreshFailure
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.LiveChannel
 import io.github.flexarr.core.LiveGuide
@@ -155,8 +157,8 @@ fun LiveTvScreen(model: AppModel) {
     }
     // What's on moves on: fetched again each minute while the list is up. Under the guide, which has every programme
     // itself, the list is only the channels and their stars: fetched every five minutes, and at once on going back to
-    // the list.
-    RepeatWhileShowing(if (showsGuide) GUIDE_REFRESH_MS else 60_000, model.credentials, showsGuide) {
+    // the list. A refresh given up on as taking a while is looked in on each minute, so how it ended is said.
+    RepeatWhileShowing(if (showsGuide && !model.isLiveTvRefreshTakingAWhile) GUIDE_REFRESH_MS else 60_000, model.credentials, showsGuide, model.isLiveTvRefreshTakingAWhile) {
         load()
         if (model.isMainProfile) model.reloadLiveTvStatus()
         // No channels yet (the server couldn't be reached): tried again each minute, as it was, not left five.
@@ -168,8 +170,11 @@ fun LiveTvScreen(model: AppModel) {
 
     val all = channels.orEmpty()
     val favourites = all.filter { it.isFavourite }
-    val filter = chosen ?: if (favourites.isEmpty()) Filter.All else Filter.Favourites
     val groups = all.mapNotNull { it.groupName }.distinct()
+    // A group a refresh took away (or the last but one, whose chips go): back to where it opens, not a blank page.
+    val groupGone = (chosen as? Filter.Group)?.let { it.name !in groups || groups.size < 2 } == true
+    LaunchedEffect(groupGone) { if (groupGone) chosen = null }
+    val filter = chosen?.takeUnless { groupGone } ?: if (favourites.isEmpty()) Filter.All else Filter.Favourites
     val shown = when (val f = filter) {
         Filter.Favourites -> favourites
         Filter.All -> all
@@ -206,7 +211,7 @@ fun LiveTvScreen(model: AppModel) {
         Column {
             PageTitle(t(Words.liveTv), onBack = { navigator.back() }) {
                 if (model.canRefreshLiveTv) {
-                    val refreshLabel = if (model.isRefreshingLiveTv) t("Refreshing…") else t("Refresh guide")
+                    val refreshLabel = if (model.isRefreshingLiveTv) t(Words.refreshingGuide) else t(Words.refreshGuide)
                     IconButton(enabled = !model.isRefreshingLiveTv, onClick = model::refreshLiveTv, modifier = Modifier.semantics { contentDescription = refreshLabel }) {
                         if (model.isRefreshingLiveTv) {
                             CircularProgressIndicator(Modifier.size(20.dp), color = Flexarr.screen, strokeWidth = 2.dp)
@@ -276,14 +281,16 @@ fun LiveTvScreen(model: AppModel) {
             }
         }
     }
-    // How a refresh went, once each. Back on this screen after one ended elsewhere, the first load has it anyway.
+    // How a refresh went, once each. Back on this screen after one ended elsewhere, it's said now, and the first load has it anyway.
     var refreshesSeen by remember { mutableIntStateOf(model.liveTvRefreshesEnded) }
     LaunchedEffect(model.liveTvRefreshesEnded) {
-        if (model.liveTvRefreshesEnded == refreshesSeen) return@LaunchedEffect
-        refreshesSeen = model.liveTvRefreshesEnded
-        load()
-        refreshed++
-        navigator.notices.showSnackbar(model.liveTvRefreshProblem ?: t("Guide refreshed"))
+        val ended = model.takeLiveTvRefreshEnd()
+        if (model.liveTvRefreshesEnded != refreshesSeen) {
+            refreshesSeen = model.liveTvRefreshesEnded
+            load()
+            refreshed++
+        }
+        ended?.let { navigator.notices.showSnackbar(it.allWords, duration = if (it.sourcesNote != null) SnackbarDuration.Long else SnackbarDuration.Short) }
     }
     notice?.let { message ->
         AlertDialog(
@@ -446,16 +453,22 @@ private fun LiveGuideView(
     // What the guide shown was asked for, and the ETag it came with.
     var guideAsk by remember { mutableStateOf<GuideFilter?>(null) }
     var etag by remember { mutableStateOf<String?>(null) }
+    // Why the guide couldn't be fetched, and for which question: said only while there's none to show for it.
+    var problem by remember { mutableStateOf<Pair<GuideFilter, String>?>(null) }
 
     suspend fun load() {
         val asking = ask
-        runCatching {
-            client.liveGuide(windowStart, GUIDE_HOURS, asking, descriptions = false, etag = etag.takeIf { guide != null && guideAsk == asking })
-        }.onSuccess { fetched ->
+        try {
+            val fetched = client.liveGuide(windowStart, GUIDE_HOURS, asking, descriptions = false, etag = etag.takeIf { guide != null && guideAsk == asking })
             // Null when it hadn't changed: the guide shown stands.
             fetched.guide?.let { guide = it }
             etag = fetched.etag
             guideAsk = asking
+            problem = null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            problem = asking to t("Couldn’t load the guide: {error}", "error" to refreshFailure(e))
         }
     }
     RepeatWhileShowing(GUIDE_REFRESH_MS, ask, refreshed) {
@@ -485,10 +498,11 @@ private fun LiveGuideView(
     val channelWidth = 84.dp
     val rowHeight = 56.dp
     val width = perMinute * (GUIDE_HOURS * 60)
-    val loaded = guide ?: return StatusView()
+    @Composable fun waiting() = StatusView(problem?.takeIf { it.first == ask }?.second, retry = { problem = null; scope.launch { load() } })
+    val loaded = guide ?: return waiting()
     val byChannel = loaded.channels.associateBy { it.id }
     // Another view chosen, its channels not in the guide yet: loading, rather than "No listings" for each.
-    if (guideAsk != ask && channels.any { it.id !in byChannel }) return StatusView()
+    if (guideAsk != ask && channels.any { it.id !in byChannel }) return waiting()
     // One sideways position for every row, so the times and all the channels scroll across together.
     val across = rememberScrollState()
 

@@ -12,11 +12,11 @@ class DeviceCapabilitiesTest {
 
     private fun facts(
         decoders: Set<String> = tvDecoders,
-        uhd: Set<String> = setOf("video/hevc"),
+        heights: Map<String, Int> = mapOf("video/hevc" to 2160),
         hdr: Set<Int> = emptySet(),
         passthrough: Set<String> = emptySet(),
         passesThrough: Boolean = true,
-    ) = DeviceCapabilities.Facts(decoders, uhd, hdr, passthrough, passesThrough)
+    ) = DeviceCapabilities.Facts(decoders, heights, hdr, passthrough, passesThrough)
 
     @Test fun hdrTypes_comeFromTheScreen() {
         val profile = DeviceCapabilities.profile(facts(hdr = setOf(DeviceCapabilities.HDR10, DeviceCapabilities.HLG, DeviceCapabilities.HDR10_PLUS)))
@@ -41,10 +41,57 @@ class DeviceCapabilitiesTest {
     }
 
     @Test fun fourK_comesFromTheDecoders() {
-        assertEquals(2160, DeviceCapabilities.profile(facts(uhd = setOf("video/hevc"))).maxHeight)
-        assertEquals(1080, DeviceCapabilities.profile(facts(uhd = emptySet())).maxHeight)
+        assertEquals(2160, DeviceCapabilities.profile(facts(heights = mapOf("video/hevc" to 2160))).maxHeight)
+        assertEquals(1080, DeviceCapabilities.profile(facts(heights = emptyMap())).maxHeight)
         // An image decoder that takes 4K doesn't count.
-        assertEquals(1080, DeviceCapabilities.profile(facts(uhd = setOf("video/mjpeg"))).maxHeight)
+        assertEquals(1080, DeviceCapabilities.profile(facts(heights = mapOf("video/mjpeg" to 2160))).maxHeight)
+    }
+
+    @Test fun fourKH264_saysNothingAboutHevc() {
+        val heights = mapOf("video/avc" to 2160, "video/hevc" to 1080)
+        assertEquals(1080, DeviceCapabilities.profile(facts(heights = heights)).maxHeight)
+    }
+
+    @Test fun hevcOnlyInSoftware_means1080p() {
+        // A 4K HEVC file sent to a software decoder is a slideshow with no error to go on: 4K in other codecs converts instead.
+        val h264 = DeviceCapabilities.profile(facts(heights = mapOf("video/avc" to 2160)))
+        assertEquals(1080, h264.maxHeight)
+        assertTrue("1080p HEVC still plays as it is", "hevc" in h264.videoCodecs)
+        assertEquals(1080, DeviceCapabilities.profile(facts(heights = mapOf("video/x-vnd.on2.vp9" to 2160, "video/avc" to 1080))).maxHeight)
+        assertEquals(1080, DeviceCapabilities.profile(facts(heights = mapOf("video/av01" to 2160))).maxHeight)
+    }
+
+    @Test fun noHevcAtAll_leavesItToTheHardwareThereIs() {
+        val decoders = setOf("video/avc", "video/x-vnd.on2.vp9")
+        assertEquals(2160, DeviceCapabilities.profile(facts(decoders = decoders, heights = mapOf("video/x-vnd.on2.vp9" to 2160, "video/avc" to 1080))).maxHeight)
+    }
+
+    @Test fun softwareAv1_changesNothingBesideHardwareHevc() {
+        // AV1 isn't held to the same rule (bug-32): a 4K HEVC box keeps its 4K, and still lists AV1 for the 1080p files.
+        val profile = DeviceCapabilities.profile(facts(heights = mapOf("video/hevc" to 2160)))
+        assertEquals(2160, profile.maxHeight)
+        assertTrue("av1" in profile.videoCodecs)
+    }
+
+    @Test fun fourKHevc_isntHeldBackByH264() {
+        assertEquals(2160, DeviceCapabilities.profile(facts(heights = mapOf("video/avc" to 1080, "video/hevc" to 2160))).maxHeight)
+    }
+
+    @Test fun withoutHevc_h264Decides() {
+        val decoders = setOf("video/avc")
+        assertEquals(2160, DeviceCapabilities.profile(facts(decoders = decoders, heights = mapOf("video/avc" to 2160))).maxHeight)
+    }
+
+    @Test fun aPhoneLimitedTo1440p_takes1440pFiles() {
+        assertEquals(1440, DeviceCapabilities.profile(facts(heights = mapOf("video/hevc" to 1440))).maxHeight)
+    }
+
+    @Test fun aDecodersHeight_isTheSizeItReallyTakes() {
+        fun upTo(maxWidth: Int, maxHeight: Int) = DeviceCapabilities.tallest { width, height -> width <= maxWidth && height <= maxHeight }
+        assertEquals(2160, upTo(4096, 2304))
+        assertEquals(1440, upTo(2560, 1440))
+        assertEquals(1080, upTo(1920, 1088))
+        assertEquals(null, upTo(1280, 720))
     }
 
     @Test fun passthrough_addsDtsAndTrueHd() {
@@ -79,5 +126,25 @@ class DeviceCapabilitiesTest {
         assertEquals("23.976", DeviceCapabilities.rate(23.976f))
         assertEquals("60", DeviceCapabilities.rate(60f))
         assertEquals("59,94", DeviceCapabilities.rate(59.94f, java.util.Locale.GERMANY))
+    }
+
+    @Test fun aRecentAnswer_isKeptUntilItsTimeOrAChange() {
+        var clock = 0L
+        var asked = 0
+        val recent = RecentAnswer<String, Int>(30_000) { clock }
+        fun get(key: String) = recent.get(key) { ++asked }
+        assertEquals(1, get("sound"))
+        clock = 29_999
+        assertEquals(1, get("sound"))
+        // The sound settings changed.
+        assertEquals(2, get("other sound"))
+        // An audio device came or went.
+        recent.clear()
+        assertEquals(3, get("other sound"))
+        clock += 30_000
+        assertEquals(4, get("other sound"))
+        // Play's own answer is what a warm-up goes on to ask with.
+        recent.put("other sound", 99)
+        assertEquals(99, get("other sound"))
     }
 }

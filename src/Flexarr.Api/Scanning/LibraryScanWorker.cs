@@ -53,6 +53,24 @@ public sealed partial class LibraryScanWorker(
     /// <summary>When the schedule last queued each library folder, since the server started: one queued but not yet done isn't queued again.</summary>
     private readonly Dictionary<string, DateTime> _queuedAt = new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// The full scans of folders startup left alone for being recent, by path. Whatever was copied in while the server was
+    /// down hasn't been seen, so these stay on <see cref="ScheduledScanInterval"/> until a scan newer than that one.
+    /// </summary>
+    private readonly Dictionary<string, DateTime?> _skippedAtStartup = new(StringComparer.Ordinal);
+
+    /// <summary>How long a watched scan that failed waits before its next try: the watcher won't hear of those files again.</summary>
+    internal TimeSpan RetryWatchedAfter { get; set; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>What's been announced as added lately. Only this worker's own loop uses it.</summary>
+    private readonly Dictionary<Guid, DateTime> _announcedAt = [];
+
+    /// <summary>Scans waiting for <see cref="RetryWatchedAfter"/>, by path.</summary>
+    private readonly Dictionary<string, LibraryScanRequest> _retrying = new(StringComparer.Ordinal);
+
+    /// <summary>The tries after the first. Then it's the weekly scan's: a folder that goes on failing shouldn't go on being scanned.</summary>
+    internal const int MaxWatchedRetries = 2;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         // Catch up on anything that changed while the server was down (and finish interrupted scans). A folder scanned
@@ -90,17 +108,71 @@ public sealed partial class LibraryScanWorker(
 
             foreach (var request in requests)
             {
+                var attempt = DateTime.UtcNow;
                 try
                 {
                     using var entered = await gate.EnterAsync(stoppingToken);
-                    await ScanAsync(request, stoppingToken);
+                    attempt = DateTime.UtcNow;
+                    if (await ScanAsync(request, attempt, stoppingToken))
+                    {
+                        // It finished, so nothing about it needs doing twice but looking again.
+                        RetryLater(request with { ForceMetadata = false, AddedSince = null }, stoppingToken);
+                    }
                 }
                 // Anything but shutdown, including an HTTP timeout (a TaskCanceledException), is one failed scan.
                 catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
                 {
                     LogScanFailed(ex, PathComparison.Printable(request.Path));
+                    // What it saved before it failed hasn't been announced: the next try goes back to here.
+                    RetryLater(request with { AddedSince = request.AddedSince ?? attempt }, stoppingToken);
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// Queues a watched scan that failed or couldn't see everything again, in a while: a NAS's hiccup or a busy database
+    /// shouldn't hide a new film for a week. One wait per path: failures while it waits join it rather than stack up.
+    /// </summary>
+    private void RetryLater(LibraryScanRequest request, CancellationToken ct)
+    {
+        if (request.Reason != FolderWatcher.Reason || request.Retries >= MaxWatchedRetries)
+        {
+            return;
+        }
+
+        var key = PathComparison.Key(request.Path);
+        var next = request with { Retries = request.Retries + 1 };
+        lock (_retrying)
+        {
+            if (_retrying.TryGetValue(key, out var waiting))
+            {
+                _retrying[key] = Coalesce([waiting, next]).Single();
+                return;
+            }
+
+            _retrying[key] = next;
+        }
+
+        _ = QueueRetryAsync(key, ct);
+    }
+
+    private async Task QueueRetryAsync(string key, CancellationToken ct)
+    {
+        try
+        {
+            await Task.Delay(RetryWatchedAfter, ct);
+            LibraryScanRequest request;
+            lock (_retrying)
+            {
+                _retrying.Remove(key, out request!);
+            }
+
+            await queue.EnqueueAsync(request, ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Shutting down: the next start catches up.
         }
     }
 
@@ -130,7 +202,7 @@ public sealed partial class LibraryScanWorker(
     /// <summary>
     /// Each library folder whose last full scan finished <see cref="ScheduledScanInterval"/> ago or more (or that never
     /// had one), unless the schedule queued it within that time; <see cref="WatchedScanInterval"/> for a folder that's
-    /// being watched, except at startup or while it's on hold.
+    /// being watched, except at startup, while it's on hold, or until the first full scan after a startup that skipped it.
     /// </summary>
     internal async Task EnqueueAllAsync(string reason, CancellationToken ct)
     {
@@ -147,9 +219,19 @@ public sealed partial class LibraryScanWorker(
 
             // At startup the watcher wasn't running while the server was down, so whatever changed then was missed. And a
             // folder on hold depends on full scans: only they end a hold, or see that it's lasted (LibraryScanner.KeepHolding).
-            var interval = reason != StartupReason && folder.Hold is null && watcher?.KeepsUpWith(folder.Path) == true ? WatchedScanInterval : ScheduledScanInterval;
+            if (_skippedAtStartup.TryGetValue(folder.Path, out var skipped) && folder.FullScanAt > skipped)
+            {
+                _skippedAtStartup.Remove(folder.Path);
+            }
+
+            var interval = reason != StartupReason && folder.Hold is null && !_skippedAtStartup.ContainsKey(folder.Path) && watcher?.KeepsUpWith(folder.Path) == true ? WatchedScanInterval : ScheduledScanInterval;
             if (last is { } at && at <= now && now - at < interval)
             {
+                if (reason == StartupReason)
+                {
+                    _skippedAtStartup[folder.Path] = folder.FullScanAt;
+                }
+
                 continue;
             }
 
@@ -160,7 +242,8 @@ public sealed partial class LibraryScanWorker(
 
     /// <summary>
     /// Drops duplicates and paths already covered by a broader request in the same batch. A path counts as deleted
-    /// only if every request for it says so.
+    /// only if every request for it says so. A title's changed cover or .nfo the watcher heard of isn't passed up to a
+    /// broader request, which would look every title in it up again: the title is scanned alone, after.
     /// </summary>
     public static IEnumerable<LibraryScanRequest> Coalesce(IEnumerable<LibraryScanRequest> requests)
     {
@@ -176,15 +259,21 @@ public sealed partial class LibraryScanWorker(
             .ToList();
         return distinct
             .Where(r => !distinct.Any(o => o.Path != r.Path && PathComparison.IsUnder(r.Path, o.Path)))
-            .Select(r =>
+            .SelectMany(r =>
             {
                 var covered = all.Where(o => PathComparison.IsUnder(o.Path, r.Path)).ToList();
-                return r with
+                bool StaysApart(LibraryScanRequest o) => o.ForceMetadata && o.Reason == FolderWatcher.Reason && PathComparison.Key(o.Path) != PathComparison.Key(r.Path);
+                var apart = covered.Where(StaysApart).DistinctBy(o => PathComparison.Key(o.Path));
+                return apart.Prepend(r with
                 {
-                    ForceMetadata = covered.Any(o => o.ForceMetadata),
+                    ForceMetadata = covered.Any(o => o.ForceMetadata && !StaysApart(o)),
                     LastChange = covered.All(o => o.LastChange is not null) ? covered.Max(o => o.LastChange) : null,
                     OnlySubtitles = covered.All(o => o.OnlySubtitles),
-                };
+                    Retries = covered.Max(o => o.Retries),
+                    AddedSince = covered.Min(o => o.AddedSince),
+                    // A broader scan in its place: the watcher still won't hear of these files again if it fails.
+                    Reason = covered.Any(o => o.Reason == FolderWatcher.Reason) ? FolderWatcher.Reason : r.Reason,
+                });
             });
     }
 
@@ -207,15 +296,15 @@ public sealed partial class LibraryScanWorker(
         _scanStartedAt[path] = started;
     }
 
-    private async Task ScanAsync(LibraryScanRequest request, CancellationToken ct)
+    /// <summary>Runs one request. True if it finished without seeing everything, or without being able to read a file it found.</summary>
+    private async Task<bool> ScanAsync(LibraryScanRequest request, DateTime scanStarted, CancellationToken ct)
     {
         if (AlreadyScanned(request))
         {
             LogAlreadyScanned(PathComparison.Printable(request.Path));
-            return;
+            return false;
         }
 
-        var scanStarted = DateTime.UtcNow;
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
         var scanner = scope.ServiceProvider.GetRequiredService<LibraryScanner>();
@@ -241,16 +330,21 @@ public sealed partial class LibraryScanWorker(
         if (targets.Count == 0)
         {
             LogNoLibrary(PathComparison.Printable(request.Path), PathComparison.Printable(request.Reason));
-            return;
+            return false;
         }
 
+        var incomplete = false;
+        var unread = false;
         foreach (var (library, target) in targets)
         {
             LogScanStarted(library.Name, PathComparison.Printable(target), PathComparison.Printable(request.Reason));
             var started = TimeProvider.System.GetTimestamp();
-            // A metadata refresh also retries files ffprobe couldn't read.
-            var result = await scanner.ScanAsync(library, target, request.ForceMetadata, request.Deleted, ct);
-            foreach (var folder in library.Folders.Where(f => PathComparison.IsUnder(f.Path, target)))
+            // A metadata refresh also retries files ffprobe couldn't read, and so does another try at them.
+            var result = await scanner.ScanAsync(library, target, request.ForceMetadata || request.Retries > 0, request.Deleted, ct);
+            incomplete |= result.Incomplete;
+            unread |= result.ProbeFailures > 0;
+            // What it couldn't look at it hasn't scanned: the schedule shouldn't wait a week on it, nor a restart skip it.
+            foreach (var folder in result.Incomplete ? [] : library.Folders.Where(f => PathComparison.IsUnder(f.Path, target)))
             {
                 // A scan of the whole folder: the schedule's next one is 12 hours (a week, if watched) from now, restart or not.
                 var finished = DateTime.UtcNow;
@@ -304,11 +398,19 @@ public sealed partial class LibraryScanWorker(
         await WatchHistoryCarryOver.CarryOverAsync(db, ct);
         await TraktHolds.ApplyAsync(db, ct);
 
-        NoteScanned(request.Path, scanStarted);
+        // Not when there's more to see: the next try at it isn't to be taken for a scan that's already been.
+        var again = incomplete || unread;
+        if (!again)
+        {
+            NoteScanned(request.Path, scanStarted);
+        }
+
         if (events is not null)
         {
-            await AnnounceAddedAsync(db, targets.Select(t => t.Library.Id).Distinct().ToList(), scanStarted, ct);
+            await AnnounceAddedAsync(db, targets.Select(t => t.Library.Id).Distinct().ToList(), request.AddedSince ?? scanStarted, ct);
         }
+
+        return again;
     }
 
     /// <summary>
@@ -327,10 +429,17 @@ public sealed partial class LibraryScanWorker(
         }
 
         var now = DateTime.UtcNow;
+        foreach (var old in _announcedAt.Where(a => now - a.Value > RememberScansFor).Select(a => a.Key).ToList())
+        {
+            _announcedAt.Remove(old);
+        }
+
         foreach (var item in await added.OrderBy(i => i.FirstSeenAt).Summaries(NoProfile).ToListAsync(ct))
         {
-            if (!await WasHereBeforeAsync(db, item.Id, since, ct))
+            // A later try looks back past scans that have announced theirs since.
+            if (!_announcedAt.ContainsKey(item.Id) && !await WasHereBeforeAsync(db, item.Id, since, ct))
             {
+                _announcedAt[item.Id] = now;
                 events!.PublishAdded(new Events.LibraryAddedEventDto(item, now));
             }
         }
@@ -352,13 +461,27 @@ public sealed partial class LibraryScanWorker(
             SeriesImdb = i.Parent != null && i.Parent.Parent != null ? i.Parent.Parent.ImdbId : null,
         }).FirstAsync(ct);
         var earlier = items.Where(i => i.Id != id && i.Kind == item.Kind && i.FirstSeenAt < since);
-        return item.Kind switch
+        if (item.Kind == MediaKind.Episode)
         {
-            MediaKind.Movie => await earlier.AnyAsync(i => (item.TmdbId != null && i.TmdbId == item.TmdbId) || (item.TvdbId != null && i.TvdbId == item.TvdbId) || (item.ImdbId != null && i.ImdbId == item.ImdbId), ct),
-            MediaKind.Episode => await earlier.AnyAsync(i => i.SeasonNumber == item.SeasonNumber && i.EpisodeNumber == item.EpisodeNumber && i.Parent != null && i.Parent.Parent != null
-                && ((item.SeriesTmdb != null && i.Parent.Parent.TmdbId == item.SeriesTmdb) || (item.SeriesTvdb != null && i.Parent.Parent.TvdbId == item.SeriesTvdb) || (item.SeriesImdb != null && i.Parent.Parent.ImdbId == item.SeriesImdb)), ct),
-            _ => await earlier.AnyAsync(i => i.Title == item.Title && i.Parent != null && i.Parent.Title == item.ParentTitle, ct),
-        };
+            // The series by its indexed ids first, then its seasons, then only their episodes: season and episode numbers
+            // have no index, so asking for them outright reads every earlier episode in the library. Only a series that was
+            // here before this scan: one it just added, which is what a new show is, can have no earlier episodes.
+            var series = await items.Where(i => i.Kind == MediaKind.Series && (i.FirstSeenAt == null || i.FirstSeenAt < since)
+                && ((item.SeriesTmdb != null && i.TmdbId == item.SeriesTmdb) || (item.SeriesTvdb != null && i.TvdbId == item.SeriesTvdb) || (item.SeriesImdb != null && i.ImdbId == item.SeriesImdb)))
+                .Select(i => i.Id).ToListAsync(ct);
+            if (series.Count == 0)
+            {
+                return false;
+            }
+
+            var seasons = await items.Where(i => i.Kind == MediaKind.Season && i.ParentId != null && series.Contains(i.ParentId.Value)).Select(i => i.Id).ToListAsync(ct);
+            return await items.AnyAsync(i => i.ParentId != null && seasons.Contains(i.ParentId.Value) && i.Id != id && i.FirstSeenAt < since
+                && i.SeasonNumber == item.SeasonNumber && i.EpisodeNumber == item.EpisodeNumber, ct);
+        }
+
+        return item.Kind == MediaKind.Movie
+            ? await earlier.AnyAsync(i => (item.TmdbId != null && i.TmdbId == item.TmdbId) || (item.TvdbId != null && i.TvdbId == item.TvdbId) || (item.ImdbId != null && i.ImdbId == item.ImdbId), ct)
+            : await earlier.AnyAsync(i => i.Title == item.Title && i.Parent != null && i.Parent.Title == item.ParentTitle, ct);
     }
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "{Path} was already scanned since it last changed")]

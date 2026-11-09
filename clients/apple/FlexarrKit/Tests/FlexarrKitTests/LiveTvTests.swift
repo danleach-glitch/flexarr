@@ -31,10 +31,202 @@ struct LiveTvTests {
         #expect(status(error: "No").finishedRefresh(since: before, sawRefreshing: false))
     }
 
+    private func refreshingClient(status body: String) -> FlexarrClient {
+        let host = "livetv-\(UUID().uuidString.lowercased()).local"
+        StubProtocol.register(host: host, path: "/api/v1/livetv/status", .init(status: 200, body: Data(body.utf8)))
+        StubProtocol.register(host: host, path: "/api/v1/livetv/refresh", .init(status: 204, body: Data()))
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubProtocol.self]
+        return FlexarrClient(baseURL: URL(string: "http://\(host):8383")!, apiKey: "secret", session: URLSession(configuration: configuration))
+    }
+
+    @Test func waitingGivesUpSayingARefreshIsStillGoing() async throws {
+        let client = refreshingClient(status: #"{"configured":true,"channels":1,"refreshing":true,"error":"An old failure","rewindMinutes":60}"#)
+        #expect(try await client.refreshLiveTv(looks: 3, every: .milliseconds(1)) == .stillGoing)
+    }
+
+    @Test func waitingEndsWithTheStatusOnceARefreshHasFinished() async throws {
+        let client = refreshingClient(status: #"{"configured":true,"channels":1,"refreshing":false,"rewindMinutes":60}"#)
+        // A server that doesn't count: the eighth look calls it done.
+        guard case .finished(let status) = try await client.refreshLiveTv(looks: 9, every: .milliseconds(1)) else {
+            Issue.record("should have finished")
+            return
+        }
+        #expect(status?.channels == 1)
+    }
+
+    /// A clock that jumps as if the app had been suspended between the first look and the second.
+    private final class SuspendedClock: @unchecked Sendable {
+        private let lock = NSLock()
+        private var reads = 0
+        func read() -> Date {
+            lock.withLock { reads += 1 }
+            return Date(timeIntervalSince1970: lock.withLock { reads } > 1 ? 86_400 : 0)
+        }
+    }
+
+    @Test func comingBackLongAfterARefreshFinishedIsntNews() async throws {
+        let client = refreshingClient(status: #"{"configured":true,"channels":1,"refreshing":false,"error":"An old failure","rewindMinutes":60}"#)
+        let clock = SuspendedClock()
+        guard case .unwatched(let status) = try await client.refreshLiveTv(looks: 9, every: .milliseconds(1), now: { clock.read() }) else {
+            Issue.record("should be unwatched")
+            return
+        }
+        #expect(status?.error == "An old failure")
+    }
+
+    @Test func comingBackToARefreshStillGoingKeepsItsStatus() async throws {
+        let client = refreshingClient(status: #"{"configured":true,"channels":1,"refreshing":true,"rewindMinutes":60}"#)
+        let clock = SuspendedClock()
+        guard case .unwatched(let status) = try await client.refreshLiveTv(looks: 2, every: .milliseconds(1), now: { clock.read() }) else {
+            Issue.record("should be unwatched")
+            return
+        }
+        #expect(status?.refreshing == true)
+    }
+
+    /// The status fails from the first look on: what a phone sees waking up with no network yet.
+    private func clientWhoseStatusFailsOnceStarted() -> (FlexarrClient, @Sendable () -> Void) {
+        let host = "livetv-\(UUID().uuidString.lowercased()).local"
+        let path = "/api/v1/livetv/status"
+        StubProtocol.register(host: host, path: path, .init(status: 200, body: Data(#"{"configured":true,"channels":1,"refreshing":true,"rewindMinutes":60}"#.utf8)))
+        StubProtocol.register(host: host, path: "/api/v1/livetv/refresh", .init(status: 204, body: Data()))
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubProtocol.self]
+        let client = FlexarrClient(baseURL: URL(string: "http://\(host):8383")!, apiKey: "secret", session: URLSession(configuration: configuration))
+        return (client, { StubProtocol.register(host: host, path: path, .init(status: 503, body: Data())) })
+    }
+
+    @Test func comingBackWithTheServerNotAnsweringIsntAFailureEither() async throws {
+        let (client, startFailing) = clientWhoseStatusFailsOnceStarted()
+        let clock = SuspendedClock()
+        let end = try await client.refreshLiveTv(looks: 2, every: .milliseconds(1), now: {
+            startFailing()
+            return clock.read()
+        })
+        guard case .unwatched(nil) = end else {
+            Issue.record("should be unwatched, with no status")
+            return
+        }
+    }
+
+    @Test func aServerNotAnsweringWhileWatchedStillFails() async throws {
+        let (client, startFailing) = clientWhoseStatusFailsOnceStarted()
+        await #expect(throws: FlexarrClientError.self) {
+            _ = try await client.refreshLiveTv(looks: 9, every: .milliseconds(1), now: {
+                startFailing()
+                return Date()
+            })
+        }
+    }
+
+    private let goodStatus = StubProtocol.Stub(status: 200, body: Data(#"{"configured":true,"channels":1,"refreshing":true,"rewindMinutes":60}"#.utf8))
+    private let accepted = StubProtocol.Stub(status: 204, body: Data())
+
+    private func client(status: StubProtocol.Stub, press: StubProtocol.Stub) -> (FlexarrClient, String) {
+        let host = "livetv-\(UUID().uuidString.lowercased()).local"
+        StubProtocol.register(host: host, path: "/api/v1/livetv/status", status)
+        StubProtocol.register(host: host, path: "/api/v1/livetv/refresh", press)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubProtocol.self]
+        return (FlexarrClient(baseURL: URL(string: "http://\(host):8383")!, apiKey: "secret", session: URLSession(configuration: configuration)), host)
+    }
+
+    private func refused(status: StubProtocol.Stub? = nil, press: StubProtocol.Stub? = nil) async -> LiveTvRefreshRefused? {
+        let (client, _) = client(status: status ?? goodStatus, press: press ?? accepted)
+        do {
+            _ = try await client.refreshLiveTv(looks: 1, every: .milliseconds(1))
+            return nil
+        } catch {
+            return error as? LiveTvRefreshRefused
+        }
+    }
+
+    @Test func aRefusedPressIsARefusalWhateverItsBody() async throws {
+        let empty = StubProtocol.Stub(status: 403, body: Data())
+        #expect(await refused(press: empty)?.message == "Not allowed")
+        let worded = StubProtocol.Stub(status: 403, body: Data(#"{"title":"Unlock first","status":403}"#.utf8))
+        #expect(await refused(press: worded)?.message == "Unlock first")
+        let pin = StubProtocol.Stub(status: 403, body: Data(#"{"title":"Enter it","status":403,"parentPin":true}"#.utf8))
+        #expect(await refused(press: pin)?.message == "Enter it")
+        let signIn = await refused(press: .init(status: 401, body: Data()))
+        #expect(signIn?.message == FlexarrClientError.unauthorized.errorDescription)
+    }
+
+    @Test func aRefusedCheckBeforeThePressIsARefusalAndThePressIsntSent() async throws {
+        for status in [401, 403] {
+            let (client, host) = client(status: .init(status: status, body: Data()), press: accepted)
+            await #expect(throws: LiveTvRefreshRefused.self) {
+                _ = try await client.refreshLiveTv(looks: 1, every: .milliseconds(1))
+            }
+            #expect(!StubProtocol.recorded(host: host).contains { $0.url?.path.hasSuffix("/refresh") == true })
+        }
+    }
+
+    @Test func anyOtherAnswerToThePressIsntARefusal() async throws {
+        #expect(await refused(press: .init(status: 429, body: Data(#"{"title":"Slow down","status":429}"#.utf8))) == nil)
+        #expect(await refused(press: .init(status: 400, body: Data())) == nil)
+        #expect(await refused(press: .init(status: 500, body: Data())) == nil)
+    }
+
+    @Test(arguments: [401, 403, 400, 503])
+    func looksFailingAfterAnAcceptedPressArentARefusal(status: Int) async throws {
+        let host = "livetv-\(UUID().uuidString.lowercased()).local"
+        let path = "/api/v1/livetv/status"
+        StubProtocol.register(host: host, path: path, goodStatus)
+        StubProtocol.register(host: host, path: "/api/v1/livetv/refresh", accepted)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubProtocol.self]
+        let client = FlexarrClient(baseURL: URL(string: "http://\(host):8383")!, apiKey: "secret", session: URLSession(configuration: configuration))
+        do {
+            _ = try await client.refreshLiveTv(looks: 9, every: .milliseconds(1), now: {
+                StubProtocol.register(host: host, path: path, .init(status: status, body: Data()))
+                return Date()
+            })
+            Issue.record("should have failed")
+        } catch {
+            #expect(error is FlexarrClientError, "was \(error)")
+        }
+    }
+
+    @Test func aRefreshWatchedThroughIsStillNews() async throws {
+        let client = refreshingClient(status: #"{"configured":true,"channels":1,"refreshing":false,"rewindMinutes":60}"#)
+        let end = try await client.refreshLiveTv(looks: 9, every: .milliseconds(1))
+        guard case .finished = end else {
+            Issue.record("should have finished")
+            return
+        }
+    }
+
     @Test func statusFromAnOlderServerHasNoCountOfMissingListings() throws {
         let old = try JSONDecoder().decode(LiveTvStatus.self, from: Data(#"{"configured":true,"channels":1,"refreshing":false,"rewindMinutes":60}"#.utf8))
         #expect(old.channelsWithoutListings == nil)
         #expect(old.downloadError == nil)
+        #expect(old.downloadSkipped == nil)
+        #expect(!old.keptFailureWasntAskedAgain)
+    }
+
+    @Test func aKeptSourceFailureSaysItWasntAskedAgainOnlyWhenItWasnt() throws {
+        func status(_ fields: String) throws -> LiveTvStatus {
+            try JSONDecoder().decode(LiveTvStatus.self, from: Data(#"{"configured":true,"channels":1,"refreshing":false,"rewindMinutes":60,\#(fields)}"#.utf8))
+        }
+        #expect(try status(#""downloadError":"No","downloadSkipped":true"#).keptFailureWasntAskedAgain)
+        #expect(try !status(#""downloadError":"No","downloadSkipped":false"#).keptFailureWasntAskedAgain)
+        #expect(try !status(#""downloadSkipped":true"#).keptFailureWasntAskedAgain)
+        // Absent, from an older server.
+        #expect(try !status(#""downloadError":"No""#).keptFailureWasntAskedAgain)
+    }
+
+    @Test func aChosenGroupIsOnOfferWhileItHasChannelsAndIsOneOfMany() {
+        func channel(_ group: String?) -> LiveChannel {
+            LiveChannel(id: UUID().uuidString, number: 1, name: "C", group: group, logoUrl: nil, isFavourite: false, now: nil, next: nil)
+        }
+        #expect([channel("News"), channel("Sport")].offersGroup("News"))
+        // Gone with a refresh.
+        #expect(![channel("Sport"), channel("Films")].offersGroup("News"))
+        // The only group left isn't offered, and no longer shows every channel.
+        #expect(![channel("News"), channel(nil)].offersGroup("News"))
+        #expect(![LiveChannel]().offersGroup("News"))
     }
 
     @Test func channels() throws {

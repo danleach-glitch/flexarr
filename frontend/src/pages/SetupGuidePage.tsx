@@ -30,6 +30,7 @@ import { Antenna, AppleLogo, Check, Close, External, Film, Home, Monitor, Music,
 import { PairingPrompt } from '../components/PairingPrompt'
 import { UnlockPrompt } from '../components/UnlockDialog'
 import { Avatar } from '../components/ProfilePicker'
+import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
 import { appLogos } from '../lib/apps'
 import { libraryTypeLabel } from '../lib/format'
@@ -218,6 +219,8 @@ function NameStep({ nav }: { nav: StepNav }) {
   const main = profiles.data?.find((p) => p.isMain)
   const [name, setName] = useState<string>()
   const [serverName, setServerName] = useState<string>()
+  const [country, setCountry] = useState<string>()
+  const { reloadMe } = useSession()
   const [color, setColor] = useState<string>()
   const [error, setError] = useState<string>()
   const [busy, setBusy] = useState(false)
@@ -238,9 +241,13 @@ function NameStep({ nav }: { nav: StepNav }) {
     setBusy(true)
     try {
       await updateProfile(main!.id, { name: shown.trim(), color: chosen })
-      if (serverNow !== undefined && serverShown.trim() !== serverNow) {
-        const saved = await saveSettings({ serverName: serverShown.trim() })
-        setServerTitle(saved.serverName ?? saved.defaultServerName)
+      const newName = serverNow !== undefined && serverShown.trim() !== serverNow
+      const newCountry = country !== undefined && country !== (settings?.podcasts?.country ?? '')
+      if (newName || newCountry) {
+        const saved = await saveSettings({ ...(newName && { serverName: serverShown.trim() }), ...(newCountry && { podcasts: { country } }) })
+        if (newName) setServerTitle(saved.serverName ?? saved.defaultServerName)
+        // Age limits go by the country's names.
+        if (newCountry) reloadMe?.()
       }
       nav.next()
     } catch (err) {
@@ -286,7 +293,7 @@ function NameStep({ nav }: { nav: StepNav }) {
           )}
         </div>
       </div>
-      <CountryField />
+      <CountryField picked={country} onPick={setCountry} />
       {error && (
         <p className="onboard-error" role="alert">
           {error}

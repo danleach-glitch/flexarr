@@ -56,7 +56,10 @@ sealed class FlexarrException(message: String) : Exception(message) {
      * PIN (servers from 0.63, see [SignInInfo.chooseProfile]).
      */
     class Http(val status: Int, message: String?, val detail: String? = null, val guestRemoved: Boolean = false, val chooseProfile: Boolean = false) :
-        FlexarrException(message ?: t("The server answered with an error (HTTP {status}).", "status" to status.toString()))
+        FlexarrException(message ?: t("The server answered with an error (HTTP {status}).", "status" to status.toString())) {
+        /** The server gave no words of its own: [message] is the app's. */
+        val saidNothing: Boolean = message == null
+    }
 
     /**
      * This takes the admin PIN (leaving a kids profile, locking or releasing a device), which wasn't given or

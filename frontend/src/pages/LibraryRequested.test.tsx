@@ -1,11 +1,13 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Library, MusicRequested, TitleRequested } from '../api/client'
 import { requestedState } from '../lib/requestedState'
 import { LibraryRequested } from './LibraryRequested'
 
 const unrequested: unknown[] = []
+const retried: unknown[] = []
+let retryFails = false
 let reachable = true
 let musicAsked = 0
 const albums: MusicRequested[] = [
@@ -28,6 +30,10 @@ vi.mock('../api/client', async (importOriginal) => ({
     return albums
   },
   getMusicRequestStatusNow: async () => ({ configured: true, reachable }),
+  retryAlbum: async (body: unknown) => {
+    if (retryFails) throw new Error('Lidarr said no')
+    retried.push(body)
+  },
   unrequestAlbum: async (body: unknown) => {
     unrequested.push(body)
   },
@@ -91,6 +97,105 @@ describe('LibraryRequested', () => {
     fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Unrequest' }))
 
     await waitFor(() => expect(unrequested).toEqual([['tv', 1399, [2, 3]]]))
+  })
+
+  it('shows the title in place of a cover that won’t load', async () => {
+    albums.push({ ...albums[1], musicBrainzId: 'rg-3', title: 'No Cover', image: '/covers/gone.jpg' })
+    try {
+      const { container } = render(
+        <MemoryRouter>
+          <LibraryRequested library={library} viewSwitch={null} />
+        </MemoryRouter>,
+      )
+      await screen.findByText('No Cover')
+      fireEvent.error(container.querySelector('img')!)
+
+      expect(container.querySelector('img')).toBeNull()
+      expect(container.querySelectorAll('.artwork-fallback')).toHaveLength(3)
+      expect([...container.querySelectorAll('.artwork-fallback')].some((f) => f.textContent === 'No Cover')).toBe(true)
+    } finally {
+      albums.pop()
+    }
+  })
+
+  describe('an album that couldn’t be imported', () => {
+    const stuck: MusicRequested = { ...albums[1], musicBrainzId: 'rg-stuck', title: 'City Lounge', state: 'couldNotImport', canRetry: true }
+    const openWithStuck = async () => {
+      albums.unshift(stuck)
+      render(
+        <MemoryRouter>
+          <LibraryRequested library={library} viewSwitch={null} />
+        </MemoryRouter>,
+      )
+      return screen.findByRole('button', { name: 'Try again City Lounge' })
+    }
+    afterEach(() => {
+      if (albums.includes(stuck)) albums.splice(albums.indexOf(stuck), 1)
+      retried.length = 0
+      retryFails = false
+    })
+
+    it('says why, in the guide, and starts over on Try again', async () => {
+      const button = await openWithStuck()
+      expect(screen.getByRole('link', { name: 'Why couldn’t City Lounge be imported?' })).toHaveAttribute('href', 'https://flexarr.io/guide/requests#couldn-t-import')
+      expect(screen.getByRole('button', { name: 'Unrequest City Lounge' })).toBeInTheDocument()
+
+      fireEvent.click(button)
+
+      await waitFor(() => expect(retried).toEqual([{ musicBrainzId: 'rg-stuck' }]))
+      // Lidarr's queue may still say it for a moment: the card has moved on regardless.
+      expect(await screen.findByText('Searching')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Try again City Lounge' })).toBeNull()
+      expect(screen.queryByRole('link', { name: /Why couldn’t/ })).toBeNull()
+    })
+
+    it('says why when it can’t try again, and still offers it', async () => {
+      retryFails = true
+      const button = await openWithStuck()
+
+      fireEvent.click(button)
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Lidarr said no')
+      expect(screen.getByRole('button', { name: 'Try again City Lounge' })).toBeEnabled()
+    })
+
+    it('moves the keyboard to the next card’s Unrequest, not its Try again', async () => {
+      await openWithStuck()
+      albums.push({ ...stuck, musicBrainzId: 'rg-stuck-2', title: 'Second' })
+      try {
+        cleanup()
+        render(
+          <MemoryRouter>
+            <LibraryRequested library={library} viewSwitch={null} />
+          </MemoryRouter>,
+        )
+        fireEvent.click(await screen.findByRole('button', { name: 'Unrequest City Lounge' }))
+        fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Unrequest' }))
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Unrequest moisturizer' })).toHaveFocus())
+      } finally {
+        albums.pop()
+      }
+    })
+
+    it('greys Try again while Lidarr isn’t answering', async () => {
+      reachable = false
+      try {
+        expect(await openWithStuck()).toBeDisabled()
+      } finally {
+        reachable = true
+      }
+    })
+
+    it('isn’t offered for anything else', async () => {
+      render(
+        <MemoryRouter>
+          <LibraryRequested library={library} viewSwitch={null} />
+        </MemoryRouter>,
+      )
+      await screen.findByText(/^Downloading/)
+      expect(screen.queryByRole('button', { name: /^Try again/ })).toBeNull()
+      expect(screen.queryByRole('link', { name: /Why/ })).toBeNull()
+    })
   })
 
   it('asks again every 30 seconds while something is downloading', async () => {
