@@ -212,12 +212,5 @@ public static class ArtworkUrls
 
 public static class Resolution
 {
-    public static string? Label(int? width, int? height) => (width, height) switch
-    {
-        (null, null) => null,
-        ( >= 3200, _) or (_, >= 1800) => "4K",
-        ( >= 1800, _) or (_, >= 1000) => "1080p",
-        ( >= 1200, _) or (_, >= 700) => "720p",
-        _ => "SD",
-    };
+    public static string? Label(int? width, int? height) => VersionRules.ResolutionLabel(width, height);
 }

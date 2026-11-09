@@ -52,7 +52,7 @@ public static partial class MovieNameParser
     [GeneratedRegex(@"^(?<title>.+)[\s._]*[\(\[]?(?<year>(?:19|20)\d{2})[\)\]]?(?:[\s._\[\(-]|$)")]
     private static partial Regex TitleYear();
 
-    [GeneratedRegex(@"[\[\(].*?[\]\)]")]
+    [GeneratedRegex(@"[\[\(\{].*?[\]\)\}]")]
     private static partial Regex Tags();
 
     [GeneratedRegex(@"\s+")]
