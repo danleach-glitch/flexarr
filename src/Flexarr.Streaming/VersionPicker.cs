@@ -64,6 +64,32 @@ public static class VersionPicker
             : Nearest(cut, heightCap);
     }
 
+    /// <summary>
+    /// The version a download is made from. At full quality that's the one chosen or the best. Going smaller, it's the
+    /// smallest of that cut that still fills the size, so less is converted and nothing's made from a poorer picture.
+    /// </summary>
+    public static MediaFile? ForDownload(IReadOnlyList<MediaFile> files, VersionChoice? choice, int? heightWanted)
+    {
+        ArgumentNullException.ThrowIfNull(files);
+
+        if (files.Count <= 1)
+        {
+            return files.Count == 0 ? null : files[0];
+        }
+
+        var best = VersionRules.BestFirst(files).ToList();
+        var chosen = choice is null ? null : Chosen(best, choice);
+        var cutOf = chosen ?? best[0];
+        if (heightWanted is not { } height)
+        {
+            return cutOf;
+        }
+
+        var cut = best.Where(f => ReferenceEquals(f, cutOf) || VersionRules.SameCut(f, cutOf)).ToList();
+        var filling = cut.Where(f => Equivalent(f) >= height).ToList();
+        return filling.Count > 0 ? filling.MinBy(Equivalent)! : cut[0];
+    }
+
     /// <summary>The file a choice means: the one chosen or, if an upgrade replaced it, one with the same label and edition.</summary>
     public static MediaFile? Chosen(IReadOnlyList<MediaFile> files, VersionChoice choice)
     {

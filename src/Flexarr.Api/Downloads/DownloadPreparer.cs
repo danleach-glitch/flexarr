@@ -130,11 +130,11 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
         var queued = await db.Downloads.IgnoreQueryFilters().Where(d => d.Status == DownloadStatus.Queued).OrderBy(d => d.CreatedAt)
-            .Select(d => new { d.Id, d.MediaItemId, d.Quality }).ToListAsync(ct);
+            .Select(d => new { d.Id, d.MediaItemId, d.Quality, d.ProfileId }).ToListAsync(ct);
         _needTheirTurn.IntersectWith(queued.Select(d => d.Id));
         foreach (var download in queued.Where(d => !_needTheirTurn.Contains(d.Id)))
         {
-            var file = await BestFileAsync(db, download.MediaItemId, ct);
+            var file = await DownloadSource.ForAsync(db, download.MediaItemId, download.Quality, download.ProfileId, ct);
             if (file is not null && DownloadPlanner.Plan(file, download.Quality, Subtitles.For(file)) is { SendAsIs: true })
             {
                 await SentAsItIsAsync(db, download.Id, file, ct);
@@ -145,12 +145,6 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
             }
         }
     }
-
-    /// <summary>The file a download is made from: the title's best one that can be read.</summary>
-    private static Task<MediaFile?> BestFileAsync(FlexarrDbContext db, Guid itemId, CancellationToken ct) =>
-        db.MediaFiles.AsNoTracking().Include(f => f.Streams)
-            .Where(f => f.MediaItemId == itemId && f.ProbeError == null && f.MissingSince == null)
-            .OrderByDescending(f => f.Height).ThenByDescending(f => f.Bitrate).FirstOrDefaultAsync(ct);
 
     /// <summary>
     /// A queued download is ready as the library's own file. Only while it's still queued: both clocks can reach the
@@ -260,7 +254,7 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
             return false;
         }
 
-        var file = await BestFileAsync(db, download.MediaItemId, ct);
+        var file = await DownloadSource.ForAsync(db, download.MediaItemId, download.Quality, download.ProfileId, ct);
         if (file is null && await db.PodcastEpisodes.AsNoTracking().FirstOrDefaultAsync(e => e.MediaItemId == download.MediaItemId, ct) is { } enclosure)
         {
             await PreparePodcastAsync(scope.ServiceProvider, db, download, enclosure, ct);

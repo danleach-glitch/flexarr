@@ -180,6 +180,9 @@ public sealed partial class MarkerDetectionWorker(
     internal static Task<bool> NeedsAnalysisAsync(FlexarrDbContext db, Guid seasonId, CancellationToken ct) =>
         db.MediaFiles.AnyAsync(f => f.MediaItem!.ParentId == seasonId && f.MarkersScannedAt == null && f.ProbeError == null, ct);
 
+    /// <summary>Two versions of an episode this close in length are the same edit, so have the same intro and credits.</summary>
+    private const double SameLengthSeconds = 1.5;
+
     private async Task AnalyseSeasonAsync(FlexarrDbContext db, MarkerDetector detector, Guid seasonId, bool asked, CancellationToken ct)
     {
         // A folder of home videos isn't a season of a show: its videos share no intro or credits to find.
@@ -191,10 +194,10 @@ public sealed partial class MarkerDetectionWorker(
         }
 
         var started = TimeProvider.System.GetTimestamp();
-        var episodes = await db.MediaItems.Where(e => e.ParentId == seasonId).OrderBy(e => e.SortTitle)
-            .Select(e => e.Files.Where(f => f.ProbeError == null).OrderByDescending(f => f.Height).FirstOrDefault())
-            .ToListAsync(ct);
-        var files = episodes.OfType<MediaFile>().ToList();
+        var order = await db.MediaItems.Where(e => e.ParentId == seasonId).OrderBy(e => e.SortTitle).Select(e => e.Id).ToListAsync(ct);
+        var readable = (await db.MediaFiles.Where(f => f.MediaItem!.ParentId == seasonId && f.ProbeError == null).ToListAsync(ct)).ToLookup(f => f.MediaItemId);
+        var versions = order.Select(e => VersionRules.BestFirst(readable[e]).ToList()).Where(v => v.Count > 0).ToList();
+        var files = versions.Select(v => v[0]).ToList();
         if (files.Count == 0)
         {
             return;
@@ -208,11 +211,40 @@ public sealed partial class MarkerDetectionWorker(
             await SaveAsync(db, file, found[file.Id], ct);
         }
 
-        // Other versions of the same episodes aren't analysed; don't keep picking this season.
-        var fileIds = files.Select(f => f.Id).ToList();
-        await db.MediaFiles.Where(f => f.MediaItem!.ParentId == seasonId && !fileIds.Contains(f.Id) && f.MarkersScannedAt == null)
-            .ExecuteUpdateAsync(u => u.SetProperty(f => f.MarkersScannedAt, DateTime.UtcNow), ct);
+        // An episode's other versions: one that runs the same as what's been analysed has the same marks, and the rest
+        // are compared with each other, a version from each episode at a time.
+        var rest = new List<List<MediaFile>>();
+        foreach (var episode in versions)
+        {
+            var left = new List<MediaFile>();
+            foreach (var other in episode.Skip(1).Where(f => f.MarkersScannedAt == null))
+            {
+                if (other.DurationSeconds is { } length && episode[0].DurationSeconds is { } analysed && Math.Abs(length - analysed) <= SameLengthSeconds)
+                {
+                    await SaveAsync(db, other, found[episode[0].Id], ct);
+                }
+                else
+                {
+                    left.Add(other);
+                }
+            }
+
+            rest.Add(left);
+        }
+
         await db.SaveChangesAsync(ct);
+        for (var round = 0; rest.Any(left => left.Count > round); round++)
+        {
+            var these = rest.Where(left => left.Count > round).Select(left => left[round]).ToList();
+            var marks = await detector.DetectSeasonAsync(these, ct,
+                giveWay: wait => GiveWayAsync(() => transcodes.ActiveCount > 0, () => Watched, asked, Pause, MostPauses, wait));
+            foreach (var file in these)
+            {
+                await SaveAsync(db, file, marks[file.Id], ct);
+            }
+
+            await db.SaveChangesAsync(ct);
+        }
 
         var title = await db.MediaItems.Where(s => s.Id == seasonId).Select(s => s.Parent!.Title + " " + s.Title).FirstAsync(ct);
         LogSeason(title, files.Count, found.Values.Count(m => m.Any(x => x.Type == MarkerType.Intro)),

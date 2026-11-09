@@ -54,6 +54,16 @@ namespace Flexarr.Core.Data.Migrations
                 name: "IX_VersionChoices_MediaItemId",
                 table: "VersionChoices",
                 column: "MediaItemId");
+        
+            // Episodes' other versions were marked as scanned without being looked at. Now they're looked at.
+            migrationBuilder.Sql("""
+                UPDATE "MediaFiles" SET "MarkersScannedAt" = NULL
+                WHERE "MarkersScannedAt" IS NOT NULL
+                  AND NOT EXISTS (SELECT 1 FROM "MediaMarkers" m WHERE m."MediaFileId" = "MediaFiles"."Id")
+                  AND "MediaItemId" IN (
+                    SELECT f."MediaItemId" FROM "MediaFiles" f JOIN "MediaItems" i ON i."Id" = f."MediaItemId"
+                    WHERE i."Kind" = 'Episode' GROUP BY f."MediaItemId" HAVING COUNT(*) > 1);
+                """);
         }
 
         /// <inheritdoc />

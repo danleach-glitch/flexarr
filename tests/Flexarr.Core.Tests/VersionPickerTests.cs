@@ -136,6 +136,26 @@ public class VersionPickerTests
         Assert.Null(VersionPicker.Pick([], null, 1080, _ => throw new InvalidOperationException()));
     }
 
+    [Fact]
+    public void Downloads_StartFromTheSmallestVersionThatFills()
+    {
+        var sd = File("Film SD", 480);
+        Assert.Same(_uhd, VersionPicker.ForDownload([_hd, _uhd, sd], null, null));
+        Assert.Same(_hd, VersionPicker.ForDownload([_hd, _uhd, sd], null, 1080));
+        Assert.Same(_hd, VersionPicker.ForDownload([_hd, _uhd, sd], null, 720));
+        Assert.Same(sd, VersionPicker.ForDownload([_hd, _uhd, sd], null, 480));
+        Assert.Same(_hd, VersionPicker.ForDownload([_hd, sd], null, 2160));
+    }
+
+    [Fact]
+    public void Downloads_KeepToTheChosenVersionsCut()
+    {
+        var directors = File("Film (2020) {edition-Director's Cut}", 1080, duration: 9000);
+        Assert.Same(directors, VersionPicker.ForDownload([_uhd, _hd, directors], Choice(directors), null));
+        Assert.Same(directors, VersionPicker.ForDownload([_uhd, _hd, directors], Choice(directors), 720));
+        Assert.Same(_hd, VersionPicker.ForDownload([_uhd, _hd, directors], null, 720));
+    }
+
     [Theory]
     [InlineData(VideoRange.Hdr10, true)]
     [InlineData(VideoRange.Hlg, false)] // This display's Hlg isn't said.
