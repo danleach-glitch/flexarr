@@ -264,6 +264,10 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
     var guideProblem by remember { mutableStateOf<Pair<GuideFilter, String>?>(null) }
     // Focus is on the guide's Try again, which goes when the guide comes.
     var guideRetryHasFocus by remember { mutableStateOf(false) }
+    // The question Try again is asking again: the spinner, until it's answered.
+    var guideRetrying by remember { mutableStateOf<GuideFilter?>(null) }
+    // A failure takes focus on opening and after Try again, not from someone moving through the categories.
+    var guideFailureTakesFocus by remember { mutableStateOf(true) }
     var upcoming by remember { mutableStateOf<Int?>(null) }
     var chosen by remember { mutableStateOf<Category?>(null) }
     // The category focus is on: shown once it rests there, so holding Down through the list doesn't build each guide.
@@ -379,7 +383,7 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
     RepeatWhileShowing(300_000, model.credentials, guideHours, ask, showsGuide) { loadGuide() }
     // Another category chosen, its channels not in the guide yet: loading, rather than "No listings" for each.
     val guide = kept?.takeIf { it.covers(ask, shownIds) }?.guide
-    val guideFailure = guideProblem?.takeIf { showsGuide && guide == null && it.first == ask }?.second
+    val guideFailure = guideProblem?.takeIf { showsGuide && guide == null && it.first == ask && guideRetrying != ask }?.second
     val currentGuideFailure by rememberUpdatedState(guideFailure)
 
     fun setFavourite(channel: LiveChannel, favourite: Boolean) {
@@ -490,7 +494,10 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                                 else -> null
                             },
                             count = if (value == Category.Recordings) upcoming else channelsIn(value).size,
-                            onFocus = { focusedCategory = value },
+                            onFocus = {
+                                if (value != category) guideFailureTakesFocus = false
+                                focusedCategory = value
+                            },
                             onClick = { focusedCategory = value; chosen = value },
                             modifier = Modifier
                                 .then(if (value == Category.All) Modifier.focusRequester(allChannels) else Modifier)
@@ -523,9 +530,20 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                         category == Category.Favourites && favourites.isEmpty() -> NoFavourites()
                         guideFailure != null -> TvStatusView(
                             guideFailure,
-                            retry = { scope.launch { loadGuide() } },
-                            // Only while it's here: the guide arriving isn't focus moving away.
+                            retry = {
+                                guideRetrying = ask
+                                guideFailureTakesFocus = true
+                                scope.launch {
+                                    try {
+                                        loadGuide()
+                                    } finally {
+                                        guideRetrying = null
+                                    }
+                                }
+                            },
+                            // Only while it's here: its going, for the spinner or the guide, isn't focus moving away.
                             modifier = Modifier.onFocusChanged { if (currentGuideFailure != null) guideRetryHasFocus = it.hasFocus },
+                            takesFocus = guideFailureTakesFocus,
                         )
                         else -> TvLiveGuideGrid(
                             client,

@@ -124,13 +124,16 @@ class LiveTvScreenTest {
         rule.onNodeWithText(failure).assertExists()
         val before = asked
         press("Try again")
-        settle()
+        var tries = 0
+        while (tries++ < 20 && rule.onAllNodesWithText(failure).fetchSemanticsNodes().isEmpty()) settle()
         assertEquals(before + 1, asked)
         rule.onNodeWithText(failure).assertExists()
 
         guideFails = false
         press("Try again")
-        settleUntilGone("Try again")
+        // Its button goes at once, for the spinner: it's the guide that's waited for.
+        tries = 0
+        while (tries++ < 20 && !guideShowing()) settle()
         rule.onNodeWithText(failure).assertDoesNotExist()
         rule.onNodeWithText("Try again").assertDoesNotExist()
         assertTrue(guideShowing())

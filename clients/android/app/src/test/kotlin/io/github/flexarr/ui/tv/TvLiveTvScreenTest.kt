@@ -5,12 +5,15 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.pressKey
 import androidx.navigation.compose.rememberNavController
 import io.github.flexarr.TestServer
 import io.github.flexarr.core.i18n.Words
@@ -110,6 +113,13 @@ class TvLiveTvScreenTest {
         while (tries++ < 20 && rule.onAllNodesWithText(words).fetchSemanticsNodes().isNotEmpty()) settle()
     }
 
+    /** Focus into the list (where it comes back to the row it left) and on to [category], as the remote does it. */
+    private fun moveTo(category: String) {
+        rule.onNodeWithText("All channels").performSemanticsAction(SemanticsActions.RequestFocus)
+        rule.onNodeWithText(category).performSemanticsAction(SemanticsActions.RequestFocus)
+        settle()
+    }
+
     private fun press(words: String) = rule.onNodeWithText(words).performSemanticsAction(SemanticsActions.OnClick)
 
     private fun refresh() {
@@ -193,6 +203,40 @@ class TvLiveTvScreenTest {
         rule.onNodeWithText("Channel 1").assertExists()
         // Its button gone, focus goes back to the category shown rather than anywhere.
         rule.onNodeWithText("All channels").assertIsFocused()
+    }
+
+    @Test fun aCategorysGuideFailing_leavesFocusOnTheCategory_andRightReachesTryAgain() {
+        guideFails = true
+        show()
+        rule.onNodeWithText("Try again").assertIsFocused()
+        moveTo("News")
+        rule.onNodeWithText(guideFailure).assertExists()
+        rule.onNodeWithText("News").assertIsFocused()
+        moveTo("Sport")
+        rule.onNodeWithText("Sport").assertIsFocused()
+        rule.onNodeWithText("Sport").performKeyInput { pressKey(Key.DirectionRight) }
+        settle()
+        rule.onNodeWithText("Try again").assertIsFocused()
+    }
+
+    @Test fun tryAgainThatFails_showsTheSpinnerWhileItTries_thenTheFailureWithFocusOnTryAgain() {
+        guideFails = true
+        show()
+        moveTo("News")
+        rule.onNodeWithText("News").assertIsFocused()
+        val latch = java.util.concurrent.CountDownLatch(1)
+        guideHeld.set(latch)
+        press("Try again")
+        settle()
+        rule.onNodeWithText(guideFailure).assertDoesNotExist()
+        rule.onNodeWithText("Try again").assertDoesNotExist()
+        guideHeld.set(null)
+        guideFails = false
+        latch.countDown()
+        var tries = 0
+        while (tries++ < 20 && rule.onAllNodesWithText("Try again").fetchSemanticsNodes().isEmpty()) settle()
+        rule.onNodeWithText("Couldn’t load the guide: Too late").assertExists()
+        rule.onNodeWithText("Try again").assertIsFocused()
     }
 
     @Test fun aGuideThatFails_thenComesAtTheNextLook_replacesTheWords() {
