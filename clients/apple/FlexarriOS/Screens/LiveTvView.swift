@@ -218,6 +218,9 @@ struct LiveTvView: View {
     @ViewBuilder private var refreshLines: some View {
         if let refreshProblem {
             Text(refreshProblem).foregroundStyle(Color.danger)
+            if model.liveTvStatus?.keptFailureWasntAskedAgain == true {
+                Text(t(Words.guideSourcesAskedRecently)).foregroundStyle(Color.usher)
+            }
         }
         if model.isLiveTvRefreshTakingAWhile { takingAWhile }
     }

@@ -235,6 +235,9 @@ struct LiveTvView: View {
             Group {
                 if let refreshProblem {
                     Text(refreshProblem).lineLimit(3).foregroundStyle(Color.danger)
+                    if model.liveTvStatus?.keptFailureWasntAskedAgain == true {
+                        Text(t(Words.guideSourcesAskedRecently)).lineLimit(3)
+                    }
                 }
                 if model.isLiveTvRefreshTakingAWhile {
                     Text(t(Words.guideTakingAWhile)).lineLimit(3)

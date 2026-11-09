@@ -133,6 +133,19 @@ struct LiveTvTests {
         let old = try JSONDecoder().decode(LiveTvStatus.self, from: Data(#"{"configured":true,"channels":1,"refreshing":false,"rewindMinutes":60}"#.utf8))
         #expect(old.channelsWithoutListings == nil)
         #expect(old.downloadError == nil)
+        #expect(old.downloadSkipped == nil)
+        #expect(!old.keptFailureWasntAskedAgain)
+    }
+
+    @Test func aKeptSourceFailureSaysItWasntAskedAgainOnlyWhenItWasnt() throws {
+        func status(_ fields: String) throws -> LiveTvStatus {
+            try JSONDecoder().decode(LiveTvStatus.self, from: Data(#"{"configured":true,"channels":1,"refreshing":false,"rewindMinutes":60,\#(fields)}"#.utf8))
+        }
+        #expect(try status(#""downloadError":"No","downloadSkipped":true"#).keptFailureWasntAskedAgain)
+        #expect(try !status(#""downloadError":"No","downloadSkipped":false"#).keptFailureWasntAskedAgain)
+        #expect(try !status(#""downloadSkipped":true"#).keptFailureWasntAskedAgain)
+        // Absent, from an older server.
+        #expect(try !status(#""downloadError":"No""#).keptFailureWasntAskedAgain)
     }
 
     @Test func aChosenGroupIsOnOfferWhileItHasChannelsAndIsOneOfMany() {

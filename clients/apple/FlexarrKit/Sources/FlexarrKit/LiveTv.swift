@@ -19,6 +19,12 @@ public struct LiveTvStatus: Codable, Sendable, Hashable {
     public var downloadError: String? = nil
     /// Goes up as each refresh finishes, however it went. Absent from servers before the release after 0.63.
     public var refreshesFinished: Int? = nil
+    /// The last refresh didn't ask the sources, because of the 15-minute limit. Absent from servers before 0.64.
+    public var downloadSkipped: Bool? = nil
+
+    /// A source's failure is being kept from before a refresh that didn't ask it again: fixing the source can't have
+    /// shown yet.
+    public var keptFailureWasntAskedAgain: Bool { downloadSkipped == true && downloadError != nil }
 
     /// Whether a refresh asked for when the status was `before` has finished, `looks` looks later. Older servers don't
     /// count finished refreshes: a quick one can come and go between looks, so an answer that's changed says so as well as
