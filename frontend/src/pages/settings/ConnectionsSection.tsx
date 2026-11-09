@@ -760,7 +760,8 @@ function DispatcharrRow({
   const [username, setUsername] = useState(liveTv?.username ?? '')
   const [password, setPassword] = useState('')
   const [adminKey, setAdminKey] = useState('')
-  const [test, setTest] = useState<LiveTvTest | 'testing'>()
+  // A test's result, for the fields it was run with: change one and it no longer says anything, whenever it answers.
+  const [lastTest, setLastTest] = useState<{ fields: string; result: (LiveTvTest & { keyTested: boolean }) | 'testing' }>()
   const [saving, setSaving] = useState(false)
   // Typed keys don't outlive the form: reopened, a Save would send them again, undoing a removal or reaching a new address.
   const [wasOpen, setWasOpen] = useState(open)
@@ -769,10 +770,12 @@ function DispatcharrRow({
     if (!open) {
       setPassword('')
       setAdminKey('')
+      setLastTest(undefined)
     }
   }
-  const keyTested = !!adminKey.trim() || (!!liveTv?.hasAdminApiKey && liveTv.baseUrl === baseUrl.trim())
-  const shown = test === 'testing' ? t('Testing…') : test ? (test.ok ? testSummary(test, keyTested) : test.error) : status
+  const fields = JSON.stringify([baseUrl, username, password, adminKey])
+  const test = open && lastTest?.fields === fields ? lastTest.result : undefined
+  const shown = test === 'testing' ? t('Testing…') : test ? (test.ok ? testSummary(test, test.keyTested) : test.error) : status
 
   return (
     <div className="connection">
@@ -783,7 +786,7 @@ function DispatcharrRow({
           aria-label={t('Edit Dispatcharr')}
           onSubmit={(e) => {
             e.preventDefault()
-            setTest(undefined)
+            setLastTest(undefined)
             setSaving(true)
             void onSave({
               baseUrl: baseUrl.trim(),
@@ -861,12 +864,13 @@ function DispatcharrRow({
               className="button quiet small"
               disabled={!baseUrl || !username}
               onClick={async () => {
-                setTest('testing')
-                setTest(
-                  await testLiveTv({ baseUrl: baseUrl.trim(), username: username.trim(), password: password || undefined, adminApiKey: adminKey.trim() || undefined }).catch(
-                    (e: unknown): LiveTvTest => ({ ok: false, channels: null, maxConnections: null, expiresAt: null, error: errorText(e) }),
-                  ),
+                // As the server tests: a typed key, or the saved one against the address it was saved for.
+                const keyTested = !!adminKey.trim() || (!!liveTv?.hasAdminApiKey && sameServer(liveTv.baseUrl, baseUrl))
+                setLastTest({ fields, result: 'testing' })
+                const result = await testLiveTv({ baseUrl: baseUrl.trim(), username: username.trim(), password: password || undefined, adminApiKey: adminKey.trim() || undefined }).catch(
+                  (e: unknown): LiveTvTest => ({ ok: false, channels: null, maxConnections: null, expiresAt: null, error: errorText(e) }),
                 )
+                setLastTest({ fields, result: { ...result, keyTested } })
               }}
             >
               {test && test !== 'testing' && <TestMark ok={test.ok} />}
@@ -883,6 +887,16 @@ function DispatcharrRow({
       )}
     </div>
   )
+}
+
+/** Whether two addresses are the same server, as the server decides whether a saved key still applies. */
+function sameServer(saved: string, given: string) {
+  try {
+    const [a, b] = [new URL(saved), new URL(given.trim())]
+    return a.protocol === b.protocol && a.host === b.host
+  } catch {
+    return false
+  }
 }
 
 function testSummary(test: LiveTvTest, keyTested: boolean) {
