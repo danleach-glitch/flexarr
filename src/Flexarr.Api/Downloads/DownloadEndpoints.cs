@@ -125,7 +125,9 @@ public static class DownloadEndpoints
 
             // Asked for again (the app reinstalled, say): the same one, unless it failed or ran out, or a device already
             // has it: its copy is gone then, and another device of the profile's (an iPad beside the phone) needs a new one.
-            var existing = await db.Downloads.FirstOrDefaultAsync(d => d.ProfileId == profile.Id && d.MediaItemId == item.Id && d.Quality == quality
+            // Through any copy of the title: it's the same title, so a second copy of it would only take the space twice.
+            var copies = await Flexarr.Api.Playback.TitleVersions.CopiesAsync(db, item, ct);
+            var existing = await db.Downloads.FirstOrDefaultAsync(d => d.ProfileId == profile.Id && copies.Contains(d.MediaItemId) && d.Quality == quality
                 && d.Status != DownloadStatus.Failed && d.Status != DownloadStatus.Expired && d.Status != DownloadStatus.Removed
                 && d.Status != DownloadStatus.Received, ct);
             if (existing is null)

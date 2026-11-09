@@ -434,7 +434,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
                         maxLines = 2,
                     )
                     DetailActions.Button.WATCHLIST -> onWatchlist?.let { on -> WatchlistAction(on, { toggleWatchlist(on) }, slot) }
-                    DetailActions.Button.DOWNLOAD -> DownloadAction(model, item, slot)
+                    DetailActions.Button.DOWNLOAD -> DownloadAction(model, item, slot, detail.copyIds.orEmpty())
                     DetailActions.Button.MORE -> Box(slot) {
                         LabeledAction(t("More"), FlexarrIcons.more, { more = true }, Modifier.fillMaxWidth())
                         DropdownMenu(more, onDismissRequest = { more = false; choosingVersion = false }) {

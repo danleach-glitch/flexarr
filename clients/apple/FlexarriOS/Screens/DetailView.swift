@@ -281,7 +281,7 @@ struct DetailView: View {
                 .accessibilityLabel(onList ? t(Words.removeFromWatchlist) : t(Words.addToWatchlist))
             }
         case .download:
-            DownloadButton(item: item)
+            DownloadButton(item: item, copies: detail?.copyIds ?? [])
         case .more:
             Menu {
                 ForEach(menu, id: \.self) { entry in

@@ -551,6 +551,18 @@ public sealed class TitleVersionsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ADownload_AskedForThroughEitherCopy_IsTheSameOne()
+    {
+        var client = Client();
+        async Task<Guid> Ask(Guid item) =>
+            (await (await client.PostAsJsonAsync(Api("/offline"), new { itemId = item, quality = "Original" })).EnsureSuccessStatusCode().Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        Assert.Equal(await Ask(_hdItem), await Ask(_uhdItem));
+        var detail = await client.GetFromJsonAsync<JsonElement>(Api($"/items/{_uhdItem}"));
+        Assert.Equal(2, detail.GetProperty("copyIds").GetArrayLength());
+    }
+
+    [Fact]
     public async Task Downloads_NeverUseACopyOverTheAgeLimit_OrBlocked()
     {
         using var scope = _factory.Services.CreateScope();

@@ -360,6 +360,8 @@ data class ItemDetail(
     val canSearchSubtitles: Boolean? = null,
     /** A film's or episode's versions to choose from, best first, with two or more. Absent from servers before 0.64. */
     val versions: List<TitleVersion>? = null,
+    /** The copies of a linked title this profile can see, itself included. Absent from servers before 0.64. */
+    val copyIds: List<String>? = null,
     /** Films and shows: whether it's on this profile's watchlist. Absent from servers before 0.56 (no watchlist). */
     val onWatchlist: Boolean? = null,
     /** A book's edition, series, chapters and bookmarks. Absent from servers before 0.58. */

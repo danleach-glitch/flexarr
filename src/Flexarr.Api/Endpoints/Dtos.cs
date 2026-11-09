@@ -139,7 +139,9 @@ public sealed record ItemDetailDto(
     bool? ArtworkLocked = null,
     // A film's or episode's versions, across its copies this profile can see, best first, with two or more only.
     // Absent from servers before 0.64.
-    IReadOnlyList<VersionDto>? Versions = null);
+    IReadOnlyList<VersionDto>? Versions = null,
+    // The copies of a linked title this profile can see, itself included, so an app can tell it already has it. Absent from servers before 0.64.
+    IReadOnlyList<Guid>? CopyIds = null);
 
 /// <summary>A parent's say over a title for profiles with an age limit.</summary>
 public sealed record KidsOverrideRequest(KidsOverride Override);

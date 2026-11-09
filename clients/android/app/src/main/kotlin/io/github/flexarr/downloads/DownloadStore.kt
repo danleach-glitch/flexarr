@@ -259,6 +259,9 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
 
     fun entry(itemId: String): LocalDownload? = index.entry(profileId, itemId)
 
+    /** A title's download, made through whichever of its linked [copies]. */
+    fun entry(itemId: String, copies: List<String>): LocalDownload? = entry(itemId) ?: copies.firstNotNullOfOrNull(::entry)
+
     fun collection(id: String): LocalCollection? = collections.firstOrNull { it.profileId == profileId && it.id == id }
 
     /** A collection's tracks in its order (those asked for so far). */

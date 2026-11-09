@@ -384,6 +384,8 @@ public struct ItemDetail: Codable, Sendable {
     public var canSearchSubtitles: Bool? = nil
     /// A film's or episode's versions to choose from, best first, with two or more. Absent from servers before 0.64.
     public var versions: [TitleVersion]? = nil
+    /// The copies of a linked title this profile can see, itself included. Absent from servers before 0.64.
+    public var copyIds: [String]? = nil
     /// For a film or show, whether it's on the profile's watchlist. Absent from servers before 0.56 (no watchlist there).
     public var onWatchlist: Bool? = nil
     /// A book's edition, series, chapters and bookmarks. Absent from servers before 0.58.

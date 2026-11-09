@@ -398,7 +398,8 @@ public static class ItemEndpoints
             RatingAge: entity.RatingAge, KidsOverride: profile.IsMainProfile ? entity.KidsOverride : null,
             Book: entity.Kind == MediaKind.Audiobook ? await Books.BookQueries.DetailAsync(db, entity, profile.Id, ct) : null,
             DetailsLocked: entity.DetailsLocked, SortTitle: entity.SortTitle, ArtworkLocked: entity.ArtworkLocked,
-            Versions: entity.Kind is MediaKind.Movie or MediaKind.Episode ? await VersionsAsync(db, entity, files, profile.Id, ct) : null);
+            Versions: entity.Kind is MediaKind.Movie or MediaKind.Episode ? await VersionsAsync(db, entity, files, profile.Id, ct) : null,
+            CopyIds: entity.LinkGroupId is null ? null : await Playback.TitleVersions.CopiesAsync(db, entity, ct));
     }
 
     /// <summary>What the title's Version choice offers; null with only one version to play.</summary>
