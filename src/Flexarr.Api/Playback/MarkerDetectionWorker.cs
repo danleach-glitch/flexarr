@@ -180,8 +180,15 @@ public sealed partial class MarkerDetectionWorker(
     internal static Task<bool> NeedsAnalysisAsync(FlexarrDbContext db, Guid seasonId, CancellationToken ct) =>
         db.MediaFiles.AnyAsync(f => f.MediaItem!.ParentId == seasonId && f.MarkersScannedAt == null && f.ProbeError == null, ct);
 
-    /// <summary>Two versions of an episode this close in length are the same edit, so have the same intro and credits.</summary>
-    private const double SameLengthSeconds = 1.5;
+    /// <summary>
+    /// Two versions of an episode this close in length are the same edit, so have the same intro and credits: within a
+    /// second and a half, or 0.2%, since the same edit at 23.976 and 24 frames a second runs about 0.1% apart.
+    /// </summary>
+    internal static bool SameEdit(double a, double b) => Math.Abs(a - b) <= Math.Max(1.5, Math.Max(a, b) * 0.002);
+
+    /// <summary>Marks found on one version, for a version of the same edit: stretched to its length, as a different frame rate stretches them.</summary>
+    internal static IEnumerable<DetectedMarker> FittedTo(IEnumerable<DetectedMarker> marks, double analysed, double length) =>
+        marks.Select(m => m with { Start = m.Start * length / analysed, End = m.End * length / analysed });
 
     private async Task AnalyseSeasonAsync(FlexarrDbContext db, MarkerDetector detector, Guid seasonId, bool asked, CancellationToken ct)
     {
@@ -219,9 +226,9 @@ public sealed partial class MarkerDetectionWorker(
             var left = new List<MediaFile>();
             foreach (var other in episode.Skip(1).Where(f => f.MarkersScannedAt == null))
             {
-                if (other.DurationSeconds is { } length && episode[0].DurationSeconds is { } analysed && Math.Abs(length - analysed) <= SameLengthSeconds)
+                if (other.DurationSeconds is { } length && episode[0].DurationSeconds is { } analysed && SameEdit(length, analysed))
                 {
-                    await SaveAsync(db, other, found[episode[0].Id], ct);
+                    await SaveAsync(db, other, FittedTo(found[episode[0].Id], analysed, length), ct);
                 }
                 else
                 {
