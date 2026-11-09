@@ -778,10 +778,39 @@ public sealed class LiveTvTests : IDisposable
         Assert.False(await guide.IsDueAsync(start.AddMinutes(90), CancellationToken.None));
         Assert.True(await guide.IsDueAsync(start.AddMinutes(150), CancellationToken.None));
 
-        // A changed guide goes back to looking hourly.
+        // A changed guide that fills nothing in doesn't: Dispatcharr's guide can change with a channel still empty.
         _dispatcharr.Guide = _dispatcharr.Guide.Replace("Doctor Who", "Doctor Who: Specials", StringComparison.Ordinal);
         await RefreshAsync();
-        Assert.True(await guide.IsDueAsync(DateTime.UtcNow.AddMinutes(90), CancellationToken.None));
+        Assert.False(await guide.IsDueAsync(DateTime.UtcNow.AddMinutes(90), CancellationToken.None));
+        Assert.True(await guide.IsDueAsync(DateTime.UtcNow.AddMinutes(250), CancellationToken.None));
+
+        // One that fills a channel in goes back to looking hourly.
+        var soon = DateTime.UtcNow.AddHours(1).ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+        var later = DateTime.UtcNow.AddHours(2).ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+        _dispatcharr.Guide = _dispatcharr.Guide.Replace("</tv>", $"""<programme start="{soon} +0000" stop="{later} +0000" channel="201"><title>Filled in</title></programme></tv>""", StringComparison.Ordinal);
+        await RefreshAsync();
+        Assert.Equal(0, _server.Services.GetRequiredService<LiveTvStatus>().QuietRefreshes);
+    }
+
+    [Fact]
+    public async Task A_guide_whose_bytes_differ_with_the_same_programmes_isnt_written_again()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        await RefreshAsync();
+        async Task<List<long>> IdsAsync()
+        {
+            await using var scope = _server.Services.CreateAsyncScope();
+            return await scope.ServiceProvider.GetRequiredService<Flexarr.Core.Data.FlexarrDbContext>().LiveProgrammes.OrderBy(p => p.Id).Select(p => p.Id).ToListAsync();
+        }
+
+        var first = await IdsAsync();
+        Assert.NotEmpty(first);
+        _dispatcharr.Guide = _dispatcharr.Guide.Replace("<tv>", """<tv generator-info-name="Dispatcharr" date="20261109120000">""", StringComparison.Ordinal);
+
+        await RefreshAsync();
+
+        Assert.Equal(first, await IdsAsync());
     }
 
     [Fact]

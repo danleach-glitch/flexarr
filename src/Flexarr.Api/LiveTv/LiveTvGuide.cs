@@ -39,8 +39,11 @@ public sealed class LiveTvStatus
     /// <summary>When a refresh last finished, however it went.</summary>
     public DateTime? AttemptedAt { get; private set; }
 
-    /// <summary>How many refreshes in a row have found the same guide.</summary>
+    /// <summary>How many refreshes in a row have left as many channels with nothing listed ahead, or more.</summary>
     public int QuietRefreshes { get; private set; }
+
+    /// <summary>Channels with nothing ahead after the last refresh: only that falling says more might be on its way.</summary>
+    private int? _missingAfterRead;
 
     /// <summary>Which address and key the download stamp is for: a new one owes nothing to the old one's limit.</summary>
     private int _downloadedFor;
@@ -80,11 +83,12 @@ public sealed class LiveTvStatus
         }
     }
 
-    internal void GuideRead(bool changed)
+    internal void GuideRead(int missing)
     {
         lock (_lock)
         {
-            QuietRefreshes = changed ? 0 : QuietRefreshes + 1;
+            QuietRefreshes = _missingAfterRead is null || missing < _missingAfterRead ? 0 : QuietRefreshes + 1;
+            _missingAfterRead = missing;
         }
     }
 
@@ -141,7 +145,7 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
     /// <summary>
     /// How often it comes round at first while a channel has nothing listed ahead: a fuller guide may be waiting in
     /// Dispatcharr, and a channel moved to another guide entry there looks just the same in the channel list. Each refresh
-    /// that finds the same guide doubles it, up to <see cref="Every"/>: a channel may never have listings.
+    /// that fills none of them doubles it, up to <see cref="Every"/>: a channel may never have listings.
     /// </summary>
     public static readonly TimeSpan EveryWhileMissing = TimeSpan.FromHours(1);
 
@@ -353,8 +357,8 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
         var from = now - KeptBehind;
         var until = now + KeptAhead;
 
-        // What was read, and for which channels: the same again means the same guide, give or take what's slipped into
-        // the past since (see below).
+        // What's listed, and for which channels: the same again means the same guide, give or take what's slipped into
+        // the past since (see below). The programmes rather than the file, whose bytes can differ with nothing new in them.
         using var hash = System.Security.Cryptography.IncrementalHash.CreateHash(System.Security.Cryptography.HashAlgorithmName.SHA256);
         foreach (var (guideId, ids) in byGuideId.OrderBy(g => g.Key, StringComparer.Ordinal))
         {
@@ -370,8 +374,17 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
             int got;
             while ((got = await guide.ReadAsync(buffer, ct)) > 0)
             {
-                hash.AppendData(buffer, 0, got);
                 await file.WriteAsync(buffer.AsMemory(0, got), ct);
+            }
+        }
+
+        file.Position = 0;
+        await foreach (var p in XmltvParser.ProgrammesAsync(file, ct))
+        {
+            if (byGuideId.ContainsKey(p.ChannelId))
+            {
+                hash.AppendData(System.Text.Encoding.UTF8.GetBytes(
+                    $"{p.ChannelId}\0{p.Start.Ticks}\0{p.End.Ticks}\0{p.Title}\0{p.Subtitle}\0{p.Description}\0{p.Category}\0{p.Season}\0{p.Episode}\0{p.ImageUrl}\0{p.IsNew}\n"));
             }
         }
 
@@ -383,12 +396,11 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
         var read = Convert.ToHexString(hash.GetHashAndReset());
         if (Written.TryGetValue(key, out var last) && last.Hash == read && (!last.CutAhead || now - last.At < RewriteCutGuideEvery))
         {
-            status.GuideRead(changed: false);
             await db.LiveProgrammes.Where(p => p.End < from).ExecuteDeleteAsync(ct);
+            status.GuideRead(await MissingAsync(now, ct));
             return await db.LiveProgrammes.CountAsync(ct);
         }
 
-        status.GuideRead(changed: true);
         file.Position = 0;
         var fresh = new List<LiveProgramme>();
         var cutAhead = false;
@@ -453,8 +465,12 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
 
         await transaction.CommitAsync(ct);
         Written[key] = (read, cutAhead, now);
+        status.GuideRead(await MissingAsync(now, ct));
         return fresh.Count;
     }
+
+    private Task<int> MissingAsync(DateTime now, CancellationToken ct) =>
+        db.LiveChannels.CountAsync(c => c.GuideId != null && !db.LiveProgrammes.Any(p => p.ChannelId == c.Id && p.End > now), ct);
 
     private static string? Cut(string? text, int length) => text is null || text.Length <= length ? text : text[..length];
 
