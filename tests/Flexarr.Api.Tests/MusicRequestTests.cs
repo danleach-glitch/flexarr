@@ -922,6 +922,34 @@ public sealed class MusicRequestTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_sweep_doesnt_ask_Lidarr_again_about_what_is_settled()
+    {
+        const string Artist = "artist-settled";
+        _lidarr.Responses["GET /api/v1/artist"] = $$"""[{"id":3,"artistName":"Someone","foreignArtistId":"{{Artist}}","monitored":true}]""";
+        _lidarr.Responses["GET /api/v1/album?artistId=3"] = """[{"id":1,"artistId":3,"title":"Done","foreignAlbumId":"rg-settled","monitored":true,"lastSearchTime":"2026-01-01T00:00:00Z","statistics":{"trackFileCount":0,"trackCount":9}}]""";
+        _lidarr.Responses["GET /api/v1/album?foreignAlbumId=rg-settled"] = """[{"id":1,"artistId":3,"title":"Done","foreignAlbumId":"rg-settled","monitored":true,"lastSearchTime":"2026-01-01T00:00:00Z","statistics":{"trackFileCount":0,"trackCount":9}}]""";
+        _lidarr.Responses["GET /api/v1/album?foreignAlbumId=rg-young"] = "[]";
+        _lidarr.Responses["GET /api/v1/album?foreignAlbumId=rg-old"] = "[]";
+        _lidarr.Responses["GET /api/v1/queue?page=1&pageSize=200&includeArtist=true&includeAlbum=true"] = """{"page":1,"pageSize":200,"totalRecords":0,"records":[]}""";
+        await InDbAsync(async db =>
+        {
+            db.MediaRequests.AddRange(
+                new Core.Notifications.MediaRequest { ProfileId = "owner", Kind = MediaKind.Album, MusicBrainzId = "rg-settled", ArtistMusicBrainzId = Artist, AddedArtist = true, Title = "Done", ArtistName = "Someone" },
+                new Core.Notifications.MediaRequest { ProfileId = "owner", Kind = MediaKind.Album, MusicBrainzId = "rg-young", Title = "New", ArtistName = "Someone" },
+                new Core.Notifications.MediaRequest { ProfileId = "owner", Kind = MediaKind.Album, MusicBrainzId = "rg-old", Title = "Old", ArtistName = "Someone", RequestedAt = DateTime.UtcNow.AddDays(-3) });
+            return await db.SaveChangesAsync();
+        });
+        var retry = _server.Services.GetRequiredService<Endpoints.MusicRequests.MusicImportRetry>();
+        await retry.SweepAsync(CancellationToken.None);
+        _sent.Clear();
+
+        await retry.SweepAsync(CancellationToken.None);
+
+        // Only rg-young's: a new request's album may be about to appear, once Lidarr has scanned the artist. The queue is always read.
+        Assert.Equal(["GET /api/v1/album"], _sent.Select(s => s.Request).Where(r => !r.Contains("/queue", StringComparison.Ordinal)));
+    }
+
+    [Fact]
     public async Task An_album_Lidarr_never_marks_as_searched_is_not_searched_for_every_sweep()
     {
         _lidarr.Responses[$"GET /api/v1/album?foreignAlbumId={Moisturizer}"] = $$$"""

@@ -47,6 +47,21 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
     /// </summary>
     private readonly ConcurrentDictionary<(string Lidarr, int Album), string> _searchOwed = new();
 
+    /// <summary>
+    /// What needs no asking Lidarr about until the time given: requests can sit open for two weeks, and each sweep calling
+    /// for every album on them goes on all day. Forgotten by a restart, which only means asking once more.
+    /// </summary>
+    private readonly ConcurrentDictionary<string, DateTime> _settled = new(StringComparer.Ordinal);
+
+    /// <summary>An album already searched for, or an artist added and left as it should be.</summary>
+    private static readonly TimeSpan SettledFor = TimeSpan.FromHours(1);
+
+    /// <summary>A searched-for album or one with files can't come back to needing a first search, short of being deleted and added again.</summary>
+    private static readonly TimeSpan SearchedFor = TimeSpan.FromHours(6);
+
+    /// <summary>A new request's album may not be in Lidarr until it has scanned the artist, so it's looked for every sweep to begin with.</summary>
+    private static readonly TimeSpan NewFor = TimeSpan.FromDays(1);
+
     /// <summary>How long an album Lidarr still says it has never searched for waits before it's asked again.</summary>
     internal TimeSpan SearchAgainAfter { get; set; } = TimeSpan.FromHours(6);
 
@@ -91,7 +106,7 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
         var since = DateTime.UtcNow - MusicMatcher.RequestedFor;
         var requests = await c.Db.MediaRequests.AsNoTracking()
             .Where(r => r.Kind == MediaKind.Album && r.FulfilledAt == null && r.RequestedAt > since && r.MusicBrainzId != null)
-            .Select(r => new AlbumAsked(r.MusicBrainzId!, r.AddedArtist ? r.ArtistMusicBrainzId : null)).ToListAsync(ct);
+            .Select(r => new AlbumAsked(r.MusicBrainzId!, r.AddedArtist ? r.ArtistMusicBrainzId : null, r.RequestedAt)).ToListAsync(ct);
         if (requests.Count == 0)
         {
             return;
@@ -110,7 +125,7 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
         }
     }
 
-    private sealed record AlbumAsked(string Album, string? ArtistItAdded);
+    private sealed record AlbumAsked(string Album, string? ArtistItAdded, DateTime RequestedAt);
 
     /// <summary>The album starts afresh: its request was taken back, or someone's asked for it to be tried again.</summary>
     public void StartAfresh(ArrInstance lidarr, int albumId)
@@ -119,6 +134,10 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
         _retries.TryRemove(Key(lidarr, albumId), out _);
         _searchedAt.TryRemove(Key(lidarr, albumId), out _);
         _searchOwed.TryRemove((lidarr.BaseUrl.ToString(), albumId), out _);
+        foreach (var settled in _settled.Keys.Where(k => k.StartsWith($"{lidarr.BaseUrl}|", StringComparison.Ordinal)).ToList())
+        {
+            _settled.TryRemove(settled, out _);
+        }
     }
 
     /// <summary>A search made elsewhere: the sweep's first search for this album needn't repeat it.</summary>
@@ -146,6 +165,19 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
 
     private bool SearchedLately(ArrInstance lidarr, int albumId) =>
         _searchedAt.TryGetValue(Key(lidarr, albumId), out var at) && DateTime.UtcNow - at < SearchAgainAfter;
+
+    private bool IsSettled(string key) => _settled.TryGetValue(key, out var until) && DateTime.UtcNow < until;
+
+    private void Settle(string key, TimeSpan length)
+    {
+        var now = DateTime.UtcNow;
+        foreach (var old in _settled.Where(s => now >= s.Value).Select(s => s.Key).ToList())
+        {
+            _settled.TryRemove(old, out _);
+        }
+
+        _settled[key] = now + length;
+    }
 
     private async Task SweepAsync(MusicRequestContext c, ArrInstance lidarr, List<AlbumAsked> requests, CancellationToken ct)
     {
@@ -188,7 +220,7 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
             LogRetrying(logger, album.Title, item.Title);
         }
 
-        await SearchFirstTimeAsync(c, lidarr, asked, queue, searched, ct);
+        await SearchFirstTimeAsync(c, lidarr, requests, queue, searched, ct);
     }
 
     /// <summary>The searches a blocklisted copy still needs. One still asked for: a request taken back wants nothing more.</summary>
@@ -207,14 +239,30 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
     }
 
     /// <summary>Searches for the requested albums Lidarr has never looked for. Once it has, finding them is up to its RSS sync.</summary>
-    private async Task SearchFirstTimeAsync(MusicRequestContext c, ArrInstance lidarr, HashSet<string> asked, IReadOnlyList<ArrQueueItem> queue, HashSet<int> searched, CancellationToken ct)
+    private async Task SearchFirstTimeAsync(MusicRequestContext c, ArrInstance lidarr, List<AlbumAsked> requests, IReadOnlyList<ArrQueueItem> queue, HashSet<int> searched, CancellationToken ct)
     {
         var search = new List<int>();
-        foreach (var id in asked)
+        var now = DateTime.UtcNow;
+        foreach (var asked in requests.GroupBy(r => r.Album, StringComparer.Ordinal))
         {
-            search.AddRange((await c.Client.GetAlbumsByForeignIdAsync(lidarr, id, ct))
-                .Where(a => AwaitsFirstSearch(a, DateTime.UtcNow) && !searched.Contains(a.Id) && !SearchedLately(lidarr, a.Id) && !queue.Any(q => q.AlbumId == a.Id))
+            var key = $"{lidarr.BaseUrl}|album|{asked.Key}";
+            if (IsSettled(key))
+            {
+                continue;
+            }
+
+            var albums = await c.Client.GetAlbumsByForeignIdAsync(lidarr, asked.Key, ct);
+            search.AddRange(albums
+                .Where(a => AwaitsFirstSearch(a, now) && !searched.Contains(a.Id) && !SearchedLately(lidarr, a.Id) && !queue.Any(q => q.AlbumId == a.Id))
                 .Select(a => a.Id));
+            if (albums.Count > 0 && albums.All(a => a.LastSearchTime is not null || a.Statistics is { TrackFileCount: > 0 }))
+            {
+                Settle(key, SearchedFor);
+            }
+            else if (now - asked.Max(r => r.RequestedAt) >= NewFor)
+            {
+                Settle(key, SettledFor);
+            }
         }
 
         if (search.Count > 0)
@@ -237,7 +285,7 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
     /// Monitors the artists requests added, and their albums still missing, and searches for what that just put back on
     /// the list. Returns the albums it searched for.
     /// </summary>
-    private static async Task<HashSet<int>> KeepLookingAsync(MusicRequestContext c, ArrInstance lidarr, List<AlbumAsked> requests, IReadOnlyList<ArrQueueItem> queue, CancellationToken ct)
+    private async Task<HashSet<int>> KeepLookingAsync(MusicRequestContext c, ArrInstance lidarr, List<AlbumAsked> requests, IReadOnlyList<ArrQueueItem> queue, CancellationToken ct)
     {
         var searched = new HashSet<int>();
         var byArtist = requests.Where(r => r.ArtistItAdded is not null).ToLookup(r => r.ArtistItAdded!, r => r.Album, StringComparer.Ordinal);
@@ -246,10 +294,28 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
             return searched;
         }
 
-        var changed = false;
-        foreach (var artist in await c.Client.GetArtistsAsync(lidarr, ct))
+        // Which albums go with it is in the key: a new request for the artist needs its look straight away.
+        string Key(string artistId) => $"{lidarr.BaseUrl}|artist|{artistId}|{string.Join(',', byArtist[artistId].Order(StringComparer.Ordinal))}";
+        if (byArtist.All(a => IsSettled(Key(a.Key))))
         {
-            if (artist.ForeignArtistId is not { } artistId || !byArtist.Contains(artistId))
+            return searched;
+        }
+
+        var changed = false;
+        var artists = await MusicMatcher.LidarrArtistsAsync(c.Client, lidarr, c.Cache, ct);
+        if (artists.Count > 0)
+        {
+            // Taken out of Lidarr since: nothing here will bring it back, so no reading its whole list for it each sweep.
+            var there = artists.Select(a => a.ForeignArtistId).ToHashSet(StringComparer.Ordinal);
+            foreach (var gone in byArtist.Where(a => !there.Contains(a.Key)))
+            {
+                Settle(Key(gone.Key), SettledFor);
+            }
+        }
+
+        foreach (var artist in artists)
+        {
+            if (artist.ForeignArtistId is not { } artistId || !byArtist.Contains(artistId) || IsSettled(Key(artistId)))
             {
                 continue;
             }
@@ -261,6 +327,7 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
             var unmonitored = missing.Where(a => !a.Monitored).Select(a => a.Id).ToList();
             if (missing.Count == 0 || (artist.Monitored && unmonitored.Count == 0))
             {
+                Settle(Key(artistId), SettledFor);
                 continue;
             }
 
