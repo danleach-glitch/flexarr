@@ -335,6 +335,12 @@ data class TitleVersion(
     }
 }
 
+/** Whether this is the same episode as [other], whichever linked copy each came from. */
+fun ItemSummary.sameEpisode(other: ItemSummary): Boolean = id == other.id || (
+    kind == MediaKind.Episode && other.kind == MediaKind.Episode && seasonNumber == other.seasonNumber &&
+        (if (episodeNumber != null) episodeNumber == other.episodeNumber else airDate != null && airDate == other.airDate)
+    )
+
 @Serializable
 data class ItemDetail(
     val item: ItemSummary,

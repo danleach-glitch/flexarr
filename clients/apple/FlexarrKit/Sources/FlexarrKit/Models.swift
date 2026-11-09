@@ -405,6 +405,17 @@ public struct Person: Codable, Sendable, Identifiable {
     public var biography: String? = nil
 }
 
+extension ItemSummary {
+    /// Whether this is the same episode as `other`, whichever linked copy each came from.
+    public func isSameEpisode(as other: ItemSummary?) -> Bool {
+        guard let other else { return false }
+        if id == other.id { return true }
+        guard kind == .episode, other.kind == .episode, seasonNumber == other.seasonNumber else { return false }
+        if let episodeNumber { return episodeNumber == other.episodeNumber }
+        return airDate != nil && airDate == other.airDate
+    }
+}
+
 extension ItemDetail {
     /// The version the page describes: the one chosen, or else the best.
     public var shownVersion: TitleVersion? { versions?.first(where: \.chosen) ?? versions?.first }

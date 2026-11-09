@@ -285,7 +285,7 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
     /** Remembers which version this profile plays (null: the automatic pick). What was got ready for the old one goes. */
     fun chooseVersion(item: ItemSummary, fileId: String?) {
         model.dropReady(item.id)
-        changeWatchState(t("That didn’t work. Try again.")) { it.setVersion(item.id, fileId) }
+        changeWatchState(t("Couldn’t change the version")) { it.setVersion(item.id, fileId) }
     }
 
     /** The show of an episode, all of it. */

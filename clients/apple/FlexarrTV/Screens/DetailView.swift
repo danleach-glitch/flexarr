@@ -303,7 +303,7 @@ struct DetailView: View {
                         }
                     }
                 }
-                .confirmationDialog(t(Words.version), isPresented: $showingVersions) {
+                .confirmationDialog(t(Words.version), isPresented: $showingVersions, titleVisibility: .visible) {
                     let versions = detail?.versions ?? []
                     let chosen = versions.first(where: \.chosen)
                     Button(chosen == nil ? "✓ \(t(Words.automatic))" : t(Words.automatic)) {
@@ -485,8 +485,8 @@ struct DetailView: View {
                 LazyHStack(alignment: .top, spacing: 40) {
                     ForEach(season.children) { episode in
                         EpisodeCard(episode: episode, overview: season.childOverviews[episode.id] ?? nil,
-                                    isCurrent: episode.id == item?.id, focus: $focusedEpisode) {
-                            if episode.id == item?.id || item?.kind == .series {
+                                    isCurrent: episode.isSameEpisode(as: item), focus: $focusedEpisode) {
+                            if episode.isSameEpisode(as: item) || item?.kind == .series {
                                 model.play(episode, from: pageToken)
                             } else {
                                 router.push(.item(episode))

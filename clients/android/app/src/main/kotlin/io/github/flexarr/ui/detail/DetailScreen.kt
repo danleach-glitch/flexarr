@@ -85,6 +85,7 @@ import io.github.flexarr.core.ItemDetail
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.MediaFile
 import io.github.flexarr.core.TitleVersion
+import io.github.flexarr.core.sameEpisode
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.ShowMissing
 import io.github.flexarr.core.Availability
@@ -120,6 +121,10 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import io.github.flexarr.ui.components.PersonCard
 import io.github.flexarr.ui.components.PillButton
@@ -437,16 +442,20 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
                             if (choosingVersion) {
                                 val versions = detail.versions.orEmpty()
                                 val choose = { fileId: String? -> more = false; choosingVersion = false; navigator.chooseVersion(item, fileId) }
+                                // Read out as a choice, and which one is on: the row says so rather than its circle.
+                                val choice = { on: Boolean -> Modifier.semantics { role = Role.RadioButton; selected = on } }
                                 DropdownMenuItem(
                                     text = { Text(t(Words.automatic)) },
-                                    leadingIcon = { RadioButton(versions.none { it.chosen }, onClick = null) },
+                                    leadingIcon = { RadioButton(versions.none { it.chosen }, onClick = null, Modifier.clearAndSetSemantics {}) },
                                     onClick = { choose(null) },
+                                    modifier = choice(versions.none { it.chosen }),
                                 )
                                 versions.forEach { version ->
                                     DropdownMenuItem(
                                         text = { Text(version.name(versions)) },
-                                        leadingIcon = { RadioButton(version.chosen, onClick = null) },
+                                        leadingIcon = { RadioButton(version.chosen, onClick = null, Modifier.clearAndSetSemantics {}) },
                                         onClick = { choose(version.fileId) },
+                                        modifier = choice(version.chosen),
                                     )
                                 }
                                 return@DropdownMenu
@@ -559,7 +568,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.sections(
         item(key = "season-heading") { SectionHeading(season.item.title) }
         items(season.children.chunked(columns), key = { "episode-${it.first().id}" }) { row ->
             EpisodeColumns(row, columns) { episode ->
-                EpisodeRow(episode, season.childOverviews[episode.id], isCurrent = episode.id == item.id, playsOnTap = episode.id == item.id)
+                EpisodeRow(episode, season.childOverviews[episode.id], isCurrent = episode.sameEpisode(item), playsOnTap = episode.id == item.id)
             }
         }
     } else if (item.kind != MediaKind.Movie && item.kind != MediaKind.Episode && detail.children.isNotEmpty()) {

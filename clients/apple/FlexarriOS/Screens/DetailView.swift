@@ -473,8 +473,8 @@ struct DetailView: View {
         return LazyVGrid(columns: columns, alignment: .leading, spacing: sizeClass == .regular ? 24 : 16) {
             ForEach(season.children) { episode in
                 EpisodeRow(episode: episode, overview: season.childOverviews[episode.id] ?? nil,
-                           isCurrent: episode.id == item?.id) {
-                    if episode.id == item?.id || item?.kind == .series {
+                           isCurrent: episode.isSameEpisode(as: item)) {
+                    if episode.isSameEpisode(as: item) || item?.kind == .series {
                         model.play(episode, from: pageToken)
                     } else {
                         router.push(.item(episode))

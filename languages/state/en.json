@@ -585,6 +585,7 @@
   "Couldn’t allow it": "n",
   "Couldn’t allow “{name}”": "n",
   "Couldn’t change notifications": "an",
+  "Couldn’t change the version": "n",
   "Couldn’t change your watchlist": "a",
   "Couldn’t check how to delete it: {reason}": "w",
   "Couldn’t check which app holds it ({status}).": "s",

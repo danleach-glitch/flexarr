@@ -73,6 +73,7 @@ import io.github.flexarr.core.ItemDetail
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.MediaFile
 import io.github.flexarr.core.TitleVersion
+import io.github.flexarr.core.sameEpisode
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.ShowMissing
 import io.github.flexarr.core.Availability
@@ -413,10 +414,10 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail,
     }
     if (choosingVersion) {
         val versions = detail.versions.orEmpty()
-        val marked = { name: String, chosen: Boolean -> if (chosen) "✓ $name" else name }
-        val entries = listOf(MenuAction(marked(t(Words.automatic), versions.none { it.chosen })) { navigator.chooseVersion(item, null) }) +
-            versions.map { version -> MenuAction(marked(version.name(versions), version.chosen)) { navigator.chooseVersion(item, version.fileId) } }
-        TvItemMenu(t(Words.version), entries, onDismiss = { choosingVersion = false })
+        val entries = listOf(MenuAction(t(Words.automatic), selected = versions.none { it.chosen }) { navigator.chooseVersion(item, null) }) +
+            versions.map { version -> MenuAction(version.name(versions), selected = version.chosen) { navigator.chooseVersion(item, version.fileId) } }
+        // Wider than a card's menu: the end of a version's name (its cut, its length) is what tells it from the next.
+        TvItemMenu(t(Words.version), entries, onDismiss = { choosingVersion = false }, width = 480.dp)
     }
     searchingSubtitlesFor?.let { fileId ->
         // Over the page, as in the player: a panel down the right.
@@ -568,10 +569,10 @@ private fun Episodes(item: ItemSummary, season: ItemDetail, nextUp: ItemSummary?
             TvEpisodeCard(
                 episode,
                 overview = season.childOverviews[episode.id],
-                isCurrent = episode.id == item.id,
+                isCurrent = episode.sameEpisode(item),
                 onClick = {
                     // On a show (or the episode's own page), the episode plays; another episode opens its page.
-                    if (episode.id == item.id || item.kind == MediaKind.Series) navigator.play(episode, from = from) else navigator.openItem(episode.id)
+                    if (episode.sameEpisode(item) || item.kind == MediaKind.Series) navigator.play(episode, from = from) else navigator.openItem(episode.id)
                 },
                 modifier = if (episode.id == anchor) Modifier.focusRequester(landing) else Modifier,
             )

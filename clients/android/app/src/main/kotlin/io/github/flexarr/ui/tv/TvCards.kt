@@ -2,6 +2,8 @@ package io.github.flexarr.ui.tv
 
 import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,6 +40,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
 import io.github.flexarr.core.Format
@@ -238,11 +241,13 @@ fun TvWatchedBadge(modifier: Modifier = Modifier) {
 
 /** A card's long-press menu, as the Apple TV's context menu: its choices in a column, Back to close. */
 @Composable
-fun TvItemMenu(title: String, actions: List<MenuAction>, onDismiss: () -> Unit) {
+fun TvItemMenu(title: String, actions: List<MenuAction>, onDismiss: () -> Unit, width: Dp = 320.dp) {
     val first = remember { FocusRequester() }
-    Dialog(onDismissRequest = onDismiss) {
+    // Focus starts on what's chosen, when one is.
+    val start = actions.indexOfFirst { it.selected }.coerceAtLeast(0)
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
-            Modifier.width(320.dp).background(Flexarr.seat, RoundedCornerShape(Tokens.radiusPanel)).padding(20.dp),
+            Modifier.width(width).background(Flexarr.seat, RoundedCornerShape(Tokens.radiusPanel)).verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(bottom = 4.dp))
@@ -254,7 +259,8 @@ fun TvItemMenu(title: String, actions: List<MenuAction>, onDismiss: () -> Unit) 
                         action.run()
                     },
                     icon = action.icon,
-                    modifier = Modifier.fillMaxWidth().then(if (index == 0) Modifier.focusRequester(first) else Modifier),
+                    selected = action.selected,
+                    modifier = Modifier.fillMaxWidth().then(if (index == start) Modifier.focusRequester(first) else Modifier),
                 )
             }
         }
