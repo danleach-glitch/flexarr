@@ -18,13 +18,13 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - While a channel has nothing listed, Flexarr checks for a fuller guide sooner than the usual six hours: after one hour at first, then less often while the guide stays the same.
 - You can add an optional Dispatcharr admin API key in **Settings › Connections**, so that Refresh has Dispatcharr download its guides first. Your guide sources are contacted at most once every 15 minutes.
 - While **Refresh guide** runs on the web, it says **Refreshing…**. A slow refresh is a quiet note, and the guide updates when it ends, even if you left the page or the server stopped answering for a while.
-- If you leave Live TV during a refresh on iPhone, iPad, Apple TV, Android or Android TV, the result is waiting when you come back within two minutes. A red refresh error goes once a later refresh works.
+- If you leave Live TV during a refresh on iPhone, iPad, Apple TV, Android or Android TV, the result is waiting when you come back within two minutes. A red refresh error goes once the problem has.
 - If you refresh again within 15 minutes, Live TV says its sources weren’t asked again, so an old failure doesn’t look like a new one.
 - A Dispatcharr admin key that’s refused is turned down when you save it, and **Test** only says a key was accepted if it tried that key. A saved key isn’t sent to a changed address.
 - The usual Live TV connection errors now appear in your language.
 - **On now** on the web keeps its channels when a load fails, and offers **Try again**.
 - On Apple TV, the Live TV sidebar scrolls when there are many groups, and channels with no listings can be reached in the guide and played from there.
-- On iPhone, iPad, Apple TV and Android TV, Live TV goes back to its usual view if the group you chose disappears.
+- On the web, iPhone, iPad, Apple TV, Android and Android TV, Live TV goes back to its usual view if the group you chose disappears.
 
 ### Music
 
@@ -37,6 +37,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A requested album that downloads but can't be imported now says **Couldn't import** instead of waiting forever. If the download was missing tracks, Flexarr rejects it and looks for another copy, up to three times.
 - A **Couldn’t import** album someone asked for has **Try again** on the web, and a **Why?** link to the [guide](https://flexarr.io/guide/requests#couldn-t-import). It keeps a complete copy for you to import by hand, says when an album isn’t stuck or was only just tried, and counts towards the daily limit.
 - A cover that won’t load in **Requested** shows the album’s title.
+- A request shows **Downloading** when a new copy is on its way, even if an earlier copy couldn’t import.
 
 ### iPhone, iPad and Apple TV
 
