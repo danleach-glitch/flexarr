@@ -173,6 +173,19 @@ export interface Credit {
   image: string | null
 }
 
+/** One of a film's or episode's versions to choose from: a file, in this title's copy or another of its copies. */
+export interface TitleVersion {
+  fileId: string
+  /** "4K HDR", "1080p". */
+  label: string
+  /** "Director's Cut", from the file's name. */
+  edition: string | null
+  durationSeconds: number | null
+  size: number
+  /** The profile's remembered choice. */
+  chosen: boolean
+}
+
 export interface ItemDetail {
   item: ItemSummary
   path: string | null
@@ -198,6 +211,8 @@ export interface ItemDetail {
   season?: ItemDetail | null
   /** Bazarr can find subtitles for this film or episode. Absent from servers before 0.53. */
   canSearchSubtitles?: boolean
+  /** Best first, with two or more to choose from. Absent from servers before 0.64. */
+  versions?: TitleVersion[] | null
   /** For a film or show, whether it's on this profile's watchlist. Absent from servers before 0.56. */
   onWatchlist?: boolean | null
   /** The age it's suitable from, on the UK's steps (0 is U, 8 PG); null, unrated. Absent from servers before 0.56. */

@@ -2681,6 +2681,23 @@ a.download-attention {
   color: var(--danger);
 }
 
+.item-menu button[role='menuitemradio'] {
+  position: relative;
+  padding-inline-start: 30px;
+}
+
+.item-menu button[aria-checked='true']::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 12px;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  margin-top: -4.5px;
+  border-radius: 50%;
+  background: var(--ambient);
+}
+
 .item-menu hr {
   margin: 5px 6px;
   border: 0;

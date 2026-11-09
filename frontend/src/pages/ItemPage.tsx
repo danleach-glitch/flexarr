@@ -12,6 +12,8 @@ import {
   type ShowMissing,
   imageUrl,
   setKidsOverride,
+  ApiError,
+  setVersion,
   setWatched,
   type Credit,
   type ItemDetail,
@@ -19,6 +21,8 @@ import {
   type KidsOverride,
   type MediaFile,
 } from '../api/client'
+import { versionLabels, versionName } from '../lib/versions'
+import { showNotice } from '../lib/notice'
 import { Artwork } from '../components/Artwork'
 import { AsyncButton } from '../components/AsyncButton'
 import { PosterCard } from '../components/Cards'
@@ -127,6 +131,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   const [findingSubtitles, setFindingSubtitles] = useState(false)
   const [subtitlesSaved, setSubtitlesSaved] = useState<string>()
   const [moreAt, setMoreAt] = useState<MenuPoint | null>(null)
+  const [versionAt, setVersionAt] = useState<MenuPoint | null>(null)
   const { me, profiles } = useSession()
   // A child's page leaves out watch state and trailers (a YouTube page away from anything rated).
   const { kids } = useAgeLimits()
@@ -146,6 +151,9 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   // The order every client shares (docs/design.md › Platforms): Play, Start over, Shuffle, Trailer, Watched, Watchlist,
   // then the ellipsis for everything else, so the row doesn't wrap.
   const more: MenuAction[] = []
+  const versions = detail.versions ?? []
+  const chosenVersion = versions.find((v) => v.chosen)?.fileId ?? null
+  if (versions.length > 1) more.push({ label: t(Words.version), run: () => setVersionAt(moreAt) })
   // A child's profile has no collections and doesn't find subtitles.
   if ((item.kind === 'Movie' || item.kind === 'Series') && !kids) more.push({ label: t('Add to collection…'), run: () => openAddToCollection(item) })
   if (detail.canSearchSubtitles && !kids) more.push({ label: t('Search for subtitles…'), run: () => setFindingSubtitles(true) })
@@ -166,6 +174,19 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   }
   const best = detail.files[0]
 
+  const chooseVersion = (fileId: string | null) => async () => {
+    try {
+      await setVersion(item.id, fileId)
+      onChange()
+    } catch (e) {
+      showNotice(e instanceof ApiError && e.messages[0] ? e.messages[0] : t('That didn’t work. Try again.'))
+    }
+  }
+  const versionMenu: MenuAction[] = [
+    { label: t(Words.automatic), checked: chosenVersion === null, run: chooseVersion(null) },
+    ...versions.map((v) => ({ label: versionName(v, versions), checked: v.fileId === chosenVersion, run: chooseVersion(v.fileId) })),
+  ]
+
   async function toggleWatched() {
     await setWatched(item.id, !item.userData.watched)
     announceWatched(item)
@@ -182,7 +203,8 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
       window.clearTimeout(timer)
       leave(warmId)
     }
-  }, [warmId])
+    // A new choice means a different file, so what was got ready for the old one goes.
+  }, [warmId, chosenVersion])
   const playLabel = (() => {
     if (item.kind === 'Series') {
       if (!nextUp) return t(Words.play)
@@ -222,8 +244,8 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
           <Facts
             item={item}
             extra={[
-              item.resolution,
-              best ? pictureLabel(best) : null,
+              // With versions to choose from, what's there side by side; otherwise this file's resolution and picture.
+              ...(versions.length > 1 ? versionLabels(versions) : [item.resolution, best ? pictureLabel(best) : null]),
               item.kind === 'Episode' && item.releaseDate ? new Date(item.releaseDate).toLocaleDateString(locale(), { dateStyle: 'medium' }) : null,
             ]}
           />
@@ -276,6 +298,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
               </button>
             )}
             {moreAt && <Menu label={t('More for {title}', { title: item.title })} at={moreAt} actions={more} onClose={() => setMoreAt(null)} />}
+            {versionAt && <Menu label={t(Words.version)} at={versionAt} actions={versionMenu} onClose={() => setVersionAt(null)} />}
           </div>
           {subtitlesSaved && (
             <p className="muted" role="status">

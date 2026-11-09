@@ -819,6 +819,8 @@ export const getLoudness = (id: string, signal?: AbortSignal) =>
 export const getRadio = (id: string, signal?: AbortSignal) => apiGet<ItemSummary[]>(`/items/${seg(id)}/radio`, signal)
 export const getNextUp = (id: string, signal?: AbortSignal) => cachedGet<ItemSummary | undefined>(`/items/${seg(id)}/next-up`, signal)
 export const setWatched = (id: string, watched: boolean) => request<void>('POST', `/items/${seg(id)}/watched`, { watched })
+/** Remembers which version this profile plays, or goes back to the automatic pick. */
+export const setVersion = (id: string, fileId: string | null) => request<void>('PUT', `/items/${seg(id)}/version`, { fileId })
 /** Marks a book finished (now) or not; not finished forgets the place too. */
 export const setBookFinished = (id: string, finished: boolean) => request<void>('POST', `/items/${seg(id)}/finished`, { finished })
 /** Takes a title out of Continue Watching without marking it watched; for an episode, its show stays out until another is played. */
