@@ -187,8 +187,7 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
         var forWhom = HashCode.Combine(account.BaseUrl, key);
         if (status.DownloadedTooRecently(now, forWhom, DownloadsAtMost))
         {
-            // Nothing's being asked this time, so the last one's trouble isn't this refresh's.
-            status.ForgetDownloadProblem();
+            // Nothing's being asked this time, so nothing's been learned: a fault with a source stands until one is.
             return;
         }
 

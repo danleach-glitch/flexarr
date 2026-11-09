@@ -823,10 +823,12 @@ public sealed class LiveTvTests : IDisposable
         Assert.Equal(1, _dispatcharr.GuideDownloads);
         Assert.Contains("couldn’t download", (await client.GetFromJsonAsync<JsonElement>(Api("livetv/status"))).GetProperty("downloadError").GetString(), StringComparison.Ordinal);
 
-        // Inside the limit: nothing's asked, and the last one's trouble isn't this refresh's.
+        // Inside the limit nothing's asked, so a fix in Dispatcharr hasn't been tried: the fault stands.
+        _dispatcharr.GuideSourceFails = false;
         await DownloadAsync();
+        await RefreshAsync();
         Assert.Equal(1, _dispatcharr.GuideDownloads);
-        Assert.Equal(JsonValueKind.Null, (await client.GetFromJsonAsync<JsonElement>(Api("livetv/status"))).GetProperty("downloadError").ValueKind);
+        Assert.Contains("couldn’t download", (await client.GetFromJsonAsync<JsonElement>(Api("livetv/status"))).GetProperty("downloadError").GetString(), StringComparison.Ordinal);
     }
 
     [Fact]
