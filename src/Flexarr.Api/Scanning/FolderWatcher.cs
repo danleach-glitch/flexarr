@@ -109,6 +109,14 @@ public sealed partial class FolderWatcher(
     /// <summary>Starts a watcher: this is where the system walks the folder's tree, and can refuse.</summary>
     internal Action<FileSystemWatcher> Enable { get; set; } = watcher => watcher.EnableRaisingEvents = true;
 
+    /// <summary>
+    /// This many titles gone from one library folder within <see cref="GoneWithin"/> is no longer someone deleting or
+    /// renaming a film: only a scan of the library folder asks whether most of it has vanished, and holds it if so.
+    /// </summary>
+    internal const int ManyTitlesGone = 3;
+
+    internal TimeSpan GoneWithin { get; set; } = TimeSpan.FromMinutes(10);
+
     /// <summary>More titles than this waiting in one folder (a whole drive copied in): the folder is scanned as a whole.</summary>
     internal const int MaxPendingPerFolder = 50;
 
@@ -117,6 +125,7 @@ public sealed partial class FolderWatcher(
     private readonly Dictionary<string, Pending> _pending = new(StringComparer.Ordinal);
     private readonly List<FileSystemWatcher> _broken = [];
     private readonly Dictionary<string, DateTimeOffset> _forcedAt = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, List<DateTimeOffset>> _goneAt = new(StringComparer.Ordinal);
     private bool _synced;
     private volatile bool _syncSoon;
 
@@ -229,6 +238,7 @@ public sealed partial class FolderWatcher(
             _broken.Clear();
             _folders.Clear();
             _pending.Clear();
+            _goneAt.Clear();
         }
     }
 
@@ -642,6 +652,7 @@ public sealed partial class FolderWatcher(
                 .Select(p => (p.Key, p.Value)).ToList();
         }
 
+        var gone = new List<(string Path, Pending Pending)>();
         foreach (var (path, pending) in quiet)
         {
             // Not for a whole library folder, which would mean walking all of it (twice) to see if it had settled, and not
@@ -660,18 +671,8 @@ public sealed partial class FolderWatcher(
 
                 if (snapshot == Gone)
                 {
-                    // A whole title gone looks the same as the first of many. Only a scan of the library folder asks whether
-                    // most of it has vanished, and holds it if so, so all that goes at once waits for one of those.
                     _pending.Remove(path);
-                    if (_pending.TryGetValue(pending.Root, out var whole))
-                    {
-                        whole.LastEvent = time.GetUtcNow();
-                    }
-                    else
-                    {
-                        _pending[pending.Root] = new Pending(pending.Root, time.GetUtcNow());
-                    }
-
+                    gone.Add((path, pending));
                     continue;
                 }
 
@@ -693,6 +694,70 @@ public sealed partial class FolderWatcher(
                 var whole = path == pending.Root;
                 await queue.EnqueueAsync(new LibraryScanRequest(path, Reason, ForceMetadata: pending.ForceMetadata && !whole && MayForce(path), LastChange: pending.LastEvent, OnlySubtitles: pending.OnlySubtitles && pending.HeardSubtitle && !whole), ct);
             }
+        }
+
+        foreach (var titles in gone.GroupBy(g => g.Pending.Root))
+        {
+            await TitlesGoneAsync(titles.Key, titles.ToList(), ct);
+        }
+    }
+
+    /// <summary>
+    /// A title gone may be one film deleted or renamed, which is only worth a scan of that title, or the first sign of a
+    /// drive going. Only a scan of the library folder holds a vanished drive's titles (see LibraryScanner's mass-removal
+    /// guard), so that's what happens when the library folder has emptied or is unreadable, or when many have gone at once.
+    /// </summary>
+    private async Task TitlesGoneAsync(string root, List<(string Path, Pending Pending)> titles, CancellationToken ct)
+    {
+        // Read outside the lock, as the snapshots are: this is one folder's top level, not every title's.
+        var rootGone = NothingLeftIn(root);
+        var now = time.GetUtcNow();
+        bool whole;
+        lock (_lock)
+        {
+            if (!_goneAt.TryGetValue(root, out var times))
+            {
+                _goneAt[root] = times = [];
+            }
+
+            times.RemoveAll(t => now - t >= GoneWithin);
+            times.AddRange(titles.Select(_ => now));
+            whole = rootGone || times.Count >= ManyTitlesGone;
+            if (whole)
+            {
+                if (_pending.TryGetValue(root, out var waiting))
+                {
+                    waiting.LastEvent = now;
+                }
+                else
+                {
+                    _pending[root] = new Pending(root, now);
+                }
+            }
+        }
+
+        if (whole)
+        {
+            return;
+        }
+
+        foreach (var (path, pending) in titles)
+        {
+            LogChanged(PathComparison.Printable(path));
+            await queue.EnqueueAsync(new LibraryScanRequest(path, Reason, LastChange: pending.LastEvent), ct);
+        }
+    }
+
+    /// <summary>The library folder isn't there, can't be read, or holds nothing a scan would care about: an unmounted drive's look.</summary>
+    private static bool NothingLeftIn(string root)
+    {
+        try
+        {
+            return !Directory.EnumerateFileSystemEntries(root).Any(entry => !Ignored(Path.GetFileName(entry)));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return true;
         }
     }
 

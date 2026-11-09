@@ -236,6 +236,49 @@ public class FolderWatcherTests(FlexarrApiFactory factory) : IClassFixture<Flexa
     }
 
     [Fact]
+    public async Task OneTitleDeletedOrRenamed_ScansJustThatTitle()
+    {
+        using var setup = await WatchAsync();
+        Directory.CreateDirectory(Path.Combine(setup.Root, "Still Here (2020)"));
+        var gone = Path.Combine(setup.Root, "Heat (1995)");
+        setup.Watcher.Changed(setup.Root, "Heat (1995)/Heat (1995).mkv");
+
+        var requests = await WaitForAsync(setup, r => r.Path == gone);
+
+        Assert.DoesNotContain(requests, r => r.Path == setup.Root);
+    }
+
+    [Fact]
+    public async Task ALastTitleGone_LooksLikeAnUnmountedDrive_SoTheGuardDecides()
+    {
+        using var setup = await WatchAsync();
+        await File.WriteAllTextAsync(Path.Combine(setup.Root, ".DS_Store"), "x"); // left on a mount point
+        setup.Watcher.Changed(setup.Root, "Heat (1995)/Heat (1995).mkv");
+
+        var requests = await WaitForAsync(setup, r => r.Path == setup.Root);
+
+        Assert.DoesNotContain(requests, r => r.Path == Path.Combine(setup.Root, "Heat (1995)"));
+    }
+
+    [Fact]
+    public async Task TitlesGoingOneAfterAnother_StillReachTheGuard()
+    {
+        using var setup = await WatchAsync();
+        Directory.CreateDirectory(Path.Combine(setup.Root, "Still Here (2020)"));
+        for (var i = 1; i < FolderWatcher.ManyTitlesGone; i++)
+        {
+            var gone = Path.Combine(setup.Root, $"Gone {i}");
+            setup.Watcher.Changed(setup.Root, $"Gone {i}/Gone.mkv");
+            await WaitForAsync(setup, r => r.Path == gone);
+        }
+
+        setup.Watcher.Changed(setup.Root, "Gone Last/Gone.mkv");
+
+        var requests = await WaitForAsync(setup, r => r.Path == setup.Root);
+        Assert.DoesNotContain(requests, r => r.Path == Path.Combine(setup.Root, "Gone Last"));
+    }
+
+    [Fact]
     public async Task AFileReplacedInATitle_StillScansJustTheTitle()
     {
         using var setup = await WatchAsync();
