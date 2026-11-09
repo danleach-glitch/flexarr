@@ -711,14 +711,18 @@ public sealed class PlaybackService(
             return;
         }
 
-        var dismissal = await db.ContinueWatchingDismissals.FindAsync([profile.Id, id], ct);
-        if (dismissal is null)
+        // On every copy, since Continue Watching may come to the show through any of them.
+        foreach (var copy in await TitleVersions.CopiesAsync(db, id, ct))
         {
-            db.ContinueWatchingDismissals.Add(new ContinueWatchingDismissal { ProfileId = profile.Id, SeriesId = id });
-        }
-        else
-        {
-            dismissal.DismissedAt = DateTime.UtcNow;
+            var dismissal = await db.ContinueWatchingDismissals.FindAsync([profile.Id, copy], ct);
+            if (dismissal is null)
+            {
+                db.ContinueWatchingDismissals.Add(new ContinueWatchingDismissal { ProfileId = profile.Id, SeriesId = copy });
+            }
+            else
+            {
+                dismissal.DismissedAt = DateTime.UtcNow;
+            }
         }
     }
 

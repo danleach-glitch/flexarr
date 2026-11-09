@@ -25,7 +25,8 @@ internal static class NamedItems
 
     /// <param name="Starts">Its title starts with the words.</param>
     /// <param name="SortStarts">Its sort title does ("The Hobbit" for "hobbit"), which counts for books.</param>
-    internal sealed record Named(Guid Id, MediaKind Kind, bool Starts, bool SortStarts, int? Year, string SortTitle);
+    /// <param name="LinkGroupId">The episode's linked copies, which show once.</param>
+    internal sealed record Named(Guid Id, MediaKind Kind, bool Starts, bool SortStarts, int? Year, string SortTitle, Guid? LinkGroupId = null);
 
     /// <summary>
     /// Items of the four kinds search finds by name, in the words the index of their names is filtered by (SQLite uses
@@ -48,7 +49,7 @@ internal static class NamedItems
             .Where(i => ((i.Kind == MediaKind.Episode || i.Kind == MediaKind.Album || i.Kind == MediaKind.Track) && EF.Functions.Like(i.Title, contains))
                 || (i.Kind == MediaKind.Audiobook && i.MissingSince == null && (EF.Functions.Like(i.Title, contains)
                     || db.BookDetails.Any(b => b.MediaItemId == i.Id && b.Subtitle != null && EF.Functions.Like(b.Subtitle, contains)))))
-            .Select(i => new Named(i.Id, i.Kind, EF.Functions.Like(i.Title, prefix), EF.Functions.Like(i.SortTitle, prefix), i.Year, i.SortTitle))
+            .Select(i => new Named(i.Id, i.Kind, EF.Functions.Like(i.Title, prefix), EF.Functions.Like(i.SortTitle, prefix), i.Year, i.SortTitle, i.LinkGroupId))
             .Take(AtOnce + 1).ToListAsync(ct);
         return named.Count > AtOnce ? null : Pick(named);
     }
@@ -63,7 +64,7 @@ internal static class NamedItems
         IEnumerable<Named> Of(MediaKind kind) => named.Where(n => n.Kind == kind);
         static List<Guid> Best(IOrderedEnumerable<Named> ordered) => [.. ordered.ThenBy(n => n.Id, IdOrder.Instance).Take(Shown).Select(n => n.Id)];
         return new Picks(
-            Best(Of(MediaKind.Episode).OrderByDescending(n => n.Starts)),
+            Best(Of(MediaKind.Episode).OrderBy(n => n.Id, IdOrder.Instance).DistinctBy(n => n.LinkGroupId ?? n.Id).OrderByDescending(n => n.Starts)),
             Best(Of(MediaKind.Album).OrderByDescending(n => n.Starts).ThenByDescending(n => n.Year)),
             Best(Of(MediaKind.Track).OrderByDescending(n => n.Starts).ThenBy(n => n.SortTitle, DatabaseOrder.Instance)),
             Best(Of(MediaKind.Audiobook).OrderByDescending(n => n.Starts || n.SortStarts).ThenBy(n => n.SortTitle, DatabaseOrder.Instance)));

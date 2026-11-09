@@ -17,6 +17,12 @@ public static class TitleVersions
             ? await db.MediaItems.Where(i => i.LinkGroupId == group).Select(i => i.Id).ToListAsync(ct)
             : [item.Id];
 
+    /// <summary>As above, by id.</summary>
+    public static async Task<List<Guid>> CopiesAsync(FlexarrDbContext db, Guid id, CancellationToken ct) =>
+        await db.MediaItems.Where(i => i.Id == id).Select(i => i.LinkGroupId).FirstOrDefaultAsync(ct) is { } group
+            ? await db.MediaItems.Where(i => i.LinkGroupId == group).Select(i => i.Id).ToListAsync(ct)
+            : [id];
+
     /// <summary>The readable files of the title and its copies, with what playing them needs.</summary>
     public static async Task<List<MediaFile>> FilesAsync(FlexarrDbContext db, MediaItem item, CancellationToken ct)
     {

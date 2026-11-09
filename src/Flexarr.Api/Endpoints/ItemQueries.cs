@@ -1,9 +1,28 @@
+using Flexarr.Core.Data;
 using Flexarr.Core.Media;
+using Microsoft.EntityFrameworkCore;
 
 namespace Flexarr.Api.Endpoints;
 
 public static class ItemQueries
 {
+    /// <summary>
+    /// A linked title once: of the copies this profile can see (see docs/multi-versions.md), the one with the lowest
+    /// id. For lists across libraries. A library's own page lists all it holds, or a title kept under another library
+    /// would be missing from it.
+    /// </summary>
+    public static IQueryable<MediaItem> OnePerTitle(this IQueryable<MediaItem> query) =>
+        query.Where(i => i.LinkGroupId == null || !i.LinkGroup!.Items.Any(o => o.Id.CompareTo(i.Id) < 0));
+
+    /// <summary>These ids with later copies of a linked title left out, in their order: for lists already ranked in memory.</summary>
+    public static async Task<List<Guid>> OnePerTitleAsync(FlexarrDbContext db, IReadOnlyList<Guid> ids, CancellationToken ct)
+    {
+        var groups = await db.MediaItems.Where(i => ids.Contains(i.Id) && i.LinkGroupId != null)
+            .Select(i => new { i.Id, Group = i.LinkGroupId!.Value }).ToDictionaryAsync(i => i.Id, i => i.Group, ct);
+        var seen = new HashSet<Guid>();
+        return [.. ids.Where(id => !groups.TryGetValue(id, out var group) || seen.Add(group))];
+    }
+
     /// <summary>
     /// Projects items to summaries in SQL (no files or streams loaded). Seasons and episodes borrow artwork
     /// from their series when they have none of their own.

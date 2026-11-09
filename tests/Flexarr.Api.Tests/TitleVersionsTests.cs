@@ -14,7 +14,7 @@ namespace Flexarr.Api.Tests;
 public sealed class TitleVersionsTests : IAsyncLifetime
 {
     private readonly FlexarrApiFactory _factory = new();
-    private Guid _hdItem, _uhdItem, _hdFile, _uhdFile, _uhdLibrary;
+    private Guid _hdItem, _uhdItem, _hdFile, _uhdFile, _hdLibrary, _uhdLibrary;
 
     private static readonly object Limited = new { containers = new[] { "matroska,webm", "mkv" }, videoCodecs = new[] { "hevc" }, audioCodecs = new[] { "aac" }, maxHeight = 1080 };
     private static readonly object Big = new { containers = new[] { "matroska,webm", "mkv" }, videoCodecs = new[] { "hevc" }, audioCodecs = new[] { "aac" }, maxHeight = 2160 };
@@ -32,7 +32,7 @@ public sealed class TitleVersionsTests : IAsyncLifetime
         db.AddRange(hd, uhd, hdItem, uhdItem, hdFile, uhdFile);
         await db.SaveChangesAsync();
         await TitleLinker.LinkAsync(db, default);
-        (_hdItem, _uhdItem, _hdFile, _uhdFile, _uhdLibrary) = (hdItem.Id, uhdItem.Id, hdFile.Id, uhdFile.Id, uhd.Id);
+        (_hdItem, _uhdItem, _hdFile, _uhdFile, _hdLibrary, _uhdLibrary) = (hdItem.Id, uhdItem.Id, hdFile.Id, uhdFile.Id, hd.Id, uhd.Id);
     }
 
     public async Task DisposeAsync() => await _factory.DisposeAsync();
@@ -177,5 +177,64 @@ public sealed class TitleVersionsTests : IAsyncLifetime
         }
 
         Assert.Equal(_uhdFile, await PlayAsync(_hdItem, Big));
+    }
+
+    [Fact]
+    public async Task Lists_ShowALinkedTitleOnce_AndALibraryKeepsItsOwn()
+    {
+        Guid person;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var genre = new Genre { Name = "Mystery" };
+            var actor = new Person { Name = "Sam Example" };
+            var items = await db.MediaItems.Where(i => i.Kind == MediaKind.Movie).Include(i => i.Genres).ToListAsync();
+            foreach (var item in items)
+            {
+                item.Genres.Add(genre);
+                db.Add(new Credit { Person = actor, MediaItemId = item.Id, Role = CreditRole.Actor, Order = 0 });
+            }
+
+            db.PlaybackStates.Add(new PlaybackState { UserId = PlaybackState.DefaultUser, MediaItemId = _hdItem, PositionSeconds = 60, LastPlayedAt = DateTime.UtcNow });
+            await db.SaveChangesAsync();
+            person = actor.Id;
+        }
+
+        var client = Client();
+        var search = await client.GetFromJsonAsync<JsonElement>(Api("/search?q=Film"));
+        Assert.Single(search.GetProperty("titles").EnumerateArray());
+        var genrePage = await client.GetFromJsonAsync<JsonElement>(Api("/genres/Mystery/items"));
+        Assert.Equal(1, genrePage.GetProperty("total").GetInt32());
+        var page = await client.GetFromJsonAsync<JsonElement>(Api($"/people/{person}"));
+        Assert.Single(page.GetProperty("credits").EnumerateArray());
+
+        var home = await client.GetFromJsonAsync<JsonElement>(Api("/home"));
+        var carryOn = home.GetProperty("rows").EnumerateArray().Single(r => r.GetProperty("id").GetString() == "continue");
+        Assert.Single(carryOn.GetProperty("items").EnumerateArray());
+
+        // Each library's own page still has it.
+        foreach (var (library, item) in new[] { (_hdLibrary, _hdItem), (_uhdLibrary, _uhdItem) })
+        {
+            var own = await client.GetFromJsonAsync<JsonElement>(Api($"/libraries/{library}/items"));
+            Assert.Equal(item, own.GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid());
+        }
+    }
+
+    [Fact]
+    public async Task Lists_StillShowATitle_WhenTheCopyKeptIsHidden()
+    {
+        // Whichever copy has the lower id, hide that one: the other must show.
+        var hidden = string.CompareOrdinal(_uhdItem.ToString(), _hdItem.ToString()) < 0 ? _uhdLibrary : _hdLibrary;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var main = await db.Profiles.SingleAsync(p => p.Id == PlaybackState.DefaultUser);
+            main.HiddenLibraryIds = [hidden];
+            await db.SaveChangesAsync();
+            Flexarr.Api.Profiles.LibraryVisibility.KidsSettingsChanged();
+        }
+
+        var search = await Client().GetFromJsonAsync<JsonElement>(Api("/search?q=Film"));
+        Assert.Equal(hidden == _uhdLibrary ? _hdItem : _uhdItem, search.GetProperty("titles").EnumerateArray().Single().GetProperty("id").GetGuid());
     }
 }

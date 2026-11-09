@@ -41,10 +41,11 @@ public sealed record SmartRules(
             ? db.MediaItems.Where(i => i.Kind == MediaKind.Audiobook && i.MissingSince == null)
             : db.MediaItems.Where(i => i.ParentId == null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series));
 
-        if (LibraryIds is { Count: > 0 } libraries)
-        {
-            q = q.Where(i => libraries.Contains(i.LibraryId));
-        }
+        // A linked title once, among the libraries asked for.
+        q = LibraryIds is { Count: > 0 } libraries
+            ? q.Where(i => libraries.Contains(i.LibraryId)
+                && (i.LinkGroupId == null || !i.LinkGroup!.Items.Any(o => libraries.Contains(o.LibraryId) && o.Id.CompareTo(i.Id) < 0)))
+            : q.OnePerTitle();
 
         q = Type switch
         {

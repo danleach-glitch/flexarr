@@ -173,7 +173,8 @@ public static class PeopleEndpoints
     private static async Task<PersonDto> ToDtoAsync(FlexarrDbContext db, Person person, CurrentProfile profile, PersonImages images, CancellationToken ct)
     {
         var credits = await db.Credits.Where(c => c.PersonId == person.Id).Select(c => new { c.MediaItemId, c.Role, c.Character }).ToListAsync(ct);
-        var itemIds = credits.Select(c => c.MediaItemId).Distinct().ToList();
+        // A linked title once, by a copy this person is credited on.
+        var itemIds = await ItemQueries.OnePerTitleAsync(db, credits.Select(c => c.MediaItemId).Distinct().ToList(), ct);
         var items = await db.MediaItems.Where(i => itemIds.Contains(i.Id)).Summaries(profile.Id).ToDictionaryAsync(i => i.Id, ct);
 
         var list = credits
