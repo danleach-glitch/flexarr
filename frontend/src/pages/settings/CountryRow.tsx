@@ -44,7 +44,7 @@ function useCountry() {
       onChange={(e) => void choose(e.target.value)}
       disabled={saving || !settings.data || !countries.data}
     >
-      <option value="">{settings.data && !detected ? t('Not set') : !chosen && regionName ? t('This server’s region ({region})', { region: regionName }) : t('This server’s region')}</option>
+      <option value="">{settings.data && !detected ? t('Not set') : !chosen && regionName ? t('Automatic ({region})', { region: regionName }) : t('Automatic')}</option>
       {countries.data?.map((c) => (
         <option key={c.code} value={c.code}>
           {c.name}

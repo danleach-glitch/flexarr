@@ -40,7 +40,7 @@ describe('Country', () => {
     renderRow()
 
     expect(await screen.findByText(/U, PG, 12, 15, 18/)).toBeInTheDocument()
-    await screen.findByRole('option', { name: 'This server’s region (United Kingdom)' })
+    await screen.findByRole('option', { name: 'Automatic (United Kingdom)' })
 
     fireEvent.change(screen.getByRole('combobox', { name: /Country/ }), { target: { value: 'us' } })
 
@@ -58,7 +58,7 @@ describe('Country', () => {
     renderRow()
 
     expect(await screen.findByRole('option', { name: 'Not set' })).toBeInTheDocument()
-    expect(screen.queryByRole('option', { name: /This server’s region/ })).toBeNull()
+    expect(screen.queryByRole('option', { name: /Automatic/ })).toBeNull()
   })
 
   it('shows the pick and holds the select until it’s saved', async () => {
