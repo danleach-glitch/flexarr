@@ -67,7 +67,6 @@ import io.github.flexarr.core.requestAlbum
 import io.github.flexarr.core.unfollowArtist
 import io.github.flexarr.core.unrequestAlbum
 import io.github.flexarr.ui.components.MenuAction
-import io.github.flexarr.ui.music.isUndoingMusic
 import io.github.flexarr.ui.music.musicUndoConfirm
 import io.github.flexarr.ui.music.musicUndoKeep
 import io.github.flexarr.ui.music.musicUndoTitle
@@ -283,12 +282,11 @@ internal fun TvRequestableAlbum(model: AppModel, item: MusicExternal, focus: Foc
     val ask = rememberTvMusicAsk(model, item.id)
     val state = model.requestState(item)
     var confirming by remember { mutableStateOf(false) }
-    val on = state == MusicRequestState.Requested || state == MusicRequestState.Sending
+    val on = state == MusicRequestState.Requested
     val label = if (state == MusicRequestState.CanRequest && ask.failure != null) t("Try again") else state.chipLabel()
     val canAsk = model.canAskForMusicHere
     val enabled = when (state) {
-        MusicRequestState.CanRequest -> canAsk
-        MusicRequestState.Requested -> canAsk && !model.isUndoingMusic(listOf(item.id))
+        MusicRequestState.CanRequest, MusicRequestState.Requested -> canAsk
         MusicRequestState.InLibrary -> item.libraryItemId != null
         else -> false
     }
@@ -386,13 +384,13 @@ internal fun TvMusicRequestRound(
     val icon = state.icon(item.isArtist) ?: return
     if (state == MusicRequestState.InLibrary) return
     val isArtist = item.isArtist
-    val on = state == MusicRequestState.Requested || state == MusicRequestState.Sending
+    val on = state == MusicRequestState.Requested
     val name = when {
         on -> if (isArtist) t(Words.following) else t(Words.requested)
         ask.failure != null -> t("Try again")
         else -> state.label(isArtist).orEmpty()
     }
-    val enabled = model.canAskForMusicHere && !model.isUndoingMusic(keys) && (state == MusicRequestState.CanRequest || state == MusicRequestState.Requested)
+    val enabled = model.canAskForMusicHere && (state == MusicRequestState.CanRequest || state == MusicRequestState.Requested)
     Row(horizontalArrangement = Arrangement.spacedBy(15.dp), verticalAlignment = Alignment.CenterVertically) {
         RoundAction(name, icon, ambient, onFocusName, modifier, enabled = enabled, selected = on) {
             when {

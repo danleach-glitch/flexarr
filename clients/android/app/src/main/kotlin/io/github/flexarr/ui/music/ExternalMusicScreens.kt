@@ -106,14 +106,13 @@ import io.github.flexarr.ui.theme.marquee
 // Music from outside the library (Deezer's, through the server): cards for Search and the artist pages, and the
 // outside artist and album pages, as the iPhone app's ExternalMusicViews.
 
-/** Where an outside artist or album stands, for its control: ask for it, on its way, asked, in, or nothing to offer. */
-internal enum class MusicRequestState { CanRequest, Sending, Requested, InLibrary, None }
+/** Where an outside artist or album stands, for its control: ask for it, asked, in, or nothing to offer. */
+internal enum class MusicRequestState { CanRequest, Requested, InLibrary, None }
 
 /** Where [item] stands, counting what this profile asked for here ([AppModel.musicAsked]) ahead of the server. */
 internal fun AppModel.requestState(item: MusicExternal): MusicRequestState = when {
     item.libraryItemId != null || item.availability == Availability.Available || item.availability == Availability.PartlyAvailable -> MusicRequestState.InLibrary
-    item.id in musicAsked || item.id in musicUndoing -> MusicRequestState.Requested
-    item.id in musicSending -> MusicRequestState.Sending
+    item.id in musicAsked -> MusicRequestState.Requested
     // Unrequested here: Request album again, though the page it came from still says the server's Requested.
     item.availability == Availability.Requested && item.id !in musicUndone -> MusicRequestState.Requested
     item.canRequest || (item.id in musicUndone && item.availability == Availability.Requested && (item.deezerId != 0L || item.musicBrainzId != null)) -> MusicRequestState.CanRequest
@@ -144,7 +143,6 @@ internal val AppModel.lidarrSilentHere: Boolean
 /** "Request album", "Follow", "Requested", "Following" or "In your library"; null for nothing to offer. */
 internal fun MusicRequestState.label(isArtist: Boolean): String? = when (this) {
     MusicRequestState.CanRequest -> if (isArtist) t(Words.follow) else t(Words.requestAlbum)
-    MusicRequestState.Sending -> if (isArtist) t("Following…") else t("Requesting…")
     MusicRequestState.Requested -> if (isArtist) t(Words.following) else t(Words.requested)
     MusicRequestState.InLibrary -> t(Words.inYourLibrary)
     MusicRequestState.None -> null
@@ -152,7 +150,7 @@ internal fun MusicRequestState.label(isArtist: Boolean): String? = when (this) {
 
 internal fun MusicRequestState.icon(isArtist: Boolean): ImageVector? = when (this) {
     MusicRequestState.CanRequest -> if (isArtist) FlexarrIcons.follow else FlexarrIcons.request
-    MusicRequestState.Sending, MusicRequestState.Requested -> if (isArtist) FlexarrIcons.following else FlexarrIcons.requested
+    MusicRequestState.Requested -> if (isArtist) FlexarrIcons.following else FlexarrIcons.requested
     MusicRequestState.InLibrary -> FlexarrIcons.music
     MusicRequestState.None -> null
 }
@@ -162,15 +160,11 @@ internal fun libraryArtistKeys(id: String, deezerId: Long?): List<String> = list
 
 /** Follow or Following for an artist: [followed] by the server's word, or asked for here under any of [keys]. */
 internal fun AppModel.followState(keys: List<String>, followed: Boolean): MusicRequestState = when {
-    keys.any { it in musicAsked || it in musicUndoing } -> MusicRequestState.Requested
-    keys.any { it in musicSending } -> MusicRequestState.Sending
+    keys.any { it in musicAsked } -> MusicRequestState.Requested
     // Unfollowed here: Follow again, though the page still has the server's word.
     followed && keys.none { it in musicUndone } -> MusicRequestState.Requested
     else -> MusicRequestState.CanRequest
 }
-
-/** An unfollow or unrequest for [keys] is on its way: its control waits. */
-internal fun AppModel.isUndoingMusic(keys: List<String>): Boolean = keys.any { it in musicUndoing }
 
 /** The question before Following or Requested is undone, its answer and the way out, as the web's. */
 internal fun musicUndoTitle(isArtist: Boolean, name: String) = if (isArtist) t("Stop following {name}?", "name" to name) else t("Unrequest {name}?", "name" to name)
@@ -241,8 +235,7 @@ internal fun MusicRoundButton(
 /**
  * Follow or Request album in a page's action row: a round icon after Play and the rest, or [labelled] (icon and words)
  * when it's the page's only action. Following or Requested lit up ([musicOnStyle]), pressing it asking once
- * ([MusicUndoDialog]) before [onUndo]. Greyed while Lidarr isn't answering (the page says so under the row) or
- * something for it is on its way.
+ * ([MusicUndoDialog]) before [onUndo]. Greyed while Lidarr isn't answering (the page says so under the row).
  */
 @Composable
 internal fun MusicRequestRoundButton(
@@ -251,18 +244,17 @@ internal fun MusicRequestRoundButton(
     isArtist: Boolean,
     name: String,
     ambient: Color,
-    undoing: Boolean,
     onRequest: () -> Unit,
     onUndo: () -> Unit,
     labelled: Boolean = false,
 ) {
     var confirming by remember { mutableStateOf(false) }
-    val on = state == MusicRequestState.Requested || state == MusicRequestState.Sending
-    val enabled = model.canAskForMusicHere && !undoing && (state == MusicRequestState.CanRequest || state == MusicRequestState.Requested)
+    val on = state == MusicRequestState.Requested
+    val enabled = model.canAskForMusicHere && (state == MusicRequestState.CanRequest || state == MusicRequestState.Requested)
     val icon = state.icon(isArtist) ?: return
     val label = if (on) (if (isArtist) t(Words.following) else t(Words.requested)) else state.label(isArtist).orEmpty()
     val press = { if (state == MusicRequestState.CanRequest) onRequest() else confirming = true }
-    val dimmed = !enabled && state != MusicRequestState.Sending
+    val dimmed = !enabled
     val onClickLabel = if (on) musicUndoConfirm(isArtist) else null
     if (labelled) {
         val shape = RoundedCornerShape(Tokens.radiusControl)
@@ -340,7 +332,7 @@ fun MusicExternalCard(model: AppModel, item: MusicExternal, width: Dp?, modifier
     val actions = when {
         !canAsk -> emptyList()
         state == MusicRequestState.CanRequest -> listOf(MenuAction(state.label(item.isArtist)!!, state.icon(item.isArtist)) { request() })
-        state == MusicRequestState.Requested && !item.isArtist && !model.isUndoingMusic(listOf(item.id)) ->
+        state == MusicRequestState.Requested && !item.isArtist ->
             listOf(MenuAction(musicUndoConfirm(isArtist = false), FlexarrIcons.requested) { confirming = true })
         else -> emptyList()
     }
@@ -385,7 +377,7 @@ fun MusicExternalCard(model: AppModel, item: MusicExternal, width: Dp?, modifier
  */
 internal fun MusicRequestState.chipLabel(): String? = when (this) {
     MusicRequestState.CanRequest -> t(Words.request)
-    MusicRequestState.Sending, MusicRequestState.Requested -> t(Words.requested)
+    MusicRequestState.Requested -> t(Words.requested)
     MusicRequestState.InLibrary -> label(isArtist = false)
     MusicRequestState.None -> null
 }
@@ -400,11 +392,10 @@ internal fun MusicRequestState.chipLabel(): String? = when (this) {
 private fun MusicRequestChip(model: AppModel, item: MusicExternal, state: MusicRequestState, onRequest: () -> Unit, onUndo: () -> Unit) {
     val navigator = LocalNavigator.current
     var confirming by remember { mutableStateOf(false) }
-    val on = state == MusicRequestState.Requested || state == MusicRequestState.Sending
+    val on = state == MusicRequestState.Requested
     val canAsk = model.canAskForMusicHere
     val enabled = when (state) {
-        MusicRequestState.CanRequest -> canAsk
-        MusicRequestState.Requested -> canAsk && !model.isUndoingMusic(listOf(item.id))
+        MusicRequestState.CanRequest, MusicRequestState.Requested -> canAsk
         MusicRequestState.InLibrary -> item.libraryItemId != null
         else -> false
     }
@@ -434,7 +425,7 @@ private fun MusicRequestChip(model: AppModel, item: MusicExternal, state: MusicR
             Modifier.height(32.dp).clip(shape)
                 .musicOnStyle(on, Flexarr.silver, shape, offFill = Flexarr.screen.copy(alpha = 0.09f))
                 .then(if (on) Modifier else Modifier.border(1.dp, Flexarr.screen.copy(alpha = 0.22f), shape))
-                .alpha(if (enabled || state == MusicRequestState.Sending) 1f else 0.5f)
+                .alpha(if (enabled) 1f else 0.5f)
                 .padding(horizontal = 9.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -560,7 +551,6 @@ fun ExternalArtistScreen(model: AppModel, deezerId: Long) {
                                 if (MusicActions.Button.FOLLOW in MusicActions.of(MusicActions.Input(MusicActions.Kind.ARTIST, hasMusic = false, canRequest = true, platform = MusicActions.Platform.PHONE))) {
                                     MusicRequestRoundButton(
                                         model, follow, isArtist = true, name = artist.name, ambient = Flexarr.silver,
-                                        undoing = model.isUndoingMusic(keys),
                                         // Named when it's the page's only button; beside In your library, its icon alone.
                                         labelled = libraryId == null,
                                         onRequest = { navigator.requestMusic(model, summary, keys) },
@@ -639,7 +629,6 @@ fun ExternalAlbumScreen(model: AppModel, deezerId: Long) {
                                     // Nothing plays here: Request album is the page's one action, so it says so.
                                     MusicRequestRoundButton(
                                         model, request, isArtist = false, name = album.title, ambient = Flexarr.silver,
-                                        undoing = model.isUndoingMusic(listOf(summary.id)),
                                         labelled = true,
                                         onRequest = { navigator.requestMusic(model, summary) },
                                         onUndo = { navigator.unrequestMusic(model, summary) },

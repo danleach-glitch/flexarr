@@ -695,8 +695,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         watchlistItems = emptySet()
         watchlistTitles = emptySet()
         musicAsked = emptySet()
-        musicSending = emptySet()
-        musicUndoing = emptySet()
+        musicOnItsWay = emptySet()
         musicUndone = emptySet()
         musicUnreachable = false
         titleAsked = emptySet()
@@ -827,29 +826,43 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     var musicAsked: Set<String> by mutableStateOf(emptySet())
         private set
 
-    /** Music requests on their way, so a second press (or another card for the same album) doesn't send one again. */
-    var musicSending: Set<String> by mutableStateOf(emptySet())
-        private set
+    /** Music requests, unfollows and unrequests on their way, so a second press (or another card for the same album) sends nothing. */
+    private var musicOnItsWay: Set<String> = emptySet()
 
     /**
      * Asks Lidarr for what [keys] name (the first one decides), once: false, sending nothing, while it's asked already or
-     * on its way. Throws what went wrong, leaving it to ask again.
+     * something for it is on its way. It shows as asked from the press. Throws what went wrong, having put it back.
      */
     suspend fun askForMusic(keys: List<String>, send: suspend (FlexarrClient) -> Unit): Boolean {
+        if (keys.any { it in musicAsked }) return false
+        return markingMusic(keys, asAsked = true, send)
+    }
+
+    /**
+     * Shows [keys] as asked for or taken back from the moment it's pressed, since the round buttons have no room to say
+     * they're waiting, and puts them back as they were if [send] fails, as the Apple apps do.
+     */
+    private suspend fun markingMusic(keys: List<String>, asAsked: Boolean, send: suspend (FlexarrClient) -> Unit): Boolean {
         val client = client ?: return false
-        if (keys.any { it in musicAsked || it in musicSending || it in musicUndoing }) return false
-        musicSending = musicSending + keys
+        if (keys.any { it in musicOnItsWay }) return false
+        val before = MusicMarks(musicAsked, musicUndone)
+        musicOnItsWay = musicOnItsWay + keys
+        setMusicMarks(before.marked(keys, asAsked))
         try {
             send(client)
-            // Someone else may have been chosen meanwhile: what they asked for isn't theirs.
-            if (client.profileToken == this.client?.profileToken) {
-                musicAsked = musicAsked + keys
-                musicUndone = musicUndone - keys.toSet()
-            }
+        } catch (e: Exception) {
+            // Someone else may have been chosen meanwhile, whose marks these aren't.
+            if (client.profileToken == this.client?.profileToken) setMusicMarks(MusicMarks(musicAsked, musicUndone).restored(keys, before))
+            throw e
         } finally {
-            musicSending = musicSending - keys.toSet()
+            musicOnItsWay = musicOnItsWay - keys.toSet()
         }
         return true
+    }
+
+    private fun setMusicMarks(marks: MusicMarks) {
+        musicAsked = marks.asked
+        musicUndone = marks.undone
     }
 
     /**
@@ -864,10 +877,6 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         musicArtistsVersion++
     }
 
-    /** Unfollows or unrequests on their way: the control stays Following or Requested, and waits, until they're done. */
-    var musicUndoing: Set<String> by mutableStateOf(emptySet())
-        private set
-
     /**
      * Unfollowed or unrequested here, so every card and page says Follow or Request album again at once, though
      * the page it came from still says the server's Following or Requested. Forgotten with the sign-in or the profile.
@@ -876,24 +885,10 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         private set
 
     /**
-     * Unfollows or unrequests what [keys] name, once: false, sending nothing, while something for them is on its way.
-     * Throws what went wrong, leaving it as it was.
+     * Unfollows or unrequests what [keys] name, once: false, sending nothing, while something for them is on its way. It
+     * shows as taken back from the press. Throws what went wrong, having put it back.
      */
-    suspend fun undoMusic(keys: List<String>, send: suspend (FlexarrClient) -> Unit): Boolean {
-        val client = client ?: return false
-        if (keys.any { it in musicSending || it in musicUndoing }) return false
-        musicUndoing = musicUndoing + keys
-        try {
-            send(client)
-            if (client.profileToken == this.client?.profileToken) {
-                musicAsked = musicAsked - keys.toSet()
-                musicUndone = musicUndone + keys
-            }
-        } finally {
-            musicUndoing = musicUndoing - keys.toSet()
-        }
-        return true
-    }
+    suspend fun undoMusic(keys: List<String>, send: suspend (FlexarrClient) -> Unit): Boolean = markingMusic(keys, asAsked = false, send)
 
     /** The episodes to hear next, in order, the same on every device. */
     var upNext: List<PodcastEpisode> by mutableStateOf(emptyList())
@@ -2081,6 +2076,18 @@ internal fun awaitsProfile(chosenHere: Boolean, loaded: Boolean, needsProfile: B
 
 /** Who's watching offline ([offlineProfiles]); [asksWho]: nobody, and "Who's watching?" stays up until the server's back. */
 internal data class OfflineProfiles(val profiles: List<Profile>, val asksWho: Boolean = false)
+
+/** What's been asked for and taken back here, ahead of what the pages' answers say. */
+internal data class MusicMarks(val asked: Set<String>, val undone: Set<String>) {
+    fun marked(keys: List<String>, asAsked: Boolean): MusicMarks =
+        if (asAsked) MusicMarks(asked + keys, undone - keys.toSet()) else MusicMarks(asked - keys.toSet(), undone + keys)
+
+    /** [keys] back as they stood in [before], whatever's happened to the others since. */
+    fun restored(keys: List<String>, before: MusicMarks): MusicMarks = MusicMarks(
+        asked - keys.toSet() + keys.filter { it in before.asked },
+        undone - keys.toSet() + keys.filter { it in before.undone },
+    )
+}
 
 /** What to say about a Live TV refresh that ended. */
 data class LiveTvRefreshOutcome(val words: String, val isProblem: Boolean = false)

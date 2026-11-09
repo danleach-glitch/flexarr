@@ -297,7 +297,6 @@ fun ArtistScreen(model: AppModel, id: String) {
                                     val placeholder = albums.isEmpty()
                                     MusicRequestRoundButton(
                                         model, model.followState(followKeys, known.followed), isArtist = true, name = item.title, ambient = ambient,
-                                        undoing = model.isUndoingMusic(followKeys),
                                         onRequest = { navigator.followLibraryArtist(model, id, known.deezerId) },
                                         onUndo = {
                                             navigator.unfollowMusic(model, followKeys, onDone = {
