@@ -268,15 +268,20 @@ public sealed class PlaybackService(
         var start = request.StartPositionSeconds
             ?? (state is { Watched: false, PositionSeconds: > MinResumeSeconds } && state.PositionSeconds < duration * WatchedThreshold ? state.PositionSeconds : 0);
 
+        // Read once, for the stream and for the player.
+        double? keptSpeed = null;
+        var speedRead = false;
         if (transcode is not null)
         {
             transcode.StartSeconds = Math.Max(0, start);
             if (item.Kind == MediaKind.Episode)
             {
                 // The player opens at the speed kept for the show (below): the stream is made that fast from the start.
-                transcode.Speed = await db.MediaItems.Where(season => season.Id == item.ParentId).Select(season => season.ParentId).FirstOrDefaultAsync(ct) is { } show
-                    ? await TitleVersions.ShowSpeedAsync(db, show, profile.Id, ct) ?? 1
-                    : 1;
+                keptSpeed = await db.MediaItems.Where(season => season.Id == item.ParentId).Select(season => season.ParentId).FirstOrDefaultAsync(ct) is { } show
+                    ? await TitleVersions.ShowSpeedAsync(db, show, profile.Id, ct)
+                    : null;
+                speedRead = true;
+                transcode.Speed = keptSpeed ?? 1;
             }
         }
 
@@ -340,7 +345,7 @@ public sealed class PlaybackService(
         var basePath = $"/api/v1/playback/{id}";
         var burned = decision.Transcode?.BurnSubtitle is not null;
         var series = ancestors.FirstOrDefault(a => a.Kind == MediaKind.Series)?.Id;
-        var speed = series is { } seriesId ? await TitleVersions.ShowSpeedAsync(db, seriesId, profile.Id, ct) : null;
+        var speed = speedRead ? keptSpeed : series is { } seriesId ? await TitleVersions.ShowSpeedAsync(db, seriesId, profile.Id, ct) : null;
 
         // Subtitle timing belongs to the file, so it's kept on the copy holding the file, whichever copy was opened.
         var subtitleDelay = file.MediaItemId == item.Id
