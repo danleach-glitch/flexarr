@@ -188,6 +188,22 @@ public class FolderWatcherTests(FlexarrApiFactory factory) : IClassFixture<Flexa
     }
 
     [Fact]
+    public async Task AFolderMovedIn_IsATitleWithDetailsToFind_ButASubtitleAddedToOneIsnt()
+    {
+        using var setup = await WatchAsync();
+        var moved = Directory.CreateDirectory(Path.Combine(setup.Root, "Dune (2021)")).FullName;
+        var subtitled = Directory.CreateDirectory(Path.Combine(setup.Root, "Heat (1995)")).FullName;
+        setup.Watcher.Changed(setup.Root, "Dune (2021)"); // one event, for the folder itself
+        setup.Watcher.Changed(setup.Root, "Heat (1995)"); // its change time, with the new subtitle
+        setup.Watcher.Changed(setup.Root, "Heat (1995)/Heat (1995).en.srt");
+
+        await WaitForAsync(setup, r => r.Path == moved);
+        await WaitForAsync(setup, r => r.Path == subtitled);
+        Assert.False(setup.Queue.Requests.Single(r => r.Path == moved).OnlySubtitles);
+        Assert.True(setup.Queue.Requests.Single(r => r.Path == subtitled).OnlySubtitles);
+    }
+
+    [Fact]
     public async Task ATitleThatNeverGoesQuiet_IsScannedAnywayInTheEnd()
     {
         using var setup = await WatchAsync();

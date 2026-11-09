@@ -575,9 +575,11 @@ public sealed partial class FolderWatcher(
 
         var target = Path.Combine(root, segments[0]);
         var artwork = IsArtworkOrNfo(name);
-        // The title's own folder changing says nothing either way: it does whenever anything's added to it.
+        // The title's own folder changing says nothing either way: it does whenever anything's added to it. But alone,
+        // with no file heard of, it's a folder moved in whole, which is a new title like any other.
         var extension = Path.GetExtension(name).ToLowerInvariant();
-        var subtitles = extension is ".srt" or ".ass" or ".ssa" or ".vtt" or ".sub" or ".idx" or ".sup" || (extension.Length == 0 && segments.Length == 1);
+        var subtitle = extension is ".srt" or ".ass" or ".ssa" or ".vtt" or ".sub" or ".idx" or ".sup";
+        var subtitles = subtitle || (extension.Length == 0 && segments.Length == 1);
         var now = time.GetUtcNow();
         lock (_lock)
         {
@@ -598,6 +600,7 @@ public sealed partial class FolderWatcher(
                 pending.Snapshot = null;
                 pending.ForceMetadata |= artwork;
                 pending.OnlySubtitles &= subtitles;
+                pending.HeardSubtitle |= subtitle;
             }
             else if (_pending.Values.Count(p => p.Root == root) >= MaxPendingPerFolder)
             {
@@ -606,7 +609,7 @@ public sealed partial class FolderWatcher(
             }
             else
             {
-                _pending[target] = new Pending(root, now) { ForceMetadata = artwork, OnlySubtitles = subtitles };
+                _pending[target] = new Pending(root, now) { ForceMetadata = artwork, OnlySubtitles = subtitles, HeardSubtitle = subtitle };
             }
         }
     }
@@ -688,7 +691,7 @@ public sealed partial class FolderWatcher(
             {
                 LogChanged(PathComparison.Printable(path));
                 var whole = path == pending.Root;
-                await queue.EnqueueAsync(new LibraryScanRequest(path, Reason, ForceMetadata: pending.ForceMetadata && !whole && MayForce(path), LastChange: pending.LastEvent, OnlySubtitles: pending.OnlySubtitles && !whole), ct);
+                await queue.EnqueueAsync(new LibraryScanRequest(path, Reason, ForceMetadata: pending.ForceMetadata && !whole && MayForce(path), LastChange: pending.LastEvent, OnlySubtitles: pending.OnlySubtitles && pending.HeardSubtitle && !whole), ct);
             }
         }
     }
@@ -825,6 +828,7 @@ public sealed partial class FolderWatcher(
         public DateTimeOffset SnapshotAt { get; set; }
         public bool ForceMetadata { get; set; }
         public bool OnlySubtitles { get; set; }
+        public bool HeardSubtitle { get; set; }
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Watching {Path} for changes{Share}")]
