@@ -42,7 +42,7 @@ public sealed partial class PodcastChartWarmer(IServiceScopeFactory scopes, IOpt
 
     internal async Task RunOnceAsync(CancellationToken ct)
     {
-        var country = options.CurrentValue.Podcasts.ResolvedCountry;
+        var country = options.CurrentValue.Podcasts.ResolvedChartsCountry;
         var now = clock.GetUtcNow().UtcDateTime;
         if (country == _warmedCountry && now - _warmedAt < Every)
         {

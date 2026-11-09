@@ -287,6 +287,9 @@ public sealed class PodcastOptions
 
     public string ResolvedCountry => Flexarr.Api.Podcasts.PodcastCountries.Resolve(Country);
 
+    /// <summary>The country whose charts and directory Browse shows: Apple has them for most, not all.</summary>
+    public string ResolvedChartsCountry => Flexarr.Api.Podcasts.PodcastCountries.ChartsFor(ResolvedCountry);
+
     /// <summary>Whose names age limits go by.</summary>
     public Flexarr.Core.Media.RatingSystem RatingSystem => Flexarr.Api.Podcasts.PodcastCountries.RatingSystem(Country);
 }

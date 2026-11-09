@@ -813,6 +813,11 @@ public sealed class PodcastTests : IDisposable
         Assert.Equal("gb", saved.GetProperty("podcasts").GetProperty("country").GetString());
         Assert.Equal("gb", (await GetAsync(client, "podcasts/status")).GetProperty("country").GetString());
         Assert.Contains((await GetAsync(client, "podcasts/countries")).EnumerateArray(), c => c.GetProperty("code").GetString() == "us");
+
+        // A country Apple has no charts for can still be the server's, and Browse shows the United States' instead.
+        var iceland = await (await client.PutAsJsonAsync(Api("settings"), new { podcasts = new { country = "is" } })).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(("is", "is"), (iceland.GetProperty("podcasts").GetProperty("country").GetString(), iceland.GetProperty("podcasts").GetProperty("resolvedCountry").GetString()));
+        Assert.Equal("us", (await GetAsync(client, "podcasts/status")).GetProperty("country").GetString());
     }
 
     [Fact]
