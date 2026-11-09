@@ -26,7 +26,9 @@ private struct BannerModifier: ViewModifier {
                     .task(id: text) {
                         AccessibilityNotification.Announcement(text).post()
                         // Long enough to read: three seconds, more for a longer notice.
-                        try? await Task.sleep(for: .seconds(Banner.duration(text)))
+                        // Cancelled isn't time up: a screen being pushed starts this twice, and the banner said as it
+                        // arrives would go straight away.
+                        guard (try? await Task.sleep(for: .seconds(Banner.duration(text)))) != nil else { return }
                         if self.text == text { dismiss() }
                     }
             }

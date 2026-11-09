@@ -7,6 +7,7 @@ import SwiftUI
 /// are any. Recordings, under Favourites, lists what's set to record and the series.
 struct LiveTvView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
     /// Off on the Live TV tab, whose lit name in the sidebar already says where you are.
     var showsTitle = true
     @State private var channels: [LiveChannel]?
@@ -109,6 +110,8 @@ struct LiveTvView: View {
         }
         .onDisappear { isVisible = false }
         .onChange(of: model.liveTvRefreshResult) { sayRefreshResult() }
+        .onChange(of: scenePhase) { sayRefreshResult() }
+        .onChange(of: model.liveTv.isWatching) { sayRefreshResult() }
         .onChange(of: model.liveTvStatus) { followStatus() }
     }
 
@@ -120,7 +123,8 @@ struct LiveTvView: View {
     }
 
     private func sayRefreshResult() {
-        guard isVisible, let result = model.takeLiveTvRefreshResult() else { return }
+        // Not in the background or behind a channel's player: the button's few seconds of saying so would go unseen.
+        guard isVisible, scenePhase == .active, !model.liveTv.isWatching, let result = model.takeLiveTvRefreshResult() else { return }
         switch result {
         case .worked: refreshProblem = nil
         case .failed(let problem): refreshProblem = problem

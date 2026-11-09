@@ -130,6 +130,8 @@ struct LiveTvView: View {
         }
         .onDisappear { isVisible = false }
         .onChange(of: model.liveTvRefreshResult) { sayRefreshResult() }
+        .onChange(of: scenePhase) { sayRefreshResult() }
+        .onChange(of: model.liveTv.isWatching) { sayRefreshResult() }
         .onChange(of: model.liveTvStatus) { followStatus() }
         .banner($notice, systemImage: "record.circle")
         .banner($refreshNotice, systemImage: refreshProblem == nil ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
@@ -167,7 +169,8 @@ struct LiveTvView: View {
     }
 
     private func sayRefreshResult() {
-        guard isVisible, let result = model.takeLiveTvRefreshResult() else { return }
+        // Not in the background (music keeps the app alive) or behind a channel's player: the banner would time out unseen.
+        guard isVisible, scenePhase == .active, !model.liveTv.isWatching, let result = model.takeLiveTvRefreshResult() else { return }
         switch result {
         case .worked:
             refreshProblem = nil
