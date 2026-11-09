@@ -49,6 +49,13 @@ public class VersionRulesTests
         Assert.True(VersionRules.Distinct(File(range: VideoRange.DolbyVision), File(range: VideoRange.Hdr10)));
 
     [Fact]
+    public void Distinct_Hdr10PlusIsItsOwnPicture()
+    {
+        Assert.True(VersionRules.Distinct(File(range: VideoRange.Hdr10, hdr10Plus: true), File(range: VideoRange.Hdr10)));
+        Assert.False(VersionRules.Distinct(File(range: VideoRange.Hdr10, hdr10Plus: false), File(range: VideoRange.Hdr10)));
+    }
+
+    [Fact]
     public void Distinct_DifferentCut() =>
         Assert.True(VersionRules.Distinct(File(duration: 9000), File()));
 

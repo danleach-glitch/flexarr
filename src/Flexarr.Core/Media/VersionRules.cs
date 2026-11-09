@@ -76,7 +76,8 @@ public static class VersionRules
         ArgumentNullException.ThrowIfNull(a);
         ArgumentNullException.ThrowIfNull(b);
 
-        return ResolutionLabel(a.Width, a.Height) != ResolutionLabel(b.Width, b.Height) || a.VideoRange != b.VideoRange || !SameCut(a, b);
+        return ResolutionLabel(a.Width, a.Height) != ResolutionLabel(b.Width, b.Height) || a.VideoRange != b.VideoRange
+            || (a.Hdr10Plus == true) != (b.Hdr10Plus == true) || !SameCut(a, b);
     }
 
     /// <summary>
