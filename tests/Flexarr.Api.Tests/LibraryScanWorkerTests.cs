@@ -377,6 +377,77 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
         Assert.False(listener.Added.TryRead(out _));
     }
 
+    /// <summary>The statement that looks for an earlier copy of an episode, with how SQLite means to run it.</summary>
+    private sealed class EarlierEpisodeLook : Microsoft.EntityFrameworkCore.Diagnostics.DbCommandInterceptor
+    {
+        public List<string> Plans { get; } = [];
+
+        public override async ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader>> ReaderExecutingAsync(
+            System.Data.Common.DbCommand command, Microsoft.EntityFrameworkCore.Diagnostics.CommandEventData eventData,
+            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.Contains("\"EpisodeNumber\" =", StringComparison.Ordinal) && command.CommandText.Contains("\"FirstSeenAt\" <", StringComparison.Ordinal))
+            {
+                var original = command.CommandText;
+                command.CommandText = "EXPLAIN QUERY PLAN " + original;
+                using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+                {
+                    var plan = new List<string>();
+                    while (await reader.ReadAsync(cancellationToken))
+                    {
+                        plan.Add(reader.GetString(3));
+                    }
+
+                    Plans.Add(string.Join('\n', plan));
+                }
+
+                command.CommandText = original;
+            }
+
+            return result;
+        }
+    }
+
+    [Fact]
+    public async Task TheAddedEvent_ForANewShow_DoesntLookThroughEarlierEpisodes_AndForAnOldOneOnlyItsOwn()
+    {
+        var look = new EarlierEpisodeLook();
+        using var host = factory.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.ConfigureDbContext<FlexarrDbContext>(o => o.AddInterceptors(look))));
+        var since = DateTime.UtcNow.AddMinutes(-1);
+        using var scope = host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var library = new Library { Name = $"Shows {Guid.NewGuid():N}", Type = LibraryType.TvShows };
+        db.Libraries.Add(library);
+        await db.SaveChangesAsync();
+        MediaItem Season(string tvdb, DateTime seen)
+        {
+            var series = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Series, Title = tvdb, SortTitle = tvdb, TvdbId = tvdb, FirstSeenAt = seen, Path = $"/shows/{Guid.NewGuid():N}" };
+            var season = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Season, Title = "Season 1", SortTitle = "Season 1", SeasonNumber = 1, Parent = series, FirstSeenAt = seen };
+            db.MediaItems.AddRange(series, season);
+            return season;
+        }
+
+        MediaItem Episode(MediaItem season, int number) =>
+            new() { LibraryId = library.Id, Kind = MediaKind.Episode, Title = $"Episode {number}", SortTitle = $"Episode {number}", SeasonNumber = 1, EpisodeNumber = number, Parent = season, FirstSeenAt = DateTime.UtcNow };
+        db.MediaItems.Add(Episode(Season("949200", DateTime.UtcNow), 1));
+        await db.SaveChangesAsync();
+
+        var events = host.Services.GetRequiredService<Flexarr.Api.Events.PlaybackEvents>();
+        using var listener = events.Listen(added: true);
+        using var worker = new LibraryScanWorker(new RecordingScanQueue(), host.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance,
+            host.Services.GetRequiredService<LibraryWorkGate>(), events: events);
+        await worker.AnnounceAddedAsync(db, [library.Id], since, default);
+        Assert.True(listener.Added.TryRead(out _));
+        Assert.Empty(look.Plans); // nothing of the show was here before this scan
+
+        // A new episode of a show that was: its look goes by parent, not through every episode in the library.
+        db.MediaItems.Add(Episode(Season("949201", DateTime.UtcNow.AddDays(-30)), 2));
+        await db.SaveChangesAsync();
+        await worker.AnnounceAddedAsync(db, [library.Id], since, default);
+        Assert.True(listener.Added.TryRead(out _));
+        Assert.Contains("IX_MediaItems_ParentId", Assert.Single(look.Plans), StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task TheAddedEvent_IsntSaidTwice_WhenATryLooksBackOverAScanThatSaidIt()
     {

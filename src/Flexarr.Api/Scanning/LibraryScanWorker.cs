@@ -463,13 +463,20 @@ public sealed partial class LibraryScanWorker(
         var earlier = items.Where(i => i.Id != id && i.Kind == item.Kind && i.FirstSeenAt < since);
         if (item.Kind == MediaKind.Episode)
         {
-            // The series by its indexed ids first, then only its episodes: season and episode numbers have no index, so
-            // asking for them outright reads every earlier episode in the library.
-            var series = await items.Where(i => i.Kind == MediaKind.Series
+            // The series by its indexed ids first, then its seasons, then only their episodes: season and episode numbers
+            // have no index, so asking for them outright reads every earlier episode in the library. Only a series that was
+            // here before this scan: one it just added, which is what a new show is, can have no earlier episodes.
+            var series = await items.Where(i => i.Kind == MediaKind.Series && (i.FirstSeenAt == null || i.FirstSeenAt < since)
                 && ((item.SeriesTmdb != null && i.TmdbId == item.SeriesTmdb) || (item.SeriesTvdb != null && i.TvdbId == item.SeriesTvdb) || (item.SeriesImdb != null && i.ImdbId == item.SeriesImdb)))
                 .Select(i => i.Id).ToListAsync(ct);
-            return series.Count > 0 && await earlier.AnyAsync(i => i.SeasonNumber == item.SeasonNumber && i.EpisodeNumber == item.EpisodeNumber
-                && i.Parent != null && i.Parent.ParentId != null && series.Contains(i.Parent.ParentId.Value), ct);
+            if (series.Count == 0)
+            {
+                return false;
+            }
+
+            var seasons = await items.Where(i => i.Kind == MediaKind.Season && i.ParentId != null && series.Contains(i.ParentId.Value)).Select(i => i.Id).ToListAsync(ct);
+            return await items.AnyAsync(i => i.ParentId != null && seasons.Contains(i.ParentId.Value) && i.Id != id && i.FirstSeenAt < since
+                && i.SeasonNumber == item.SeasonNumber && i.EpisodeNumber == item.EpisodeNumber, ct);
         }
 
         return item.Kind == MediaKind.Movie
