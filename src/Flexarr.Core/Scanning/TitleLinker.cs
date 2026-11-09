@@ -32,7 +32,7 @@ public static class TitleLinker
                 .Where(i => i.MissingSince != null && i.LinkGroupId != null).Select(i => i.Id).ToListAsync(ct).ConfigureAwait(false);
 
             var wanted = Groups(rows);
-            var changes = rows.Where(r => r.LinkGroupId != wanted.GetValueOrDefault(r.Id)).ToList();
+            var changes = rows.Where(r => r.LinkGroupId != (wanted.TryGetValue(r.Id, out var group) ? group : null)).ToList();
             if (changes.Count == 0 && missing.Count == 0)
             {
                 return 0;

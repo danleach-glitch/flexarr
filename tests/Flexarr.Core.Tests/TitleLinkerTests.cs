@@ -64,6 +64,27 @@ public sealed class TitleLinkerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ASecondRun_FindsNothingToDo()
+    {
+        Add(_hd, MediaKind.Movie, "Film", tmdb: "1");
+        Add(_uhd, MediaKind.Movie, "Film", tmdb: "1");
+        Add(_uhd, MediaKind.Movie, "Other", tmdb: "2");
+        await LinkAsync();
+
+        Assert.Equal(0, await TitleLinker.LinkAsync(_db, default));
+    }
+
+    [Fact]
+    public async Task WithNoCopiesAtAll_ThereIsNothingToDo()
+    {
+        Add(_hd, MediaKind.Movie, "Film", tmdb: "1");
+        Add(_uhd, MediaKind.Movie, "Other", tmdb: "2");
+        await _db.SaveChangesAsync();
+
+        Assert.Equal(0, await TitleLinker.LinkAsync(_db, default));
+    }
+
+    [Fact]
     public async Task AnIdSharedThroughAThirdCopy_LinksAllThree()
     {
         var a = Add(_hd, MediaKind.Movie, "A", tmdb: "1");
