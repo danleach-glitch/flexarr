@@ -61,6 +61,18 @@ struct LiveTvTests {
         #expect(old.downloadError == nil)
     }
 
+    @Test func aChosenGroupIsOnOfferWhileItHasChannelsAndIsOneOfMany() {
+        func channel(_ group: String?) -> LiveChannel {
+            LiveChannel(id: UUID().uuidString, number: 1, name: "C", group: group, logoUrl: nil, isFavourite: false, now: nil, next: nil)
+        }
+        #expect([channel("News"), channel("Sport")].offersGroup("News"))
+        // Gone with a refresh.
+        #expect(![channel("Sport"), channel("Films")].offersGroup("News"))
+        // The only group left isn't offered, and no longer shows every channel.
+        #expect(![channel("News"), channel(nil)].offersGroup("News"))
+        #expect(![LiveChannel]().offersGroup("News"))
+    }
+
     @Test func channels() throws {
         let channels = try Fixture.decode([LiveChannel].self, "live-channels")
         let bbc = try #require(channels.first)

@@ -316,8 +316,11 @@ struct LiveTvView: View {
     private func load() async {
         guard let client = model.client else { return }
         do {
-            channels = try await client.liveChannels()
+            let loaded = try await client.liveChannels()
+            channels = loaded
             error = nil
+            // A refresh can take away the group being shown, which would leave an empty guide.
+            if case .group(let name) = chosen, !loaded.offersGroup(name) { chosen = nil }
         } catch {
             if channels == nil { self.error = ConnectionError(error).message }
         }

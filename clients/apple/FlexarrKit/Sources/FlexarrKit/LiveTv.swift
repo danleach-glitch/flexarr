@@ -110,6 +110,14 @@ public struct LiveChannel: Codable, Sendable, Hashable, Identifiable {
     }
 }
 
+public extension [LiveChannel] {
+    /// Whether a group chosen earlier is still on offer: it has channels, and is one of more than one (a single group
+    /// isn't offered as a choice).
+    func offersGroup(_ name: String) -> Bool {
+        contains { $0.groupName == name } && contains { $0.groupName != nil && $0.groupName != name }
+    }
+}
+
 /// When the title over a live picture needs the channel list fetched again to say what's on. Rather than every
 /// minute, only once the programme shown has ended (and the one after it, which the channel already gave, doesn't
 /// cover now), or, for a channel with no guide, every half hour in case one has come. Never more than once a minute.
