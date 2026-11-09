@@ -397,14 +397,16 @@ public static class ItemEndpoints
             RatingAge: entity.RatingAge, KidsOverride: profile.IsMainProfile ? entity.KidsOverride : null,
             Book: entity.Kind == MediaKind.Audiobook ? await Books.BookQueries.DetailAsync(db, entity, profile.Id, ct) : null,
             DetailsLocked: entity.DetailsLocked, SortTitle: entity.SortTitle, ArtworkLocked: entity.ArtworkLocked,
-            Versions: entity.Kind is MediaKind.Movie or MediaKind.Episode ? await VersionsAsync(db, entity, profile.Id, ct) : null);
+            Versions: entity.Kind is MediaKind.Movie or MediaKind.Episode ? await VersionsAsync(db, entity, files, profile.Id, ct) : null);
     }
 
     /// <summary>What the title's Version choice offers; null with only one version to play.</summary>
-    private static async Task<List<VersionDto>?> VersionsAsync(FlexarrDbContext db, MediaItem item, string profileId, CancellationToken ct)
+    private static async Task<List<VersionDto>?> VersionsAsync(FlexarrDbContext db, MediaItem item, List<MediaFile> own, string profileId, CancellationToken ct)
     {
-        // Only what someone could tell apart: a spare copy isn't a version to choose.
-        var files = await Playback.TitleVersions.FilesAsync(db, item, ct);
+        // Only what someone could tell apart: a spare copy isn't a version to choose. A title with no copies has its files already.
+        var files = item.LinkGroupId is null
+            ? own.Where(f => f.ProbeError == null).ToList()
+            : await Playback.TitleVersions.FileRowsAsync(db, item, ct);
         var offered = VersionRules.Sort(VersionRules.BestFirst(files)).Kept;
         if (offered.Count < 2)
         {

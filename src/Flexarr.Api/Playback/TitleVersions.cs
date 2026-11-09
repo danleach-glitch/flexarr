@@ -31,6 +31,13 @@ public static class TitleVersions
             .Where(f => copies.Contains(f.MediaItemId) && f.ProbeError == null).ToListAsync(ct);
     }
 
+    /// <summary>The same files on their own, for telling versions apart.</summary>
+    public static async Task<List<MediaFile>> FileRowsAsync(FlexarrDbContext db, MediaItem item, CancellationToken ct)
+    {
+        var copies = await CopiesAsync(db, item, ct);
+        return await db.MediaFiles.AsNoTracking().Where(f => copies.Contains(f.MediaItemId) && f.ProbeError == null).ToListAsync(ct);
+    }
+
     /// <summary>The speed the profile keeps for a show, set through whichever copy.</summary>
     public static async Task<double?> ShowSpeedAsync(FlexarrDbContext db, Guid seriesId, string profileId, CancellationToken ct)
     {
