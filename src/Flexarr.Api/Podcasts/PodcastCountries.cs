@@ -21,22 +21,27 @@ public static class PodcastCountries
     ];
 
     /// <summary>The chosen country if Apple has charts for it, else the server's region's, else the United States.</summary>
-    public static string Resolve(string? country)
-    {
-        if (Known(country) is { } chosen)
-        {
-            return chosen;
-        }
+    public static string Resolve(string? country) => Known(country) ?? Detected() ?? "us";
 
+    /// <summary>The server's region if it's one of <see cref="All"/>; null when it can't tell (a container with no locale).</summary>
+    public static string? Detected()
+    {
         try
         {
-            return Known(RegionInfo.CurrentRegion.TwoLetterISORegionName) ?? "us";
+            return Known(RegionInfo.CurrentRegion.TwoLetterISORegionName);
         }
         catch (ArgumentException)
         {
-            return "us";
+            return null;
         }
     }
+
+    /// <summary>
+    /// Whose names age limits go by: the chosen country's, else the server's region's. Not knowing the country means the
+    /// UK's, unlike <see cref="Resolve"/>'s charts, so a server nobody has set doesn't rename its limits.
+    /// </summary>
+    public static Flexarr.Core.Media.RatingSystem RatingSystem(string? country) =>
+        Flexarr.Core.Media.RatingAges.SystemFor(Known(country) ?? Detected());
 
     /// <summary>The code in lower case when it's one of <see cref="All"/>; "uk" is taken for "gb".</summary>
     public static string? Known(string? code)
