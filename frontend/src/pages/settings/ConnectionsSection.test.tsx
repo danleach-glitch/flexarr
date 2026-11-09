@@ -68,6 +68,22 @@ describe('Dispatcharr’s admin API key', () => {
     await waitFor(() => expect(sent.at(-1)?.liveTv?.adminApiKey).toBe(''))
   })
 
+  it('says saved keys don’t follow a change of address', async () => {
+    setUp()
+    const form = await openForm()
+    const password = within(form).getByLabelText('Key (XC password)')
+    const key = within(form).getByLabelText('Admin API key (optional)')
+    expect(password).toHaveAttribute('placeholder', 'Saved; type to replace')
+    expect(key).toHaveAttribute('placeholder', 'Saved; type to replace')
+
+    fireEvent.change(within(form).getByLabelText('Address'), { target: { value: 'http://elsewhere:9191' } })
+    expect(password).toHaveAttribute('placeholder', 'Type it again for this address')
+    expect(key).toHaveAttribute('placeholder', 'Type it again for this address')
+
+    fireEvent.change(within(form).getByLabelText('Address'), { target: { value: 'http://dispatcharr:9191/' } })
+    expect(key).toHaveAttribute('placeholder', 'Saved; type to replace')
+  })
+
   describe('testing', () => {
     const tested = { ok: true, channels: 12, maxConnections: null, expiresAt: null, error: null }
     const key = (form: HTMLElement) => within(form).getByLabelText('Admin API key (optional)')

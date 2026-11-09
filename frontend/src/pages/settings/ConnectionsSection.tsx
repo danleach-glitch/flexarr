@@ -773,6 +773,8 @@ function DispatcharrRow({
       setLastTest(undefined)
     }
   }
+  // Saved keys only go with the server they were saved for: at another address, the server forgets them.
+  const sameAddress = !!liveTv && sameServer(liveTv.baseUrl, baseUrl)
   const fields = JSON.stringify([baseUrl, username, password, adminKey])
   const test = open && lastTest?.fields === fields ? lastTest.result : undefined
   const shown = test === 'testing' ? t('Testing…') : test ? (test.ok ? testSummary(test, test.keyTested) : test.error) : status
@@ -821,7 +823,7 @@ function DispatcharrRow({
                 type="password"
                 autoComplete="new-password"
                 value={password}
-                placeholder={liveTv?.hasPassword ? t('Saved; type to replace') : t('The user’s XC password in Dispatcharr')}
+                placeholder={liveTv?.hasPassword ? (sameAddress ? t('Saved; type to replace') : t('Type it again for this address')) : t('The user’s XC password in Dispatcharr')}
                 onChange={(e) => setPassword(e.target.value)}
               />
             </label>
@@ -833,7 +835,7 @@ function DispatcharrRow({
                 type="password"
                 autoComplete="new-password"
                 value={adminKey}
-                placeholder={liveTv?.hasAdminApiKey ? t('Saved; type to replace') : t('A Dispatcharr admin’s API key')}
+                placeholder={liveTv?.hasAdminApiKey ? (sameAddress ? t('Saved; type to replace') : t('Type it again for this address')) : t('A Dispatcharr admin’s API key')}
                 onChange={(e) => setAdminKey(e.target.value)}
               />
             </label>
@@ -865,7 +867,7 @@ function DispatcharrRow({
               disabled={!baseUrl || !username}
               onClick={async () => {
                 // As the server tests: a typed key, or the saved one against the address it was saved for.
-                const keyTested = !!adminKey.trim() || (!!liveTv?.hasAdminApiKey && sameServer(liveTv.baseUrl, baseUrl))
+                const keyTested = !!adminKey.trim() || (!!liveTv?.hasAdminApiKey && sameAddress)
                 setLastTest({ fields, result: 'testing' })
                 const result = await testLiveTv({ baseUrl: baseUrl.trim(), username: username.trim(), password: password || undefined, adminApiKey: adminKey.trim() || undefined }).catch(
                   (e: unknown): LiveTvTest => ({ ok: false, channels: null, maxConnections: null, expiresAt: null, error: errorText(e) }),
