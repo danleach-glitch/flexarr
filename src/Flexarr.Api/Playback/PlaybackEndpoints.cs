@@ -117,7 +117,7 @@ public static partial class PlaybackEndpoints
 
         // A fault of the file, so fixed for the household: whoever nudges it fixes it for everyone. A family guest isn't
         // the household's, so doesn't.
-        api.MapPut("/items/{id:guid}/audio-delay", async (Guid id, AudioDelayRequest request, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        api.MapPut("/items/{id:guid}/audio-delay", async (Guid id, AudioDelayRequest request, FlexarrDbContext db, CurrentProfile profile, PlaybackSessions sessions, CancellationToken ct) =>
         {
             if (profile.IsGuest)
             {
@@ -134,8 +134,10 @@ public static partial class PlaybackEndpoints
                 return Results.NotFound();
             }
 
+            // The file being nudged, when that's known: a title's versions aren't out by the same amount.
             var seconds = Math.Round(request.Seconds, 3);
-            await db.MediaFiles.Where(f => f.MediaItemId == id)
+            var playing = sessions.Playing.Where(s => s.ItemId == id && s.ProfileId == profile.Id).OrderByDescending(s => PlaybackSessions.HeardAt(s)).FirstOrDefault()?.FileId;
+            await db.MediaFiles.Where(f => playing != null ? f.Id == playing : f.MediaItemId == id)
                 .ExecuteUpdateAsync(u => u.SetProperty(f => f.AudioDelaySeconds, seconds), ct);
             return Results.NoContent();
         }).WithTags("Playback");
