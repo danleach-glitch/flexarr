@@ -803,6 +803,35 @@ public sealed class LiveTvTests : IDisposable
     }
 
     [Fact]
+    public async Task A_healthy_guide_keeps_its_hourly_look_for_when_a_channels_listings_run_out()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        var soon = DateTime.UtcNow.AddHours(1).ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+        var later = DateTime.UtcNow.AddHours(2).ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+        _dispatcharr.Guide = "<tv>" + string.Concat(new[] { 101, 102, 201 }.Select(c => $"""<programme start="{soon} +0000" stop="{later} +0000" channel="{c}"><title>Filled in</title></programme>""")) + "</tv>";
+        var status = _server.Services.GetRequiredService<LiveTvStatus>();
+        for (var i = 0; i < 5; i++)
+        {
+            await RefreshAsync(); // every channel listed, refresh after refresh
+        }
+
+        await using var scope = _server.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<Flexarr.Core.Data.FlexarrDbContext>();
+        var ended = DateTime.UtcNow.AddMinutes(-1);
+        var channel = await db.LiveChannels.Where(c => c.Name == "Sky News").Select(c => c.Id).SingleAsync();
+        await db.LiveProgrammes.Where(p => p.ChannelId == channel).ExecuteUpdateAsync(u => u.SetProperty(p => p.Start, ended.AddHours(-1)).SetProperty(p => p.End, ended));
+
+        await RefreshAsync(); // finds them run out
+
+        Assert.Equal(0, status.QuietRefreshes);
+        Assert.True(await scope.ServiceProvider.GetRequiredService<LiveTvGuide>().IsDueAsync(DateTime.UtcNow.AddMinutes(90), CancellationToken.None));
+
+        await RefreshAsync(); // and it stays empty: only now does the wait begin to grow
+        Assert.Equal(1, status.QuietRefreshes);
+    }
+
+    [Fact]
     public async Task A_guide_whose_bytes_differ_with_the_same_programmes_isnt_written_again()
     {
         var client = Client();

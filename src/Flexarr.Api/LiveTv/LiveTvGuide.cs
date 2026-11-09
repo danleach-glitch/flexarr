@@ -87,7 +87,8 @@ public sealed class LiveTvStatus
     {
         lock (_lock)
         {
-            QuietRefreshes = _missingAfterRead is null || missing < _missingAfterRead ? 0 : QuietRefreshes + 1;
+            // Coming from none missing, these have just run out: it's their first look, however long all was well.
+            QuietRefreshes = _missingAfterRead is null or 0 || missing < _missingAfterRead ? 0 : QuietRefreshes + 1;
             _missingAfterRead = missing;
         }
     }
