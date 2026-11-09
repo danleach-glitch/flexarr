@@ -422,4 +422,57 @@ public sealed class TitleVersionsTests : IAsyncLifetime
         Assert.Equal(2, states.Count);
         Assert.All(states, state => Assert.Equal(0, state.PositionSeconds));
     }
+
+    [Fact]
+    public async Task ATitle_IsFoundByWhicheverCopyMatches()
+    {
+        Guid person;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var films = await db.MediaItems.Where(i => i.Kind == MediaKind.Movie).OrderBy(i => i.Id).Include(i => i.Genres).ToListAsync();
+            // Only the copy that comes second in id order, the one a list would otherwise leave out.
+            films[1].Title = "Amelie";
+            films[1].Genres.Add(new Genre { Name = "Mystery" });
+            var actor = new Person { Name = "Sam Example" };
+            db.Add(new Credit { Person = actor, MediaItemId = films[1].Id, Role = CreditRole.Actor, Order = 0 });
+            await db.SaveChangesAsync();
+            person = actor.Id;
+        }
+
+        var client = Client();
+        Assert.Single((await client.GetFromJsonAsync<JsonElement>(Api("/search?q=Amelie"))).GetProperty("titles").EnumerateArray());
+        Assert.Equal(1, (await client.GetFromJsonAsync<JsonElement>(Api("/genres/Mystery/items"))).GetProperty("total").GetInt32());
+        var people = (await client.GetFromJsonAsync<JsonElement>(Api("/search?q=Sam"))).GetProperty("people").EnumerateArray().ToList();
+        Assert.Equal(person, Assert.Single(people).GetProperty("id").GetGuid());
+
+        using var check = _factory.Services.CreateScope();
+        var rules = new Flexarr.Api.Collections.SmartRules(Genres: ["Mystery"]);
+        Assert.Single(await rules.Query(check.ServiceProvider.GetRequiredService<FlexarrDbContext>(), PlaybackState.DefaultUser, DateTime.UtcNow).ToListAsync());
+    }
+
+    [Fact]
+    public async Task SmartRules_ReadEveryCopysEpisodes()
+    {
+        var (hd, _, _) = await SeedShowAsync();
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        async Task<bool> Lists(string watched) =>
+            await new Flexarr.Api.Collections.SmartRules(Type: "series", Watched: watched).Query(db, PlaybackState.DefaultUser, DateTime.UtcNow).AnyAsync();
+
+        // Everything one copy holds watched: the other copy's episodes are still to watch.
+        var episodes = await db.MediaItems.Where(e => e.Kind == MediaKind.Episode && e.Parent!.ParentId == hd).Select(e => e.Id).ToListAsync();
+        db.PlaybackStates.AddRange(episodes.Select(e => new PlaybackState { MediaItemId = e, Watched = true, PlayCount = 1, LastPlayedAt = DateTime.UtcNow }));
+        await db.SaveChangesAsync();
+
+        Assert.True(await Lists("unwatched"));
+        Assert.False(await Lists("watched"));
+
+        var rest = await db.MediaItems.Where(e => e.Kind == MediaKind.Episode && !db.PlaybackStates.Any(p => p.MediaItemId == e.Id)).Select(e => e.Id).ToListAsync();
+        db.PlaybackStates.AddRange(rest.Select(e => new PlaybackState { MediaItemId = e, Watched = true, PlayCount = 1, LastPlayedAt = DateTime.UtcNow }));
+        await db.SaveChangesAsync();
+
+        Assert.False(await Lists("unwatched"));
+        Assert.True(await Lists("watched"));
+    }
 }

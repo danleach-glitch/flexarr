@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +14,13 @@ public static class ItemQueries
     /// </summary>
     public static IQueryable<MediaItem> OnePerTitle(this IQueryable<MediaItem> query) =>
         query.Where(i => i.LinkGroupId == null || !i.LinkGroup!.Items.Any(o => o.Id.CompareTo(i.Id) < 0));
+
+    /// <summary>
+    /// As <see cref="OnePerTitle"/>, for a search or filter: the lowest of the copies that match. A title whose lowest copy
+    /// happens not to match (its metadata differs from the other's) still has to turn up, as the copy that does.
+    /// </summary>
+    public static IQueryable<MediaItem> OnePerMatch(this IQueryable<MediaItem> query, Expression<Func<MediaItem, bool>> match) =>
+        query.Where(match).Where(i => i.LinkGroupId == null || !i.LinkGroup!.Items.AsQueryable().Where(match).Any(o => o.Id.CompareTo(i.Id) < 0));
 
     /// <summary>
     /// What's under a parent. For a linked show or season that's what's under all the copies this profile can see, each

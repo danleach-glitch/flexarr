@@ -442,9 +442,8 @@ public static partial class DiscoveryEndpoints
             // Titles that start with the term rank above titles that merely contain it.
             var titles = await db.MediaItems
                 // Podcasts have a search of their own (Apple's directory and the shows followed).
-                .Where(i => i.ParentId == null && i.Kind != MediaKind.Podcast && i.Kind != MediaKind.Audiobook
+                .OnePerMatch(i => i.ParentId == null && i.Kind != MediaKind.Podcast && i.Kind != MediaKind.Audiobook
                     && (EF.Functions.Like(i.Title, contains) || (i.OriginalTitle != null && EF.Functions.Like(i.OriginalTitle, contains))))
-                .OnePerTitle()
                 .OrderByDescending(i => EF.Functions.Like(i.Title, prefix) || EF.Functions.Like(i.SortTitle, prefix))
                 .ThenByDescending(i => i.Popularity ?? i.CommunityRating)
                 .Take(limit).Summaries(profile.Id).ToListAsync(ct);
@@ -453,13 +452,14 @@ public static partial class DiscoveryEndpoints
             // the same answer.
             var named = await Search.NamedItems.FindAsync(db, contains, prefix, ct);
             var episodes = named is not null ? await MusicDiscovery.InOrderAsync(db, named.Episodes, profile.Id, ct)
-                : await Search.NamedItems.Searched(db).Where(i => i.Kind == MediaKind.Episode && EF.Functions.Like(i.Title, contains)).OnePerTitle()
+                : await Search.NamedItems.Searched(db).OnePerMatch(i => i.Kind == MediaKind.Episode && EF.Functions.Like(i.Title, contains))
                 .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).ThenBy(i => i.Id).Take(8).Summaries(profile.Id).ToListAsync(ct);
             // People in titles this profile may see: not those only in a hidden library, or only above its age limit.
             // Each credit's title is looked up by its id. Asking whether the id is in the list of every visible title
             // (visible.Contains) had SQLite build that whole list first, once for each place it was asked.
             var people = await db.People.Where(p => EF.Functions.Like(p.Name, contains))
-                .Select(p => new { Person = p, Credits = p.Credits.Count(c => db.MediaItems.OnePerTitle().Any(i => i.Id == c.MediaItemId)) })
+                .Select(p => new { Person = p, Credits = p.Credits.Count(c => db.MediaItems.Any(i => i.Id == c.MediaItemId
+                    && (i.LinkGroupId == null || !i.LinkGroup!.Items.Any(o => o.Id.CompareTo(i.Id) < 0 && db.Credits.Any(x => x.PersonId == c.PersonId && x.MediaItemId == o.Id))))) })
                 .Where(p => p.Credits > 0)
                 .OrderByDescending(p => EF.Functions.Like(p.Person.Name, prefix)).ThenByDescending(p => p.Credits)
                 .Take(8)
@@ -499,7 +499,8 @@ public static partial class DiscoveryEndpoints
                 var close = await index.FindAsync(db, term, Search.SearchIndex.Group.Person, 8 - people.Count, people.Select(p => p.Id).ToHashSet(), ct);
                 var ids = close.Select(m => m.Id).ToList();
                 var found = await db.People.Where(p => ids.Contains(p.Id) && p.Credits.Any(c => db.MediaItems.Any(i => i.Id == c.MediaItemId)))
-                    .Select(p => new SearchPersonDto(p.Id, p.Name, ArtworkUrls.Person(p.Id, p.ImageUrl != null, p.ImageChangedAt), p.Credits.Count(c => db.MediaItems.OnePerTitle().Any(i => i.Id == c.MediaItemId))))
+                    .Select(p => new SearchPersonDto(p.Id, p.Name, ArtworkUrls.Person(p.Id, p.ImageUrl != null, p.ImageChangedAt), p.Credits.Count(c => db.MediaItems.Any(i => i.Id == c.MediaItemId
+                        && (i.LinkGroupId == null || !i.LinkGroup!.Items.Any(o => o.Id.CompareTo(i.Id) < 0 && db.Credits.Any(x => x.PersonId == c.PersonId && x.MediaItemId == o.Id)))))))
                     .ToListAsync(ct);
                 people.AddRange(found.OrderBy(p => ids.IndexOf(p.Id)));
             }
@@ -559,7 +560,7 @@ public static partial class DiscoveryEndpoints
             // A name with a slash ("Action/Adventure", from a hand-written .nfo) arrives as one segment with the slash
             // still encoded: ASP.NET Core decodes everything in a path but that.
             name = name.Replace("%2F", "/", StringComparison.OrdinalIgnoreCase);
-            var query = db.MediaItems.Where(i => i.ParentId == null && i.Genres.Any(g => g.Name == name)).OnePerTitle();
+            var query = db.MediaItems.OnePerMatch(i => i.ParentId == null && i.Genres.Any(g => g.Name == name));
             if (Enum.TryParse<MediaKind>(kind, ignoreCase: true, out var k))
             {
                 query = query.Where(i => i.Kind == k);
