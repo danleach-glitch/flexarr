@@ -531,9 +531,14 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                         guideFailure != null -> TvStatusView(
                             guideFailure,
                             retry = {
-                                guideRetrying = ask
                                 guideFailureTakesFocus = true
                                 scope.launch {
+                                    // Focus moves before the button goes, or it falls to the first category and chooses it.
+                                    (currentCategory as? Category.Group)?.let { group ->
+                                        runCatching { categoryList.scrollToItem(currentRowsBeforeGroups + currentGroups.indexOf(group.name).coerceAtLeast(0)) }
+                                    }
+                                    runCatching { shownCategory.requestFocus() }
+                                    guideRetrying = ask
                                     try {
                                         loadGuide()
                                     } finally {
