@@ -625,7 +625,7 @@ public static class SettingsEndpoints
         Uri.TryCreate(text?.Trim(), UriKind.Absolute, out var url) && (url.Scheme == Uri.UriSchemeHttp || url.Scheme == Uri.UriSchemeHttps) ? url : null;
 
     /// <summary>Same scheme, host and port: where a saved key may be sent.</summary>
-    private static bool SameServer(string? saved, string? given) =>
+    internal static bool SameServer(string? saved, string? given) =>
         WebAddress(saved) is { } a && WebAddress(given) is { } b
         && a.Scheme == b.Scheme && string.Equals(a.Host, b.Host, StringComparison.OrdinalIgnoreCase) && a.Port == b.Port;
 

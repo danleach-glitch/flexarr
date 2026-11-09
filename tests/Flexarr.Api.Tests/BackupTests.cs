@@ -424,6 +424,30 @@ public class BackupTests
         Assert.DoesNotContain(Secret, file, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("http://dispatcharr:9191", true)] // back in on this server: the key saved here still stands
+    [InlineData("http://elsewhere:9191", false)] // another address: its key is never sent there
+    public async Task ImportingASettingsFile_KeepsDispatcharrsAdminKey_ForTheSameAddress(string address, bool kept)
+    {
+        await using var factory = new FlexarrApiFactory();
+        var client = Client(factory);
+        (await client.PutAsJsonAsync(Api("/settings"), new { liveTv = new { baseUrl = "http://dispatcharr:9191", username = "flexarr", password = "pw", adminApiKey = "dispatcharr-admin-k3y" } })).EnsureSuccessStatusCode();
+        for (var i = 0; i < 50 && !(await client.GetStringAsync(Api("/settings"))).Contains("\"hasAdminApiKey\":true", StringComparison.Ordinal); i++)
+        {
+            await Task.Delay(100);
+        }
+
+        var file = System.Text.Encoding.UTF8.GetBytes($$$$"""
+            {"format":"flexarr-settings","settings":{"liveTv":{"baseUrl":"{{{{address}}}}","username":"flexarr","password":"pw"}}}
+            """);
+        var upload = await UploadAsync(client, file);
+        (await client.PostAsJsonAsync(Api($"/backups/uploads/{upload.GetProperty("id").GetString()}/import"), new { sections = new[] { "liveTv" } })).EnsureSuccessStatusCode();
+
+        var config = JsonNode.Parse(await File.ReadAllTextAsync(ServerConfigStore.PathFor(factory.DataDirectory)))!["liveTv"]!;
+        Assert.Equal(address, config["baseUrl"]!.GetValue<string>());
+        Assert.Equal(kept ? "dispatcharr-admin-k3y" : null, config["adminApiKey"]?.GetValue<string>());
+    }
+
     [Fact]
     public async Task SettingsFile_CarriesOnlySettingsFlexarrKnows()
     {

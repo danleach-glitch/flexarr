@@ -101,6 +101,18 @@ public static class SettingsTransfer
         return app;
     }
 
+    /// <summary>The Dispatcharr admin key saved in these settings, with the address it's for.</summary>
+    private static (string? BaseUrl, string Key)? DispatcharrKeep(JsonObject config)
+    {
+        if (config.FirstOrDefault(p => p.Key.Equals("liveTv", StringComparison.OrdinalIgnoreCase)).Value is not JsonObject live)
+        {
+            return null;
+        }
+
+        var key = live.FirstOrDefault(p => p.Key.Equals("adminApiKey", StringComparison.OrdinalIgnoreCase)).Value?.ToString();
+        return string.IsNullOrEmpty(key) ? null : (live.FirstOrDefault(p => p.Key.Equals("baseUrl", StringComparison.OrdinalIgnoreCase)).Value?.ToString(), key);
+    }
+
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = true,
@@ -271,6 +283,8 @@ public static class SettingsTransfer
             // the server can't read would stop it reading all of them.
             ServerConfigStore.Update(dataDirectory, config =>
             {
+                // A file never carries Dispatcharr's admin key: for the same address it's still the one saved here.
+                var adminKey = DispatcharrKeep(config);
                 foreach (var section in chosen.Where(s => settings.Any(p => SectionOf(p.Key) == s)))
                 {
                     // The section as the file has it: settings it doesn't have go back to their defaults, except ones a
@@ -286,6 +300,12 @@ public static class SettingsTransfer
                     }
 
                     applied.Add(section);
+                }
+
+                if (adminKey is { } kept && config.FirstOrDefault(p => p.Key.Equals("liveTv", StringComparison.OrdinalIgnoreCase)).Value is JsonObject imported
+                    && Endpoints.SettingsEndpoints.SameServer(kept.BaseUrl, imported.FirstOrDefault(p => p.Key.Equals("baseUrl", StringComparison.OrdinalIgnoreCase)).Value?.ToString()))
+                {
+                    imported["adminApiKey"] = kept.Key;
                 }
 
                 if (BindProblem(config) is { } problem)
