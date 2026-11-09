@@ -239,7 +239,7 @@ private val RecordRed = Flexarr.record
  * Live TV, as the Apple TV's: categories down the left (Favourites, Recordings, All, the source's groups) and the guide
  * on the right, three hours across for the channels in the category. Moving onto a category shows it; choosing what's on
  * now plays it; holding a programme adds its channel to Favourites or takes it off, or records it. Favourites is where
- * it opens when there are any. [takeFocus]: arriving from the sidebar, the first category.
+ * it opens when there are any. [takeFocus]: arriving from the sidebar, the category shown.
  */
 @Composable
 fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit) {
@@ -257,7 +257,8 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
     // The category focus is on: shown once it rests there, so holding Down through the list doesn't build each guide.
     var focusedCategory by remember { mutableStateOf<Category?>(null) }
     var guideHours by remember { mutableIntStateOf(TvGuideCache.FIRST_HOURS) }
-    val firstCategory = remember { FocusRequester() }
+    val shownCategory = remember { FocusRequester() }
+    val categoryList = rememberLazyListState()
     val allChannels = remember { FocusRequester() }
     // Focus is on the empty screen's Refresh, which goes when the first channels come.
     var refreshHasFocus by remember { mutableStateOf(false) }
@@ -287,9 +288,11 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
     // Worked out once per list of channels, not on every recomposition.
     val favourites = remember(all) { all.filter { it.isFavourite } }
     val byGroup = remember(all) { all.filter { it.groupName != null }.groupBy { it.groupName!! } }
-    // Where the screen opens: Favourites when there are any, otherwise All channels.
-    val category = chosen ?: if (favourites.isEmpty()) Category.All else Category.Favourites
     val groups = byGroup.keys.toList()
+    // A group a refresh took away (or the last but one, whose rows go): back to where it opens, not a blank guide.
+    val groupGone = (chosen as? Category.Group)?.let { it.name !in byGroup || groups.size < 2 } == true
+    // Where the screen opens: Favourites when there are any, otherwise All channels.
+    val category = chosen?.takeUnless { groupGone } ?: if (favourites.isEmpty()) Category.All else Category.Favourites
     fun channelsIn(category: Category) = when (category) {
         Category.Favourites -> favourites
         Category.All -> all
@@ -376,11 +379,34 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
         refreshNote?.worked == true -> t(Words.guideRefreshed)
         else -> t(Words.refreshGuide)
     }
+    // Favourites, Recordings and All channels; then the refresh button and what's under it, above the groups.
+    val rowsBeforeGroups = 3 + if (model.canRefreshLiveTv) 1 + refreshLines.size else 0
+    val currentCategory by rememberUpdatedState(category)
+    val currentRowsBeforeGroups by rememberUpdatedState(rowsBeforeGroups)
+    val currentGroups by rememberUpdatedState(groups)
+
+    /** Focus on the category being shown (which focus on another would change), a group far down the list scrolled to first. */
+    suspend fun focusShownCategory() {
+        (currentCategory as? Category.Group)?.let { group ->
+            runCatching { categoryList.scrollToItem(currentRowsBeforeGroups + currentGroups.indexOf(group.name).coerceAtLeast(0)) }
+        }
+        delay(50)
+        runCatching { shownCategory.requestFocus() }
+    }
     LaunchedEffect(takeFocus, channels != null) {
         if (!takeFocus || channels == null) return@LaunchedEffect
-        delay(50)
-        runCatching { firstCategory.requestFocus() }
+        focusShownCategory()
         onFocusTaken()
+    }
+    // The group shown has gone, with focus on it perhaps: it moves to what's shown now, or it would land anywhere.
+    LaunchedEffect(groupGone) {
+        if (!groupGone) return@LaunchedEffect
+        val hadFocus = focusedCategory == chosen
+        chosen = null
+        if (hadFocus) {
+            focusedCategory = null
+            focusShownCategory()
+        }
     }
     // Its button gone, focus would land anywhere, Favourites and its "No favourites yet" among them.
     val hasChannels = channels?.isNotEmpty() == true
@@ -411,7 +437,7 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
             }
             else -> Row(Modifier.fillMaxSize().padding(start = TvLayout.Edge, top = 15.dp), horizontalArrangement = Arrangement.spacedBy(25.dp)) {
                 // Back from the guide, focus returns to the category being shown, not whichever is nearest (which would show it).
-                LazyColumn(Modifier.width(200.dp).fillMaxHeight().focusRestorer(), verticalArrangement = Arrangement.spacedBy(5.dp), contentPadding = PaddingValues(bottom = 30.dp)) {
+                LazyColumn(Modifier.width(200.dp).fillMaxHeight().focusRestorer(), state = categoryList, verticalArrangement = Arrangement.spacedBy(5.dp), contentPadding = PaddingValues(bottom = 30.dp)) {
                     val entries = listOf<Pair<Category, String>>(Category.Favourites to t("Favourites"), Category.Recordings to t("Recordings"), Category.All to t("All channels"))
                     val groupEntries = if (groups.size > 1) groups.map { Category.Group(it) to it } else emptyList<Pair<Category, String>>()
                     val categoryRow: @Composable (Pair<Category, String>) -> Unit = { (value, title) ->
@@ -427,11 +453,9 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                             count = if (value == Category.Recordings) upcoming else channelsIn(value).size,
                             onFocus = { focusedCategory = value },
                             onClick = { focusedCategory = value; chosen = value },
-                            modifier = when (value) {
-                                Category.Favourites -> Modifier.focusRequester(firstCategory)
-                                Category.All -> Modifier.focusRequester(allChannels)
-                                else -> Modifier
-                            },
+                            modifier = Modifier
+                                .then(if (value == Category.All) Modifier.focusRequester(allChannels) else Modifier)
+                                .then(if (value == category) Modifier.focusRequester(shownCategory) else Modifier),
                         )
                     }
                     items(entries, key = { it.second + it.first::class.simpleName }) { categoryRow(it) }

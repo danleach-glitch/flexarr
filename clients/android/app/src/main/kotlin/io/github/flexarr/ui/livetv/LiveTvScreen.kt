@@ -169,8 +169,11 @@ fun LiveTvScreen(model: AppModel) {
 
     val all = channels.orEmpty()
     val favourites = all.filter { it.isFavourite }
-    val filter = chosen ?: if (favourites.isEmpty()) Filter.All else Filter.Favourites
     val groups = all.mapNotNull { it.groupName }.distinct()
+    // A group a refresh took away (or the last but one, whose chips go): back to where it opens, not a blank page.
+    val groupGone = (chosen as? Filter.Group)?.let { it.name !in groups || groups.size < 2 } == true
+    LaunchedEffect(groupGone) { if (groupGone) chosen = null }
+    val filter = chosen?.takeUnless { groupGone } ?: if (favourites.isEmpty()) Filter.All else Filter.Favourites
     val shown = when (val f = filter) {
         Filter.Favourites -> favourites
         Filter.All -> all
