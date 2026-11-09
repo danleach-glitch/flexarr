@@ -13,6 +13,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Music
 
+- On iPhone and iPad, pulling down to refresh a music library no longer leaves only **Your artists**: the hero and the other rows stay.
 - **New albums** now shows the albums that reached your library most recently, even when their files carry old dates, so a download no longer goes missing from the row. Its See all page and the Music page's hero follow the same order.
 - **Discover › Music** has a new row, **Albums you might like**: the best-known album by each of the artists like the ones you play.
 - **Top albums** now shows the albums behind the tracks people are playing most, so it's far more familiar and has fewer obscure picks.

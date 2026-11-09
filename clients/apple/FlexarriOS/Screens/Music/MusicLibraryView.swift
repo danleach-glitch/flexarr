@@ -75,7 +75,8 @@ struct MusicLibraryView<Header: View>: View {
         }
         .background(RoomBackground(ambient: (featured ?? browse.ambientItem)?.glowColor, intensity: featured == nil ? 0.18 : 0.28)
             .animation(.easeInOut(duration: 0.8), value: featured?.id))
-        .refreshable { await load() }
+        // In a task of its own: SwiftUI cancels a refresh's task when what it loads redraws the page, partway through.
+        .refreshable { await Task { await load() }.value }
         .task {
             // Music played since (from the hero, say) may have moved Resume on.
             let played = browse.playingWhenLoaded != model.music.current?.id

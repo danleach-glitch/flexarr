@@ -56,6 +56,31 @@ final class MusicTour: XCTestCase {
         XCTAssertTrue(app.buttons["Shuffle"].firstMatch.exists, "a genre should offer Shuffle")
     }
 
+    /// Pulling Browse down to refresh keeps the hero and the rows, rather than leaving only Your artists.
+    func testPullToRefreshKeepsBrowse() async throws {
+        let libraries = try await client.libraries()
+        guard let music = libraries.first(where: { $0.type == .music }) else { throw XCTSkip("no music library") }
+        let tab = app.tabBars.buttons["Libraries"].firstMatch
+        guard tab.waitForExistence(timeout: 30) else {
+            shot("29-music-no-libraries-tab")
+            return XCTFail("the Libraries tab should appear")
+        }
+        tab.tap()
+        pause(2)
+        app.buttons[music.name].firstMatch.tap()
+        let hero = app.buttons["More info"].firstMatch
+        guard hero.waitForExistence(timeout: 15) else { throw XCTSkip("no hero to compare against") }
+        shot("29-music-browse-before-refresh")
+
+        for attempt in 1...3 {
+            let top = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.25))
+            top.press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)))
+            pause(6)
+            shot("29-music-browse-after-refresh-\(attempt)")
+            XCTAssertTrue(hero.exists, "the hero should still be there after pull to refresh \(attempt)")
+        }
+    }
+
     /// Libraries, the music library, an artist, an album, and Play, which opens Now Playing.
     func testMusic() async throws {
         let libraries = try await client.libraries()
