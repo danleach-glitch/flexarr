@@ -111,6 +111,8 @@ export default function LiveTvPage() {
     }
   }
 
+  const refreshing = !!refresh || !!status.data?.refreshing
+
   if (status.data && !status.data.configured) {
     return (
       <div className="livetv-page">
@@ -134,7 +136,7 @@ export default function LiveTvPage() {
     <div className="livetv-page">
       <header className="livetv-header">
         <h1 className="livetv-title">{t(Words.liveTv)}</h1>
-        {mainProfile && <IconButton className="button quiet small icon livetv-refresh" label={Words.refreshGuide} icon={<RefreshGuide />} busy={!!refresh || status.data?.refreshing} onClick={startRefresh} />}
+        {mainProfile && <IconButton className="button quiet small icon livetv-refresh" label={t(refreshing ? Words.refreshingGuide : Words.refreshGuide)} icon={<RefreshGuide />} busy={refreshing} keepFocus onClick={startRefresh} />}
         <div className="season-tabs livetv-tabs" role="tablist" aria-label={t('View')}>
           <button role="tab" aria-selected={view === 'now'} className={view === 'now' ? 'season-tab active' : 'season-tab'} onClick={() => setParams({}, { replace: true })}>
             {t('On now')}
@@ -171,7 +173,8 @@ export default function LiveTvPage() {
       )}
       {mainProfile && (
         <div role="status">
-          {refreshWorked && <p className="muted livetv-missing">{Words.guideRefreshed}</p>}
+          {refreshing && <span className="visually-hidden">{t(Words.refreshingGuide)}</span>}
+          {refreshWorked && <p className="muted livetv-missing">{t(Words.guideRefreshed)}</p>}
           {!!status.data?.channelsWithoutListings && (
             <p className="muted livetv-missing">
               {t('{count, plural, one {# channel has no listings} other {# channels have no listings}}', { count: status.data.channelsWithoutListings })}{' '}

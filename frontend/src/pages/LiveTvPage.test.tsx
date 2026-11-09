@@ -104,6 +104,39 @@ describe('refreshing the Live TV guide', () => {
     expect(fetchMock.mock.calls.some(([input, init]) => String(input).includes('/livetv/refresh') && (init as RequestInit)?.method === 'POST')).toBe(true)
   }, 15000)
 
+  it('says Refreshing… while it runs, keeps keyboard focus, and takes no second press', async () => {
+    let refreshing = false
+    let finished = 0
+    const fetchMock = mockApi({
+      '/livetv/status': () => ({ configured: true, channels: 20, refreshing, refreshedAt: null, error: null, rewindMinutes: 0, refreshesFinished: finished }),
+      '/livetv/channels': [],
+      '/livetv/refresh': () => {
+        refreshing = true
+        return {}
+      },
+    })
+    openPage(true)
+    const button = await screen.findByRole('button', { name: 'Refresh guide' })
+    button.focus()
+    fireEvent.click(button)
+
+    await waitFor(() => expect(button).toHaveAccessibleName('Refreshing…'))
+    expect(button).toHaveAttribute('data-tip', 'Refreshing…')
+    expect(button).toHaveAttribute('aria-disabled', 'true')
+    expect(button).toBeEnabled()
+    expect(button).toHaveFocus()
+    expect(screen.getByRole('status')).toHaveTextContent('Refreshing…')
+
+    fireEvent.click(button)
+    const posts = () => fetchMock.mock.calls.filter(([input, init]) => String(input).includes('/livetv/refresh') && (init as RequestInit)?.method === 'POST')
+    expect(posts()).toHaveLength(1)
+
+    refreshing = false
+    finished = 1
+    await waitFor(() => expect(button).toHaveAccessibleName('Refresh guide'), { timeout: 5000 })
+    expect(button).not.toHaveAttribute('aria-disabled')
+  }, 15000)
+
   it('isn’t offered to other profiles', async () => {
     mockApi({
       '/livetv/status': { configured: true, channels: 20, refreshing: false, refreshedAt: null, error: null, rewindMinutes: 0, channelsWithoutListings: 3 },
