@@ -374,12 +374,11 @@ struct LiveGuideGrid: View {
 
     /// Opens on the channel being watched, at what's on now.
     private func startFocus(_ proxy: ScrollViewProxy) async {
-        guard let focusChannel, let guide else { return }
+        guard let focusChannel, guide != nil else { return }
         proxy.scrollTo(focusChannel, anchor: .center)
-        let on = guide.channels.first { $0.id == focusChannel }?.programmes.first { $0.start <= Date() && $0.end > Date() }
         // Once the row is laid out, or focus has nowhere to land.
         try? await Task.sleep(for: .milliseconds(300))
-        focused = on.map { .programme($0.id) } ?? (programmes(on: focusChannel).isEmpty ? .noListings(focusChannel) : nil)
+        focused = landing(on: focusChannel)
     }
 
     /// The window goes back no further than the guide does.
