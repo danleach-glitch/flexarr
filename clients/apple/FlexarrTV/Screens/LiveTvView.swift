@@ -29,6 +29,7 @@ struct LiveTvView: View {
     @State private var refreshProblem: String?
     /// It worked, a moment ago: the button says so itself, so nothing in the sidebar moves when it stops saying it.
     @State private var justRefreshed = false
+    @State private var justRefreshedEnds: Task<Void, Never>?
     /// Up on screen, rather than gone behind a player or another tab.
     @State private var isVisible = false
 
@@ -117,14 +118,18 @@ struct LiveTvView: View {
         case .failed(let problem): refreshProblem = problem
         case .stillGoing: break // Said by `isLiveTvRefreshTakingAWhile`.
         }
+        // Before fetching: a big line-up takes seconds, and the button would read Refresh guide again meanwhile.
+        if result == .worked {
+            justRefreshed = true
+            justRefreshedEnds?.cancel()
+            justRefreshedEnds = Task {
+                try? await Task.sleep(for: .seconds(6))
+                if !Task.isCancelled { justRefreshed = false }
+            }
+        }
         Task {
             await load()
             await loadGuide(force: true)
-            if result == .worked {
-                justRefreshed = true
-                try? await Task.sleep(for: .seconds(6))
-                justRefreshed = false
-            }
         }
     }
 
