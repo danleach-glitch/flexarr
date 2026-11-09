@@ -42,12 +42,25 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
         {
             while (await timer.WaitForNextTickAsync(stoppingToken))
             {
-                await SweepAsync(stoppingToken);
+                await TickAsync(stoppingToken);
             }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
             // Shutting down.
+        }
+    }
+
+    /// <summary>One sweep, whose failure waits for the next: an exception leaving a background service stops the whole server.</summary>
+    internal async Task TickAsync(CancellationToken ct)
+    {
+        try
+        {
+            await SweepAsync(ct);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            LogSweepFailed(logger, ex);
         }
     }
 
@@ -75,7 +88,7 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
             {
                 await SweepAsync(c, lidarr, requests, ct);
             }
-            catch (Exception ex) when (ex is HttpRequestException or JsonException || (ex is OperationCanceledException && !ct.IsCancellationRequested))
+            catch (Exception ex) when (ex is HttpRequestException or JsonException or IOException || (ex is OperationCanceledException && !ct.IsCancellationRequested))
             {
                 LogLidarrAway(logger, ex, lidarr.Name); // tried again at the next sweep
             }
@@ -218,4 +231,7 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Couldn't check {Lidarr}'s queue for failed imports")]
     private static partial void LogLidarrAway(ILogger logger, Exception ex, string lidarr);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Couldn't check requested albums for failed imports")]
+    private static partial void LogSweepFailed(ILogger logger, Exception ex);
 }

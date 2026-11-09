@@ -691,6 +691,40 @@ public sealed class MusicRequestTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_Lidarr_dropping_the_connection_mid_read_only_waits_for_the_next_sweep()
+    {
+        await InDbAsync(async db =>
+        {
+            db.MediaRequests.Add(new Core.Notifications.MediaRequest { ProfileId = "owner", Kind = MediaKind.Album, MusicBrainzId = Moisturizer, Title = "moisturizer", ArtistName = "Wet Leg" });
+            return await db.SaveChangesAsync();
+        });
+        _lidarr.Before = (_, _) => throw new HttpIOException(HttpRequestError.ResponseEnded);
+        var retry = _server.Services.GetRequiredService<Endpoints.MusicRequests.MusicImportRetry>();
+
+        await retry.SweepAsync(CancellationToken.None); // Lidarr being away isn't a failure of the sweep
+    }
+
+    [Fact]
+    public async Task A_sweep_failing_for_any_reason_never_leaves_the_background_service()
+    {
+        await InDbAsync(async db =>
+        {
+            db.MediaRequests.Add(new Core.Notifications.MediaRequest { ProfileId = "owner", Kind = MediaKind.Album, MusicBrainzId = Moisturizer, Title = "moisturizer", ArtistName = "Wet Leg" });
+            return await db.SaveChangesAsync();
+        });
+        _lidarr.Before = (_, _) => throw new InvalidOperationException("Not one the sweep expects");
+        var retry = _server.Services.GetRequiredService<Endpoints.MusicRequests.MusicImportRetry>();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => retry.SweepAsync(CancellationToken.None));
+        await retry.TickAsync(CancellationToken.None);
+
+        // Shutting down still gets out.
+        using var stopping = new CancellationTokenSource();
+        await stopping.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => retry.TickAsync(stopping.Token));
+    }
+
+    [Fact]
     public async Task An_artist_a_request_added_is_monitored_with_the_album_while_it_is_missing()
     {
         var unmonitored = """{"id":3,"artistName":"Wet Leg","foreignArtistId":"artist-added","monitored":false}""";
