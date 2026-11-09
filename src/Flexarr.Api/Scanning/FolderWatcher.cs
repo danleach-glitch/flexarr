@@ -82,6 +82,12 @@ public sealed partial class FolderWatcher(
     internal TimeSpan LookForMissingEvery { get; set; } = TimeSpan.FromMinutes(5);
 
     /// <summary>
+    /// How often a watched network share is checked for still being the same folder: each look reaches the machine it's
+    /// on, which may be trying to sleep. Local folders are checked at every resync.
+    /// </summary>
+    internal TimeSpan LookAtSharesEvery { get; set; } = TimeSpan.FromMinutes(30);
+
+    /// <summary>
     /// A title that never goes quiet is scanned anyway after this long: no later than the 12-hour scan it replaced. Not
     /// sooner, since a slow copy of a big film can take hours, and scanning it half-written would show a broken film.
     /// </summary>
@@ -105,6 +111,9 @@ public sealed partial class FolderWatcher(
 
     /// <summary>Makes a watcher for a folder. Tests replace it, to have a watch refused.</summary>
     internal Func<string, FileSystemWatcher> NewWatcher { get; set; } = root => new FileSystemWatcher(root);
+
+    /// <summary>Whether a folder is on another machine. Tests replace it, having no share to hand.</summary>
+    internal Func<string, bool> IsShare { get; set; } = FolderKind.IsShare;
 
     /// <summary>Starts a watcher: this is where the system walks the folder's tree, and can refuse.</summary>
     internal Action<FileSystemWatcher> Enable { get; set; } = watcher => watcher.EnableRaisingEvents = true;
@@ -264,10 +273,12 @@ public sealed partial class FolderWatcher(
         var toStart = new List<string>();
         var limits = WatchLimits();
         // Nothing tells a watcher its folder was unmounted, or deleted and made again: only looking does.
+        var now = time.GetUtcNow();
         List<string> live;
         lock (_lock)
         {
-            live = _folders.Where(f => f.Value.Watcher is not null).Select(f => f.Key).ToList();
+            live = _folders.Where(f => f.Value.Watcher is not null && (f.Value.Status.State != FolderWatchState.Share || now - f.Value.LookedAt >= LookAtSharesEvery))
+                .Select(f => f.Key).ToList();
         }
 
         var found = live.ToDictionary(path => path, FolderKind.Identity, StringComparer.Ordinal);
@@ -310,10 +321,17 @@ public sealed partial class FolderWatcher(
 
                 if (current?.Watcher is { } running)
                 {
-                    if (found.TryGetValue(path, out var identity) && identity != current.Identity)
+                    if (found.TryGetValue(path, out var identity))
                     {
-                        finished.Add(running);
-                        toStart.Add(path);
+                        if (identity != current.Identity)
+                        {
+                            finished.Add(running);
+                            toStart.Add(path);
+                        }
+                        else
+                        {
+                            _folders[path] = current with { LookedAt = now };
+                        }
                     }
 
                     continue;
@@ -422,9 +440,9 @@ public sealed partial class FolderWatcher(
                 return (Refused(root, watcher, refused), starting);
             }
 
-            var share = FolderKind.IsShare(root);
+            var share = IsShare(root);
             LogWatching(PathComparison.Printable(root), share);
-            return (new Watched(watcher, new FolderWatchStatus(share ? FolderWatchState.Share : FolderWatchState.Watching)) { Identity = identity }, starting);
+            return (new Watched(watcher, new FolderWatchStatus(share ? FolderWatchState.Share : FolderWatchState.Watching)) { Identity = identity, LookedAt = time.GetUtcNow() }, starting);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or PlatformNotSupportedException)
         {
@@ -875,6 +893,9 @@ public sealed partial class FolderWatcher(
 
         /// <summary>The folder this watcher is on (see <see cref="FolderKind.Identity"/>).</summary>
         public string? Identity { get; init; }
+
+        /// <summary>When that was last checked (see <see cref="LookAtSharesEvery"/>).</summary>
+        public DateTimeOffset LookedAt { get; init; }
     }
 
     /// <summary>A watcher on its way to being in <see cref="_folders"/>, which errors can't reach until it is. Under the lock.</summary>

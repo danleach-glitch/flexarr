@@ -404,6 +404,36 @@ public class FolderWatcherTests(FlexarrApiFactory factory) : IClassFixture<Flexa
     }
 
     [Fact]
+    public async Task AShare_IsLookedAtLessOften_ButASwappedFolderIsStillNoticed()
+    {
+        using var setup = await WatchAsync(create: false);
+        Directory.CreateDirectory(setup.Root);
+        var started = 0;
+        setup.Watcher.IsShare = _ => true;
+        setup.Watcher.NewWatcher = root =>
+        {
+            if (root == setup.Root)
+            {
+                Interlocked.Increment(ref started);
+            }
+
+            return new FileSystemWatcher(root);
+        };
+        await setup.Watcher.SyncAsync(default);
+        Assert.Equal(FolderWatchState.Share, setup.Watcher.StatusOf(setup.Root)?.State);
+        Assert.Equal(1, started);
+
+        Directory.Delete(setup.Root);
+        Directory.CreateDirectory(setup.Root);
+        await setup.Watcher.SyncAsync(default);
+        Assert.Equal(1, started); // the minute's look leaves it alone
+
+        setup.Watcher.LookAtSharesEvery = TimeSpan.Zero;
+        await setup.Watcher.SyncAsync(default);
+        Assert.Equal(2, started);
+    }
+
+    [Fact]
     public async Task ASlowStart_DoesntHoldUpTheLibrariesList()
     {
         using var setup = await WatchAsync(create: false);
