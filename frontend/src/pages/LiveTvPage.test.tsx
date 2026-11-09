@@ -241,12 +241,12 @@ describe('refreshing the Live TV guide', () => {
   describe('when the server stops answering, or the page is left', () => {
     const word = 'Flexarr didn’t answer. Try again.'
     const server = () => {
-      const state = { down: false, refreshing: false, finished: 4, refreshedAt: '2026-11-08T06:00:00Z' as string | null, error: null as string | null, downloadError: null as string | null, channelFetches: 0, posts: 0, postAnswer: undefined as (() => unknown) | undefined }
+      const state = { down: false, refreshing: false, finished: 4, refreshedAt: '2026-11-08T06:00:00Z' as string | null, error: null as string | null, downloadError: null as string | null, downloadSkipped: undefined as boolean | undefined, channelFetches: 0, posts: 0, postAnswer: undefined as (() => unknown) | undefined }
       mockApi({
         '/livetv/status': () => {
           // What a browser gets from a server that's gone.
           if (state.down) throw new TypeError('Failed to fetch')
-          return { configured: true, channels: 20, refreshing: state.refreshing, refreshedAt: state.refreshedAt, error: state.error, downloadError: state.downloadError, rewindMinutes: 0, refreshesFinished: state.finished }
+          return { configured: true, channels: 20, refreshing: state.refreshing, refreshedAt: state.refreshedAt, error: state.error, downloadError: state.downloadError, downloadSkipped: state.downloadSkipped, rewindMinutes: 0, refreshesFinished: state.finished }
         },
         '/livetv/channels': () => {
           state.channelFetches++
@@ -544,6 +544,37 @@ describe('refreshing the Live TV guide', () => {
       }),
       20000,
     )
+
+    it('says a kept failure’s sources weren’t asked, in passing, and only then', async () => {
+      const state = server()
+      state.downloadError = 'A source failed'
+      state.downloadSkipped = true
+      const { unmount } = openPage(true)
+
+      const note = await screen.findByText('Its sources were asked a few minutes ago, so they weren’t asked again.')
+      expect(note).toHaveClass('muted')
+      expect(note.closest('[role="alert"]')).toBeNull()
+      expect(screen.getByRole('alert')).toHaveTextContent('A source failed')
+      unmount()
+
+      // Absent from older servers, false, or with nothing kept to explain.
+      for (const [downloadError, downloadSkipped] of [
+        ['A source failed', undefined],
+        ['A source failed', false],
+        [null, true],
+      ] as const) {
+        clearApiCache()
+        const again = server()
+        again.downloadError = downloadError
+        again.downloadSkipped = downloadSkipped
+        const view = openPage(true)
+        await screen.findByRole('button', { name: 'Refresh guide' })
+        await screen.findByRole('status')
+        await new Promise((done) => setTimeout(done, 20))
+        expect(screen.queryByText(/weren’t asked again/)).toBeNull()
+        view.unmount()
+      }
+    })
   })
 
   it('isn’t offered to other profiles', async () => {

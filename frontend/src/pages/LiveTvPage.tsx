@@ -221,6 +221,7 @@ export default function LiveTvPage() {
           {refreshing && <span className="visually-hidden">{t(Words.refreshingGuide)}</span>}
           {refreshWorked && <p className="muted livetv-missing">{t(Words.guideRefreshed)}</p>}
           {refresh?.gaveUp && !noAnswer && <p className="muted livetv-missing">{t(Words.guideTakingAWhile)}</p>}
+          {problem && problem === status.data?.downloadError && status.data.downloadSkipped && <p className="muted livetv-missing">{t(Words.guideSourcesAskedRecently)}</p>}
           {!!status.data?.channelsWithoutListings && (
             <p className="muted livetv-missing">
               {t('{count, plural, one {# channel has no listings} other {# channels have no listings}}', { count: status.data.channelsWithoutListings })}{' '}
