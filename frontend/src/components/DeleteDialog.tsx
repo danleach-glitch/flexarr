@@ -55,8 +55,43 @@ export function DeleteDialog({ item, onDeleted, onClose }: { item: ItemSummary; 
         <div id="delete-detail" className="confirm-dialog-detail">
           {plan.loading && !plan.data && <p>{t('Checking how to delete it…')}</p>}
           {plan.error && <p className="error">{t('Couldn’t check how to delete it: {reason}', { reason: plan.error instanceof ApiError && plan.error.messages[0] ? plan.error.messages[0] : plan.error.message })}</p>}
-          {plan.data?.managedBy && <p>{t('{detail} You can’t undo this.', { detail: what.detail })}</p>}
-          {plan.data && !plan.data.managedBy && (
+          {plan.data?.copies && plan.data.copies.length > 1 && (
+            <>
+              <p>{t('This deletes every copy, in every library:')}</p>
+              <ul className="delete-files">
+                {plan.data.copies.map((c) => (
+                  <li key={c.itemId}>
+                    <strong>{c.library}</strong> {c.managedBy && t('{app} deletes it', { app: c.managedBy })}
+                    {c.files.slice(0, 5).map((f) => (
+                      <code key={f} className="confirm-dialog-path">
+                        {f}
+                      </code>
+                    ))}
+                    {c.files.length > 5 && t('and {count} more', { count: c.files.length - 5 })}
+                  </li>
+                ))}
+              </ul>
+              <p>{t('You can’t undo this.')}</p>
+            </>
+          )}
+          {!(plan.data?.copies && plan.data.copies.length > 1) && plan.data?.managedBy && (
+            <>
+              <p>{t('{detail} You can’t undo this.', { detail: what.detail })}</p>
+              {plan.data.files.length > 0 && (
+                <>
+                  <p>{t('{app} doesn’t track these files, so Flexarr deletes them too:', { app: plan.data.managedBy })}</p>
+                  <ul className="delete-files">
+                    {plan.data.files.map((f) => (
+                      <li key={f}>
+                        <code className="confirm-dialog-path">{f}</code>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </>
+          )}
+          {plan.data && !plan.data.managedBy && !(plan.data.copies && plan.data.copies.length > 1) && (
             <>
               <p>
                 {app

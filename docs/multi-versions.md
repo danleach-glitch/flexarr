@@ -48,7 +48,7 @@ The server remembers the choice, so apps only call the endpoint that sets it, an
 
 - `GET /items/{id}` gains optional `versions` (with two or more only): each has `fileId`, `label`, `edition`, `durationSeconds` and `chosen`, in the order they're offered. `files` keeps its meaning: this item's own files, best first.
 - `PUT /items/{id}/version` with `{fileId}` sets the profile's choice, and `{fileId: null}` goes back to automatic.
-- Library Health gains an optional `versions` list.
+- `GET /library-health` gains optional `versions` (biggest first, at most 100), `versionsTotal` and `versionsBytes`; `duplicates` now means only true spares.
 
 Older apps on a newer server get the automatic pick and linked titles but no picker. Newer apps on an older server get no `versions`, so no picker.
 

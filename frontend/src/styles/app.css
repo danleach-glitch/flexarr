@@ -2730,6 +2730,10 @@ a.download-attention {
   overflow-wrap: anywhere;
 }
 
+.delete-files li > code {
+  display: block;
+}
+
 .delete-files {
   margin: 0;
   padding: 0;

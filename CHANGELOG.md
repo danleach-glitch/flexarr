@@ -9,6 +9,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A film or show you have in two libraries, a 4K one and a 1080p one say, is now one title: listed once, with one page and one place to carry on from, whichever you open. A show's page brings its seasons and episodes together.
 - Play now picks the best version your device can play without converting, so a phone gets the 1080p copy rather than a converted 4K one.
 - **Version** in a film's or episode's **⋯** menu lets you choose one, and your profile remembers it on every device. **Automatic** goes back to the best pick.
+- **Delete** on a title you have in more than one library now deletes every copy, and the dialog names each library first.
+- **Library health** counts only files that are truly alike as spare copies. Different versions get their own list, showing the space they take.
 ### Profiles
 
 - Age limits now use the US's names on a server set to the US: **G**, **PG**, **PG-13**, **TV-14** and **R**. Everywhere else they stay **U**, **PG**, **12**, **15** and **18**.

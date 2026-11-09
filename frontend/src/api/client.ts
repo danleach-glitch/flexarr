@@ -830,6 +830,8 @@ const deleted = new Set<string>()
 export interface DeletionPlan {
   managedBy: string | null
   files: string[]
+  /** Each copy of a title in more than one library, all of which go. Absent from servers before 0.64. */
+  copies?: { itemId: string; library: string; managedBy: string | null; files: string[] }[] | null
 }
 export const getDeletion = (id: string, signal?: AbortSignal) => apiGet<DeletionPlan>(`/items/${seg(id)}/deletion`, signal)
 /** Deletes a film, show or episode and its files, through Radarr or Sonarr when they manage it (main profile only). */
@@ -1413,6 +1415,15 @@ export interface LibraryHealth {
     reclaimableBytes: number
   }[]
   reclaimableBytes: number
+  /** Titles with versions to tell apart (4K and 1080p), biggest first, at most 100. Absent from servers before 0.64, as are the two below. */
+  versions?: {
+    item: import('./types').ItemSummary
+    seriesTitle: string | null
+    files: { id: string; path: string; size: number; label?: string | null; edition?: string | null }[]
+    bytes: number
+  }[]
+  versionsTotal?: number
+  versionsBytes?: number
   unreadable: { fileId: string; path: string; error: string; item: import('./types').ItemSummary | null }[]
   missingArtwork: import('./types').ItemSummary[]
   /** Films and shows Sonarr and Radarr don't manage, matched by searching for the folder name. */

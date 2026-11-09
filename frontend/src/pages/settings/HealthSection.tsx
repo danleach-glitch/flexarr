@@ -172,7 +172,7 @@ export function HealthSection() {
 
   // Groups with nothing in them drop out, so what's left is what needs a look; this line says what's fine.
   const clear = [
-    data.duplicates.length === 0 && t('every title has a single copy'),
+    data.duplicates.length === 0 && t('no spare copies'),
     data.unreadable.length === 0 && t('every file opened cleanly'),
     data.standardDefinitionTotal === 0 && t('every movie has an HD copy'),
   ].filter((s): s is string => !!s)
@@ -233,7 +233,7 @@ export function HealthSection() {
         count={data.duplicates.length}
         // Stays while spares are removed, so the last of them going doesn't take the progress with it.
         shown={removing !== null}
-        lede={t('More than one file for the same movie or episode. Removing spares frees {size}; the best copy, and the one Sonarr or Radarr use, always stay.', { size: formatSize(data.reclaimableBytes) })}
+        lede={t('More than one file alike for the same movie or episode. Removing spares frees {size}; the best copy, and the one Sonarr or Radarr use, always stay.', { size: formatSize(data.reclaimableBytes) })}
         action={
           data.duplicates.length > 0 && (
             <AsyncButton className="button danger small" busy={removing !== null && removing.done < removing.total} onClick={() => setConfirmAll(true)}>
@@ -304,6 +304,28 @@ export function HealthSection() {
             {t('Show more ({count, number} left)', { count: data.duplicates.length - shown })}
           </button>
         )}
+      </HealthGroup>
+
+      <HealthGroup
+        title={t('Versions')}
+        count={data.versionsTotal ?? 0}
+        lede={t('Titles you have in more than one version, 4K and 1080p say, which is usually on purpose. Together they take {size}.', { size: formatSize(data.versionsBytes ?? 0) })}
+      >
+        {(data.versions ?? []).map((v) => (
+          <details key={v.item.id} className="health-row-expandable">
+            <summary>
+              <HealthRowMain item={v.item} detail={t('{list}, {size}', { list: [...new Set(v.files.map((f) => f.label).filter(Boolean))].join(', '), size: formatSize(v.bytes) })} />
+            </summary>
+            <ul className="health-copies">
+              {v.files.map((f) => (
+                <li key={f.id}>
+                  <span title={f.path}>{fileName(f.path)}</span>
+                  <span className="muted">{[f.label, f.edition, formatSize(f.size)].filter(Boolean).join(', ')}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ))}
       </HealthGroup>
 
       <HealthGroup title={t('Files that can’t be read')} count={data.unreadable.length} lede={t('Usually a damaged or unfinished download. A new copy fixes playback.')}>
