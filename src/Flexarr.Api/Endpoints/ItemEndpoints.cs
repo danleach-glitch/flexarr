@@ -269,8 +269,37 @@ public static class ItemEndpoints
                 .Summaries(profile.Id).ToListAsync(ct));
         }).WithTags("Items");
 
-        // A parent's Allow or Block for profiles with an age limit, on a film, show, artist or podcast (its seasons,
-        // episodes and tracks follow it).
+        // The version of a title this profile wants, on any of its devices; no file goes back to choosing automatically.
+        api.MapPut("/items/{id:guid}/version", async (Guid id, VersionChoiceRequest request, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        {
+            var item = await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Episode), ct);
+            if (item is null)
+            {
+                return Results.NotFound();
+            }
+
+            var file = request.FileId is { } wanted ? (await Playback.TitleVersions.FilesAsync(db, item, ct)).FirstOrDefault(f => f.Id == wanted) : null;
+            if (request.FileId is not null && file is null)
+            {
+                return Results.NotFound();
+            }
+
+            var copies = await Playback.TitleVersions.CopiesAsync(db, item, ct);
+            await db.VersionChoices.Where(c => c.ProfileId == profile.Id && copies.Contains(c.MediaItemId)).ExecuteDeleteAsync(ct);
+            if (file is not null)
+            {
+                db.VersionChoices.Add(new VersionChoice
+                {
+                    ProfileId = profile.Id, MediaItemId = file.MediaItemId, MediaFileId = file.Id, Label = VersionRules.Label(file), Edition = VersionRules.Edition(file),
+                });
+                await db.SaveChangesAsync(ct);
+            }
+
+            return Results.NoContent();
+        }).WithTags("Items");
+
+        // A parent's Allow or Block for profiles with an age limit, on a film, show, artist or podcast, and every copy
+        // of it (its seasons, episodes and tracks follow it).
         api.MapPut("/items/{id:guid}/kids", async (Guid id, KidsOverrideRequest request, FlexarrDbContext db, CancellationToken ct) =>
         {
             if (!Enum.IsDefined(request.Override))
@@ -288,7 +317,15 @@ public static class ItemEndpoints
                 return Problems.Of("Allow or block the whole title: its seasons and episodes follow it.", status: 409);
             }
 
-            item.KidsOverride = request.Override;
+            // On every copy of the title, or Block would leave the title showing through another library's copy.
+            var copies = item.LinkGroupId is { } group
+                ? await db.MediaItems.IgnoreQueryFilters().Where(i => i.LinkGroupId == group).ToListAsync(ct)
+                : [item];
+            foreach (var copy in copies)
+            {
+                copy.KidsOverride = request.Override;
+            }
+
             await db.SaveChangesAsync(ct);
             LibraryVisibility.KidsSettingsChanged();
             return Results.NoContent();
@@ -325,7 +362,7 @@ public static class ItemEndpoints
         }
 
         // An artist's albums read newest first; everything else in its natural order.
-        var childQuery = db.MediaItems.Where(i => i.ParentId == id);
+        var childQuery = db.MediaItems.ChildrenOf(id, entity.LinkGroupId);
         var children = await (entity.Kind == MediaKind.Artist
                 ? childQuery.OrderByDescending(i => i.Year).ThenBy(i => i.SortTitle)
                 : childQuery.OrderBy(i => i.SortTitle))
@@ -345,7 +382,7 @@ public static class ItemEndpoints
 
         // A season's episode list shows overviews; send them with it rather than one request per episode.
         var childOverviews = entity.Kind == MediaKind.Season
-            ? await db.MediaItems.Where(i => i.ParentId == id).Select(i => new { i.Id, i.Overview }).ToDictionaryAsync(i => i.Id, i => i.Overview, ct)
+            ? await childQuery.Select(i => new { i.Id, i.Overview }).ToDictionaryAsync(i => i.Id, i => i.Overview, ct)
             : new Dictionary<Guid, string?>();
 
         // Where things are on the server's disk is the main profile's to know: the fields stay (apps read them), empty.
@@ -356,10 +393,33 @@ public static class ItemEndpoints
             series.Genres.Select(g => g.Name).Order().ToList(),
             series.TvdbId, entity.TmdbId ?? series.TmdbId, entity.ImdbId ?? series.ImdbId,
             ancestors, children, credits, files.Select(f => ToDto(f, paths)).ToList(), childOverviews, entity.MatchLocked,
-            CanSearchSubtitles: bazarr && entity.Kind is (MediaKind.Movie or MediaKind.Episode) && entity.ArrId is not null && files.Count > 0,
+            CanSearchSubtitles: bazarr && entity.Kind is (MediaKind.Movie or MediaKind.Episode) && ((entity.ArrId is not null && files.Count > 0)
+                || (entity.LinkGroupId is { } linked && await db.MediaItems.AnyAsync(i => i.LinkGroupId == linked && i.ArrId != null && i.Files.Any(), ct))),
             RatingAge: entity.RatingAge, KidsOverride: profile.IsMainProfile ? entity.KidsOverride : null,
             Book: entity.Kind == MediaKind.Audiobook ? await Books.BookQueries.DetailAsync(db, entity, profile.Id, ct) : null,
-            DetailsLocked: entity.DetailsLocked, SortTitle: entity.SortTitle, ArtworkLocked: entity.ArtworkLocked);
+            DetailsLocked: entity.DetailsLocked, SortTitle: entity.SortTitle, ArtworkLocked: entity.ArtworkLocked,
+            Versions: entity.Kind is MediaKind.Movie or MediaKind.Episode ? await VersionsAsync(db, entity, files, profile.Id, ct) : null,
+            CopyIds: entity.LinkGroupId is null ? null : await Playback.TitleVersions.CopiesAsync(db, entity, ct));
+    }
+
+    /// <summary>What the title's Version choice offers; null with only one version to play.</summary>
+    private static async Task<List<VersionDto>?> VersionsAsync(FlexarrDbContext db, MediaItem item, List<MediaFile> own, string profileId, CancellationToken ct)
+    {
+        // Only what someone could tell apart: a spare copy isn't a version to choose. A title with no copies has its files already.
+        var files = item.LinkGroupId is null
+            ? own.Where(f => f.ProbeError == null).ToList()
+            : await Playback.TitleVersions.FileRowsAsync(db, item, ct);
+        var offered = VersionRules.Sort(VersionRules.BestFirst(files)).Kept;
+        if (offered.Count < 2)
+        {
+            return null;
+        }
+
+        var choice = await Playback.TitleVersions.ChoiceAsync(db, item, profileId, ct);
+        var chosen = choice is null ? null : Streaming.VersionPicker.Chosen(files, choice);
+        return offered
+            .Select(f => new VersionDto(f.Id, VersionRules.Label(f), VersionRules.Edition(f), f.DurationSeconds, f.Size, f.Id == chosen?.Id, f.VideoCodec, f.AudioCodec, f.AudioChannels))
+            .ToList();
     }
 
     private static FileDto ToDto(MediaFile f, bool path) => new(

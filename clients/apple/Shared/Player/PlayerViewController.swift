@@ -912,8 +912,8 @@ final class PlayerViewController: UIViewController {
                 self.transport?.teletextPage = page
                 self.rebuildMenus()
             }
-            items.append(UIMenu(title: t("Teletext page"), subtitle: page.map(String.init) ?? t("Automatic"), children: [
-                UIAction(title: t("Automatic"), state: page == nil ? .on : .off) { _ in MainActor.assumeIsolated { choose(nil) } },
+            items.append(UIMenu(title: t("Teletext page"), subtitle: page.map(String.init) ?? t(Words.automatic), children: [
+                UIAction(title: t(Words.automatic), state: page == nil ? .on : .off) { _ in MainActor.assumeIsolated { choose(nil) } },
             ] + teletextPages.map { number in
                 UIAction(title: String(number), state: page == number ? .on : .off) { _ in MainActor.assumeIsolated { choose(number) } }
             }))

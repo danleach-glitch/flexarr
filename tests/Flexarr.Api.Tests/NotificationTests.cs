@@ -358,6 +358,43 @@ public sealed class NotificationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ACopyInAHiddenLibrary_DoesntMakeATitleOldNews()
+    {
+        var (_, phone) = await PhoneAsync();
+        await RegisterAsync(phone);
+        await StartAsync();
+        var hd = OldLibrary(LibraryType.Movies, "HD");
+        var uhd = OldLibrary(LibraryType.Movies, "4K");
+        var old = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        await SeedAsync(db =>
+        {
+            db.Libraries.AddRange(hd, uhd);
+            db.MediaItems.AddRange(Film(uhd, "Heat", old, tmdb: "949"), Film(hd, "Heat", _clock.Now.AddMinutes(1), tmdb: "949"));
+            db.Profiles.Single(p => p.Id == PlaybackState.DefaultUser).HiddenLibraryIds = [uhd.Id];
+        });
+
+        Assert.Single(await RunAtAsync(_clock.Now.AddMinutes(5)));
+    }
+
+    [Fact]
+    public async Task ACopyInALibraryYouCanSee_MakesATitleOldNews()
+    {
+        var (_, phone) = await PhoneAsync();
+        await RegisterAsync(phone);
+        await StartAsync();
+        var hd = OldLibrary(LibraryType.Movies, "HD");
+        var uhd = OldLibrary(LibraryType.Movies, "4K");
+        var old = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        await SeedAsync(db =>
+        {
+            db.Libraries.AddRange(hd, uhd);
+            db.MediaItems.AddRange(Film(hd, "Heat", old, tmdb: "949"), Film(uhd, "Heat", _clock.Now.AddMinutes(1), tmdb: "949"));
+        });
+
+        Assert.Empty(await RunAtAsync(_clock.Now.AddMinutes(5)));
+    }
+
+    [Fact]
     public async Task EpisodesOfAShow_AreOneNotification()
     {
         var (_, phone) = await PhoneAsync();

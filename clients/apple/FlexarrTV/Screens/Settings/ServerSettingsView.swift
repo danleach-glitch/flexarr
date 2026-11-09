@@ -31,7 +31,7 @@ struct ServerSettingsView: View {
 
             SettingsGroupLabel(t("Server"))
             if let status {
-                SettingsFact(t("Version"), ServerVersion.short(status.version))
+                SettingsFact(t(Words.version), ServerVersion.short(status.version))
                 SettingsFact(t("Running on"), status.osDescription)
                 SettingsFact(t("Up since"), status.startTime.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: Localization.locale)))
             } else {

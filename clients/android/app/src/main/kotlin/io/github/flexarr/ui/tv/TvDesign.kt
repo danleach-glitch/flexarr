@@ -9,6 +9,7 @@ import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -296,7 +297,7 @@ fun TvRowHeading(title: String, modifier: Modifier = Modifier) {
 @Composable
 fun TvFactsLine(facts: List<String>, modifier: Modifier = Modifier, scores: Scores? = null) {
     val style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen.copy(alpha = 0.85f), fontFeatureSettings = "tnum")
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(11.dp), verticalAlignment = Alignment.CenterVertically) {
+    FlowRow(modifier, horizontalArrangement = Arrangement.spacedBy(11.dp), verticalArrangement = Arrangement.spacedBy(3.dp), itemVerticalAlignment = Alignment.CenterVertically) {
         facts.forEach { Text(it, style = style, maxLines = 1) }
         if (scores != null && !scores.isEmpty) ScoreChipItems(scores, style, markScale = 1.08f)
     }

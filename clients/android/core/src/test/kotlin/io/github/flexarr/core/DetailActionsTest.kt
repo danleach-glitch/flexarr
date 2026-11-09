@@ -31,7 +31,24 @@ class DetailActionsTest {
         canDownload: Boolean = false,
         canSearchSubtitles: Boolean = false,
         canWatchlist: Boolean = true,
-    ) = DetailActions.of(DetailActions.Input(kind, hasProgress, isWatched, hasTrailer, isKids, platform, canPlayTrailers, canDownload, canSearchSubtitles, canWatchlist))
+        canChooseVersion: Boolean = false,
+    ) = DetailActions.of(DetailActions.Input(kind, hasProgress, isWatched, hasTrailer, isKids, platform, canPlayTrailers, canDownload, canSearchSubtitles, canWatchlist, canChooseVersion))
+
+    @Test
+    fun `versions come before subtitles, for a child too, and only with something to choose`() {
+        assertEquals(listOf(DetailActions.MenuItem.Version, DetailActions.MenuItem.Subtitles), actions(canChooseVersion = true, canSearchSubtitles = true).menu)
+        assertEquals(listOf(DetailActions.MenuItem.Version), actions(canChooseVersion = true, isKids = true).menu)
+        assertEquals(emptyList<DetailActions.MenuItem>(), actions().menu)
+    }
+
+    @Test
+    fun `a version's name gives its cut and length only where they differ`() {
+        val same = listOf(TitleVersion("a", "4K", durationSeconds = 7200.0), TitleVersion("b", "1080p", durationSeconds = 7180.0))
+        assertEquals("4K", same[0].name(same))
+        val cuts = listOf(TitleVersion("a", "4K", "Director's Cut", 10800.0), TitleVersion("b", "1080p", durationSeconds = 7200.0))
+        assertEquals("4K, Director's Cut, 3h", cuts[0].name(cuts))
+        assertEquals("1080p, 2h", cuts[1].name(cuts))
+    }
 
     @Test
     fun `a fresh movie plays, has its trailer, watched and watchlist`() {
@@ -159,5 +176,15 @@ class DetailActionsTest {
         assertEquals(null, older.trailerId)
         val junk = FlexarrClient.json.decodeFromString(ItemDetail.serializer(), """{"item":$item,"trailerYouTubeId":"not an id"}""")
         assertEquals(null, junk.trailerId)
+    }
+
+    @Test
+    fun `the search and the facts follow the version chosen`() {
+        val item = ItemSummary(id = "film", libraryId = "library", kind = MediaKind.Movie, title = "Film", childCount = 0, artwork = Artwork(), userData = UserData(0.0, false, 0))
+        val versions = listOf(TitleVersion("4K", "4K"), TitleVersion("1080p", "1080p", chosen = true, videoCodec = "hevc"))
+        val detail = ItemDetail(item = item, versions = versions)
+        assertEquals("1080p", detail.subtitleTargetId)
+        assertEquals("hevc", detail.shownVersion?.videoCodec)
+        assertEquals("4K", ItemDetail(item = item, versions = listOf(TitleVersion("4K", "4K"))).shownVersion?.fileId)
     }
 }

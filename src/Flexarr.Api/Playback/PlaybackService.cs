@@ -35,6 +35,9 @@ public sealed class PlaybackService(
     /// <summary>A copied Dolby track whose first frame is later than this into the file is converted (see StartAsync).</summary>
     private const double LateAudioSeconds = 0.5;
 
+    private sealed record Plan(IReadOnlyList<SubtitleTrack> Subtitles, List<MediaStream> AudioStreams, int? AudioIndex, string? SubtitleKey, long Away, long OtherCaps,
+        PlaybackOptions Options, PlaybackDecision Decision);
+
     public async Task<PlaybackInfoDto?> StartAsync(PlaybackRequest request, CancellationToken ct)
     {
         var item = await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == request.ItemId, ct);
@@ -55,29 +58,87 @@ public sealed class PlaybackService(
             return null;
         }
 
-        var files = await db.MediaFiles.AsNoTracking().Include(f => f.Streams).Include(f => f.Markers)
-            .Where(f => f.MediaItemId == item.Id && f.ProbeError == null).ToListAsync(ct);
-        var file = files.FirstOrDefault(f => f.Id == request.FileId)
-            ?? files.OrderByDescending(f => f.Height).ThenByDescending(f => f.Bitrate).FirstOrDefault();
-        if (file is null)
+        var files = await TitleVersions.FilesAsync(db, item, ct);
+        if (files.Count == 0)
         {
             return item.Kind == MediaKind.PodcastEpisode ? await StartPodcastAsync(item, request, ct) : null;
+        }
+
+        var preferences = await LanguagePreferencesAsync(item, ct);
+        var transcoding = options.CurrentValue.Transcoding;
+        // A family guest on Tailscale's slow shared relays is held to what fits through them.
+        var slowLink = await guestLinks.CapAsync(ct) ?? 0;
+        var teletext = FfmpegFilters.HasDecoder(PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue).FfmpegPath, "libzvbi_teletextdec");
+        var remote = http?.HttpContext is { } context && AwayFromHome.IsRemote(context);
+
+        // What playing a given file would take. Versions differ, so it's asked for each before choosing one. Subtitle files
+        // beside a file only change that when one would be shown, and looking for them can wake a sleeping drive holding a
+        // version that isn't even chosen, so otherwise only the file chosen is looked beside.
+        var sidecarsMatter = request.SubtitleKey is not "off" && (request.SubtitleKey is not null || preferences.Subtitle is not null);
+        var plans = new Dictionary<Guid, Plan>();
+        Plan PlanFor(MediaFile candidate)
+        {
+            if (!plans.TryGetValue(candidate.Id, out var plan))
+            {
+                plans[candidate.Id] = plan = MakePlan(candidate, sidecars: true);
+            }
+
+            return plan;
+        }
+
+        Plan MakePlan(MediaFile candidate, bool sidecars)
+        {
+            IReadOnlyList<SubtitleTrack> tracks = Subtitles.For(candidate, teletext, sidecars);
+            if (!request.Profile.SelectsTracksItself)
+            {
+                // Teletext this server can't read can't be converted or burned in either; only a player that decodes it can show it.
+                tracks = tracks.Where(s => !s.IsTeletext || s.IsText).ToList();
+            }
+
+            var audio = candidate.Streams.Where(s => s.Type == StreamType.Audio).OrderBy(s => s.Index).ToList();
+            var audioTrack = request.AudioStreamIndex ?? AudioTracks.InLanguage(audio, preferences.Audio)?.Index;
+            var subtitle = request.SubtitleKey switch
+            {
+                "off" => null,
+                { } key => key,
+                null => ChooseSubtitle(tracks, preferences.Subtitle, audio.FirstOrDefault(a => a.Index == audioTrack)?.Language ?? audio.FirstOrDefault()?.Language),
+            };
+
+            // Away from home, a file that needs more than the viewer's connection carries is converted to fit, unless the
+            // viewer chose a quality themselves (the web player's menu).
+            var awayCap = request.MaxBitrate is null && request.MaxHeight is null
+                ? AwayFromHome.Cap(transcoding.AwayFromHome, remote, request.MeasuredBitrate, candidate.Bitrate) ?? 0
+                : 0;
+            var caps = new[] { request.MaxBitrate ?? 0, transcoding.MaxStreamingBitrate, slowLink }.Where(b => b > 0).DefaultIfEmpty(0).Min();
+            var cap = new[] { caps, awayCap }.Where(b => b > 0).DefaultIfEmpty(0).Min();
+            var shaping = request.Sound is { } shaped ? shaped with { MaxChannels = shaped.MaxChannels is { } max ? Math.Clamp(max, 1, 8) : null } : null;
+            var opts = new PlaybackOptions(audioTrack, subtitle, cap, request.MaxHeight, request.ForceTranscode, candidate.AudioDelaySeconds, shaping);
+            return new Plan(tracks, audio, audioTrack, subtitle, awayCap, caps, opts, PlaybackDecider.Decide(candidate, request.Profile, tracks, opts));
+        }
+
+        // A file asked for by name (a stream restarting) is that file, if this profile can see it. Otherwise: see VersionPicker.
+        var file = files.FirstOrDefault(f => f.Id == request.FileId);
+        if (file is null)
+        {
+            var choice = files.Count > 1 ? await TitleVersions.ChoiceAsync(db, item, profile.Id, ct) : null;
+            file = VersionPicker.Pick(files, choice, Math.Min(request.Profile.MaxHeight, request.MaxHeight ?? int.MaxValue), candidate =>
+            {
+                var plan = sidecarsMatter ? PlanFor(candidate) : MakePlan(candidate, sidecars: false);
+                return PlaybackDecider.TierOf(plan.Decision, candidate, request.Profile, plan.Options);
+            })!;
         }
 
         // Work for the title being watched: previews for scrubbing, the season's intros and credits, its subtitles.
         // Only got ready ahead of Play (a page looked at), it waits until a player uses the stream.
         var needsPreviews = file.Streams.Any(s => s.Type == StreamType.Video)
             && Trickplay.Read(PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue).CacheDirectory, file.Id) is null;
-        var markSeason = file.MarkersScannedAt is null && item.Kind == MediaKind.Episode ? item.ParentId : null;
+        // The season the file itself is in: a linked copy's, when it's a copy's file that's playing.
+        var markSeason = file.MarkersScannedAt is null && item.Kind == MediaKind.Episode
+            ? file.MediaItemId == item.Id ? item.ParentId : await db.MediaItems.Where(i => i.Id == file.MediaItemId).Select(i => i.ParentId).FirstOrDefaultAsync(ct)
+            : null;
 
         var state = await db.PlaybackStates.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == profile.Id && p.MediaItemId == item.Id, ct);
-        var preferences = await LanguagePreferencesAsync(item, ct);
-        var subtitles = Subtitles.For(file, FfmpegFilters.HasDecoder(PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue).FfmpegPath, "libzvbi_teletextdec"));
-        if (!request.Profile.SelectsTracksItself)
-        {
-            // Teletext this server can't read can't be converted or burned in either; only a player that decodes it can show it.
-            subtitles = subtitles.Where(s => !s.IsTeletext || s.IsText).ToList();
-        }
+        var (subtitles, audioStreams, audioIndex, subtitleKey, away, otherCaps, playbackOptions, decision) = PlanFor(file);
 
         void Watching()
         {
@@ -98,31 +159,6 @@ public sealed class PlaybackService(
         {
             Watching();
         }
-
-        var audioStreams = file.Streams.Where(s => s.Type == StreamType.Audio).OrderBy(s => s.Index).ToList();
-
-        var audioIndex = request.AudioStreamIndex
-            ?? AudioTracks.InLanguage(audioStreams, preferences.Audio)?.Index;
-        var subtitleKey = request.SubtitleKey switch
-        {
-            "off" => null,
-            { } key => key,
-            null => ChooseSubtitle(subtitles, preferences.Subtitle, audioStreams.FirstOrDefault(a => a.Index == audioIndex)?.Language ?? audioStreams.FirstOrDefault()?.Language),
-        };
-
-        var transcoding = options.CurrentValue.Transcoding;
-        // A family guest on Tailscale's slow shared relays is held to what fits through them.
-        var slowLink = await guestLinks.CapAsync(ct) ?? 0;
-        // Away from home, a file that needs more than the viewer's connection carries is converted to fit, unless the
-        // viewer chose a quality themselves (the web player's menu).
-        var away = request.MaxBitrate is null && request.MaxHeight is null
-            ? AwayFromHome.Cap(transcoding.AwayFromHome, http?.HttpContext is { } context && AwayFromHome.IsRemote(context), request.MeasuredBitrate, file.Bitrate) ?? 0
-            : 0;
-        var otherCaps = new[] { request.MaxBitrate ?? 0, transcoding.MaxStreamingBitrate, slowLink }.Where(b => b > 0).DefaultIfEmpty(0).Min();
-        var maxBitrate = new[] { otherCaps, away }.Where(b => b > 0).DefaultIfEmpty(0).Min();
-        var sound = request.Sound is { } shaping ? shaping with { MaxChannels = shaping.MaxChannels is { } max ? Math.Clamp(max, 1, 8) : null } : null;
-        var playbackOptions = new PlaybackOptions(audioIndex, subtitleKey, maxBitrate, request.MaxHeight, request.ForceTranscode, file.AudioDelaySeconds, sound);
-        var decision = PlaybackDecider.Decide(file, request.Profile, subtitles, playbackOptions);
 
         // Converting only because of the connection: say so (not "the quality limit", which nobody set), and if the
         // server turns out to be too busy to convert, the file plays as it is, as it would have before.
@@ -232,15 +268,20 @@ public sealed class PlaybackService(
         var start = request.StartPositionSeconds
             ?? (state is { Watched: false, PositionSeconds: > MinResumeSeconds } && state.PositionSeconds < duration * WatchedThreshold ? state.PositionSeconds : 0);
 
+        // Read once, for the stream and for the player.
+        double? keptSpeed = null;
+        var speedRead = false;
         if (transcode is not null)
         {
             transcode.StartSeconds = Math.Max(0, start);
             if (item.Kind == MediaKind.Episode)
             {
                 // The player opens at the speed kept for the show (below): the stream is made that fast from the start.
-                transcode.Speed = await db.ShowPlaybackSpeeds.AsNoTracking()
-                    .Where(s => s.ProfileId == profile.Id && db.MediaItems.Any(season => season.Id == item.ParentId && season.ParentId == s.SeriesId))
-                    .Select(s => (double?)s.Speed).FirstOrDefaultAsync(ct) ?? 1;
+                keptSpeed = await db.MediaItems.Where(season => season.Id == item.ParentId).Select(season => season.ParentId).FirstOrDefaultAsync(ct) is { } show
+                    ? await TitleVersions.ShowSpeedAsync(db, show, profile.Id, ct)
+                    : null;
+                speedRead = true;
+                transcode.Speed = keptSpeed ?? 1;
             }
         }
 
@@ -304,9 +345,12 @@ public sealed class PlaybackService(
         var basePath = $"/api/v1/playback/{id}";
         var burned = decision.Transcode?.BurnSubtitle is not null;
         var series = ancestors.FirstOrDefault(a => a.Kind == MediaKind.Series)?.Id;
-        var speed = series is { } seriesId
-            ? await db.ShowPlaybackSpeeds.AsNoTracking().Where(s => s.ProfileId == profile.Id && s.SeriesId == seriesId).Select(s => (double?)s.Speed).FirstOrDefaultAsync(ct)
-            : null;
+        var speed = speedRead ? keptSpeed : series is { } seriesId ? await TitleVersions.ShowSpeedAsync(db, seriesId, profile.Id, ct) : null;
+
+        // Subtitle timing belongs to the file, so it's kept on the copy holding the file, whichever copy was opened.
+        var subtitleDelay = file.MediaItemId == item.Id
+            ? state?.SubtitleDelaySeconds ?? 0
+            : await db.PlaybackStates.AsNoTracking().Where(p => p.UserId == profile.Id && p.MediaItemId == file.MediaItemId).Select(p => p.SubtitleDelaySeconds).FirstOrDefaultAsync(ct);
 
         return new PlaybackInfoDto(
             id,
@@ -329,7 +373,7 @@ public sealed class PlaybackService(
             decision.Transcode is { } t ? Summary(t, file) : null,
             shuffling,
             watching,
-            state?.SubtitleDelaySeconds ?? 0,
+            subtitleDelay,
             before is { } beforeId ? summaries[beforeId] : null,
             file.AudioDelaySeconds,
             decision.Transcode?.AudioDelaySeconds is not (null or 0),
@@ -462,7 +506,6 @@ public sealed class PlaybackService(
         for (var attempt = 0; ; attempt++)
         {
             var state = await db.PlaybackStates.FirstOrDefaultAsync(p => p.UserId == session.ProfileId && p.MediaItemId == session.ItemId, ct);
-            var added = state is null;
             if (state is null)
             {
                 state = new PlaybackState { UserId = session.ProfileId, MediaItemId = session.ItemId };
@@ -476,10 +519,11 @@ public sealed class PlaybackService(
                 session.CountedAsPlay |= countedPlay;
                 return;
             }
-            catch (DbUpdateException) when (added && attempt == 0)
+            catch (DbUpdateException) when (attempt == 0)
             {
-                // Two first reports for the same item raced and the other inserted the row: apply this one to it.
-                db.Entry(state).State = EntityState.Detached;
+                // Two first reports raced and the other inserted a row, of this copy or of another it's mirrored to:
+                // start again from what's saved, so this one is applied to that.
+                db.ChangeTracker.Clear();
             }
         }
     }
@@ -593,8 +637,10 @@ public sealed class PlaybackService(
 
         var targets = item.Kind switch
         {
+            // Each episode once, across the show's copies: saving writes it to the other copies, and history gets one entry.
+            MediaKind.Series when item.LinkGroupId is { } show => await db.MediaItems.Where(e => e.Parent!.Parent!.LinkGroupId == show).OnePerTitle().Select(e => e.Id).ToListAsync(ct),
             MediaKind.Series => await db.MediaItems.Where(e => e.Parent!.ParentId == itemId).Select(e => e.Id).ToListAsync(ct),
-            MediaKind.Season or MediaKind.Podcast => await db.MediaItems.Where(e => e.ParentId == itemId).Select(e => e.Id).ToListAsync(ct),
+            MediaKind.Season or MediaKind.Podcast => await db.MediaItems.ChildrenOf(itemId, item.LinkGroupId).Select(e => e.Id).ToListAsync(ct),
             _ => [itemId],
         };
 
@@ -668,7 +714,12 @@ public sealed class PlaybackService(
         }
 
         var now = DateTime.UtcNow;
-        await db.PlaybackStates.Where(p => p.UserId == profile.Id && p.MediaItemId == itemId && !p.Watched)
+        // Every copy, those this profile can't see too, or the title would stay in the row through another. This
+        // statement goes straight to the database, past what writes watch state to the other copies on saving.
+        var copies = item.LinkGroupId is { } group
+            ? await db.MediaItems.IgnoreQueryFilters().Where(i => i.LinkGroupId == group).Select(i => i.Id).ToListAsync(ct)
+            : [itemId];
+        await db.PlaybackStates.Where(p => p.UserId == profile.Id && copies.Contains(p.MediaItemId) && !p.Watched)
             .ExecuteUpdateAsync(u => u.SetProperty(p => p.PositionSeconds, 0).SetProperty(p => p.LastPlayedAt, now), ct);
         await DismissShowAsync(item, ct);
         await db.SaveChangesAsync(ct);
@@ -689,14 +740,18 @@ public sealed class PlaybackService(
             return;
         }
 
-        var dismissal = await db.ContinueWatchingDismissals.FindAsync([profile.Id, id], ct);
-        if (dismissal is null)
+        // On every copy, since Continue Watching may come to the show through any of them.
+        foreach (var copy in await TitleVersions.CopiesAsync(db, id, ct))
         {
-            db.ContinueWatchingDismissals.Add(new ContinueWatchingDismissal { ProfileId = profile.Id, SeriesId = id });
-        }
-        else
-        {
-            dismissal.DismissedAt = DateTime.UtcNow;
+            var dismissal = await db.ContinueWatchingDismissals.FindAsync([profile.Id, copy], ct);
+            if (dismissal is null)
+            {
+                db.ContinueWatchingDismissals.Add(new ContinueWatchingDismissal { ProfileId = profile.Id, SeriesId = copy });
+            }
+            else
+            {
+                dismissal.DismissedAt = DateTime.UtcNow;
+            }
         }
     }
 
@@ -709,8 +764,10 @@ public sealed class PlaybackService(
     /// <summary>As <see cref="NextUpAsync(Guid, CancellationToken)"/>, for another profile: what a device would play, when telling it to.</summary>
     public async Task<MediaItem?> NextUpAsync(Guid seriesId, string profileId, CancellationToken ct)
     {
-        var episodes = db.MediaItems.AsNoTracking().Where(e => e.Kind == MediaKind.Episode && e.Parent!.ParentId == seriesId);
-        var mine = db.PlaybackStates.AsNoTracking().Where(p => p.UserId == profileId && p.MediaItem!.Parent!.ParentId == seriesId);
+        // Across the show's copies, each episode once. Watch state is on every copy, so any copy's will do.
+        var copies = await TitleVersions.CopiesAsync(db, seriesId, ct);
+        var episodes = db.MediaItems.AsNoTracking().Where(e => e.Kind == MediaKind.Episode && e.Parent!.ParentId != null && copies.Contains(e.Parent.ParentId.Value)).OnePerTitle();
+        var mine = db.PlaybackStates.AsNoTracking().Where(p => p.UserId == profileId && p.MediaItem!.Parent!.ParentId != null && copies.Contains(p.MediaItem.Parent.ParentId.Value));
 
         var inProgress = await mine.Where(p => !p.Watched && p.PositionSeconds > 0).OrderByDescending(p => p.LastPlayedAt)
             .Select(p => p.MediaItem).FirstOrDefaultAsync(ct);
@@ -739,7 +796,7 @@ public sealed class PlaybackService(
         }
 
         var episodes = await EpisodesAsync(db, profile.Id, [seriesId], ct);
-        return episodes.FirstOrDefault(e => e.Id == episode.Id) is { } current && NextAfter(episodes, current) is { } next
+        return Current(episodes, episode) is { } current && NextAfter(episodes, current) is { } next
             ? await db.MediaItems.AsNoTracking().FirstAsync(e => e.Id == next.Id, ct)
             : null;
     }
@@ -754,7 +811,7 @@ public sealed class PlaybackService(
         }
 
         var episodes = await EpisodesAsync(db, profile.Id, [seriesId], ct);
-        return episodes.FirstOrDefault(e => e.Id == episode.Id) is { } current && PreviousBefore(episodes, current) is { } previous
+        return Current(episodes, episode) is { } current && PreviousBefore(episodes, current) is { } previous
             ? await db.MediaItems.AsNoTracking().FirstAsync(e => e.Id == previous.Id, ct)
             : null;
     }
@@ -771,25 +828,34 @@ public sealed class PlaybackService(
         }
 
         var episodes = await EpisodesAsync(db, profile.Id, [trail[1]], ct);
-        return episodes.FirstOrDefault(e => e.Id == episode.Id) is { } current
+        return Current(episodes, episode) is { } current
             ? (NextAfter(episodes, current)?.Id, PreviousBefore(episodes, current)?.Id)
             : (null, null);
     }
 
+    /// <summary>This episode among a show's, which may list it by another copy.</summary>
+    private static EpisodeRef? Current(List<EpisodeRef> episodes, MediaItem episode) =>
+        episodes.FirstOrDefault(e => e.Id == episode.Id || (episode.LinkGroupId != null && e.LinkGroupId == episode.LinkGroupId));
+
     /// <summary>On shuffle, a random other episode of the show this one is from.</summary>
     private async Task<MediaItem?> ShuffleNextAsync(MediaItem episode, CancellationToken ct) =>
         episode.ParentId is { } seasonId && await db.MediaItems.Where(s => s.Id == seasonId).Select(s => s.ParentId).FirstOrDefaultAsync(ct) is { } seriesId
-            ? await ShuffleAsync(seriesId, episode.Id, ct)
+            ? await ShuffleAsync(seriesId, episode, ct)
             : null;
 
     /// <summary>A random episode of the show that can be played (one with a readable file), other than <paramref name="current"/>.</summary>
-    private async Task<MediaItem?> ShuffleAsync(Guid seriesId, Guid? current, CancellationToken ct)
+    private async Task<MediaItem?> ShuffleAsync(Guid seriesId, MediaItem? current, CancellationToken ct)
     {
-        var playable = (await db.MediaFiles.AsNoTracking()
-            .Where(f => f.ProbeError == null && f.MediaItem!.Parent!.ParentId == seriesId)
-            .Select(f => f.MediaItemId).ToListAsync(ct)).ToHashSet();
-        var episodes = (await EpisodesAsync(db, profile.Id, [seriesId], ct)).Where(e => playable.Contains(e.Id)).ToList();
-        return PickShuffled(episodes, current, Random.Shared, DateTime.UtcNow) is { } pick
+        var copies = await TitleVersions.CopiesAsync(db, seriesId, ct);
+        var playable = await db.MediaFiles.AsNoTracking()
+            .Where(f => f.ProbeError == null && f.MediaItem!.Parent!.ParentId != null && copies.Contains(f.MediaItem.Parent.ParentId.Value))
+            .Select(f => new { f.MediaItemId, f.MediaItem!.LinkGroupId }).ToListAsync(ct);
+        var ids = playable.Select(f => f.MediaItemId).ToHashSet();
+        var groups = playable.Select(f => f.LinkGroupId).OfType<Guid>().ToHashSet();
+        var all = await EpisodesAsync(db, profile.Id, [seriesId], ct);
+        var episodes = all.Where(e => ids.Contains(e.Id) || (e.LinkGroupId is { } group && groups.Contains(group))).ToList();
+        Guid? now = current is null ? null : Current(all, current)?.Id ?? current.Id;
+        return PickShuffled(episodes, now, Random.Shared, DateTime.UtcNow) is { } pick
             ? await db.MediaItems.AsNoTracking().FirstAsync(e => e.Id == pick.Id, ct)
             : null;
     }
@@ -809,15 +875,37 @@ public sealed class PlaybackService(
 
     /// <summary>What Up Next needs to know about an episode, and when this profile finished it (null if it hasn't).</summary>
     internal sealed record EpisodeRef(
-        Guid Id, Guid SeriesId, Guid SeasonId, int? SeasonNumber, int? EpisodeNumber, int? EpisodeNumberEnd, DateOnly? AirDate, string SortTitle, DateTime? WatchedAt);
+        Guid Id, Guid SeriesId, Guid SeasonId, int? SeasonNumber, int? EpisodeNumber, int? EpisodeNumberEnd, DateOnly? AirDate, string SortTitle, DateTime? WatchedAt, Guid? LinkGroupId = null);
 
-    /// <summary>Every episode of these shows, in one query.</summary>
-    internal static Task<List<EpisodeRef>> EpisodesAsync(FlexarrDbContext db, string profileId, IReadOnlyList<Guid> seriesIds, CancellationToken ct) =>
-        db.MediaItems.AsNoTracking()
-            .Where(e => e.Kind == MediaKind.Episode && e.Parent!.ParentId != null && seriesIds.Contains(e.Parent.ParentId.Value))
-            .Select(e => new EpisodeRef(e.Id, e.Parent!.ParentId!.Value, e.ParentId!.Value, e.Parent.SeasonNumber, e.EpisodeNumber, e.EpisodeNumberEnd, e.AirDate, e.SortTitle,
-                e.PlaybackStates.Where(p => p.UserId == profileId && p.Watched).Select(p => (DateTime?)p.LastPlayedAt).FirstOrDefault()))
+    /// <summary>
+    /// Every episode of these shows, in one query. A linked show's come from all the copies this profile can see, each
+    /// episode once, under the show id asked for and with a season's copies counting as one season.
+    /// </summary>
+    internal static async Task<List<EpisodeRef>> EpisodesAsync(FlexarrDbContext db, string profileId, IReadOnlyList<Guid> seriesIds, CancellationToken ct)
+    {
+        var linked = await db.MediaItems.Where(s => seriesIds.Contains(s.Id) && s.LinkGroupId != null)
+            .Select(s => new { s.Id, Group = s.LinkGroupId!.Value }).ToListAsync(ct);
+        var asked = new Dictionary<Guid, Guid>();
+        if (linked.Count > 0)
+        {
+            var groups = linked.Select(s => s.Group).ToList();
+            var copies = await db.MediaItems.Where(s => s.LinkGroupId != null && groups.Contains(s.LinkGroupId.Value))
+                .Select(s => new { s.Id, Group = s.LinkGroupId!.Value }).ToListAsync(ct);
+            foreach (var copy in copies)
+            {
+                asked[copy.Id] = linked.First(s => s.Group == copy.Group).Id;
+            }
+        }
+
+        var shows = seriesIds.Concat(asked.Keys).Distinct().ToList();
+        var episodes = await db.MediaItems.AsNoTracking()
+            .Where(e => e.Kind == MediaKind.Episode && e.Parent!.ParentId != null && shows.Contains(e.Parent.ParentId.Value))
+            .OnePerTitle()
+            .Select(e => new EpisodeRef(e.Id, e.Parent!.ParentId!.Value, e.Parent.LinkGroupId ?? e.ParentId!.Value, e.Parent.SeasonNumber, e.EpisodeNumber, e.EpisodeNumberEnd, e.AirDate, e.SortTitle,
+                e.PlaybackStates.Where(p => p.UserId == profileId && p.Watched).Select(p => (DateTime?)p.LastPlayedAt).FirstOrDefault(), e.LinkGroupId))
             .ToListAsync(ct);
+        return asked.Count == 0 ? episodes : [.. episodes.Select(e => asked.TryGetValue(e.SeriesId, out var show) ? e with { SeriesId = show } : e)];
+    }
 
     /// <summary>
     /// The unwatched episode after the last one watched, from one show's episodes. A special watched in the middle

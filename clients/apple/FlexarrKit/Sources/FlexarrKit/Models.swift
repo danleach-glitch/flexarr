@@ -324,6 +324,43 @@ public struct Credit: Codable, Sendable, Hashable {
     public let image: String?
 }
 
+/// One of a title's versions: a file, in this copy of the title or another of its copies.
+public struct TitleVersion: Codable, Sendable, Hashable, Identifiable {
+    public let fileId: String
+    /// "4K HDR", "1080p".
+    public let label: String
+    /// "Director's Cut", from the file's name.
+    public let edition: String?
+    public let durationSeconds: Double?
+    public let size: Int64
+    /// The profile's remembered choice.
+    public let chosen: Bool
+    /// What the file holds.
+    public var videoCodec: String? = nil
+    public var audioCodec: String? = nil
+    public var audioChannels: Int? = nil
+
+    public var id: String { fileId }
+
+    public init(fileId: String, label: String, edition: String? = nil, durationSeconds: Double? = nil, size: Int64 = 0, chosen: Bool = false) {
+        self.fileId = fileId
+        self.label = label
+        self.edition = edition
+        self.durationSeconds = durationSeconds
+        self.size = size
+        self.chosen = chosen
+    }
+
+    /// What it's called in the list: its label, then its cut and its length where those tell it from the others.
+    public func name(among all: [TitleVersion]) -> String {
+        let lengths = all.compactMap(\.durationSeconds).filter { $0 > 0 }
+        // The server's rule for one cut (VersionRules): within 5% or a minute, whichever is more.
+        let differ = lengths.contains { a in lengths.contains { b in abs(a - b) > max(60, 0.05 * max(a, b)) } }
+        let parts = [label, edition, differ ? durationSeconds.flatMap(Format.runtime(seconds:)) : nil].compactMap { $0 }.filter { !$0.isEmpty }
+        return parts.isEmpty ? size.formatted(.byteCount(style: .file)) : parts.joined(separator: ", ")
+    }
+}
+
 public struct ItemDetail: Codable, Sendable {
     public let item: ItemSummary
     public let path: String?
@@ -343,8 +380,12 @@ public struct ItemDetail: Codable, Sendable {
     /// Overviews of `children`, keyed by child id (seasons carry their episodes' overviews here).
     public let childOverviews: [String: String?]
     /// Subtitles can be found for it through the server's Bazarr (a film or episode Sonarr or Radarr manage, with a
-    /// file), for `files.first`, the copy playback picks. Absent from servers before 0.53.
+    /// file), for `subtitleTargetId`. Absent from servers before 0.53.
     public var canSearchSubtitles: Bool? = nil
+    /// A film's or episode's versions to choose from, best first, with two or more. Absent from servers before 0.64.
+    public var versions: [TitleVersion]? = nil
+    /// The copies of a linked title this profile can see, itself included. Absent from servers before 0.64.
+    public var copyIds: [String]? = nil
     /// For a film or show, whether it's on the profile's watchlist. Absent from servers before 0.56 (no watchlist there).
     public var onWatchlist: Bool? = nil
     /// A book's edition, series, chapters and bookmarks. Absent from servers before 0.58.
@@ -364,6 +405,25 @@ public struct Person: Codable, Sendable, Identifiable {
     public let credits: [PersonCredit]
     /// An author's or narrator's biography. Absent from servers before 0.58.
     public var biography: String? = nil
+}
+
+extension ItemSummary {
+    /// Whether this is the same episode as `other`, whichever linked copy each came from.
+    public func isSameEpisode(as other: ItemSummary?) -> Bool {
+        guard let other else { return false }
+        if id == other.id { return true }
+        guard kind == .episode, other.kind == .episode, seasonNumber == other.seasonNumber else { return false }
+        if let episodeNumber { return episodeNumber == other.episodeNumber }
+        return airDate != nil && airDate == other.airDate
+    }
+}
+
+extension ItemDetail {
+    /// The version the page describes: the one chosen, or else the best.
+    public var shownVersion: TitleVersion? { versions?.first(where: \.chosen) ?? versions?.first }
+
+    /// The file subtitles are found for: the version chosen, or else this copy's best file.
+    public var subtitleTargetId: String? { versions?.first(where: \.chosen)?.fileId ?? files.first?.id }
 }
 
 // MARK: - Home and search
@@ -937,6 +997,18 @@ public struct RemoteReport: Sendable, Hashable {
         self.hasNext = hasNext
         self.tracks = tracks
         self.sound = sound
+    }
+}
+
+/// Always sends `fileId`: null goes back to the automatic pick.
+struct VersionRequest: Encodable, Sendable {
+    let fileId: String?
+
+    enum CodingKeys: String, CodingKey { case fileId }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(fileId, forKey: .fileId)
     }
 }
 

@@ -49,6 +49,17 @@ try {
   const movie = (await api(`/libraries/${movies.id}/items?take=1`)).items[0]
   await page.goto(`${base}/item/${movie.id}`)
   await shot('03-movie')
+  // A title with more than one version: the list in ⋯.
+  const more = page.locator('.detail-actions button[aria-haspopup="menu"]')
+  if (await more.count()) {
+    await more.first().click()
+    const version = page.getByRole('menuitem', { name: 'Version', exact: true })
+    if (await version.count()) {
+      await version.click()
+      await shot('10-version')
+    }
+    await page.keyboard.press('Escape')
+  }
 
   const show = (await api(`/libraries/${shows.id}/items?take=1`)).items[0]
   await page.goto(`${base}/item/${show.id}`)

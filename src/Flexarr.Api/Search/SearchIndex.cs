@@ -88,6 +88,10 @@ public sealed class SearchIndex(TimeProvider clock) : IDisposable
         // Twice as many as wanted: some may be in libraries this profile doesn't see, or gone from disk.
         var close = await FindAsync(db, text, group, wanted * 2, found.Select(i => i.Id).ToHashSet(), ct);
         var ids = close.Select(m => m.Id).ToList();
+        // Not another copy of a title already found, either.
+        var shown = found.Select(i => i.Id).ToList();
+        var once = await ItemQueries.OnePerTitleAsync(db, [.. shown, .. ids], ct);
+        ids = ids.Where(once.Contains).ToList();
         var items = await db.MediaItems.Where(i => ids.Contains(i.Id)).Summaries(profileId).ToListAsync(ct);
         return [.. items.OrderBy(i => ids.IndexOf(i.Id)).Take(wanted)];
     }

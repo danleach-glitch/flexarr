@@ -87,6 +87,8 @@
   "goToShow": "Go to show",
   "goToArtist": "Go to artist",
   "details": "Details",
+  "version": "Version",
+  "automatic": "Automatic",
   "updateYourServer": "Update your Flexarr server",
   "seasonEpisodeShort": "S{season}E{episode}",
   "seasonEpisodeHeading": "Season {season}, Episode {episode}"

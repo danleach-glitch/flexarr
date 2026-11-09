@@ -819,6 +819,8 @@ export const getLoudness = (id: string, signal?: AbortSignal) =>
 export const getRadio = (id: string, signal?: AbortSignal) => apiGet<ItemSummary[]>(`/items/${seg(id)}/radio`, signal)
 export const getNextUp = (id: string, signal?: AbortSignal) => cachedGet<ItemSummary | undefined>(`/items/${seg(id)}/next-up`, signal)
 export const setWatched = (id: string, watched: boolean) => request<void>('POST', `/items/${seg(id)}/watched`, { watched })
+/** Remembers which version this profile plays, or goes back to the automatic pick. */
+export const setVersion = (id: string, fileId: string | null) => request<void>('PUT', `/items/${seg(id)}/version`, { fileId })
 /** Marks a book finished (now) or not; not finished forgets the place too. */
 export const setBookFinished = (id: string, finished: boolean) => request<void>('POST', `/items/${seg(id)}/finished`, { finished })
 /** Takes a title out of Continue Watching without marking it watched; for an episode, its show stays out until another is played. */
@@ -828,11 +830,13 @@ const deleted = new Set<string>()
 export interface DeletionPlan {
   managedBy: string | null
   files: string[]
+  /** Each copy of a title in more than one library, all of which go when the delete asks for them. Absent from servers before 0.64. */
+  copies?: { itemId: string; library: string; managedBy: string | null; files: string[] }[] | null
 }
 export const getDeletion = (id: string, signal?: AbortSignal) => apiGet<DeletionPlan>(`/items/${seg(id)}/deletion`, signal)
-/** Deletes a film, show or episode and its files, through Radarr or Sonarr when they manage it (main profile only). */
-export async function deleteItem(id: string) {
-  await request<void>('DELETE', `/items/${seg(id)}`)
+/** Deletes a film, show or episode and its files, through Radarr or Sonarr when they manage it (main profile only). `allCopies` takes every library's copy. */
+export async function deleteItem(id: string, allCopies = false) {
+  await request<void>('DELETE', `/items/${seg(id)}${allCopies ? '?allCopies=true' : ''}`)
   deleted.add(id)
 }
 /** Whether `id` was deleted from this browser (a page kept for going back may still show it). */
@@ -1411,6 +1415,15 @@ export interface LibraryHealth {
     reclaimableBytes: number
   }[]
   reclaimableBytes: number
+  /** Titles with versions to tell apart (4K and 1080p), biggest first, at most 100. Absent from servers before 0.64, as are the two below. */
+  versions?: {
+    item: import('./types').ItemSummary
+    seriesTitle: string | null
+    files: { id: string; path: string; size: number; label?: string | null; edition?: string | null; durationSeconds?: number | null; fileCount?: number | null }[]
+    bytes: number
+  }[]
+  versionsTotal?: number
+  versionsBytes?: number
   unreadable: { fileId: string; path: string; error: string; item: import('./types').ItemSummary | null }[]
   missingArtwork: import('./types').ItemSummary[]
   /** Films and shows Sonarr and Radarr don't manage, matched by searching for the folder name. */

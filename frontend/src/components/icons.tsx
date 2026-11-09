@@ -285,6 +285,13 @@ export const PlayStack = (p: IconProps) => (
     <path d="M12.5 11v5l4-2.5Z" fill="currentColor" />
   </svg>
 )
+/** A title's versions: the same thing more than once. */
+export const Layers = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="m12 3 9 5-9 5-9-5Z" />
+    <path d="m3 12.5 9 5 9-5M3 16.5l9 5 9-5" />
+  </svg>
+)
 export const Stack = (p: IconProps) => (
   <svg {...base} {...p}>
     <rect x="3" y="9" width="18" height="11" rx="2" />

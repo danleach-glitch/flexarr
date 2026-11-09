@@ -361,6 +361,11 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         all.first { $0.profileId == profileId && $0.item.id == itemId }
     }
 
+    /// A title's download, made through whichever of its linked copies.
+    func entry(for itemId: String, orCopies copies: [String]) -> LocalDownload? {
+        entry(for: itemId) ?? copies.lazy.compactMap(entry(for:)).first
+    }
+
     func collection(for id: String) -> LocalCollection? {
         collections.first { $0.profileId == profileId && $0.id == id }
     }

@@ -1858,6 +1858,20 @@ final class AppModel {
         watchStateChanged()
     }
 
+    /// Remembers which version this profile plays (nil: the automatic pick). What was got ready for the old one goes.
+    func chooseVersion(_ item: ItemSummary, fileId: String?) async -> Bool {
+        guard let client else { return false }
+        dropReady(item)
+        do {
+            try await client.setVersion(item.id, fileId: fileId)
+            invalidate()
+            return true
+        } catch {
+            log.warning("Choosing a version failed", error: error)
+            return false
+        }
+    }
+
     /// Every episode of an episode's show watched.
     func setShowWatched(of episode: ItemSummary) async {
         guard let client, let show = episode.seriesId else { return }

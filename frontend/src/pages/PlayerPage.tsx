@@ -161,6 +161,8 @@ interface StartOptions {
   subtitleKey?: string
   startPositionSeconds?: number
   quality?: Quality
+  /** The version already playing: a restart stays on it. The first start leaves it to the server. */
+  fileId?: string
   forceTranscode?: boolean
   /** Asked the old way, with the picture converted: a copied one just failed to play (lib/copiedVideo). */
   noCopy?: boolean
@@ -381,6 +383,7 @@ export function PlayerPage() {
       try {
         const wanted = {
           itemId: playingItem.current ?? id,
+          fileId: options.fileId,
           shuffle: shuffleRef.current || undefined,
           audioStreamIndex: options.audioStreamIndex,
           subtitleKey: options.subtitleKey,
@@ -466,7 +469,7 @@ export function PlayerPage() {
         if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 3000))
         if (!life.alive || session.current !== failed) return
         const settled = await start(
-          { startPositionSeconds: position, audioStreamIndex: info?.selectedAudioIndex ?? undefined, subtitleKey: subtitleKey ?? 'off' },
+          { startPositionSeconds: position, fileId: info?.fileId, audioStreamIndex: info?.selectedAudioIndex ?? undefined, subtitleKey: subtitleKey ?? 'off' },
           true,
         )
         if (settled) return // Playing again, or the server said why not.
@@ -553,7 +556,7 @@ export function PlayerPage() {
   }, [id])
 
   /** Re-request playback at the current position with different options. */
-  const restartHere = (options: StartOptions) => start({ startPositionSeconds: video.current?.currentTime ?? 0, ...options })
+  const restartHere = (options: StartOptions) => start({ startPositionSeconds: video.current?.currentTime ?? 0, fileId: info?.fileId, ...options })
 
   /** The error's main button: from where it stopped, or (refused before anything played) from where the title was asked for. */
   const retry = (options: StartOptions = {}) => {

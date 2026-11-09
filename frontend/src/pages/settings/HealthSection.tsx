@@ -8,7 +8,7 @@ import { FixMatchDialog } from '../../components/FixMatchDialog'
 import { MusicMatchById } from '../../components/MusicMatchDialog'
 import { useApi } from '../../hooks/useApi'
 import { usePolling } from '../../hooks/usePolling'
-import { episodeCode, formatSize, relativeTime, unreadableReason } from '../../lib/format'
+import { episodeCode, formatDuration, formatSize, relativeTime, unreadableReason } from '../../lib/format'
 import { SettingsHeader } from './shared'
 import { locale, t, tk, Words } from '../../i18n'
 
@@ -172,7 +172,7 @@ export function HealthSection() {
 
   // Groups with nothing in them drop out, so what's left is what needs a look; this line says what's fine.
   const clear = [
-    data.duplicates.length === 0 && t('every title has a single copy'),
+    data.duplicates.length === 0 && t('no spare copies'),
     data.unreadable.length === 0 && t('every file opened cleanly'),
     data.standardDefinitionTotal === 0 && t('every movie has an HD copy'),
   ].filter((s): s is string => !!s)
@@ -233,7 +233,7 @@ export function HealthSection() {
         count={data.duplicates.length}
         // Stays while spares are removed, so the last of them going doesn't take the progress with it.
         shown={removing !== null}
-        lede={t('More than one file for the same movie or episode. Removing spares frees {size}; the best copy, and the one Sonarr or Radarr use, always stay.', { size: formatSize(data.reclaimableBytes) })}
+        lede={t('Files alike for one movie or episode. Removing spares frees {size}; the best copy, and the one Sonarr or Radarr use, always stay.', { size: formatSize(data.reclaimableBytes) })}
         action={
           data.duplicates.length > 0 && (
             <AsyncButton className="button danger small" busy={removing !== null && removing.done < removing.total} onClick={() => setConfirmAll(true)}>
@@ -398,6 +398,33 @@ export function HealthSection() {
       )}
 
       <MusicHealth data={data} onChanged={reload} />
+
+      <HealthGroup
+        title={t('Versions')}
+        count={data.versionsTotal ?? 0}
+        lede={[
+          t('Kept on purpose. They take {size}.', { size: formatSize(data.versionsBytes ?? 0) }),
+          (data.versionsTotal ?? 0) > (data.versions?.length ?? 0) ? t('These are the biggest {count}.', { count: data.versions?.length ?? 0 }) : null,
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
+        {(data.versions ?? []).map((v) => (
+          <details key={v.item.id} className="health-row-expandable">
+            <summary>
+              <HealthRowMain item={v.item} detail={t('{list}, {size}', { list: [...new Set(v.files.map((f) => f.label).filter(Boolean))].join(', '), size: formatSize(v.bytes) })} />
+            </summary>
+            <ul className="health-copies">
+              {v.files.map((f) => (
+                <li key={f.id}>
+                  {f.fileCount ? <span>{t('{count, plural, one {# file} other {# files}}', { count: f.fileCount })}</span> : <span title={f.path}>{fileName(f.path)}</span>}
+                  <span className="muted">{[f.label, f.edition, formatDuration(f.durationSeconds), formatSize(f.size)].filter(Boolean).join(', ')}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ))}
+      </HealthGroup>
 
       {matching && <FixMatchDialog item={matching} onFixed={reload} onClose={() => setMatching(undefined)} />}
 

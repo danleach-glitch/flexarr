@@ -9,7 +9,7 @@ import { parse, ReleaseNotes } from './changelog'
 import { SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
 import { webLink } from '../../lib/links'
-import { locale, t } from '../../i18n'
+import { locale, t, Words } from '../../i18n'
 
 const guide = 'https://flexarr.io/guide/updating'
 
@@ -86,7 +86,7 @@ export function UpdatesSection() {
         {!current && !loaded.error && <p className="muted">{t('Loading…')}</p>}
         {current && (
           <>
-            <SettingRow as="div" label={t('Version')} help={current.isDevelopment ? t('A development build, between releases.') : undefined}>
+            <SettingRow as="div" label={t(Words.version)} help={current.isDevelopment ? t('A development build, between releases.') : undefined}>
               <span className="setting-value">{current.version}</span>
             </SettingRow>
             <SettingRow as="div" label={t('Status')} help={checkedLine(current)}>

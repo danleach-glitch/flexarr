@@ -185,15 +185,26 @@ public sealed partial class TraktSync(FlexarrDbContext db, TraktClient trakt, Tr
             .ToListAsync(ct);
         var byItem = states.ToDictionary(s => s.MediaItemId);
         var itemIds = found.Select(f => f.Item).ToHashSet();
-        var toTrakt = states.Where(s => s.Watched && !itemIds.Contains(s.MediaItemId)).ToList();
+        // A linked title's plays are on each of its copies, so a play found on one copy is the other's too, and each is
+        // one title to tell Trakt about.
+        var groupOf = await db.MediaItems.IgnoreQueryFilters().Where(i => i.LinkGroupId != null)
+            .Select(i => new { i.Id, Group = i.LinkGroupId!.Value }).ToDictionaryAsync(i => i.Id, i => i.Group, ct);
+        var foundGroups = itemIds.Where(groupOf.ContainsKey).Select(id => groupOf[id]).ToHashSet();
+        var toTrakt = states.Where(s => s.Watched && !itemIds.Contains(s.MediaItemId) && !(groupOf.TryGetValue(s.MediaItemId, out var group) && foundGroups.Contains(group)))
+            .DistinctBy(s => groupOf.TryGetValue(s.MediaItemId, out var group) ? group : s.MediaItemId).ToList();
         var toTraktTitles = await TraktOutbox.TitlesAsync(db, toTrakt.Select(s => s.MediaItemId).ToList(), ct);
 
         if (!apply)
         {
             // Counted as this profile sees the library: a title in a library hidden from it counts as not on the server.
             var matchedIds = itemIds.ToList();
-            var visible = (await db.MediaItems.Where(i => matchedIds.Contains(i.Id)).Select(i => i.Id).ToListAsync(ct)).ToHashSet();
-            var shown = found.Where(f => visible.Contains(f.Item)).ToList();
+            // A title matched on a hidden copy is on the server for this profile if it can see another.
+            var groupIds = foundGroups.ToList();
+            var seen = await db.MediaItems.Where(i => matchedIds.Contains(i.Id) || (i.LinkGroupId != null && groupIds.Contains(i.LinkGroupId.Value)))
+                .Select(i => new { i.Id, i.LinkGroupId }).ToListAsync(ct);
+            var visible = seen.Select(i => i.Id).ToHashSet();
+            var visibleGroups = seen.Select(i => i.LinkGroupId).OfType<Guid>().ToHashSet();
+            var shown = found.Where(f => visible.Contains(f.Item) || (groupOf.TryGetValue(f.Item, out var group) && visibleGroups.Contains(group))).ToList();
             return new TraktImportPreview(plays.Count(p => p.Key.Kind == MediaKind.Movie), plays.Count(p => p.Key.Kind == MediaKind.Episode),
                 shown.Count, shown.Count(f => !byItem.TryGetValue(f.Item, out var s) || !s.Watched), missing.Count + (found.Count - shown.Count), unmatched,
                 toTraktTitles.Count);

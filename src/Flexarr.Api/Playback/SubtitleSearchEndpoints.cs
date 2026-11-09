@@ -210,11 +210,10 @@ public static partial class SubtitleSearchEndpoints
                 : Problems.Of("A re-sync of this video is already running.", status: StatusCodes.Status409Conflict);
         });
 
-        group.MapGet("/sync", async (Guid id, Guid? fileId, FlexarrDbContext db, SubtitleSyncs syncs, CancellationToken ct) =>
+        group.MapGet("/sync", async (Guid id, Guid? fileId, FlexarrDbContext db, CurrentProfile profile, SubtitleSyncs syncs, CancellationToken ct) =>
         {
-            var files = await PlayableFilesAsync(db, id, ct);
             // A failure is kept in English (marked where it's written) and shown in the language of whoever asks.
-            return Choose(files, fileId) is { } file && syncs.Get(file.Id) is { } state
+            return await ChooseAsync(db, id, fileId, profile.Id, ct) is { } file && syncs.Get(file.Id) is { } state
                 ? Results.Ok(state.Error is { } error ? state with { Error = Loc.T(error) } : state)
                 : Results.Ok(new SubtitleSyncDto("none"));
         });
@@ -299,13 +298,22 @@ public static partial class SubtitleSearchEndpoints
             return new Found(Problems.Of("Subtitles can be found for movies and episodes.", status: StatusCodes.Status400BadRequest));
         }
 
+        var chosen = await ChooseAsync(db, id, fileId, asking.Id, ct);
+
+        // A linked copy's file is its own Radarr's or Sonarr's to look after.
+        if (chosen is not null && chosen.MediaItemId != item.Id
+            && await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == chosen.MediaItemId, ct) is { } copy)
+        {
+            item = copy;
+        }
+
         if (item.ArrId is not { } arrId)
         {
             return new Found(Problems.Of("Bazarr finds subtitles for what {app} manages, and this isn’t one of them.",
                 new { app = item.Kind == MediaKind.Movie ? "Radarr" : "Sonarr" }, status: StatusCodes.Status409Conflict));
         }
 
-        if (Choose(await PlayableFilesAsync(db, id, ct), fileId) is not { } file)
+        if (chosen is not { } file)
         {
             return new Found(Problems.Of("This has no file to find subtitles for.", status: StatusCodes.Status404NotFound));
         }
@@ -356,12 +364,23 @@ public static partial class SubtitleSearchEndpoints
         return Problems.Of("Bazarr isn’t answering. Try again later.", status: StatusCodes.Status502BadGateway);
     }
 
-    private static Task<List<MediaFile>> PlayableFilesAsync(FlexarrDbContext db, Guid id, CancellationToken ct) =>
-        db.MediaFiles.AsNoTracking().Include(f => f.Streams).Where(f => f.MediaItemId == id && f.ProbeError == null).ToListAsync(ct);
+    /// <summary>The file named, or else the version the profile chose, or else the best.</summary>
+    private static async Task<MediaFile?> ChooseAsync(FlexarrDbContext db, Guid id, Guid? fileId, string profileId, CancellationToken ct)
+    {
+        if (await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id, ct) is not { } item)
+        {
+            return null;
+        }
 
-    /// <summary>The requested copy, or the one playback would choose.</summary>
-    private static MediaFile? Choose(List<MediaFile> files, Guid? fileId) =>
-        files.FirstOrDefault(f => f.Id == fileId) ?? files.OrderByDescending(f => f.Height).ThenByDescending(f => f.Bitrate).FirstOrDefault();
+        var files = await TitleVersions.FilesAsync(db, item, ct);
+        if (files.FirstOrDefault(f => f.Id == fileId) is { } named)
+        {
+            return named;
+        }
+
+        var choice = files.Count > 1 ? await TitleVersions.ChoiceAsync(db, item, profileId, ct) : null;
+        return (choice is null ? null : Streaming.VersionPicker.Chosen(files, choice)) ?? VersionRules.BestFirst(files).FirstOrDefault();
+    }
 
     /// <summary>The name of a file as Bazarr gives it, whichever way its slashes go.</summary>
     private static string FileName(string path) => path[(path.LastIndexOfAny(['/', '\\']) + 1)..];

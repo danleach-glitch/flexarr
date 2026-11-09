@@ -358,7 +358,7 @@ private fun ExternalLink(title: String, icon: ImageVector, onClick: () -> Unit) 
 /** "Automatic", "Original", "Small": the size downloads come at, as Settings' row says it. */
 private val DownloadQuality.shortLabel: String
     get() = when (this) {
-        DownloadQuality.Medium -> t("Automatic")
+        DownloadQuality.Medium -> t(Words.automatic)
         DownloadQuality.Small -> t("Small")
         else -> label
     }
@@ -386,7 +386,7 @@ fun DownloadSettingsScreen(model: AppModel) {
             }
             item {
                 Group(
-                    header = t("Automatic"),
+                    header = t(Words.automatic),
                     footer = if (downloads.automaticOnWiFiOnly) {
                         t("Downloads this phone starts by itself, like the next episode or new podcast episodes, wait for Wi-Fi and never come while Data Saver is on. Ones you start yourself use mobile data too.")
                     } else {
@@ -541,7 +541,7 @@ fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit) {
                 Group {
                     when (val state = status.state) {
                         is Load.Loaded -> {
-                            Fact(t("Version"), ServerVersion.short(state.value.version))
+                            Fact(t(Words.version), ServerVersion.short(state.value.version))
                             Divider()
                             Fact(t("Running on"), state.value.osDescription)
                             state.value.startTime?.let(::upSince)?.let {

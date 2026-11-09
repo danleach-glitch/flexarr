@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { PageError } from '../components/PageStatus'
 import { openAddToCollection } from '../components/AddToCollection'
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
@@ -12,13 +12,18 @@ import {
   type ShowMissing,
   imageUrl,
   setKidsOverride,
+  ApiError,
+  setVersion,
   setWatched,
   type Credit,
   type ItemDetail,
   type ItemSummary,
   type KidsOverride,
   type MediaFile,
+  type TitleVersion,
 } from '../api/client'
+import { versionLabels, versionName } from '../lib/versions'
+import { showNotice } from '../lib/notice'
 import { Artwork } from '../components/Artwork'
 import { AsyncButton } from '../components/AsyncButton'
 import { PosterCard } from '../components/Cards'
@@ -127,6 +132,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   const [findingSubtitles, setFindingSubtitles] = useState(false)
   const [subtitlesSaved, setSubtitlesSaved] = useState<string>()
   const [moreAt, setMoreAt] = useState<MenuPoint | null>(null)
+  const [versionAt, setVersionAt] = useState<MenuPoint | null>(null)
   const { me, profiles } = useSession()
   // A child's page leaves out watch state and trailers (a YouTube page away from anything rated).
   const { kids } = useAgeLimits()
@@ -146,6 +152,10 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   // The order every client shares (docs/design.md › Platforms): Play, Start over, Shuffle, Trailer, Watched, Watchlist,
   // then the ellipsis for everything else, so the row doesn't wrap.
   const more: MenuAction[] = []
+  const moreButton = useRef<HTMLButtonElement>(null)
+  const versions = detail.versions ?? []
+  const chosenVersion = versions.find((v) => v.chosen)?.fileId ?? null
+  if (versions.length > 1) more.push({ label: t(Words.version), run: () => setVersionAt(moreAt) })
   // A child's profile has no collections and doesn't find subtitles.
   if ((item.kind === 'Movie' || item.kind === 'Series') && !kids) more.push({ label: t('Add to collection…'), run: () => openAddToCollection(item) })
   if (detail.canSearchSubtitles && !kids) more.push({ label: t('Search for subtitles…'), run: () => setFindingSubtitles(true) })
@@ -166,6 +176,19 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   }
   const best = detail.files[0]
 
+  const chooseVersion = (fileId: string | null) => async () => {
+    try {
+      await setVersion(item.id, fileId)
+      onChange()
+    } catch (e) {
+      showNotice(e instanceof ApiError && e.messages[0] ? e.messages[0] : t('That didn’t work. Try again.'))
+    }
+  }
+  const versionMenu: MenuAction[] = [
+    { label: t(Words.automatic), checked: chosenVersion === null, run: chooseVersion(null) },
+    ...versions.map((v) => ({ label: versionName(v, versions), checked: v.fileId === chosenVersion, run: chooseVersion(v.fileId) })),
+  ]
+
   async function toggleWatched() {
     await setWatched(item.id, !item.userData.watched)
     announceWatched(item)
@@ -182,7 +205,8 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
       window.clearTimeout(timer)
       leave(warmId)
     }
-  }, [warmId])
+    // A new choice means a different file, so what was got ready for the old one goes.
+  }, [warmId, chosenVersion])
   const playLabel = (() => {
     if (item.kind === 'Series') {
       if (!nextUp) return t(Words.play)
@@ -222,8 +246,8 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
           <Facts
             item={item}
             extra={[
-              item.resolution,
-              best ? pictureLabel(best) : null,
+              // With versions to choose from, what's there side by side; otherwise this file's resolution and picture.
+              ...(versions.length > 1 ? versionLabels(versions) : [item.resolution, best ? pictureLabel(best) : null]),
               item.kind === 'Episode' && item.releaseDate ? new Date(item.releaseDate).toLocaleDateString(locale(), { dateStyle: 'medium' }) : null,
             ]}
           />
@@ -266,7 +290,8 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
                 className="button quiet icon"
                 aria-label={t('More actions')}
                 aria-haspopup="menu"
-                aria-expanded={moreAt !== null}
+                aria-expanded={moreAt !== null || versionAt !== null}
+                ref={moreButton}
                 onClick={(e) => {
                   const r = e.currentTarget.getBoundingClientRect()
                   setMoreAt(moreAt ? null : { x: r.left, y: r.bottom + 6 })
@@ -275,7 +300,8 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
                 <icon.more />
               </button>
             )}
-            {moreAt && <Menu label={t('More for {title}', { title: item.title })} at={moreAt} actions={more} onClose={() => setMoreAt(null)} />}
+            {moreAt && <Menu label={t('More for {title}', { title: item.title })} at={moreAt} actions={more} onClose={() => setMoreAt(null)} focusBack={moreButton} />}
+            {versionAt && <Menu label={t(Words.version)} at={versionAt} actions={versionMenu} onClose={() => setVersionAt(null)} focusBack={moreButton} />}
           </div>
           {subtitlesSaved && (
             <p className="muted" role="status">
@@ -316,7 +342,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
             ))}
           </Row>
         )}
-        {detail.files.length > 0 && <FileInfo files={detail.files} itemId={item.id} kind={item.kind} />}
+        {detail.files.length > 0 && <FileInfo files={detail.files} versions={versions} itemId={item.id} kind={item.kind} />}
       </div>
 
       {deleting && (
@@ -511,11 +537,19 @@ function Cast({ credits, studio }: { credits: Credit[]; studio: string | null })
   )
 }
 
-function FileInfo({ files, itemId, kind }: { files: MediaFile[]; itemId: string; kind: string }) {
+function FileInfo({ files, versions, itemId, kind }: { files: MediaFile[]; versions: TitleVersion[]; itemId: string; kind: string }) {
   const [queued, setQueued] = useState(false)
+  // A version in another copy of the title has no details here, only what it's called and holds.
+  const elsewhere = versions.filter((v) => !files.some((f) => f.id === v.fileId))
+  const count = files.length + elsewhere.length
   return (
     <details className="file-info">
-      <summary>{files.length > 1 ? t('{count} versions on disk', { count: files.length }) : t('File and stream details')}</summary>
+      <summary>{count > 1 ? t('{count} files on disk', { count }) : t('File and stream details')}</summary>
+      {elsewhere.map((v) => (
+        <div key={v.fileId} className="file">
+          <p>{[versionName(v, versions), v.videoCodec?.toUpperCase(), v.audioCodec?.toUpperCase(), formatSize(v.size)].filter(Boolean).join(', ')}</p>
+        </div>
+      ))}
       {files.map((file) => (
         <div key={file.id} className="file">
           {file.path && <code>{file.path}</code>}

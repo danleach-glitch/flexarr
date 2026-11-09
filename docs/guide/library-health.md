@@ -13,11 +13,11 @@ Open it in the web app from **Settings › Libraries › Library health**, as th
 
 At the top is a score out of 100: the share of your movies, episodes and albums with nothing wrong. Next to it is a breakdown of what's affecting the rest, such as spare copies, unreadable files or missing artwork.
 
-Groups with nothing in them are left out, and a line underneath says what's all clear ("every title has a single copy", "every movie has an HD copy").
+Groups with nothing in them are left out, and a line underneath says what's all clear ("no spare copies", "every movie has an HD copy").
 
 ## Spare copies
 
-Sometimes a movie or episode ends up with more than one file: an upgrade that didn't replace the old one, or the same file in two folders. **Spare copies** lists each one, how many copies it has and how much space the spares use. The total you'd free is in the group's description.
+Sometimes a movie or episode ends up with more than one file alike: an upgrade that didn't replace the old one, or the same file in two folders. Only files with the same resolution, HDR type and length count as spares. A 4K and a 1080p copy are [versions](versions.md), and they have their own list at the end, with a whole show as one row. **Spare copies** lists each one, how many copies it has and how much space the spares use. The total you'd free is in the group's description.
 
 - **Remove spares** on a title deletes its extra files.
 - **Remove all spare copies** does the whole list, after asking first, with a progress bar.
@@ -25,6 +25,10 @@ Sometimes a movie or episode ends up with more than one file: an upgrade that di
 Flexarr always keeps two copies safe: the best one (highest quality), and the one Sonarr or Radarr are tracking. Usually they're the same file. When they're not, both stay and the summary tells you; open the title's row to see each copy with its resolution, codec and size, and use **Delete this copy** on the one you don't want. Copies that are the same file twice are marked **Identical**.
 
 > **Important** Removing spares deletes files from your disk. It can't be undone.
+
+## Versions
+
+**Versions** lists the titles you have in more than one version, with the biggest first and the space they take. It's only for information: nothing here counts against your score, and nothing is removed. To delete one, use Sonarr, Radarr or the Finder.
 
 ## Run a health check
 

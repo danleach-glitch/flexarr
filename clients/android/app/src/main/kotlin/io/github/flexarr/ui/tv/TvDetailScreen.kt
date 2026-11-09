@@ -72,6 +72,8 @@ import io.github.flexarr.core.Format
 import io.github.flexarr.core.ItemDetail
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.MediaFile
+import io.github.flexarr.core.TitleVersion
+import io.github.flexarr.core.sameEpisode
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.ShowMissing
 import io.github.flexarr.core.Availability
@@ -286,7 +288,7 @@ private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, 
         }
         Row(horizontalArrangement = Arrangement.spacedBy(11.dp), verticalAlignment = Alignment.CenterVertically) {
             val isKids = LocalContext.current.appModel.isKids
-            TvFactsLine(item.facts(scores = !isKids), scores = if (isKids) null else item.scores)
+            TvFactsLine(item.facts(scores = !isKids, versions = detail.versions), scores = if (isKids) null else item.scores)
             if (detail.genres.isNotEmpty()) Text(detail.genres.take(3).joinToString(", "), fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
         }
         detail.overview?.takeIf { it.isNotEmpty() }?.let {
@@ -309,6 +311,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail,
     val scope = rememberCoroutineScope()
     val model = context.appModel
     var more by remember { mutableStateOf(false) }
+    var choosingVersion by remember { mutableStateOf(false) }
     var searchingSubtitlesFor by remember { mutableStateOf<String?>(null) }
     var focusedName by remember { mutableStateOf<String?>(null) }
     val file = detail.files.firstOrNull()
@@ -336,6 +339,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail,
             platform = DetailActions.Platform.TV,
             canPlayTrailers = trailerIntent != null,
             canSearchSubtitles = detail.canSearchSubtitles == true && file != null,
+            canChooseVersion = (detail.versions?.size ?: 0) > 1,
         ),
     )
     val first = remember { FocusRequester() }
@@ -401,11 +405,19 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail,
             when (entry) {
                 // Only a phone's row runs out of room.
                 is DetailActions.MenuItem.Moved -> null
-                DetailActions.MenuItem.Subtitles -> file?.let { found -> MenuAction(t("Search for subtitles")) { searchingSubtitlesFor = found.id } }
+                DetailActions.MenuItem.Version -> MenuAction(t(Words.version)) { choosingVersion = true }
+                DetailActions.MenuItem.Subtitles -> detail.subtitleTargetId?.let { found -> MenuAction(t("Search for subtitles")) { searchingSubtitlesFor = found } }
                 DetailActions.MenuItem.GoToShow -> series?.let { show -> MenuAction(t(Words.goToShow)) { navigator.openItem(show.id) } }
             }
         }
         TvItemMenu(item.displayTitle, entries, onDismiss = { more = false })
+    }
+    if (choosingVersion) {
+        val versions = detail.versions.orEmpty()
+        val entries = listOf(MenuAction(t(Words.automatic), selected = versions.none { it.chosen }) { navigator.chooseVersion(item, null) }) +
+            versions.map { version -> MenuAction(version.name(versions), selected = version.chosen) { navigator.chooseVersion(item, version.fileId) } }
+        // Wider than a card's menu: the end of a version's name (its cut, its length) is what tells it from the next.
+        TvItemMenu(t(Words.version), entries, onDismiss = { choosingVersion = false }, width = 480.dp)
     }
     searchingSubtitlesFor?.let { fileId ->
         // Over the page, as in the player: a panel down the right.
@@ -526,7 +538,7 @@ private fun Sections(
             }
         }
     }
-    detail.files.firstOrNull()?.let { FileInfo(it, detail.studio) }
+    detail.files.firstOrNull()?.let { FileInfo(it, detail.shownVersion, detail.studio) }
 }
 
 /** A season's episodes in a row; coming into it lands on the one being viewed, else the one up next, else the first unwatched. */
@@ -557,10 +569,10 @@ private fun Episodes(item: ItemSummary, season: ItemDetail, nextUp: ItemSummary?
             TvEpisodeCard(
                 episode,
                 overview = season.childOverviews[episode.id],
-                isCurrent = episode.id == item.id,
+                isCurrent = episode.sameEpisode(item),
                 onClick = {
                     // On a show (or the episode's own page), the episode plays; another episode opens its page.
-                    if (episode.id == item.id || item.kind == MediaKind.Series) navigator.play(episode, from = from) else navigator.openItem(episode.id)
+                    if (episode.sameEpisode(item) || item.kind == MediaKind.Series) navigator.play(episode, from = from) else navigator.openItem(episode.id)
                 },
                 modifier = if (episode.id == anchor) Modifier.focusRequester(landing) else Modifier,
             )
@@ -569,14 +581,18 @@ private fun Episodes(item: ItemSummary, season: ItemDetail, nextUp: ItemSummary?
 }
 
 @Composable
-private fun FileInfo(file: MediaFile, studio: String?) {
-    val video = listOfNotNull(file.height?.let { "${it}p" }, file.videoCodec?.uppercase(Locale.ROOT), file.pictureLabel).joinToString(" ")
-    val audio = listOfNotNull(file.audioCodec?.uppercase(Locale.ROOT), file.audioChannels?.let(::channelsLabel)).joinToString(" ")
+private fun FileInfo(file: MediaFile, version: TitleVersion?, studio: String?) {
+    // With versions, the one that plays or is chosen, which may be in another copy than the one opened.
+    val video = version?.let { listOfNotNull(it.label, it.videoCodec?.uppercase(Locale.ROOT)).joinToString(" ") }
+        ?: listOfNotNull(file.height?.let { "${it}p" }, file.videoCodec?.uppercase(Locale.ROOT), file.pictureLabel).joinToString(" ")
+    val audioCodec = if (version == null) file.audioCodec else version.audioCodec
+    val channels = if (version == null) file.audioChannels else version.audioChannels
+    val audio = listOfNotNull(audioCodec?.uppercase(Locale.ROOT), channels?.let(::channelsLabel)).joinToString(" ")
     val facts = listOfNotNull(
         video.takeIf { it.isNotEmpty() }?.let { t("Video") to it },
         audio.takeIf { it.isNotEmpty() }?.let { t("Audio") to it },
         studio?.let { t("Studio") to it },
-        t("Size") to fileSizeLabel(file.size),
+        t("Size") to fileSizeLabel(version?.size ?: file.size),
     )
     Row(Modifier.padding(horizontal = TvLayout.Edge), horizontalArrangement = Arrangement.spacedBy(25.dp)) {
         facts.forEach { (label, value) ->

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router'
 import { addToWatchlist, ApiError, getTracks, watchlistChanged, removeFromContinueWatching, removeFromWatchlist, setBookFinished, setWatched, type ItemSummary } from '../api/client'
@@ -22,8 +22,8 @@ export interface MenuPoint {
 export const hasMenu = (item: ItemSummary, continueWatching = false) =>
   ['Movie', 'Episode', 'Season', 'Series', 'Album', 'Audiobook'].includes(item.kind) || (continueWatching && item.kind === 'PodcastEpisode')
 
-/** `marks` for an action that changes watch state, which a child's menus leave out. */
-export type MenuAction = { label: string; run: () => void | Promise<void>; danger?: boolean; marks?: boolean } | 'divider'
+/** `marks` for an action that changes watch state, which a child's menus leave out. `checked` makes it one of a set to choose from. */
+export type MenuAction = { label: string; run: () => void | Promise<void>; danger?: boolean; marks?: boolean; checked?: boolean } | 'divider'
 
 /**
  * Quick actions for a title from its card: play it, or mark it watched. (The card's text links to its pages.) Something
@@ -145,10 +145,17 @@ function withoutWatched(actions: MenuAction[]) {
   return kept.filter((a, i) => a !== 'divider' || (i < kept.length - 1 && kept[i + 1] !== 'divider'))
 }
 
+const ITEM = '[role^="menuitem"]'
+
 /** A popup list of actions, anchored at a point and kept on screen; Escape, Tab or a click elsewhere closes it. */
-export function Menu({ label, at, actions, onClose }: { label: string; at: MenuPoint; actions: MenuAction[]; onClose: () => void }) {
+export function Menu({ label, at, actions, onClose, focusBack }: { label: string; at: MenuPoint; actions: MenuAction[]; onClose: () => void; focusBack?: RefObject<HTMLElement | null> }) {
   const menu = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState(at)
+
+  // Closing puts focus back where it came from, or a keyboard is left at the top of the page. A menu that replaced
+  // another has no opener left of its own, so says what it belongs to.
+  const opener = useRef(document.activeElement as HTMLElement | null)
+  useEffect(() => () => (focusBack?.current ?? (opener.current?.isConnected ? opener.current : null))?.focus(), [focusBack])
 
   // Keep the menu on screen, then focus its first item.
   useLayoutEffect(() => {
@@ -156,7 +163,8 @@ export function Menu({ label, at, actions, onClose }: { label: string; at: MenuP
     if (!el) return
     const { width, height } = el.getBoundingClientRect()
     setPosition({ x: Math.max(8, Math.min(at.x, innerWidth - width - 8)), y: at.y + height > innerHeight - 8 ? Math.max(8, at.y - height - 12) : at.y })
-    el.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus()
+    const first = el.querySelector<HTMLButtonElement>('[aria-checked="true"]') ?? el.querySelector<HTMLButtonElement>(ITEM)
+    first?.focus()
   }, [at])
 
   useEffect(() => {
@@ -175,7 +183,7 @@ export function Menu({ label, at, actions, onClose }: { label: string; at: MenuP
   }, [onClose])
 
   function onKeyDown(e: KeyboardEvent) {
-    const items = [...(menu.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])]
+    const items = [...(menu.current?.querySelectorAll<HTMLButtonElement>(ITEM) ?? [])]
     const index = items.indexOf(document.activeElement as HTMLButtonElement)
     if (e.key === 'Escape' || e.key === 'Tab') {
       e.preventDefault()
@@ -194,7 +202,8 @@ export function Menu({ label, at, actions, onClose }: { label: string; at: MenuP
         ) : (
           <button
             key={a.label}
-            role="menuitem"
+            role={a.checked === undefined ? 'menuitem' : 'menuitemradio'}
+            aria-checked={a.checked}
             className={a.danger ? 'danger' : undefined}
             onClick={async () => {
               onClose()

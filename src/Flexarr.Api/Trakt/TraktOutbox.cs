@@ -86,8 +86,12 @@ public static class TraktOutbox
             return;
         }
 
-        var titles = await TitlesAsync(db, plays.Select(p => p.ItemId).Distinct().ToList(), ct);
-        var known = plays.Where(p => titles.ContainsKey(p.ItemId)).Select(p => (titles[p.ItemId], (DateTime?)p.WatchedAt.ToUniversalTime())).ToList();
+        var ids = plays.Select(p => p.ItemId).Distinct().ToList();
+        var titles = await TitlesAsync(db, ids, ct);
+        // Watch state is on every copy of a linked title: Trakt hears of one play, not one per copy.
+        var groups = await db.MediaItems.IgnoreQueryFilters().Where(i => ids.Contains(i.Id) && i.LinkGroupId != null)
+            .Select(i => new { i.Id, Group = i.LinkGroupId!.Value }).ToDictionaryAsync(i => i.Id, i => i.Group, ct);
+        var known = plays.Where(p => titles.ContainsKey(p.ItemId)).DistinctBy(p => (groups.TryGetValue(p.ItemId, out var group) ? group : p.ItemId, p.WatchedAt)).Select(p => (titles[p.ItemId], (DateTime?)p.WatchedAt.ToUniversalTime())).ToList();
         foreach (var chunk in known.Chunk(HistoryBatch))
         {
             db.TraktOutbox.Add(new TraktOutboxEntry

@@ -55,7 +55,7 @@ public static class DownloadEndpoints
     {
         // Films and episodes come in sizes; a track (or a whole album, its tracks together) comes one way: as it is,
         // or as AAC when the phone can't play the file.
-        api.MapGet("/items/{id:guid}/download-options", async (Guid id, FlexarrDbContext db, CancellationToken ct) =>
+        api.MapGet("/items/{id:guid}/download-options", async (Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
         {
             var kind = await db.MediaItems.Where(i => i.Id == id).Select(i => (MediaKind?)i.Kind).FirstOrDefaultAsync(ct);
             if (kind is MediaKind.PodcastEpisode)
@@ -75,11 +75,17 @@ public static class DownloadEndpoints
                     : Results.Ok(new List<DownloadOptionDto> { new(DownloadQuality.Original, files.Sum(f => DownloadPlanner.EstimateBytes(f, DownloadQuality.Original)), true) });
             }
 
-            var file = kind is MediaKind.Movie or MediaKind.Episode ? await BestFileAsync(db, id, ct) : null;
-            return file is null
-                ? Results.NotFound()
-                : Results.Ok(Enum.GetValues<DownloadQuality>().Select(q => new DownloadOptionDto(q, DownloadPlanner.EstimateBytes(file, q),
-                    q != DownloadQuality.Original || DownloadPlanner.CanKeepOriginal(file))).ToList());
+            if (kind is not (MediaKind.Movie or MediaKind.Episode) || await DownloadSource.FilesAsync(db, id, profile.Id, ct) is not { Count: > 0 } versions)
+            {
+                return Results.NotFound();
+            }
+
+            var choice = await DownloadSource.ChoiceAsync(db, versions, profile.Id, ct);
+            return Results.Ok(Enum.GetValues<DownloadQuality>().Select(q =>
+            {
+                var file = DownloadSource.For(versions, choice, q)!;
+                return new DownloadOptionDto(q, DownloadPlanner.EstimateBytes(file, q), q != DownloadQuality.Original || DownloadPlanner.CanKeepOriginal(file));
+            }).ToList());
         }).WithTags("Downloads");
 
         // "/downloads" is Coming soon's (what Sonarr and Radarr are fetching).
@@ -107,7 +113,9 @@ public static class DownloadEndpoints
             if (item is null || item.Kind is not (MediaKind.Movie or MediaKind.Episode or MediaKind.Track or MediaKind.PodcastEpisode)
                 || (item.Kind == MediaKind.PodcastEpisode
                     ? !await db.PodcastEpisodes.AnyAsync(e => e.MediaItemId == item.Id, ct)
-                    : await BestFileAsync(db, item.Id, ct) is null))
+                    : item.Kind == MediaKind.Track
+                        ? await BestFileAsync(db, item.Id, ct) is null
+                        : (await DownloadSource.FilesAsync(db, item.Id, profile.Id, ct)).Count == 0))
             {
                 return Results.NotFound();
             }
@@ -117,7 +125,9 @@ public static class DownloadEndpoints
 
             // Asked for again (the app reinstalled, say): the same one, unless it failed or ran out, or a device already
             // has it: its copy is gone then, and another device of the profile's (an iPad beside the phone) needs a new one.
-            var existing = await db.Downloads.FirstOrDefaultAsync(d => d.ProfileId == profile.Id && d.MediaItemId == item.Id && d.Quality == quality
+            // Through any copy of the title: it's the same title, so a second copy of it would only take the space twice.
+            var copies = await Flexarr.Api.Playback.TitleVersions.CopiesAsync(db, item, ct);
+            var existing = await db.Downloads.FirstOrDefaultAsync(d => d.ProfileId == profile.Id && copies.Contains(d.MediaItemId) && d.Quality == quality
                 && d.Status != DownloadStatus.Failed && d.Status != DownloadStatus.Expired && d.Status != DownloadStatus.Removed
                 && d.Status != DownloadStatus.Received, ct);
             if (existing is null)
@@ -254,9 +264,7 @@ public static class DownloadEndpoints
         download.MediaItem = item;
 
         var summary = await db.MediaItems.Where(i => i.Id == item.Id).Summaries(profile.Id).FirstAsync(ct);
-        var file = await db.MediaFiles.AsNoTracking().Include(f => f.Markers)
-            .Where(f => f.MediaItemId == item.Id && f.ProbeError == null && f.MissingSince == null)
-            .OrderByDescending(f => f.Height).ThenByDescending(f => f.Bitrate).FirstOrDefaultAsync(ct);
+        var file = await DownloadSource.ForAsync(db, item.Id, download.Quality, profile.Id, ct);
         var next = await playback.NextEpisodeAsync(item, ct);
         return new DownloadDto(download.Id, item.Id, download.Quality, download.Status, download.Progress, download.SizeBytes, download.Error, summary,
             file?.Markers.OrderBy(m => m.StartSeconds).Select(m => new MarkerDto(m.Type, m.StartSeconds, m.EndSeconds)).ToList() ?? [],

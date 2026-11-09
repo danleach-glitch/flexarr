@@ -251,7 +251,7 @@ fun PersonCard(name: String, detail: String?, image: String?, onClick: (() -> Un
 }
 
 /** One thing a card's long-press menu does, with the icon the iPhone's context menu shows beside it. */
-class MenuAction(val label: String, val icon: ImageVector? = null, val run: () -> Unit)
+class MenuAction(val label: String, val icon: ImageVector? = null, val selected: Boolean = false, val run: () -> Unit)
 
 /**
  * What the long-press menu shared by cards offers, as iPhone's context menu: [ItemMenu] shows it, and [menuActions]

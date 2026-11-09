@@ -41,10 +41,15 @@ public sealed record SmartRules(
             ? db.MediaItems.Where(i => i.Kind == MediaKind.Audiobook && i.MissingSince == null)
             : db.MediaItems.Where(i => i.ParentId == null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series));
 
-        if (LibraryIds is { Count: > 0 } libraries)
-        {
-            q = q.Where(i => libraries.Contains(i.LibraryId));
-        }
+        // A linked title once, among the libraries asked for.
+        q = LibraryIds is { Count: > 0 } libraries
+            ? q.Where(i => libraries.Contains(i.LibraryId)
+                && (i.LinkGroupId == null || !i.LinkGroup!.Items.Any(o => libraries.Contains(o.LibraryId) && o.Id.CompareTo(i.Id) < 0)))
+            : q.OnePerTitle();
+
+        // The title matches a rule if any of its copies does: the copy kept above can lack a genre, say, or a season,
+        // that another has. Only copies in the libraries asked for, and that this profile can see.
+        var copies = LibraryIds is { Count: > 0 } asked ? db.MediaItems.Where(i => asked.Contains(i.LibraryId)) : db.MediaItems;
 
         q = Type switch
         {
@@ -55,7 +60,8 @@ public sealed record SmartRules(
 
         if (Genres is { Count: > 0 } genres)
         {
-            q = q.Where(i => i.Genres.Any(g => genres.Contains(g.Name)));
+            var matching = copies.Where(i => i.Genres.Any(g => genres.Contains(g.Name)));
+            q = q.Where(i => matching.Any(m => m.Id == i.Id || (i.LinkGroupId != null && m.LinkGroupId == i.LinkGroupId)));
         }
 
         if (YearFrom is { } from)
@@ -72,9 +78,10 @@ public sealed record SmartRules(
         {
             var first = new DateOnly(now.Year, 1, 1);
             var last = new DateOnly(now.Year, 12, 31);
-            q = q.Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Audiobook
+            var matching = copies.Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Audiobook
                 ? i.Year == now.Year
                 : i.Children.SelectMany(s => s.Children).Any(e => (e.ReleaseDate ?? e.AirDate) >= first && (e.ReleaseDate ?? e.AirDate) <= last));
+            q = q.Where(i => matching.Any(m => m.Id == i.Id || (i.LinkGroupId != null && m.LinkGroupId == i.LinkGroupId)));
         }
 
         if (MinRating is { } rating)
@@ -82,37 +89,44 @@ public sealed record SmartRules(
             q = q.Where(i => i.CommunityRating >= rating);
         }
 
-        q = Watched switch
+        if (Watched is "unwatched" or "watched")
         {
-            "unwatched" => q.Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Audiobook
+            // Watch state is on every copy, so this only needs to know if any copy has something unwatched. That's the
+            // whole answer for a show: its copies can hold different seasons.
+            var unwatched = copies.Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Audiobook
                 ? !i.PlaybackStates.Any(p => p.UserId == profileId && (p.Watched || p.FinishedAt != null))
-                : i.Children.SelectMany(s => s.Children).Any(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched))),
-            "watched" => q.Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Audiobook
-                ? i.PlaybackStates.Any(p => p.UserId == profileId && (p.Watched || p.FinishedAt != null))
-                : i.Children.SelectMany(s => s.Children).Any() && i.Children.SelectMany(s => s.Children).All(e => e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched))),
-            _ => q,
-        };
+                : i.Children.SelectMany(s => s.Children).Any(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched)));
+            var showing = copies.Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Audiobook || i.Children.SelectMany(s => s.Children).Any());
+            q = Watched == "unwatched"
+                ? q.Where(i => unwatched.Any(m => m.Id == i.Id || (i.LinkGroupId != null && m.LinkGroupId == i.LinkGroupId)))
+                : q.Where(i => showing.Any(m => m.Id == i.Id || (i.LinkGroupId != null && m.LinkGroupId == i.LinkGroupId))
+                    && !unwatched.Any(m => m.Id == i.Id || (i.LinkGroupId != null && m.LinkGroupId == i.LinkGroupId)));
+        }
 
         if (AddedWithinDays is { } days)
         {
             var since = now.AddDays(-days);
-            q = q.Where(i => i.AddedAt >= since || i.Children.SelectMany(s => s.Children).Any(e => e.AddedAt >= since));
+            var matching = copies.Where(i => i.AddedAt >= since || i.Children.SelectMany(s => s.Children).Any(e => e.AddedAt >= since));
+            q = q.Where(i => matching.Any(m => m.Id == i.Id || (i.LinkGroupId != null && m.LinkGroupId == i.LinkGroupId)));
         }
 
         if (PersonId is { } person)
         {
-            q = q.Where(i => db.Credits.Any(c => c.MediaItemId == i.Id && c.PersonId == person));
+            var matching = copies.Where(i => db.Credits.Any(c => c.MediaItemId == i.Id && c.PersonId == person));
+            q = q.Where(i => matching.Any(m => m.Id == i.Id || (i.LinkGroupId != null && m.LinkGroupId == i.LinkGroupId)));
         }
 
         if (!string.IsNullOrWhiteSpace(Contains))
         {
             var like = $"%{Contains.Trim()}%";
-            q = q.Where(i => EF.Functions.Like(i.Title, like) || (i.Overview != null && EF.Functions.Like(i.Overview, like)));
+            var matching = copies.Where(i => EF.Functions.Like(i.Title, like) || (i.Overview != null && EF.Functions.Like(i.Overview, like)));
+            q = q.Where(i => matching.Any(m => m.Id == i.Id || (i.LinkGroupId != null && m.LinkGroupId == i.LinkGroupId)));
         }
 
         IOrderedQueryable<MediaItem> ordered = Sort switch
         {
-            "added" => q.OrderByDescending(i => i.Children.SelectMany(s => s.Children).Max(e => (DateTime?)e.AddedAt) ?? i.AddedAt),
+            "added" => q.OrderByDescending(i => copies.Where(m => m.Id == i.Id || (i.LinkGroupId != null && m.LinkGroupId == i.LinkGroupId))
+                .SelectMany(m => m.Children).SelectMany(s => s.Children).Max(e => (DateTime?)e.AddedAt) ?? i.AddedAt),
             "year" => q.OrderByDescending(i => i.Year),
             "title" => q.OrderBy(i => i.SortTitle),
             "popularity" => q.OrderByDescending(i => i.Popularity),

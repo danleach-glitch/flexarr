@@ -61,6 +61,36 @@ public class MarkerDetectionWorkerTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waiting);
     }
 
+    [Theory]
+    [InlineData(2640, 2642.64, true)] // 44 minutes at 24 and 23.976 frames a second.
+    [InlineData(1320, 1321.4, true)]
+    [InlineData(1320, 1325, false)]
+    [InlineData(7200, 7300, false)]
+    public void Versions_this_close_in_length_share_their_marks(double a, double b, bool same) =>
+        Assert.Equal(same, MarkerDetectionWorker.SameEdit(a, b));
+
+    [Fact]
+    public void Shared_marks_are_stretched_to_the_versions_length()
+    {
+        var credits = new Flexarr.Streaming.Markers.DetectedMarker(MarkerType.Credits, 2600, 2640, "fingerprint");
+        var fitted = Assert.Single(MarkerDetectionWorker.FittedTo([credits], 2640, 2642.64));
+        Assert.Equal(2602.6, fitted.Start, 3);
+        Assert.Equal(2642.64, fitted.End, 3);
+    }
+
+    [Fact]
+    public void A_lone_version_is_compared_with_another_episode()
+    {
+        MediaFile Episode(Guid item) => new() { MediaItemId = item, Path = "/x.mkv" };
+        var (one, two) = (Guid.NewGuid(), Guid.NewGuid());
+        var (first, second) = (Episode(one), Episode(two));
+        var extended = Episode(two);
+
+        Assert.Equal([extended, first], MarkerDetectionWorker.WithPartner([extended], [first, second]));
+        Assert.Equal([extended], MarkerDetectionWorker.WithPartner([extended], [second]));
+        Assert.Equal([extended, first], MarkerDetectionWorker.WithPartner([extended, first], [second]));
+    }
+
     [Fact]
     public void A_season_asked_for_again_while_it_waits_is_queued_once()
     {

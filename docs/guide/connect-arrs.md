@@ -37,7 +37,7 @@ Flexarr then adds its own webhook to Sonarr, Radarr and Lidarr, so new downloads
 
 Repeat for each app. Each one then shows a green dot, its version, and a link to open it. Choose the pencil to change it, or **Disconnect** in it to stop using it; its titles stay in your libraries.
 
-If you run more than one Sonarr, Radarr or Lidarr, such as a second Radarr for 4K movies, choose **+** beside the one already connected and give the new one a **Name** of its own, such as "Radarr 4K". A second one has **Remove** in place of **Disconnect**.
+If you run more than one Sonarr, Radarr or Lidarr, such as a second Radarr for 4K movies, choose **+** beside the one already connected and give the new one a **Name** of its own, such as "Radarr 4K". A second one has **Remove** in place of **Disconnect**. A movie or show in both becomes [one title with two versions](versions.md).
 
 ### The address
 

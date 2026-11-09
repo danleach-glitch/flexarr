@@ -123,8 +123,10 @@ public sealed class LibraryTitles
 
         if (!_episodes.TryGetValue(title, out var episodes))
         {
+            // An episode in another copy of the show will do: its watch state reaches this one when saved.
+            var group = await _db.MediaItems.IgnoreQueryFilters().Where(s => s.Id == title).Select(s => s.LinkGroupId).FirstOrDefaultAsync(ct).ConfigureAwait(false);
             var rows = await _db.MediaItems.IgnoreQueryFilters()
-                .Where(e => e.Kind == MediaKind.Episode && e.Parent!.ParentId == title && e.MissingSince == null && e.SeasonNumber != null && e.EpisodeNumber != null)
+                .Where(e => e.Kind == MediaKind.Episode && (e.Parent!.ParentId == title || (group != null && e.Parent!.Parent!.LinkGroupId == group)) && e.MissingSince == null && e.SeasonNumber != null && e.EpisodeNumber != null)
                 .Select(e => new { e.Id, e.SeasonNumber, e.EpisodeNumber, e.EpisodeNumberEnd })
                 .ToListAsync(ct).ConfigureAwait(false);
             episodes = [];

@@ -91,7 +91,7 @@ public static partial class PlaybackEndpoints
         }).WithTags("Playback");
 
         // Remembered for the title, and applied to its subtitles from the next time they're fetched.
-        api.MapPut("/items/{id:guid}/subtitle-delay", async (Guid id, SubtitleDelayRequest request, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        api.MapPut("/items/{id:guid}/subtitle-delay", async (Guid id, SubtitleDelayRequest request, FlexarrDbContext db, CurrentProfile profile, PlaybackSessions sessions, CancellationToken ct) =>
         {
             if (!double.IsFinite(request.Seconds) || Math.Abs(request.Seconds) > 60)
             {
@@ -103,10 +103,13 @@ public static partial class PlaybackEndpoints
                 return Results.NotFound();
             }
 
-            var state = await db.PlaybackStates.FirstOrDefaultAsync(p => p.UserId == profile.Id && p.MediaItemId == id, ct);
+            // Kept on the copy holding the file being watched: another version's subtitles aren't out by the same amount.
+            var playing = sessions.Playing.Where(s => s.ItemId == id && s.ProfileId == profile.Id).OrderByDescending(s => PlaybackSessions.HeardAt(s)).FirstOrDefault()?.FileId;
+            var holder = playing is { } file ? await db.MediaFiles.Where(f => f.Id == file).Select(f => (Guid?)f.MediaItemId).FirstOrDefaultAsync(ct) ?? id : id;
+            var state = await db.PlaybackStates.FirstOrDefaultAsync(p => p.UserId == profile.Id && p.MediaItemId == holder, ct);
             if (state is null)
             {
-                state = new PlaybackState { UserId = profile.Id, MediaItemId = id };
+                state = new PlaybackState { UserId = profile.Id, MediaItemId = holder };
                 db.PlaybackStates.Add(state);
             }
 
@@ -117,7 +120,7 @@ public static partial class PlaybackEndpoints
 
         // A fault of the file, so fixed for the household: whoever nudges it fixes it for everyone. A family guest isn't
         // the household's, so doesn't.
-        api.MapPut("/items/{id:guid}/audio-delay", async (Guid id, AudioDelayRequest request, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        api.MapPut("/items/{id:guid}/audio-delay", async (Guid id, AudioDelayRequest request, FlexarrDbContext db, CurrentProfile profile, PlaybackSessions sessions, CancellationToken ct) =>
         {
             if (profile.IsGuest)
             {
@@ -134,8 +137,10 @@ public static partial class PlaybackEndpoints
                 return Results.NotFound();
             }
 
+            // The file being nudged, when that's known: a title's versions aren't out by the same amount.
             var seconds = Math.Round(request.Seconds, 3);
-            await db.MediaFiles.Where(f => f.MediaItemId == id)
+            var playing = sessions.Playing.Where(s => s.ItemId == id && s.ProfileId == profile.Id).OrderByDescending(s => PlaybackSessions.HeardAt(s)).FirstOrDefault()?.FileId;
+            await db.MediaFiles.Where(f => playing != null ? f.Id == playing : f.MediaItemId == id)
                 .ExecuteUpdateAsync(u => u.SetProperty(f => f.AudioDelaySeconds, seconds), ct);
             return Results.NoContent();
         }).WithTags("Playback");
@@ -180,7 +185,11 @@ public static partial class PlaybackEndpoints
                 return Results.NoContent(); // Only shows keep a speed; a film's is for that time.
             }
 
-            var kept = await db.ShowPlaybackSpeeds.FirstOrDefaultAsync(s => s.ProfileId == profile.Id && s.SeriesId == seriesId, ct);
+            // A show's linked copies keep one speed, whichever copy's episode is playing.
+            var copies = await TitleVersions.CopiesAsync(db, seriesId, ct);
+            var rows = await db.ShowPlaybackSpeeds.Where(s => s.ProfileId == profile.Id && copies.Contains(s.SeriesId)).ToListAsync(ct);
+            var kept = rows.Find(s => s.SeriesId == seriesId) ?? rows.FirstOrDefault();
+            db.ShowPlaybackSpeeds.RemoveRange(rows.Where(s => s != kept));
             if (Math.Abs(request.Speed - bookDefault) < 0.001)
             {
                 if (kept is not null)
@@ -218,9 +227,10 @@ public static partial class PlaybackEndpoints
 
             var seasons = item.Kind switch
             {
-                MediaKind.Series => await db.MediaItems.Where(s => s.ParentId == id).Select(s => s.Id).ToListAsync(ct),
-                MediaKind.Season => [id],
-                MediaKind.Episode when item.ParentId is { } season => [season],
+                // Every version's episodes: a linked show's seasons in each library.
+                MediaKind.Series => await db.MediaItems.Where(s => s.ParentId == id || (item.LinkGroupId != null && s.Parent!.LinkGroupId == item.LinkGroupId)).Select(s => s.Id).ToListAsync(ct),
+                MediaKind.Season => await TitleVersions.CopiesAsync(db, item, ct),
+                MediaKind.Episode when item.ParentId is { } season => await TitleVersions.CopiesAsync(db, season, ct),
                 _ => [],
             };
             await db.MediaFiles.Where(f => f.MediaItem!.ParentId != null && seasons.Contains(f.MediaItem.ParentId.Value))
@@ -392,7 +402,7 @@ public static partial class PlaybackEndpoints
                 return Problems.Of("These subtitles couldn’t be converted.", status: 422);
             }
 
-            var delay = await db.PlaybackStates.AsNoTracking().Where(p => p.UserId == session.ProfileId && p.MediaItemId == session.ItemId)
+            var delay = await db.PlaybackStates.AsNoTracking().Where(p => p.UserId == session.ProfileId && p.MediaItemId == file.MediaItemId)
                 .Select(p => p.SubtitleDelaySeconds).FirstOrDefaultAsync(ct);
             if (hls != true && delay == 0)
             {

@@ -87,7 +87,9 @@ public static partial class DiscoveryEndpoints
             var rows = new List<HomeRowDto>();
             var states = db.PlaybackStates.Where(p => p.UserId == me);
             var topLevel = db.MediaItems.Where(i => i.ParentId == null);
-            var unwatchedMovies = topLevel.Where(i => i.Kind == MediaKind.Movie && !i.PlaybackStates.Any(p => p.UserId == me && p.Watched));
+            // Rows across libraries show a linked title once. A row for one library looks through topLevel.
+            var titles = topLevel.OnePerTitle();
+            var unwatchedMovies = titles.Where(i => i.Kind == MediaKind.Movie && !i.PlaybackStates.Any(p => p.UserId == me && p.Watched));
 
             // Recordings are in Live TV, not a library with a row of its own.
             var libraries = (await db.Libraries.OrderBy(l => l.Name).ToListAsync(ct))
@@ -156,13 +158,13 @@ public static partial class DiscoveryEndpoints
             if (!kids && On("top-movies"))
             {
                 rows.Add(new HomeRowDto("top-movies", Loc.T("Top 10 movies in your library"), "top10",
-                    await TopRated(topLevel.Where(i => i.Kind == MediaKind.Movie)).Take(10).Summaries(me).ToListAsync(ct)));
+                    await TopRated(titles.Where(i => i.Kind == MediaKind.Movie)).Take(10).Summaries(me).ToListAsync(ct)));
             }
 
             if (!kids && On("top-shows"))
             {
                 rows.Add(new HomeRowDto("top-shows", Loc.T("Top 10 shows in your library"), "top10",
-                    await TopRated(topLevel.Where(i => i.Kind == MediaKind.Series)).Take(10).Summaries(me).ToListAsync(ct)));
+                    await TopRated(titles.Where(i => i.Kind == MediaKind.Series)).Take(10).Summaries(me).ToListAsync(ct)));
             }
 
             // Music this profile has been playing, and the newest albums, when it can see a music library at all.
@@ -205,7 +207,7 @@ public static partial class DiscoveryEndpoints
             var day = DateOnly.FromDateTime(DateTime.UtcNow).DayNumber;
             foreach (var genre in genres.OrderBy(g => DailyKey($"{me}:{g.Name}", day)).Take(3))
             {
-                var picks = await topLevel.Where(i => i.Genres.Any(g => g.Name == genre.Name) && !i.PlaybackStates.Any(p => p.UserId == me && p.Watched))
+                var picks = await titles.Where(i => i.Genres.Any(g => g.Name == genre.Name) && !i.PlaybackStates.Any(p => p.UserId == me && p.Watched))
                     .OrderByDescending(i => i.CommunityRating).Take(RowSize).Summaries(me).ToListAsync(ct);
                 rows.Add(new HomeRowDto($"genre-{genre.Name}", genre.Name, "poster", picks, $"/discover?genre={Uri.EscapeDataString(genre.Name)}"));
             }
@@ -217,7 +219,7 @@ public static partial class DiscoveryEndpoints
             }
 
             // Featured: well-rated things with full artwork, unseen first, a new handful daily.
-            var rotation = await FeaturedAsync(topLevel, me, day, ct);
+            var rotation = await FeaturedAsync(titles, me, day, ct);
             (rotation, var resume) = await LeadWithContinueWatchingAsync(db, me, continueWatching, rotation, ct);
             var overviews = await OverviewsAsync(db, rotation, ct);
             var resumes = await ResumesAsync(db, me, rotation, resume, ct);
@@ -440,7 +442,7 @@ public static partial class DiscoveryEndpoints
             // Titles that start with the term rank above titles that merely contain it.
             var titles = await db.MediaItems
                 // Podcasts have a search of their own (Apple's directory and the shows followed).
-                .Where(i => i.ParentId == null && i.Kind != MediaKind.Podcast && i.Kind != MediaKind.Audiobook
+                .OnePerMatch(i => i.ParentId == null && i.Kind != MediaKind.Podcast && i.Kind != MediaKind.Audiobook
                     && (EF.Functions.Like(i.Title, contains) || (i.OriginalTitle != null && EF.Functions.Like(i.OriginalTitle, contains))))
                 .OrderByDescending(i => EF.Functions.Like(i.Title, prefix) || EF.Functions.Like(i.SortTitle, prefix))
                 .ThenByDescending(i => i.Popularity ?? i.CommunityRating)
@@ -450,13 +452,14 @@ public static partial class DiscoveryEndpoints
             // the same answer.
             var named = await Search.NamedItems.FindAsync(db, contains, prefix, ct);
             var episodes = named is not null ? await MusicDiscovery.InOrderAsync(db, named.Episodes, profile.Id, ct)
-                : await Search.NamedItems.Searched(db).Where(i => i.Kind == MediaKind.Episode && EF.Functions.Like(i.Title, contains))
+                : await Search.NamedItems.Searched(db).OnePerMatch(i => i.Kind == MediaKind.Episode && EF.Functions.Like(i.Title, contains))
                 .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).ThenBy(i => i.Id).Take(8).Summaries(profile.Id).ToListAsync(ct);
             // People in titles this profile may see: not those only in a hidden library, or only above its age limit.
             // Each credit's title is looked up by its id. Asking whether the id is in the list of every visible title
             // (visible.Contains) had SQLite build that whole list first, once for each place it was asked.
             var people = await db.People.Where(p => EF.Functions.Like(p.Name, contains))
-                .Select(p => new { Person = p, Credits = p.Credits.Count(c => db.MediaItems.Any(i => i.Id == c.MediaItemId)) })
+                .Select(p => new { Person = p, Credits = p.Credits.Count(c => db.MediaItems.Any(i => i.Id == c.MediaItemId
+                    && (i.LinkGroupId == null || !i.LinkGroup!.Items.Any(o => o.Id.CompareTo(i.Id) < 0 && db.Credits.Any(x => x.PersonId == c.PersonId && x.MediaItemId == o.Id))))) })
                 .Where(p => p.Credits > 0)
                 .OrderByDescending(p => EF.Functions.Like(p.Person.Name, prefix)).ThenByDescending(p => p.Credits)
                 .Take(8)
@@ -496,7 +499,8 @@ public static partial class DiscoveryEndpoints
                 var close = await index.FindAsync(db, term, Search.SearchIndex.Group.Person, 8 - people.Count, people.Select(p => p.Id).ToHashSet(), ct);
                 var ids = close.Select(m => m.Id).ToList();
                 var found = await db.People.Where(p => ids.Contains(p.Id) && p.Credits.Any(c => db.MediaItems.Any(i => i.Id == c.MediaItemId)))
-                    .Select(p => new SearchPersonDto(p.Id, p.Name, ArtworkUrls.Person(p.Id, p.ImageUrl != null, p.ImageChangedAt), p.Credits.Count(c => db.MediaItems.Any(i => i.Id == c.MediaItemId))))
+                    .Select(p => new SearchPersonDto(p.Id, p.Name, ArtworkUrls.Person(p.Id, p.ImageUrl != null, p.ImageChangedAt), p.Credits.Count(c => db.MediaItems.Any(i => i.Id == c.MediaItemId
+                        && (i.LinkGroupId == null || !i.LinkGroup!.Items.Any(o => o.Id.CompareTo(i.Id) < 0 && db.Credits.Any(x => x.PersonId == c.PersonId && x.MediaItemId == o.Id)))))))
                     .ToListAsync(ct);
                 people.AddRange(found.OrderBy(p => ids.IndexOf(p.Id)));
             }
@@ -556,7 +560,7 @@ public static partial class DiscoveryEndpoints
             // A name with a slash ("Action/Adventure", from a hand-written .nfo) arrives as one segment with the slash
             // still encoded: ASP.NET Core decodes everything in a path but that.
             name = name.Replace("%2F", "/", StringComparison.OrdinalIgnoreCase);
-            var query = db.MediaItems.Where(i => i.ParentId == null && i.Genres.Any(g => g.Name == name));
+            var query = db.MediaItems.OnePerMatch(i => i.ParentId == null && i.Genres.Any(g => g.Name == name));
             if (Enum.TryParse<MediaKind>(kind, ignoreCase: true, out var k))
             {
                 query = query.Where(i => i.Kind == k);
@@ -581,7 +585,7 @@ public static partial class DiscoveryEndpoints
             .OrderByDescending(p => p.LastPlayedAt)
             .Select(p => p.MediaItem!.Kind == MediaKind.Episode ? p.MediaItem.Parent!.ParentId!.Value : p.MediaItemId)
             .Take(RowSize * 20).ToListAsync(ct);
-        var ids = finished.Distinct().Take(RowSize).ToList();
+        var ids = (await ItemQueries.OnePerTitleAsync(db, finished.Distinct().ToList(), ct)).Take(RowSize).ToList();
         var items = await db.MediaItems.Where(i => ids.Contains(i.Id)).Summaries(profileId).ToListAsync(ct);
         return [.. items.OrderBy(i => ids.IndexOf(i.Id))];
     }
@@ -602,19 +606,26 @@ public static partial class DiscoveryEndpoints
         // Films and episodes only: a track half played is music's business (its Recently played row), and a Play button
         // on an album in the hero would be a different thing from resuming a film.
         var inProgress = await states.Where(p => !p.Watched && p.PositionSeconds > 0 && (p.MediaItem!.Kind == MediaKind.Movie || p.MediaItem.Kind == MediaKind.Episode))
-            .OrderByDescending(p => p.LastPlayedAt).Take(limit)
-            .Select(p => new { p.MediaItemId, p.LastPlayedAt, SeriesId = p.MediaItem!.Parent != null ? p.MediaItem.Parent.ParentId : null })
+            // Watch state is on every copy of a title, so a linked one comes up once for each: twice as many, then one each.
+            .OrderByDescending(p => p.LastPlayedAt).Take(limit * 2)
+            .Select(p => new
+            {
+                p.MediaItemId, p.LastPlayedAt, Group = p.MediaItem!.LinkGroupId,
+                SeriesId = p.MediaItem.Parent != null ? p.MediaItem.Parent.ParentId : null,
+                SeriesGroup = p.MediaItem.Parent != null && p.MediaItem.Parent.Parent != null ? p.MediaItem.Parent.Parent.LinkGroupId : null,
+            })
             .ToListAsync(ct);
+        var started = inProgress.DistinctBy(p => p.Group ?? p.MediaItemId).Take(limit).ToList();
 
         var since = DateTime.UtcNow.AddDays(-90);
         var finished = await states.Where(p => p.Watched && p.LastPlayedAt > since && p.MediaItem!.Kind == MediaKind.Episode)
-            .Select(p => new { p.LastPlayedAt, SeriesId = p.MediaItem!.Parent!.ParentId })
+            .Select(p => new { p.LastPlayedAt, SeriesId = p.MediaItem!.Parent!.ParentId, SeriesGroup = p.MediaItem.Parent.Parent!.LinkGroupId })
             .ToListAsync(ct);
-        var busy = inProgress.Select(p => p.SeriesId).Where(s => s is not null).ToHashSet();
+        var busy = started.Where(p => p.SeriesId is not null).Select(p => p.SeriesGroup ?? p.SeriesId).ToHashSet();
         // Shows taken out of the row stay out until an episode is played after that.
         var dismissed = await db.ContinueWatchingDismissals.Where(d => d.ProfileId == profileId).ToDictionaryAsync(d => d.SeriesId, d => d.DismissedAt, ct);
-        var shows = finished.Where(p => p.SeriesId is not null && !busy.Contains(p.SeriesId))
-            .GroupBy(p => p.SeriesId!.Value).Select(g => (SeriesId: g.Key, At: g.Max(p => p.LastPlayedAt)))
+        var shows = finished.Where(p => p.SeriesId is not null && !busy.Contains(p.SeriesGroup ?? p.SeriesId))
+            .GroupBy(p => p.SeriesGroup ?? p.SeriesId!.Value).Select(g => (SeriesId: g.First().SeriesId!.Value, At: g.Max(p => p.LastPlayedAt)))
             .Where(s => !dismissed.TryGetValue(s.SeriesId, out var at) || s.At > at)
             .OrderByDescending(s => s.At).Take(limit).ToList();
 
@@ -629,7 +640,7 @@ public static partial class DiscoveryEndpoints
             }
         }
 
-        return inProgress.Select(p => (Id: p.MediaItemId, At: p.LastPlayedAt)).Concat(upNext)
+        return started.Select(p => (Id: p.MediaItemId, At: p.LastPlayedAt)).Concat(upNext)
             .OrderByDescending(x => x.At).DistinctBy(x => x.Id).Take(limit).ToList();
     }
 
@@ -699,7 +710,7 @@ public static partial class DiscoveryEndpoints
     public static async Task<List<ItemSummaryDto>> SimilarAsync(FlexarrDbContext db, Guid id, string profileId, CancellationToken ct)
     {
         var source = await db.MediaItems.AsNoTracking().Where(i => i.Id == id)
-            .Select(i => new { i.Kind, Genres = i.Genres.Select(g => g.Id).ToList(), People = i.Credits.Where(c => c.Order < 10 || c.Role != CreditRole.Actor).Select(c => c.PersonId).ToList() })
+            .Select(i => new { i.Kind, Group = i.LinkGroupId, Genres = i.Genres.Select(g => g.Id).ToList(), People = i.Credits.Where(c => c.Order < 10 || c.Role != CreditRole.Actor).Select(c => c.PersonId).ToList() })
             .FirstOrDefaultAsync(ct);
         if (source is null || source.Genres.Count == 0)
         {
@@ -707,7 +718,9 @@ public static partial class DiscoveryEndpoints
         }
 
         var ranked = await db.MediaItems
-            .Where(i => i.ParentId == null && i.Kind == source.Kind && i.Id != id && i.Genres.Any(g => source.Genres.Contains(g.Id)))
+            .Where(i => i.ParentId == null && i.Kind == source.Kind && i.Id != id && i.Genres.Any(g => source.Genres.Contains(g.Id))
+                && (source.Group == null || i.LinkGroupId != source.Group))
+            .OnePerTitle()
             .Select(i => new
             {
                 i.Id,
@@ -795,9 +808,14 @@ public static partial class DiscoveryEndpoints
         var leadId = resume.Kind == MediaKind.Episode
             ? await db.MediaItems.Where(i => i.Id == resume.Id).Select(i => i.Parent!.ParentId).FirstOrDefaultAsync(ct)
             : resume.Id;
-        return leadId is { } id && await db.MediaItems.Where(i => i.Id == id).Summaries(profileId).FirstOrDefaultAsync(ct) is { } lead
-            ? ([lead, .. rotation.Where(r => r.Id != lead.Id).Take(4)], resume)
-            : (rotation, null);
+        if (leadId is not { } id || await db.MediaItems.Where(i => i.Id == id).Summaries(profileId).FirstOrDefaultAsync(ct) is not { } lead)
+        {
+            return (rotation, null);
+        }
+
+        // Not the lead again, whichever copy of it the rotation holds.
+        var once = await ItemQueries.OnePerTitleAsync(db, [lead.Id, .. rotation.Select(r => r.Id)], ct);
+        return ([lead, .. rotation.Where(r => r.Id != lead.Id && once.Contains(r.Id)).Take(4)], resume);
     }
 
     /// <summary>
@@ -856,8 +874,8 @@ public static partial class DiscoveryEndpoints
     /// </summary>
     private static async Task<List<ItemSummaryDto>> LatestUnwatchedOnceAsync(IQueryable<MediaItem> topLevel, bool movies, string profileId, CancellationToken ct)
     {
-        var newest = await LatestUnwatched(topLevel, movies, profileId).Select(i => new { i.Id, i.TmdbId, i.TvdbId, i.ImdbId }).Take(RowSize * 3).ToListAsync(ct);
-        var ids = newest.DistinctBy(i => i.TmdbId is not null ? $"tmdb:{i.TmdbId}" : i.TvdbId is not null ? $"tvdb:{i.TvdbId}" : i.ImdbId is not null ? $"imdb:{i.ImdbId}" : i.Id.ToString())
+        var newest = await LatestUnwatched(topLevel, movies, profileId).Select(i => new { i.Id, i.LinkGroupId, i.TmdbId, i.TvdbId, i.ImdbId }).Take(RowSize * 3).ToListAsync(ct);
+        var ids = newest.DistinctBy(i => i.LinkGroupId is not null ? $"link:{i.LinkGroupId}" : i.TmdbId is not null ? $"tmdb:{i.TmdbId}" : i.TvdbId is not null ? $"tvdb:{i.TvdbId}" : i.ImdbId is not null ? $"imdb:{i.ImdbId}" : i.Id.ToString())
             .Take(RowSize).Select(i => i.Id).ToList();
         var items = await topLevel.Where(i => ids.Contains(i.Id)).Summaries(profileId).ToListAsync(ct);
         return [.. items.OrderBy(i => ids.IndexOf(i.Id))];

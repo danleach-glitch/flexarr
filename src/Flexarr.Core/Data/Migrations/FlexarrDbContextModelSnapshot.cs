@@ -746,6 +746,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<string>("Container")
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("DolbyVisionProfile")
+                        .HasColumnType("INTEGER");
+
                     b.Property<double?>("DurationSeconds")
                         .HasColumnType("REAL");
 
@@ -887,6 +890,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<Guid>("LibraryId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid?>("LinkGroupId")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("LogoUrl")
                         .HasColumnType("TEXT");
 
@@ -989,6 +995,8 @@ namespace Flexarr.Core.Data.Migrations
                     b.HasIndex("FirstSeenAt");
 
                     b.HasIndex("ImdbId");
+
+                    b.HasIndex("LinkGroupId");
 
                     b.HasIndex("ParentId");
 
@@ -1488,6 +1496,17 @@ namespace Flexarr.Core.Data.Migrations
                     b.ToTable("ShowPlaybackSpeeds");
                 });
 
+            modelBuilder.Entity("Flexarr.Core.Media.TitleGroup", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("TitleGroups");
+                });
+
             modelBuilder.Entity("Flexarr.Core.Media.TraktConnection", b =>
                 {
                     b.Property<string>("ProfileId")
@@ -1653,6 +1672,37 @@ namespace Flexarr.Core.Data.Migrations
                     b.HasIndex("ProfileId");
 
                     b.ToTable("TraktOutbox");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Media.VersionChoice", b =>
+                {
+                    b.Property<string>("ProfileId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("MediaItemId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ChosenAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Edition")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("MediaFileId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("ProfileId", "MediaItemId");
+
+                    b.HasIndex("MediaItemId");
+
+                    b.ToTable("VersionChoices");
                 });
 
             modelBuilder.Entity("Flexarr.Core.Media.WatchTombstone", b =>
@@ -2339,10 +2389,17 @@ namespace Flexarr.Core.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Flexarr.Core.Media.TitleGroup", "LinkGroup")
+                        .WithMany("Items")
+                        .HasForeignKey("LinkGroupId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Flexarr.Core.Media.MediaItem", "Parent")
                         .WithMany("Children")
                         .HasForeignKey("ParentId")
                         .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("LinkGroup");
 
                     b.Navigation("Parent");
                 });
@@ -2466,6 +2523,21 @@ namespace Flexarr.Core.Data.Migrations
 
             modelBuilder.Entity("Flexarr.Core.Media.TraktOutboxEntry", b =>
                 {
+                    b.HasOne("Flexarr.Core.Media.Profile", null)
+                        .WithMany()
+                        .HasForeignKey("ProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Media.VersionChoice", b =>
+                {
+                    b.HasOne("Flexarr.Core.Media.MediaItem", null)
+                        .WithMany()
+                        .HasForeignKey("MediaItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("Flexarr.Core.Media.Profile", null)
                         .WithMany()
                         .HasForeignKey("ProfileId")
@@ -2695,6 +2767,11 @@ namespace Flexarr.Core.Data.Migrations
                 });
 
             modelBuilder.Entity("Flexarr.Core.Media.Playlist", b =>
+                {
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Media.TitleGroup", b =>
                 {
                     b.Navigation("Items");
                 });

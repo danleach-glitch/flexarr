@@ -276,7 +276,7 @@ private fun MenuScope.SubtitlesMenu(controller: PlaybackController, close: () ->
         "teletext" -> {
             Back(t("Teletext page")) { openPage(null) }
             (listOf(null) + Teletext.pages).forEach { number ->
-                Choice(number?.toString() ?: t("Automatic"), number == controller.teletextPage, enabled = !controller.isReopening) {
+                Choice(number?.toString() ?: t(Words.automatic), number == controller.teletextPage, enabled = !controller.isReopening) {
                     close()
                     controller.chooseTeletextPage(number)
                 }
@@ -315,7 +315,7 @@ private fun MenuScope.SubtitlesMenu(controller: PlaybackController, close: () ->
             Divider()
             // Teletext subtitles are on a page of their own, which a recording doesn't always mark.
             if (controller.canChooseTeletextPage) {
-                Submenu(t("Teletext page"), controller.teletextPage?.toString() ?: t("Automatic")) { openPage("teletext") }
+                Submenu(t("Teletext page"), controller.teletextPage?.toString() ?: t(Words.automatic)) { openPage("teletext") }
             }
             // Burned into the picture, they can't be moved: the server draws them where they fall.
             if (!info.subtitleBurnedIn) Submenu(t("Timing"), PlaybackController.delayLabel(info.subtitleDelaySeconds ?: 0.0)) { openPage("timing") }

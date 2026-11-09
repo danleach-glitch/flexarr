@@ -456,6 +456,11 @@ public struct FlexarrClient: Sendable {
         _ = try await send("POST", "items/\(id)/watched", body: WatchedRequest(watched: watched))
     }
 
+    /// Remembers which version this profile plays, or with nil goes back to the automatic pick.
+    public func setVersion(_ id: String, fileId: String?) async throws {
+        _ = try await send("PUT", "items/\(id)/version", body: VersionRequest(fileId: fileId))
+    }
+
     /// Takes a title out of Continue Watching without marking it watched; for an episode, its show stays out until
     /// another episode is played.
     public func removeFromContinueWatching(_ id: String) async throws {

@@ -74,13 +74,13 @@ public static class FlexarrTools
         var contains = $"%{term}%";
         var prefix = $"{term}%";
         var titles = await db.MediaItems
-            .Where(i => i.ParentId == null && (EF.Functions.Like(i.Title, contains) || (i.OriginalTitle != null && EF.Functions.Like(i.OriginalTitle, contains))))
+            .OnePerMatch(i => i.ParentId == null && (EF.Functions.Like(i.Title, contains) || (i.OriginalTitle != null && EF.Functions.Like(i.OriginalTitle, contains))))
             .OrderByDescending(i => EF.Functions.Like(i.Title, prefix) || EF.Functions.Like(i.SortTitle, prefix))
             .ThenByDescending(i => i.Popularity ?? i.CommunityRating)
             .Take(12).Summaries(profile.Id).ToListAsync(ct);
         // Spoken titles come back misspelled ("the traiters"), so top up with near misses.
         titles.AddRange(await index.CloseItemsAsync(db, profile.Id, term, Search.SearchIndex.Group.Title, 12 - titles.Count, titles, ct));
-        var episodes = await db.MediaItems.Where(i => i.Kind == MediaKind.Episode && EF.Functions.Like(i.Title, contains))
+        var episodes = await db.MediaItems.OnePerMatch(i => i.Kind == MediaKind.Episode && EF.Functions.Like(i.Title, contains))
             .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).Take(8).Summaries(profile.Id).ToListAsync(ct);
         return new McpSearchResult(titles.Select(McpTitle.From).ToList(), episodes.Select(McpTitle.From).ToList());
     }

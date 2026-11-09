@@ -58,6 +58,8 @@ enum Symbol {
     static let removeFromRow = "minus.circle"
     /// Refresh the Live TV guide.
     static let refresh = "arrow.clockwise"
+    /// Choose a title's version (4K or 1080p, a director's cut).
+    static let version = "square.3.layers.3d"
     /// More actions.
     static let more = "ellipsis"
     /// Home.
@@ -94,5 +96,5 @@ enum Symbol {
     static let homeVideos = "folder"
 
     /// Every name above, so a debug build can check each one exists on this system.
-    static let all = [play, pause, startOver, shuffle, radio, trailer, watched, isWatched, markUnwatched, watchlist, onWatchlist, offWatchlist, request, requested, follow, following, goToArtist, playNext, addToQueue, addToPlaylist, download, delete, explicit, subtitles, goToShow, details, removeFromRow, refresh, more, home, libraries, search, settings, downloads, discover, comingSoon, liveTv, collections, nowPlaying, movies, shows, music, podcasts, audiobooks, homeVideos]
+    static let all = [play, pause, startOver, shuffle, radio, trailer, watched, isWatched, markUnwatched, watchlist, onWatchlist, offWatchlist, request, requested, follow, following, goToArtist, playNext, addToQueue, addToPlaylist, download, delete, explicit, subtitles, goToShow, details, removeFromRow, refresh, version, more, home, libraries, search, settings, downloads, discover, comingSoon, liveTv, collections, nowPlaying, movies, shows, music, podcasts, audiobooks, homeVideos]
 }

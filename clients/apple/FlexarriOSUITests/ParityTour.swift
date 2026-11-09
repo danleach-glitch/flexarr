@@ -46,6 +46,38 @@ final class ParityTour: XCTestCase {
         }
     }
 
+    /// Chooses a version through ⋯ and plays it, on the title TEST_RUNNER_PARITY_CHOOSE_VERSION names (its id), to the
+    /// version whose name starts with TEST_RUNNER_PARITY_CHOOSE_LABEL. Unlike the tour this changes the profile's choice,
+    /// so it runs only when asked to, and goes back to Automatic at the end.
+    func testChooseVersion() async throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let id = env["PARITY_CHOOSE_VERSION"], let label = env["PARITY_CHOOSE_LABEL"] else {
+            throw XCTSkip("Set TEST_RUNNER_PARITY_CHOOSE_VERSION and TEST_RUNNER_PARITY_CHOOSE_LABEL to run this.")
+        }
+        addTeardownBlock { [client] in try? await client?.setVersion(id, fileId: nil) }
+        let versions = try await client.item(id).versions
+        let wanted = try XCTUnwrap(versions?.first { $0.label.hasPrefix(label) })
+
+        open("flexarr://item/\(id)", wait: 6)
+        app.buttons["More actions"].firstMatch.tap()
+        pause(1)
+        app.buttons["Version"].firstMatch.tap()
+        pause(1)
+        let entry = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", label)).firstMatch
+        XCTAssertTrue(entry.exists, "No \(label) in the Version list")
+        entry.tap()
+        pause(3)
+
+        let chosen = try await client.item(id).versions?.first(where: \.chosen)
+        XCTAssertEqual(chosen?.fileId, wanted.fileId, "The server didn't take the choice")
+        shot("12-version-chosen")
+
+        // The page's own Play, which asks for no particular file.
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Play")).firstMatch.tap()
+        pause(20)
+        shot("13-version-playing")
+    }
+
     func testParityTour() async throws {
         let libraries = try await client.libraries()
         let movies = libraries.first { $0.type == .movies }
@@ -75,6 +107,21 @@ final class ParityTour: XCTestCase {
         if let movie {
             open("flexarr://item/\(movie.id)", wait: 6)
             shot("03-movie")
+            // A title with more than one version: the list in ⋯.
+            let more = app.buttons["More actions"].firstMatch
+            if more.waitForExistence(timeout: 2) {
+                more.tap()
+                pause(1)
+                let version = app.buttons["Version"].firstMatch
+                if version.exists {
+                    version.tap()
+                    pause(1)
+                    XCTAssertTrue(app.buttons["Automatic"].firstMatch.exists, "The Version list didn't open")
+                    shot("10-version")
+                }
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.05)).tap()
+                pause(1)
+            }
         }
         if let show {
             open("flexarr://item/\(show.id)", wait: 6)

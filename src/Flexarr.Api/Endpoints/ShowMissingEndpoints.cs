@@ -73,7 +73,7 @@ public static class ShowMissingEndpoints
                 return Results.Ok(ShowMissingDto.None);
             }
 
-            var have = await HaveAsync(db, id, ct);
+            var have = await HaveAsync(db, id, everyCopy: false, ct);
             var seerrInstance = options.CurrentValue.Seerr?.Instance;
             var canRequest = seerrInstance is not null && show.TmdbId is not null
                 && !(await LibraryVisibility.HiddenTypesAsync(db, ct)).Hides(MediaKind.Series);
@@ -125,7 +125,7 @@ public static class ShowMissingEndpoints
 
             try
             {
-                var have = await HaveAsync(db, id, ct);
+                var have = await HaveAsync(db, id, everyCopy: true, ct);
                 var now = DateTime.UtcNow;
                 var wanted = request.EpisodeNumbers is { Count: > 0 } numbers ? numbers.ToHashSet() : null;
                 var episodes = (await arr.GetEpisodesAsync(managed.Instance, managed.Series.Id, ct))
@@ -171,11 +171,17 @@ public static class ShowMissingEndpoints
         public bool Has(int season, int episode) => Episodes.Contains((season, episode));
     }
 
-    private static async Task<Have> HaveAsync(FlexarrDbContext db, Guid showId, CancellationToken ct)
+    /// <summary>
+    /// What the profile can see of a show: an age limit can't hide part of a show it can see, but a hidden library can
+    /// hold a copy, and listing an episode as missing mustn't give away that it's there. A search goes by
+    /// <paramref name="everyCopy"/>, so nothing the library already has anywhere is looked for again.
+    /// </summary>
+    internal static async Task<Have> HaveAsync(FlexarrDbContext db, Guid showId, bool everyCopy, CancellationToken ct)
     {
-        // Missing files are filtered out by the context; an age limit can't hide part of a show it can see.
-        var rows = await db.MediaItems.AsNoTracking().IgnoreQueryFilters()
-            .Where(i => i.Kind == MediaKind.Episode && i.MissingSince == null && i.Parent!.ParentId == showId && i.SeasonNumber != null && i.EpisodeNumber != null)
+        var items = everyCopy ? db.MediaItems.AsNoTracking().IgnoreQueryFilters() : db.MediaItems.AsNoTracking();
+        var group = await items.Where(i => i.Id == showId).Select(i => i.LinkGroupId).FirstOrDefaultAsync(ct);
+        var rows = await items
+            .Where(i => i.Kind == MediaKind.Episode && i.MissingSince == null && (i.Parent!.ParentId == showId || (group != null && i.Parent!.Parent!.LinkGroupId == group)) && i.SeasonNumber != null && i.EpisodeNumber != null)
             .Select(i => new { Season = i.SeasonNumber!.Value, First = i.EpisodeNumber!.Value, Last = i.EpisodeNumberEnd }).ToListAsync(ct);
         var episodes = new HashSet<(int, int)>();
         foreach (var r in rows)
@@ -186,8 +192,8 @@ public static class ShowMissingEndpoints
             }
         }
 
-        var seasons = await db.MediaItems.AsNoTracking().IgnoreQueryFilters()
-            .Where(i => i.Kind == MediaKind.Season && i.MissingSince == null && i.ParentId == showId && i.SeasonNumber != null)
+        var seasons = await items
+            .Where(i => i.Kind == MediaKind.Season && i.MissingSince == null && (i.ParentId == showId || (group != null && i.Parent!.LinkGroupId == group)) && i.SeasonNumber != null)
             .Select(i => i.SeasonNumber!.Value).ToListAsync(ct);
         return new Have(episodes, seasons.Concat(rows.Select(r => r.Season)).ToHashSet());
     }

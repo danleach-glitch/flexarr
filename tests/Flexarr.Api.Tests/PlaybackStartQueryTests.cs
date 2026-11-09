@@ -73,8 +73,9 @@ public sealed class PlaybackStartQueryTests : IAsyncLifetime
         // The audio language last used anywhere in the show is chosen again.
         Assert.Equal(2, info.GetProperty("selectedAudioIndex").GetInt32());
         Assert.True(info.GetProperty("preferences").GetProperty("autoPlayNext").ValueKind is JsonValueKind.True or JsonValueKind.False);
-        // 22 before the trail, the neighbours and the summaries were read together.
-        Assert.InRange(statements, 1, 12);
+        // 22 before the trail, the neighbours and the summaries were read together. One of these asks whether the show is
+        // in another library too.
+        Assert.InRange(statements, 1, 13);
 
         // The last episode has nothing after it; the first nothing before it.
         var (last, _) = await StartAsync(show.S02E02);

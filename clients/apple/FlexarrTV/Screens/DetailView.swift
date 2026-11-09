@@ -30,6 +30,7 @@ struct DetailView: View {
     @State private var isVisible = false
     /// The More menu's choices, searching for subtitles for this file (its id), and what was saved, to say so.
     @State private var showingMore = false
+    @State private var showingVersions = false
     @State private var subtitleSearchFile: SubtitleSearchFile?
     @State private var savedSubtitles: String?
     /// Said once the search has gone (an alert can't come up while the search is still leaving).
@@ -172,7 +173,7 @@ struct DetailView: View {
             }
 
             HStack(spacing: 22) {
-                FactsLine(facts: item.facts(scores: !model.isKids), scores: model.isKids ? nil : item.scores)
+                FactsLine(facts: item.facts(scores: !model.isKids, versions: detail?.versions), scores: model.isKids ? nil : item.scores)
                 if let genres = detail?.genres, !genres.isEmpty {
                     Text(genres.prefix(3).joined(separator: ", "))
                         .font(.system(size: 26, weight: .medium))
@@ -205,7 +206,8 @@ struct DetailView: View {
         return DetailActions(kind: kind, hasProgress: playable?.isResumable == true && item.kind != .series,
                              watched: isWatched(item), hasTrailer: trailer != nil, isKids: model.isKids,
                              platform: .tv, canPlayTrailers: canPlayTrailers, canDownload: false,
-                             canSearchSubtitles: detail?.canSearchSubtitles == true && detail?.files.first != nil)
+                             canSearchSubtitles: detail?.canSearchSubtitles == true && detail?.files.first != nil,
+                             canChooseVersion: (detail?.versions?.count ?? 0) > 1)
     }
 
     private var trailer: YouTubeTrailer? { YouTubeTrailer(id: detail?.trailerYouTubeId) }
@@ -288,9 +290,11 @@ struct DetailView: View {
                         case .button:
                             // Only a phone's row runs out of room.
                             EmptyView()
+                        case .version:
+                            Button(t(Words.version)) { showingVersions = true }
                         case .subtitles:
-                            if let file = detail?.files.first {
-                                Button(t("Search for subtitles…")) { subtitleSearchFile = SubtitleSearchFile(id: file.id) }
+                            if let file = detail?.subtitleTargetId {
+                                Button(t("Search for subtitles…")) { subtitleSearchFile = SubtitleSearchFile(id: file) }
                             }
                         case .goToShow:
                             if let series {
@@ -299,6 +303,25 @@ struct DetailView: View {
                         }
                     }
                 }
+                .confirmationDialog(t(Words.version), isPresented: $showingVersions, titleVisibility: .visible) {
+                    let versions = detail?.versions ?? []
+                    let chosen = versions.first(where: \.chosen)
+                    Button(chosen == nil ? "✓ \(t(Words.automatic))" : t(Words.automatic)) {
+                        chooseVersion(item, nil)
+                    }
+                    ForEach(versions) { version in
+                        let name = version.name(among: versions)
+                        Button(version.chosen ? "✓ \(name)" : name) {
+                            chooseVersion(item, version.fileId)
+                        }
+                    }
+                }
+        }
+    }
+
+    private func chooseVersion(_ item: ItemSummary, _ fileId: String?) {
+        Task {
+            if await !model.chooseVersion(item, fileId: fileId) { savedSubtitles = t("That didn’t work. Try again.") }
         }
     }
 
@@ -462,8 +485,8 @@ struct DetailView: View {
                 LazyHStack(alignment: .top, spacing: 40) {
                     ForEach(season.children) { episode in
                         EpisodeCard(episode: episode, overview: season.childOverviews[episode.id] ?? nil,
-                                    isCurrent: episode.id == item?.id, focus: $focusedEpisode) {
-                            if episode.id == item?.id || item?.kind == .series {
+                                    isCurrent: episode.isSameEpisode(as: item), focus: $focusedEpisode) {
+                            if episode.isSameEpisode(as: item) || item?.kind == .series {
                                 model.play(episode, from: pageToken)
                             } else {
                                 router.push(.item(episode))
@@ -500,14 +523,18 @@ struct DetailView: View {
     }
 
     private func fileInfo(_ file: MediaFile) -> some View {
-        let video = [file.height.map { "\($0)p" }, file.videoCodec?.uppercased(), file.pictureLabel]
-            .compactMap { $0 }.joined(separator: " ")
-        let audio = [file.audioCodec?.uppercased(), file.audioChannels.map(AudioChannels.label)].compactMap { $0 }.joined(separator: " ")
+        // With versions, the one that plays or is chosen, which may be in another copy than the one opened.
+        let version = detail?.shownVersion
+        let video = version.map { [$0.label, $0.videoCodec?.uppercased()].compactMap { $0 }.joined(separator: " ") }
+            ?? [file.height.map { "\($0)p" }, file.videoCodec?.uppercased(), file.pictureLabel].compactMap { $0 }.joined(separator: " ")
+        let audioCodec = version == nil ? file.audioCodec : version?.audioCodec
+        let channels = version == nil ? file.audioChannels : version?.audioChannels
+        let audio = [audioCodec?.uppercased(), channels.map(AudioChannels.label)].compactMap { $0 }.joined(separator: " ")
         return HStack(spacing: 50) {
             if !video.isEmpty { labeled(t("Video"), video) }
             if !audio.isEmpty { labeled(t("Audio"), audio) }
             if let studio = detail?.studio { labeled(t("Studio"), studio) }
-            labeled(t("Size"), formatBytes(file.size))
+            labeled(t("Size"), formatBytes(version?.size ?? file.size))
         }
         .padding(.horizontal, Layout.edge)
     }

@@ -435,6 +435,8 @@ public static class DeviceEndpoints
             return new PlayOutcome(null, false, Loc.T("\"{title}\" has nothing that can be played.", new { title = item.Title }), 409);
         }
 
+        target = await CopyTheProfileSeesAsync(target, profileId, db, ct);
+
         // An app from before books would play one as a video: only its first file, and finish the whole book at its end.
         if (target.Kind == MediaKind.Audiobook && !commands.Takes(device.Id, DeviceCommandKind.Book))
         {
@@ -535,6 +537,27 @@ public static class DeviceEndpoints
     /// show, the episode <paramref name="profileId"/> is up to; for a season, its first unwatched episode; for an album,
     /// its first track; for a podcast, the episode to hear next.
     /// </summary>
+    /// <summary>
+    /// The title as the profile it's being played for can open it: what's found above comes through the sender's
+    /// visibility, and the device's profile may only be able to see another copy.
+    /// </summary>
+    internal static async Task<MediaItem> CopyTheProfileSeesAsync(MediaItem item, string profileId, FlexarrDbContext db, CancellationToken ct)
+    {
+        if (item.LinkGroupId is not { } group)
+        {
+            return item;
+        }
+
+        var sees = await LibraryVisibility.SeenByAsync(db, profileId, ct);
+        if (sees.Allows(item.LibraryId, item.RatingAge, item.KidsOverride))
+        {
+            return item;
+        }
+
+        var copies = await db.MediaItems.IgnoreQueryFilters().AsNoTracking().Where(i => i.LinkGroupId == group && i.MissingSince == null).ToListAsync(ct);
+        return copies.Find(c => sees.Allows(c.LibraryId, c.RatingAge, c.KidsOverride)) ?? item;
+    }
+
     private static async Task<MediaItem?> PlayableAsync(MediaItem item, string profileId, FlexarrDbContext db, PlaybackService playback, CancellationToken ct)
     {
         switch (item.Kind)
@@ -546,7 +569,7 @@ public static class DeviceEndpoints
             case MediaKind.Series:
                 return await playback.NextUpAsync(item.Id, profileId, ct);
             case MediaKind.Season:
-                var episodes = db.MediaItems.AsNoTracking().Where(e => e.ParentId == item.Id && e.Kind == MediaKind.Episode).OrderBy(e => e.SortTitle);
+                var episodes = db.MediaItems.AsNoTracking().ChildrenOf(item.Id, item.LinkGroupId).Where(e => e.Kind == MediaKind.Episode).OrderBy(e => e.SortTitle);
                 return await episodes.FirstOrDefaultAsync(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched), ct)
                     ?? await episodes.FirstOrDefaultAsync(ct);
             case MediaKind.Album:

@@ -364,9 +364,9 @@ fun downloadDescription(download: LocalDownload?, waitingForWiFi: Boolean): Stri
  * tapping offers to stop or remove it; when it failed, tapping says why and offers to try again.
  */
 @Composable
-fun DownloadAction(model: AppModel, item: ItemSummary, modifier: Modifier = Modifier) {
+fun DownloadAction(model: AppModel, item: ItemSummary, modifier: Modifier = Modifier, copies: List<String> = emptyList()) {
     val store = model.downloads
-    val download = store.entry(item.id)
+    val download = store.entry(item.id, copies)
     val waiting = download?.let(store::isWaitingForWiFi) ?: false
     var removing by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }

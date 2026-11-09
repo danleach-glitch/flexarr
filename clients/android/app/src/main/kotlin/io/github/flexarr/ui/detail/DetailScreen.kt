@@ -84,6 +84,8 @@ import io.github.flexarr.core.Format
 import io.github.flexarr.core.ItemDetail
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.MediaFile
+import io.github.flexarr.core.TitleVersion
+import io.github.flexarr.core.sameEpisode
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.ShowMissing
 import io.github.flexarr.core.Availability
@@ -117,7 +119,12 @@ import io.github.flexarr.ui.subtitles.SubtitleSearchSheet
 import io.github.flexarr.ui.playon.PlayOnSheet
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import io.github.flexarr.ui.components.PersonCard
 import io.github.flexarr.ui.components.PillButton
@@ -323,7 +330,7 @@ private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, 
                 }
                 // No scores for a child.
                 val isKids = LocalContext.current.appModel.isKids
-                FactsLine(item.facts(scores = !isKids), scores = if (isKids) null else item.scores)
+                FactsLine(item.facts(scores = !isKids, versions = detail.versions), scores = if (isKids) null else item.scores)
                 if (detail.genres.isNotEmpty()) {
                     Text(detail.genres.take(3).joinToString(", "), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
                 }
@@ -353,12 +360,13 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
     val from = LocalPlayFrom.current
     val navigator = LocalNavigator.current
     val model = androidx.compose.ui.platform.LocalContext.current.appModel
-    // Subtitles from the server's Bazarr, for the first file (the copy playback picks); saying so once they're saved.
+    // Subtitles from the server's Bazarr, for the version chosen or this copy's best file; saying so once they're saved.
     var searchingSubtitlesFor by remember(item.id) { mutableStateOf<String?>(null) }
     var savedSubtitles by remember { mutableStateOf<String?>(null) }
     var choosingScreen by remember(item.id) { mutableStateOf(false) }
     var showingTrailer by remember(item.id) { mutableStateOf(false) }
     var more by remember(item.id) { mutableStateOf(false) }
+    var choosingVersion by remember(item.id) { mutableStateOf(false) }
     // What Play starts: the item itself, or for a show the next-up episode (falling back to the selected season's first).
     val playable = when (item.kind) {
         MediaKind.Movie, MediaKind.Episode -> item
@@ -393,6 +401,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
             platform = DetailActions.Platform.PHONE,
             canDownload = item.kind == MediaKind.Movie || item.kind == MediaKind.Episode,
             canSearchSubtitles = detail.canSearchSubtitles == true && file != null,
+            canChooseVersion = (detail.versions?.size ?: 0) > 1,
             canWatchlist = onWatchlist != null,
         ),
     )
@@ -425,10 +434,32 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
                         maxLines = 2,
                     )
                     DetailActions.Button.WATCHLIST -> onWatchlist?.let { on -> WatchlistAction(on, { toggleWatchlist(on) }, slot) }
-                    DetailActions.Button.DOWNLOAD -> DownloadAction(model, item, slot)
+                    DetailActions.Button.DOWNLOAD -> DownloadAction(model, item, slot, detail.copyIds.orEmpty())
                     DetailActions.Button.MORE -> Box(slot) {
                         LabeledAction(t("More"), FlexarrIcons.more, { more = true }, Modifier.fillMaxWidth())
-                        DropdownMenu(more, onDismissRequest = { more = false }) {
+                        DropdownMenu(more, onDismissRequest = { more = false; choosingVersion = false }) {
+                            // Version's list takes the menu's place, so there's no second popup to open as the first one closes.
+                            if (choosingVersion) {
+                                val versions = detail.versions.orEmpty()
+                                val choose = { fileId: String? -> more = false; choosingVersion = false; navigator.chooseVersion(item, fileId) }
+                                // Read out as a choice, and which one is on: the row says so rather than its circle.
+                                val choice = { on: Boolean -> Modifier.semantics { role = Role.RadioButton; selected = on } }
+                                DropdownMenuItem(
+                                    text = { Text(t(Words.automatic)) },
+                                    leadingIcon = { RadioButton(versions.none { it.chosen }, onClick = null, Modifier.clearAndSetSemantics {}) },
+                                    onClick = { choose(null) },
+                                    modifier = choice(versions.none { it.chosen }),
+                                )
+                                versions.forEach { version ->
+                                    DropdownMenuItem(
+                                        text = { Text(version.name(versions)) },
+                                        leadingIcon = { RadioButton(version.chosen, onClick = null, Modifier.clearAndSetSemantics {}) },
+                                        onClick = { choose(version.fileId) },
+                                        modifier = choice(version.chosen),
+                                    )
+                                }
+                                return@DropdownMenu
+                            }
                             actions.menu.forEach { entry ->
                                 when (entry) {
                                     is DetailActions.MenuItem.Moved -> when (entry.button) {
@@ -450,8 +481,10 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
                                         }
                                         else -> Unit
                                     }
-                                    DetailActions.MenuItem.Subtitles -> file?.let { found ->
-                                        DropdownMenuItem(text = { Text(t("Search for subtitles")) }, onClick = { more = false; searchingSubtitlesFor = found.id })
+                                    DetailActions.MenuItem.Version ->
+                                        DropdownMenuItem(text = { Text(t(Words.version)) }, onClick = { choosingVersion = true })
+                                    DetailActions.MenuItem.Subtitles -> detail.subtitleTargetId?.let { found ->
+                                        DropdownMenuItem(text = { Text(t("Search for subtitles")) }, onClick = { more = false; searchingSubtitlesFor = found })
                                     }
                                     DetailActions.MenuItem.GoToShow -> series?.let { show ->
                                         DropdownMenuItem(text = { Text(t(Words.goToShow)) }, onClick = { more = false; navigator.openItem(show.id) })
@@ -535,7 +568,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.sections(
         item(key = "season-heading") { SectionHeading(season.item.title) }
         items(season.children.chunked(columns), key = { "episode-${it.first().id}" }) { row ->
             EpisodeColumns(row, columns) { episode ->
-                EpisodeRow(episode, season.childOverviews[episode.id], isCurrent = episode.id == item.id, playsOnTap = episode.id == item.id)
+                EpisodeRow(episode, season.childOverviews[episode.id], isCurrent = episode.sameEpisode(item), playsOnTap = episode.id == item.id)
             }
         }
     } else if (item.kind != MediaKind.Movie && item.kind != MediaKind.Episode && detail.children.isNotEmpty()) {
@@ -577,7 +610,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.sections(
             }
         }
     }
-    detail.files.firstOrNull()?.let { file -> item(key = "file") { FileInfo(file, detail.studio) } }
+    detail.files.firstOrNull()?.let { file -> item(key = "file") { FileInfo(file, detail.shownVersion, detail.studio) } }
 }
 
 @Composable
@@ -656,14 +689,18 @@ private fun episodeTime(episode: ItemSummary): String? {
 }
 
 @Composable
-private fun FileInfo(file: MediaFile, studio: String?) {
-    val video = listOfNotNull(file.height?.let { "${it}p" }, file.videoCodec?.uppercase(Locale.ROOT), file.pictureLabel).joinToString(" ")
-    val audio = listOfNotNull(file.audioCodec?.uppercase(Locale.ROOT), file.audioChannels?.let(::channelsLabel)).joinToString(" ")
+private fun FileInfo(file: MediaFile, version: TitleVersion?, studio: String?) {
+    // With versions, the one that plays or is chosen, which may be in another copy than the one opened.
+    val video = version?.let { listOfNotNull(it.label, it.videoCodec?.uppercase(Locale.ROOT)).joinToString(" ") }
+        ?: listOfNotNull(file.height?.let { "${it}p" }, file.videoCodec?.uppercase(Locale.ROOT), file.pictureLabel).joinToString(" ")
+    val audioCodec = if (version == null) file.audioCodec else version.audioCodec
+    val channels = if (version == null) file.audioChannels else version.audioChannels
+    val audio = listOfNotNull(audioCodec?.uppercase(Locale.ROOT), channels?.let(::channelsLabel)).joinToString(" ")
     val facts = listOfNotNull(
         video.takeIf { it.isNotEmpty() }?.let { t("Video") to it },
         audio.takeIf { it.isNotEmpty() }?.let { t("Audio") to it },
         studio?.let { t("Studio") to it },
-        t("Size") to fileSizeLabel(file.size),
+        t("Size") to fileSizeLabel(version?.size ?: file.size),
     )
     Column(Modifier.padding(horizontal = Edge), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         facts.chunked(2).forEach { pair ->

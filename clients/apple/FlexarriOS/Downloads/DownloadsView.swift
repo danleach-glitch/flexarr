@@ -239,12 +239,14 @@ private struct PodcastDownloadRow: View {
 struct DownloadButton: View {
     @Environment(DownloadStore.self) private var store
     let item: ItemSummary
+    /// Its linked copies, as a download made through one of them is this title's too.
+    var copies: [String] = []
     @State private var removing = false
     @State private var error: String?
     @State private var failure: String?
 
     var body: some View {
-        let download = store.entry(for: item.id)
+        let download = store.entry(for: item.id, orCopies: copies)
         let waiting = download.map(store.isWaitingForWiFi) ?? false
         Button {
             switch download?.state {

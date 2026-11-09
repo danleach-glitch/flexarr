@@ -22,7 +22,10 @@ public static partial class Subtitles
     /// Embedded subtitle streams, closed captions in the video, and sidecar files such as "Movie (2020).en.forced.srt".
     /// <paramref name="teletextReadable"/>: this server's FFmpeg can convert teletext.
     /// </summary>
-    public static IReadOnlyList<SubtitleTrack> For(MediaFile file, bool teletextReadable = false)
+    /// <param name="file">The file.</param>
+    /// <param name="teletextReadable">Whether this server can read teletext.</param>
+    /// <param name="sidecars">Whether to look beside the file for subtitle files, which means reaching its drive.</param>
+    public static IReadOnlyList<SubtitleTrack> For(MediaFile file, bool teletextReadable = false, bool sidecars = true)
     {
         ArgumentNullException.ThrowIfNull(file);
 
@@ -39,7 +42,7 @@ public static partial class Subtitles
 
         var directory = Path.GetDirectoryName(file.Path);
         var stem = Path.GetFileNameWithoutExtension(file.Path);
-        if (directory is null || !Directory.Exists(directory))
+        if (!sidecars || directory is null || !Directory.Exists(directory))
         {
             return tracks;
         }

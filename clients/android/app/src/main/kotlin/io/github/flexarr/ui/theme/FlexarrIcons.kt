@@ -33,6 +33,7 @@ import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.ImportContacts
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.LocalMovies
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.MicNone
@@ -105,6 +106,8 @@ object FlexarrIcons {
     val removeFromRow: ImageVector get() = Icons.Outlined.RemoveCircleOutline
     /** Refresh the Live TV guide. */
     val refresh: ImageVector get() = Icons.Filled.Refresh
+    /** Choose a title's version (4K or 1080p, a director's cut). */
+    val version: ImageVector get() = Icons.Outlined.Layers
     /** More actions. */
     val more: ImageVector get() = Icons.Filled.MoreHoriz
     /** Home. */

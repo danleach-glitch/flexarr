@@ -208,7 +208,7 @@ private fun panelItems(
                 }
             }
             "teletext" -> (listOf(null) + Teletext.pages).forEach { number ->
-                add(PanelItem(number?.toString() ?: t("Automatic"), checked = number == controller.teletextPage, enabled = !reopening) { close(); controller.chooseTeletextPage(number) })
+                add(PanelItem(number?.toString() ?: t(Words.automatic), checked = number == controller.teletextPage, enabled = !reopening) { close(); controller.chooseTeletextPage(number) })
             }
             "size" -> SubtitleSize.choices.forEach { size ->
                 add(PanelItem(size.label, checked = size == controller.subtitleSize) { controller.chooseSubtitleSize(size) })
@@ -228,7 +228,7 @@ private fun panelItems(
                 }
                 // Teletext subtitles are on a page of their own, which a recording doesn't always mark.
                 if (controller.canChooseTeletextPage) {
-                    add(PanelItem(t("Teletext page"), value = controller.teletextPage?.toString() ?: t("Automatic"), opens = true, gapBefore = true) { openPage("teletext") })
+                    add(PanelItem(t("Teletext page"), value = controller.teletextPage?.toString() ?: t(Words.automatic), opens = true, gapBefore = true) { openPage("teletext") })
                 }
                 // Burned into the picture, they can't be moved: the server draws them where they fall.
                 if (!info.subtitleBurnedIn) {

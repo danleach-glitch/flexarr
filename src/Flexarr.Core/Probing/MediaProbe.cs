@@ -21,6 +21,9 @@ public sealed record ProbeResult(
     /// <summary>The video carries HDR10+ scene-by-scene metadata (SMPTE ST 2094-40) alongside its HDR10.</summary>
     public bool Hdr10Plus { get; init; }
 
+    /// <summary>The video's Dolby Vision profile (5, 7, 8…), 0 when it doesn't say which; null without Dolby Vision.</summary>
+    public int? DolbyVisionProfile { get; init; }
+
     /// <summary>The video carries closed captions (CEA-608/708) in its frames; null when the video can't carry them.</summary>
     public bool? ClosedCaptions { get; init; }
 }
@@ -254,6 +257,7 @@ public sealed class FfprobeMediaProbe(string ffprobePath = "ffprobe") : IMediaPr
 
         var streams = new List<MediaStream>();
         var range = VideoRange.Sdr;
+        int? dolbyVision = null;
         if (root.TryGetProperty("streams", out var streamArray))
         {
             foreach (var s in streamArray.EnumerateArray())
@@ -302,11 +306,12 @@ public sealed class FfprobeMediaProbe(string ffprobePath = "ffprobe") : IMediaPr
                 if (type == StreamType.Video && streams.Count(x => x.Type == StreamType.Video) == 1)
                 {
                     range = DetectRange(s);
+                    dolbyVision = range == VideoRange.DolbyVision ? DolbyVisionProfileOf(s) : null;
                 }
             }
         }
 
-        return new ProbeResult(container, duration, bitrate, range, streams) { Tags = tags, HasCoverArt = coverArt };
+        return new ProbeResult(container, duration, bitrate, range, streams) { Tags = tags, HasCoverArt = coverArt, DolbyVisionProfile = dolbyVision };
     }
 
     private static void AddTags(Dictionary<string, string> into, JsonElement element)
@@ -350,6 +355,11 @@ public sealed class FfprobeMediaProbe(string ffprobePath = "ffprobe") : IMediaPr
             _ => VideoRange.Sdr,
         };
     }
+
+    private static int DolbyVisionProfileOf(JsonElement stream) =>
+        stream.GetProperty("side_data_list").EnumerateArray()
+            .Where(d => Str(d, "side_data_type")?.Contains("DOVI", StringComparison.OrdinalIgnoreCase) == true)
+            .Select(d => Int(d, "dv_profile")).FirstOrDefault() ?? 0;
 
     private static bool Disposition(JsonElement stream, string name) =>
         stream.TryGetProperty("disposition", out var d) && d.TryGetProperty(name, out var v) && v.GetInt32() == 1;

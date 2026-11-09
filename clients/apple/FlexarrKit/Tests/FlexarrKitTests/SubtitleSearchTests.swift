@@ -30,6 +30,20 @@ struct SubtitleSearchTests {
         #expect(detail.canSearchSubtitles == nil)
     }
 
+    @Test func theSearchAndTheFactsFollowTheVersionChosen() throws {
+        var json = try #require(try JSONSerialization.jsonObject(with: Fixture.data("item-movie")) as? [String: Any])
+        func version(_ id: String, chosen: Bool) -> [String: Any] {
+            ["fileId": id, "label": id, "size": 1, "chosen": chosen, "videoCodec": "hevc", "audioCodec": "eac3", "audioChannels": 6]
+        }
+        json["versions"] = [version("4K", chosen: false), version("1080p", chosen: true)]
+
+        let detail = try FlexarrClient.decoder.decode(ItemDetail.self, from: JSONSerialization.data(withJSONObject: json))
+
+        #expect(detail.subtitleTargetId == "1080p")
+        #expect(detail.shownVersion?.fileId == "1080p")
+        #expect(detail.shownVersion?.videoCodec == "hevc")
+    }
+
     @Test func detailSaysWhenSubtitlesCanBeSearched() throws {
         var json = try #require(try JSONSerialization.jsonObject(with: Fixture.data("item-movie")) as? [String: Any])
         json["canSearchSubtitles"] = true
@@ -37,7 +51,7 @@ struct SubtitleSearchTests {
         let detail = try FlexarrClient.decoder.decode(ItemDetail.self, from: JSONSerialization.data(withJSONObject: json))
 
         #expect(detail.canSearchSubtitles == true)
-        #expect(detail.files.first?.id != nil, "the search is for the first file, the one playback picks")
+        #expect(detail.subtitleTargetId == detail.files.first?.id, "with no versions, the search is for this copy's best file")
     }
 
     @Test func searchAsksForTheFileAndDecodesResultsInOrder() async throws {

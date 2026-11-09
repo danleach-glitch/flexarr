@@ -124,9 +124,9 @@ data class Scores(val imdb: Double?, val rottenTomatoes: RottenTomatoes?) {
 /**
  * Short facts for heroes and detail headers: year, runtime or seasons, rating, a plain score, resolution. [scores]
  * false (kids profiles) leaves the plain score out, and so does a title with an IMDb score to show beside its mark
- * instead (the plain one is usually IMDb's).
+ * instead (the plain one is usually IMDb's). [versions], with two or more, show side by side in place of the one resolution.
  */
-fun ItemSummary.facts(scores: Boolean = true): List<String> =
+fun ItemSummary.facts(scores: Boolean = true, versions: List<TitleVersion>? = null): List<String> =
     buildList {
         releaseYear?.let { add(it.toString()) }
         val n = childCount
@@ -145,7 +145,8 @@ fun ItemSummary.facts(scores: Boolean = true): List<String> =
         }
         contentRating?.takeIf { it.isNotEmpty() }?.let(::add)
         if (scores && this@facts.scores.imdb == null) communityRating?.takeIf { it > 0 }?.let { add(String.format(Locale.ROOT, "%.1f", it)) }
-        resolution?.takeIf { it.isNotEmpty() }?.let(::add)
+        if (versions != null && versions.size > 1) addAll(versions.map { it.label }.filter { it.isNotEmpty() }.distinct())
+        else resolution?.takeIf { it.isNotEmpty() }?.let(::add)
     }
 
 /**

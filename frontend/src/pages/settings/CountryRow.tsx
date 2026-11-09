@@ -5,7 +5,7 @@ import { useApi } from '../../hooks/useApi'
 import { useSession } from '../../hooks/sessionContext'
 import { showNotice } from '../../lib/notice'
 import { ratingSteps } from '../../lib/ratings'
-import { t } from '../../i18n'
+import { t, Words } from '../../i18n'
 import { SaveStatus, SettingRow } from './shared'
 import { errorText } from './useSettings'
 
@@ -23,7 +23,7 @@ interface CountryOptions {
 function CountrySelect({ options, chosen, onPick, busy, describedBy, invalid, name }: { options: CountryOptions; chosen: string; onPick: (country: string) => void; busy?: boolean; describedBy?: string; invalid?: boolean; name?: string }) {
   return (
     <select aria-label={name} aria-describedby={describedBy} aria-invalid={invalid || undefined} aria-busy={busy || undefined} value={chosen} onChange={(e) => onPick(e.target.value)} disabled={!options.ready}>
-      <option value="">{options.unset ? t('Not set') : !chosen && options.regionName ? t('Automatic ({region})', { region: options.regionName }) : t('Automatic')}</option>
+      <option value="">{options.unset ? t('Not set') : !chosen && options.regionName ? t('Automatic ({region})', { region: options.regionName }) : t(Words.automatic)}</option>
       {options.countries?.map((c) => (
         <option key={c.code} value={c.code}>
           {c.name}

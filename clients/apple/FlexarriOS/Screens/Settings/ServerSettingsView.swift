@@ -39,7 +39,7 @@ struct ServerSettingsView: View {
 
             Section {
                 if let status {
-                    row(t("Version"), ServerVersion.short(status.version))
+                    row(t(Words.version), ServerVersion.short(status.version))
                     row(t("Running on"), status.osDescription)
                     row(t("Up since"), status.startTime.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: Localization.locale)))
                 } else if let error {
