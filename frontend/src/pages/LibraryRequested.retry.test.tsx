@@ -117,4 +117,52 @@ describe('Try again, against the server', () => {
     await screen.findByRole('button', named)
     expect(screen.queryByRole('alert')).toBeNull()
   })
+
+  it('sends this album, and moves the keyboard to Unrequest when the button goes', async () => {
+    const api = mockApi({
+      '/requests/music/requested': [album()],
+      '/requests/music/status': { configured: true, reachable: true },
+      'POST /requests/music/retry': undefined,
+    })
+    open()
+    const button = await screen.findByRole('button', named)
+    button.focus()
+
+    fireEvent.click(button)
+
+    await waitFor(() => expect(screen.queryByRole('button', named)).toBeNull())
+    expect(screen.getByRole('button', { name: 'Unrequest City Lounge' })).toHaveFocus()
+    const post = api.mock.calls.find(([input, init]) => String(input).endsWith('/requests/music/retry') && init?.method === 'POST')
+    expect(JSON.parse(String(post?.[1]?.body))).toEqual({ musicBrainzId: 'rg' })
+  })
+
+  it('leaves the keyboard alone when it was somewhere else', async () => {
+    mockApi({
+      '/requests/music/requested': [album()],
+      '/requests/music/status': { configured: true, reachable: true },
+      'POST /requests/music/retry': undefined,
+    })
+    open()
+
+    fireEvent.click(await screen.findByRole('button', named))
+
+    await waitFor(() => expect(screen.queryByRole('button', named)).toBeNull())
+    expect(screen.getByRole('button', { name: 'Unrequest City Lounge' })).not.toHaveFocus()
+  })
+
+  it('keeps focus on the button through an answer that says no', async () => {
+    mockApi({
+      '/requests/music/requested': [album()],
+      '/requests/music/status': { configured: true, reachable: true },
+      'POST /requests/music/retry': () => problem(409, 'Not stuck'),
+    })
+    open()
+    const button = await screen.findByRole('button', named)
+    button.focus()
+
+    fireEvent.click(button)
+
+    await screen.findByRole('alert')
+    expect(button).toHaveFocus()
+  })
 })

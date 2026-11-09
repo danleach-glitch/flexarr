@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import {
   getMusicRequested,
@@ -208,10 +208,13 @@ function RequestedCard({ row, square, offline, service, onGone, onRetried }: { r
     if (!canTryAgain) setRetryError(undefined)
   }, [canTryAgain])
 
-  async function retry() {
+  async function retry(event: MouseEvent<HTMLButtonElement>) {
+    const button = event.currentTarget
     setRetryError(undefined)
     try {
       await row.retry?.()
+      // The button goes now: the keyboard moves on to what's left of the card.
+      if (document.activeElement === button) button.parentElement?.querySelector<HTMLButtonElement>('.requested-unrequest')?.focus()
       setRetried(true)
       onRetried()
     } catch (e) {
@@ -254,7 +257,7 @@ function RequestedCard({ row, square, offline, service, onGone, onRetried }: { r
       )}
       <div className="external-card-actions">
         {canTryAgain && (
-          <AsyncButton className="button small" aria-label={t('Try again: {title}', { title: row.title })} onClick={retry} disabled={offline} title={offline ? t('{service} isn’t answering.', { service }) : undefined}>
+          <AsyncButton className="button small" aria-label={t('Try again: {title}', { title: row.title })} keepFocus onClick={retry} disabled={offline} title={offline ? t('{service} isn’t answering.', { service }) : undefined}>
             {t('Try again')}
           </AsyncButton>
         )}
