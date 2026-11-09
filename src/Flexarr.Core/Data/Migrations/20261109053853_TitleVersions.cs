@@ -18,6 +18,17 @@ namespace Flexarr.Core.Data.Migrations
                 nullable: true);
 
             migrationBuilder.CreateTable(
+                name: "TitleGroups",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "TEXT", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TitleGroups", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "VersionChoices",
                 columns: table => new
                 {
@@ -54,6 +65,14 @@ namespace Flexarr.Core.Data.Migrations
                 name: "IX_VersionChoices_MediaItemId",
                 table: "VersionChoices",
                 column: "MediaItemId");
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_MediaItems_TitleGroups_LinkGroupId",
+                table: "MediaItems",
+                column: "LinkGroupId",
+                principalTable: "TitleGroups",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.SetNull);
         
             // Episodes' other versions were marked as scanned without being looked at. Now they're looked at.
             migrationBuilder.Sql("""
@@ -69,6 +88,13 @@ namespace Flexarr.Core.Data.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropForeignKey(
+                name: "FK_MediaItems_TitleGroups_LinkGroupId",
+                table: "MediaItems");
+
+            migrationBuilder.DropTable(
+                name: "TitleGroups");
+
             migrationBuilder.DropTable(
                 name: "VersionChoices");
 

@@ -17,6 +17,16 @@ public enum MediaKind
 }
 
 /// <summary>
+/// The copies of one title (see <see cref="MediaItem.LinkGroupId"/>). A row of its own, which no profile's filter hides,
+/// so that a query can reach an item's copies by going through it and only see those the profile may.
+/// </summary>
+public sealed class TitleGroup
+{
+    public Guid Id { get; set; }
+    public List<MediaItem> Items { get; set; } = [];
+}
+
+/// <summary>
 /// A browsable thing: a movie, or a node in the series → season → episode, artist → album → track or
 /// podcast → podcast episode tree. Playable items (movies, episodes, tracks) own one or more <see cref="MediaFile"/>s;
 /// a podcast episode is played from its feed (see <see cref="Podcasts.PodcastEpisode"/>).
@@ -88,6 +98,7 @@ public sealed class MediaItem
     /// and episodes. Null with only one copy. Worked out by <see cref="Scanning.TitleLinker"/>, see docs/multi-versions.md.
     /// </summary>
     public Guid? LinkGroupId { get; set; }
+    public TitleGroup? LinkGroup { get; set; }
 
     public List<MediaFile> Files { get; set; } = [];
 

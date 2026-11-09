@@ -1493,6 +1493,17 @@ namespace Flexarr.Core.Data.Migrations
                     b.ToTable("ShowPlaybackSpeeds");
                 });
 
+            modelBuilder.Entity("Flexarr.Core.Media.TitleGroup", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("TitleGroups");
+                });
+
             modelBuilder.Entity("Flexarr.Core.Media.TraktConnection", b =>
                 {
                     b.Property<string>("ProfileId")
@@ -2375,10 +2386,17 @@ namespace Flexarr.Core.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Flexarr.Core.Media.TitleGroup", "LinkGroup")
+                        .WithMany("Items")
+                        .HasForeignKey("LinkGroupId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Flexarr.Core.Media.MediaItem", "Parent")
                         .WithMany("Children")
                         .HasForeignKey("ParentId")
                         .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("LinkGroup");
 
                     b.Navigation("Parent");
                 });
@@ -2746,6 +2764,11 @@ namespace Flexarr.Core.Data.Migrations
                 });
 
             modelBuilder.Entity("Flexarr.Core.Media.Playlist", b =>
+                {
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("Flexarr.Core.Media.TitleGroup", b =>
                 {
                     b.Navigation("Items");
                 });

@@ -39,6 +39,9 @@ public static class TitleLinker
             }
 
             await using var transaction = await db.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
+            var known = await db.TitleGroups.Select(g => g.Id).ToListAsync(ct).ConfigureAwait(false);
+            db.TitleGroups.AddRange(wanted.Values.Distinct().Except(known).Select(id => new TitleGroup { Id = id }));
+            await db.SaveChangesAsync(ct).ConfigureAwait(false);
             foreach (var chunk in missing.Chunk(500))
             {
                 await db.MediaItems.IgnoreQueryFilters().Where(i => chunk.Contains(i.Id))
@@ -53,6 +56,12 @@ public static class TitleLinker
                     await db.MediaItems.IgnoreQueryFilters().Where(i => chunk.Contains(i.Id))
                         .ExecuteUpdateAsync(u => u.SetProperty(i => i.LinkGroupId, linkTo), ct).ConfigureAwait(false);
                 }
+            }
+
+            var used = wanted.Values.ToHashSet();
+            foreach (var chunk in known.Where(id => !used.Contains(id)).Chunk(500))
+            {
+                await db.TitleGroups.Where(g => chunk.Contains(g.Id)).ExecuteDeleteAsync(ct).ConfigureAwait(false);
             }
 
             var joined = changes.Where(c => c.Kind is MediaKind.Movie or MediaKind.Episode && wanted.ContainsKey(c.Id)).Select(c => wanted[c.Id]).ToHashSet();

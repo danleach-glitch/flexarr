@@ -21,6 +21,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
     public DbSet<Credit> Credits => Set<Credit>();
     public DbSet<PlaybackState> PlaybackStates => Set<PlaybackState>();
     public DbSet<VersionChoice> VersionChoices => Set<VersionChoice>();
+    public DbSet<TitleGroup> TitleGroups => Set<TitleGroup>();
     public DbSet<ContinueWatchingDismissal> ContinueWatchingDismissals => Set<ContinueWatchingDismissal>();
     public DbSet<ShowPlaybackSpeed> ShowPlaybackSpeeds => Set<ShowPlaybackSpeed>();
     public DbSet<Books.BookDetails> BookDetails => Set<Books.BookDetails>();
@@ -129,7 +130,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             // NamedItems.Searched), so queries for one kind by its parent, path or ids keep the indexes they have.
             e.HasIndex(i => new { i.Kind, i.Title }).HasFilter("\"Kind\" IN ('Episode', 'Album', 'Track', 'Audiobook')");
             e.HasIndex(i => i.Path);
-            e.HasIndex(i => i.LinkGroupId);
+            e.HasOne(i => i.LinkGroup).WithMany(g => g.Items).HasForeignKey(i => i.LinkGroupId).OnDelete(DeleteBehavior.SetNull);
             e.HasIndex(i => i.AddedAt);
             e.HasIndex(i => i.FirstSeenAt);
             // Coming soon, requests, notifications and watch history all find titles by these.
