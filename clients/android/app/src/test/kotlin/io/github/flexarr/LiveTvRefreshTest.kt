@@ -2,6 +2,7 @@ package io.github.flexarr
 
 import android.app.Application
 import android.os.Looper
+import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.LiveTvStatus
 import io.github.flexarr.core.i18n.Words
 import kotlinx.coroutines.launch
@@ -317,6 +318,52 @@ class LiveTvRefreshTest {
         assertEquals("Unlock first", said.words)
         assertEquals(said, said.following(parsed()))
         assertEquals(said, said.following(parsed(error = "Something else")))
+    }
+
+    @Test fun aPressRefusedWithNoWords_saysNotAllowed_andStands() {
+        refreshAnswer = MockResponse.Builder().code(403).build()
+        refreshAndWait()
+        val said = model.takeLiveTvRefreshEnd()!!
+        assertEquals("Not allowed", said.words)
+        assertEquals(said, said.following(parsed()))
+    }
+
+    @Test fun aPressRefusedBySignIn_stands() {
+        refreshAnswer = MockResponse.Builder().code(401).build()
+        refreshAndWait()
+        val said = model.takeLiveTvRefreshEnd()!!
+        assertEquals(FlexarrException.Unauthorized().message, said.words)
+        assertEquals(said, said.following(parsed()))
+    }
+
+    @Test fun aCheckBeforeThePressRefused_stands_andThePressIsntSent() {
+        statusAnswer = TestServer.json("""{"title":"Unlock first"}""", 403)
+        refreshAndWait()
+        val said = model.takeLiveTvRefreshEnd()!!
+        assertEquals("Unlock first", said.words)
+        assertEquals(said, said.following(parsed()))
+        assertEquals(0, server.requestsTo("/livetv/refresh").size)
+    }
+
+    @Test fun anyOtherFourHundred_keepsItsWords_butAGoodLookClearsIt() {
+        refreshAnswer = TestServer.json("""{"title":"Slow down"}""", 429)
+        refreshAndWait()
+        val worded = model.takeLiveTvRefreshEnd()!!
+        assertEquals("Slow down", worded.words)
+        assertNull(worded.following(parsed()))
+
+        refreshAnswer = MockResponse.Builder().code(404).build()
+        refreshAndWait(ended = 2)
+        assertNull(model.takeLiveTvRefreshEnd()!!.following(parsed()))
+    }
+
+    @Test fun aLookRefusedAfterAnAcceptedPress_isntARefusal() {
+        refreshAsked()
+        statusAnswer = TestServer.json("{}", 401)
+        server.waitUntil("the refresh") { model.liveTvRefreshesEnded == 1 }
+        val said = model.takeLiveTvRefreshEnd()!!
+        assertEquals(Words.serverDidntAnswer, said.words)
+        assertNull(said.following(parsed()))
     }
 
     @Test fun aPressThatDidntGetThere_isntARefusal() {

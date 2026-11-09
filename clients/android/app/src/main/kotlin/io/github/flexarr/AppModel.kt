@@ -2203,13 +2203,18 @@ internal class UnseenEnd<Who, End : Any>(private val keptMs: Long, private val n
 
 /** Why a Live TV refresh failed: the server's own words when it answered (a lapsed admin unlock, say). */
 internal fun refreshFailure(error: Exception): String =
-    (error as? FlexarrException)?.message ?: t(Words.serverDidntAnswer)
+    if (error is FlexarrException.Http && error.saidNothing && isRefusal(error)) t("Not allowed")
+    else (error as? FlexarrException)?.message ?: t(Words.serverDidntAnswer)
 
-/** The server heard a refresh's press and turned it down, rather than being out of reach or falling over. */
+/**
+ * The server turned down a refresh: a 401 or 403 whatever its body (a policy's refusal has none). What reaches here is
+ * the press or the status check just before it, as the looks after it never throw. Anything else (a proxy's 404 or 429,
+ * say) refused nothing.
+ */
 internal fun isRefusal(error: Exception): Boolean = when (error) {
-    is FlexarrException.Unreachable, is FlexarrException.UnexpectedResponse -> false
-    is FlexarrException.Http -> error.status < 500
-    else -> error is FlexarrException
+    is FlexarrException.Unauthorized, is FlexarrException.ParentPinNeeded, is FlexarrException.OwnPinWrong, is FlexarrException.KidsLocked -> true
+    is FlexarrException.Http -> error.status == 401 || error.status == 403
+    else -> false
 }
 
 /**
