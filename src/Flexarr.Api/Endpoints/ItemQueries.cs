@@ -29,6 +29,10 @@ public static class ItemQueries
     public static IQueryable<MediaItem> ChildrenOf(this IQueryable<MediaItem> items, Guid parentId, Guid? linkGroupId) =>
         linkGroupId is null ? items.Where(i => i.ParentId == parentId) : items.Where(i => i.Parent!.LinkGroupId == linkGroupId).OnePerTitle();
 
+    /// <summary>A show or season is watched when none of it is left. Worked out here: in the query, it would count the episodes again.</summary>
+    private static UserDataDto UserData(double position, bool watched, int playCount, DateTime? lastPlayed, int? unwatched) =>
+        new(position, unwatched is { } left ? left == 0 : watched, playCount, lastPlayed, unwatched);
+
     /// <summary>These ids with later copies of a linked title left out, in their order: for lists already ranked in memory.</summary>
     public static async Task<List<Guid>> OnePerTitleAsync(FlexarrDbContext db, IReadOnlyList<Guid> ids, CancellationToken ct)
     {
@@ -55,7 +59,7 @@ public static class ItemQueries
                     : i.ParentId,
                 // A linked title counts across its copies, each child once.
                 ChildCount = i.LinkGroupId == null ? i.Children.Count
-                    : i.LinkGroup!.Items.SelectMany(c => c.Children).Count(c => c.LinkGroupId == null || !c.LinkGroup!.Items.Any(o => o.Id.CompareTo(c.Id) < 0)),
+                    : i.LinkGroup!.Items.SelectMany(c => c.Children).Select(c => c.LinkGroupId ?? c.Id).Distinct().Count(),
                 Best = i.Files.OrderByDescending(f => f.Height).Select(f => new { f.DurationSeconds, f.Width, f.Height }).FirstOrDefault(),
                 Poster = i.PosterUrl != null || (i.Parent != null && (i.Parent.PosterUrl != null || (i.Parent.Parent != null && i.Parent.Parent.PosterUrl != null))),
                 Backdrop = i.BackdropUrl != null || (i.Parent != null && (i.Parent.BackdropUrl != null || (i.Parent.Parent != null && i.Parent.Parent.BackdropUrl != null))),
@@ -96,12 +100,12 @@ public static class ItemQueries
                     ? i.LinkGroupId == null
                         ? i.Children.SelectMany(s => s.Children).Count(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched))
                         : i.LinkGroup!.Items.SelectMany(c => c.Children).SelectMany(s => s.Children)
-                            .Count(e => (e.LinkGroupId == null || !e.LinkGroup!.Items.Any(o => o.Id.CompareTo(e.Id) < 0)) && !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched))
+                            .Where(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched)).Select(e => e.LinkGroupId ?? e.Id).Distinct().Count()
                     : i.Kind == MediaKind.Season
                         ? i.LinkGroupId == null
                             ? i.Children.Count(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched))
                             : i.LinkGroup!.Items.SelectMany(c => c.Children)
-                                .Count(e => (e.LinkGroupId == null || !e.LinkGroup!.Items.Any(o => o.Id.CompareTo(e.Id) < 0)) && !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched))
+                                .Where(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched)).Select(e => e.LinkGroupId ?? e.Id).Distinct().Count()
                         : (int?)null,
             })
             .Select(x => new ItemSummaryDto(
@@ -118,9 +122,9 @@ public static class ItemQueries
                 x.Item.ContentRating,
                 x.Item.RuntimeMinutes,
                 x.Item.ReleaseDate,
-                new UserDataDto(
+                UserData(
                     x.State == null ? 0 : x.State.PositionSeconds,
-                    x.Unwatched != null ? x.Unwatched == 0 : x.State != null && x.State.Watched,
+                    x.State != null && x.State.Watched,
                     x.State == null ? 0 : x.State.PlayCount,
                     x.State == null ? null : x.State.LastPlayedAt,
                     x.Unwatched),
