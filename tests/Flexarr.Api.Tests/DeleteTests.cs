@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
+using Flexarr.Core.Scanning;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -213,7 +214,9 @@ public class DeleteTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         Assert.False(await check.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaItems.AnyAsync(i => i.Id == artist.Id));
     }
 
-    private sealed record DeletionPlan(string? ManagedBy, string[] Files);
+    private sealed record DeletionPlan(string? ManagedBy, string[] Files, DeletionCopy[]? Copies = null);
+
+    private sealed record DeletionCopy(Guid ItemId, string Library, string? ManagedBy, string[] Files);
 
     /// <summary>A film no Radarr manages, in a films library whose folder is <paramref name="root"/>.</summary>
     private async Task<Guid> AddFilmAsync(string root, string video)
@@ -335,5 +338,150 @@ public class DeleteTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.True(File.Exists(spare));
         Directory.Delete(dir, recursive: true);
+    }
+
+    private static Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> WithSecondRadarr(FakeArr arr, FlexarrApiFactory factory) =>
+        arr.Serve(factory).WithWebHostBuilder(b =>
+        {
+            b.UseSetting("Flexarr:Arr:2:Name", "Radarr 4K");
+            b.UseSetting("Flexarr:Arr:2:Kind", "Radarr");
+            b.UseSetting("Flexarr:Arr:2:BaseUrl", "http://radarr4k.test");
+            b.UseSetting("Flexarr:Arr:2:ApiKey", "key");
+        });
+
+    /// <summary>A film in an HD and a 4K library. The 4K copy's record names the HD Radarr, as metadata's TMDB fallback can.</summary>
+    private static async Task<(Guid Hd, Guid Uhd, Guid UhdLibrary, string HdFile, string UhdFile, string Root)> AddLinkedFilmAsync(
+        Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> app, FakeArr arr)
+    {
+        var root = Directory.CreateTempSubdirectory("flexarr-copies-").FullName;
+        var hdDir = Directory.CreateDirectory(Path.Combine(root, "hd", "Film")).FullName;
+        var uhdDir = Directory.CreateDirectory(Path.Combine(root, "4k", "Film")).FullName;
+        var hdFile = Path.Combine(hdDir, "Film 1080p.mkv");
+        var uhdFile = Path.Combine(uhdDir, "Film 2160p.mkv");
+        File.WriteAllText(hdFile, "hd");
+        File.WriteAllText(uhdFile, "uhd");
+        var tmdb = Random.Shared.Next(1_000_000, 9_000_000).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var hd = new Library { Name = $"HD {tmdb}", Type = LibraryType.Movies };
+        var uhd = new Library { Name = $"4K {tmdb}", Type = LibraryType.Movies };
+        var hdFilm = new MediaItem { LibraryId = hd.Id, Kind = MediaKind.Movie, Title = "Film", SortTitle = "film", TmdbId = tmdb, MetadataSource = "Radarr", ArrId = 7, Files = [new MediaFile { Path = hdFile, Height = 1080 }] };
+        var uhdFilm = new MediaItem { LibraryId = uhd.Id, Kind = MediaKind.Movie, Title = "Film", SortTitle = "film", TmdbId = tmdb, MetadataSource = "Radarr", ArrId = 7, Files = [new MediaFile { Path = uhdFile, Height = 2160 }] };
+        db.AddRange(hd, uhd, hdFilm, uhdFilm);
+        db.AddRange(new LibraryFolder { LibraryId = hd.Id, Path = Path.Combine(root, "hd") }, new LibraryFolder { LibraryId = uhd.Id, Path = Path.Combine(root, "4k") });
+        await db.SaveChangesAsync();
+        await TitleLinker.LinkAsync(db, default);
+        arr.Responses["GET //radarr.test/api/v3/movie"] = System.Text.Json.JsonSerializer.Serialize(new[] { new { id = 7, title = "Film", path = hdDir } });
+        arr.Responses["GET //radarr4k.test/api/v3/movie"] = System.Text.Json.JsonSerializer.Serialize(new[] { new { id = 9, title = "Film", path = uhdDir } });
+        arr.Responses["DELETE //radarr.test/api/v3/movie/7?deleteFiles=true&addImportExclusion=false"] = "{}";
+        arr.Responses["DELETE //radarr4k.test/api/v3/movie/9?deleteFiles=true&addImportExclusion=false"] = "{}";
+        return (hdFilm.Id, uhdFilm.Id, uhd.Id, hdFile, uhdFile, root);
+    }
+
+    [Fact]
+    public async Task DeletingALinkedTitle_DeletesEveryCopy_ThroughTheAppHoldingIt_EvenInAHiddenLibrary()
+    {
+        var arr = new FakeArr();
+        using var app = WithSecondRadarr(arr, factory);
+        var (hd, uhd, uhdLibrary, _, _, root) = await AddLinkedFilmAsync(app, arr);
+        await SetHiddenAsync(app, [uhdLibrary]);
+        try
+        {
+            var plan = await Admin(app).GetFromJsonAsync<DeletionPlan>(new Uri($"/api/v1/items/{hd}/deletion", UriKind.Relative));
+            Assert.Equal(2, plan!.Copies!.Length);
+            Assert.Equal(["Radarr", "Radarr 4K"], plan.Copies.Select(c => c.ManagedBy!).Order());
+
+            var response = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{hd}", UriKind.Relative));
+
+            Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+            Assert.Contains("DELETE /api/v3/movie/7?deleteFiles=true&addImportExclusion=false", arr.Requests);
+            Assert.Contains("DELETE /api/v3/movie/9?deleteFiles=true&addImportExclusion=false", arr.Requests);
+            using var check = app.Services.CreateScope();
+            var db = check.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            Assert.False(await db.MediaItems.IgnoreQueryFilters().AnyAsync(i => i.Id == hd || i.Id == uhd));
+        }
+        finally
+        {
+            await SetHiddenAsync(app, []);
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ACopyThatWontDelete_IsReported_AndStays_WhileTheOtherGoes()
+    {
+        var arr = new FakeArr();
+        using var app = WithSecondRadarr(arr, factory);
+        var (hd, uhd, _, _, _, root) = await AddLinkedFilmAsync(app, arr);
+        arr.Before = (request, _) => request.Method == HttpMethod.Delete && request.RequestUri!.Host == "radarr4k.test"
+            ? throw new HttpRequestException("no", null, HttpStatusCode.InternalServerError)
+            : Task.CompletedTask;
+
+        var response = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{hd}", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        Assert.Contains("Deleted 1 of 2 copies", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        using var check = app.Services.CreateScope();
+        var db = check.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        Assert.False(await db.MediaItems.AnyAsync(i => i.Id == hd));
+        var left = await db.MediaItems.SingleAsync(i => i.Id == uhd);
+        Assert.Null(left.LinkGroupId);
+
+        // Trying again reaches the Radarr that holds it, though its record names the other.
+        arr.Before = null;
+        var again = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{uhd}", UriKind.Relative));
+        Assert.Equal(HttpStatusCode.NoContent, again.StatusCode);
+        Directory.Delete(root, recursive: true);
+    }
+
+    [Fact]
+    public async Task AManagedEpisode_LosesItsUntrackedFilesToo()
+    {
+        var root = Directory.CreateTempSubdirectory("flexarr-episode-").FullName;
+        var season = Directory.CreateDirectory(Path.Combine(root, "Show", "Season 1")).FullName;
+        var tracked = Path.Combine(season, "Show S01E01 2160p.mkv");
+        var extra = Path.Combine(season, "Show S01E01 720p.mkv");
+        File.WriteAllText(extra, "extra");
+        var arr = new FakeArr();
+        arr.Responses["GET /api/v3/episode/5"] = """{"id":5,"seriesId":2,"seasonNumber":1,"episodeNumber":1,"episodeFileId":8}""";
+        arr.Responses["GET /api/v3/episodefile/8"] = System.Text.Json.JsonSerializer.Serialize(new { id = 8, path = tracked });
+        arr.Responses["PUT /api/v3/episode/monitor"] = "[]";
+        arr.Responses["DELETE /api/v3/episodefile/8"] = "{}";
+        using var app = arr.Serve(factory);
+        Guid episodeId;
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var library = new Library { Name = $"TV {Guid.NewGuid():N}", Type = LibraryType.TvShows };
+            var show = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Series, Title = "Show", SortTitle = "show", MetadataSource = "Sonarr", ArrId = 2 };
+            var one = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Season, Title = "Season 1", SortTitle = "1", SeasonNumber = 1, Parent = show };
+            var episode = new MediaItem
+            {
+                LibraryId = library.Id, Kind = MediaKind.Episode, Title = "Pilot", SortTitle = "1", SeasonNumber = 1, EpisodeNumber = 1, Parent = one, ArrId = 5, MetadataSource = "Sonarr",
+                Files = [new MediaFile { Path = tracked, Height = 2160 }, new MediaFile { Path = extra, Height = 720 }],
+            };
+            db.AddRange(library, show, one, episode, new LibraryFolder { LibraryId = library.Id, Path = root });
+            await db.SaveChangesAsync();
+            episodeId = episode.Id;
+        }
+
+        var plan = await Admin(app).GetFromJsonAsync<DeletionPlan>(new Uri($"/api/v1/items/{episodeId}/deletion", UriKind.Relative));
+        Assert.Equal([extra], plan!.Files);
+
+        var response = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{episodeId}", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.False(File.Exists(extra));
+        Directory.Delete(root, recursive: true);
+    }
+
+    private static async Task SetHiddenAsync(Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> app, List<Guid> hidden)
+    {
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var main = await db.Profiles.SingleAsync(p => p.Id == PlaybackState.DefaultUser);
+        main.HiddenLibraryIds = hidden;
+        await db.SaveChangesAsync();
+        Flexarr.Api.Profiles.LibraryVisibility.KidsSettingsChanged();
     }
 }
