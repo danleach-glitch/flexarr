@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import {
   getMusicRequested,
@@ -6,6 +6,7 @@ import {
   getRequestStatus,
   getTitlesRequested,
   imageUrl,
+  retryAlbum,
   unrequestAlbum,
   unrequestTitle,
   type Library,
@@ -19,6 +20,7 @@ import { useApi } from '../hooks/useApi'
 import { usePolling } from '../hooks/usePolling'
 import { requestedState } from '../lib/requestedState'
 import { undoFailure } from '../lib/musicUndo'
+import { errorText } from './settings/useSettings'
 import { t, Words } from '../i18n'
 
 /** How many cards show at first; Show more adds as many again. */
@@ -40,6 +42,8 @@ interface Row {
   progress: number | null
   releaseDate: string | null
   undo: () => Promise<void>
+  /** Starts over on one that couldn't be imported (albums only). */
+  retry?: () => Promise<void>
 }
 
 /**
@@ -72,7 +76,7 @@ export function LibraryRequested({ library, viewSwitch }: { library: Library; vi
   function remove(key: string, index: number) {
     setGone((g) => new Set(g).add(key))
     requestAnimationFrame(() => {
-      const buttons = grid.current?.querySelectorAll<HTMLButtonElement>('.requested-card .external-card-actions button')
+      const buttons = grid.current?.querySelectorAll<HTMLButtonElement>('.requested-card .requested-unrequest')
       const next = buttons?.[Math.min(index, buttons.length - 1)]
       if (next) next.focus()
       else grid.current?.focus()
@@ -103,7 +107,7 @@ export function LibraryRequested({ library, viewSwitch }: { library: Library; vi
           ) : (
             <div className={music ? 'poster-grid music-albums' : 'poster-grid'} ref={grid} tabIndex={-1}>
               {rows.slice(0, shown).map((r, i) => (
-                <RequestedCard key={r.key} row={r} square={music} offline={!answering} service={service} onGone={() => remove(r.key, i)} />
+                <RequestedCard key={r.key} row={r} square={music} offline={!answering} service={service} onGone={() => remove(r.key, i)} onRetried={reload} />
               ))}
             </div>
           )}
@@ -134,6 +138,7 @@ function albumRow(item: MusicRequested): Row {
     progress: item.progress,
     releaseDate: item.releaseDate,
     undo: () => unrequestAlbum({ musicBrainzId: item.musicBrainzId }),
+    retry: () => retryAlbum({ musicBrainzId: item.musicBrainzId }),
   }
 }
 
@@ -159,7 +164,7 @@ function titleRow(item: TitleRequested): Row {
   }
 }
 
-function RequestedCard({ row, square, offline, service, onGone }: { row: Row; square: boolean; offline: boolean; service: string; onGone: () => void }) {
+function RequestedCard({ row, square, offline, service, onGone, onRetried }: { row: Row; square: boolean; offline: boolean; service: string; onGone: () => void; onRetried: () => void }) {
   const [asking, setAsking] = useState(false)
   const [error, setError] = useState<string>()
   // A cover that won't load shows the title, not the browser's broken-image mark.
@@ -173,6 +178,28 @@ function RequestedCard({ row, square, offline, service, onGone }: { row: Row; sq
       onGone()
     } catch (e) {
       setError(undoFailure(e))
+    }
+  }
+
+  // Lidarr's queue keeps saying it for a while after a search starts: searching, until the next few looks have had their say.
+  const [retried, setRetried] = useState(false)
+  const [retryError, setRetryError] = useState<string>()
+  useEffect(() => {
+    if (!retried) return
+    const settle = setTimeout(() => setRetried(false), REFRESH_MS)
+    return () => clearTimeout(settle)
+  }, [retried])
+  const state = retried && row.state === 'couldNotImport' ? 'searching' : row.state
+  const stuck = state === 'couldNotImport'
+
+  async function retry() {
+    setRetryError(undefined)
+    try {
+      await row.retry?.()
+      setRetried(true)
+      onRetried()
+    } catch (e) {
+      setRetryError(errorText(e))
     }
   }
 
@@ -195,15 +222,35 @@ function RequestedCard({ row, square, offline, service, onGone }: { row: Row; sq
       )}
       <span className="card-title">{square || !row.link ? row.title : <Link to={row.link}>{row.title}</Link>}</span>
       <span className="card-subtitle">{row.subtitle}</span>
-      <span className={`requested-state requested-${row.state}`}>{requestedState(row)}</span>
+      <span className={`requested-state requested-${state}`}>
+        {requestedState({ ...row, state })}
+        {stuck && (
+          <>
+            {' '}
+            <a href="https://flexarr.io/guide/requests#couldn-t-import" target="_blank" rel="noreferrer" aria-label={t('Why couldn’t {title} be imported?', { title: row.title })}>
+              {t('Why?')}
+            </a>
+          </>
+        )}
+      </span>
       {row.state === 'downloading' && row.progress != null && (
         <progress className="requested-progress" value={row.progress} max={1} aria-label={t('{title} downloading', { title: row.title })} />
       )}
       <div className="external-card-actions">
-        <AsyncButton className="button small quiet" aria-label={t('Unrequest {title}', { title: row.title })} onClick={() => setAsking(true)} disabled={offline} title={offline ? t('{service} isn’t answering.', { service }) : undefined}>
+        {stuck && row.retry && (
+          <AsyncButton className="button small" aria-label={t('Try {title} again', { title: row.title })} onClick={retry} disabled={offline} title={offline ? t('{service} isn’t answering.', { service }) : undefined}>
+            {t('Try again')}
+          </AsyncButton>
+        )}
+        <AsyncButton className="button small quiet requested-unrequest" aria-label={t('Unrequest {title}', { title: row.title })} onClick={() => setAsking(true)} disabled={offline} title={offline ? t('{service} isn’t answering.', { service }) : undefined}>
           {t(Words.unrequest)}
         </AsyncButton>
       </div>
+      {retryError && (
+        <p className="error requested-error" role="alert">
+          {retryError}
+        </p>
+      )}
       {asking && (
         <ConfirmDialog
           title={t('Unrequest {name}?', { name: row.title })}

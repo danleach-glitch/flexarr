@@ -1843,6 +1843,8 @@ export interface MusicUndo {
 }
 export const unfollowArtist = (body: MusicUndo) => request<void>('POST', '/requests/music/unfollow', body)
 export const unrequestAlbum = (body: MusicUndo) => request<void>('POST', '/requests/music/unrequest', body)
+/** Starts over on an album that couldn't be imported: its count of tries goes back to nothing, and Lidarr searches again. */
+export const retryAlbum = (body: MusicUndo) => request<void>('POST', '/requests/music/retry', body)
 
 /** An album Lidarr is waiting for. Absent from servers before 0.59. */
 export interface MusicRequested {
