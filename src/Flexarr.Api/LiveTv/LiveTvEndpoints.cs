@@ -69,12 +69,22 @@ public static partial class LiveTvEndpoints
         _ => Loc.T("Flexarr couldn’t ask Dispatcharr to download its guides."),
     };
 
-    /// <summary>The last refresh's failure, in this request's language when it's Flexarr's own words.</summary>
-    private static string? RefreshErrorText(LiveTvStatus status) => status.Problem switch
+    /// <summary>The last refresh's failure, in this request's language.</summary>
+    private static string? RefreshErrorText(LiveTvStatus status) => RefreshProblemText(status.Problem, status.ProblemDetail) ?? status.Error;
+
+    /// <param name="detail">What the words quote: the connection's own message, or the answer's status code.</param>
+    internal static string? RefreshProblemText(LiveTvRefreshProblem problem, string? detail) => problem switch
     {
         LiveTvRefreshProblem.GuideUnreadable => Loc.T("The guide from the Live TV source couldn’t be read."),
         LiveTvRefreshProblem.DidntFinish => Loc.T("The Live TV refresh didn’t finish."),
-        _ => status.Error,
+        LiveTvRefreshProblem.NotDispatcharr => Loc.T("That address answered, but not as Dispatcharr (no Xtream Codes API there)."),
+        LiveTvRefreshProblem.NoChannelList => Loc.T("The Live TV source didn’t send a channel list. Check the user name and password."),
+        LiveTvRefreshProblem.Unreachable => Loc.T("Flexarr can’t reach the Live TV source: {reason}", new { reason = detail }),
+        LiveTvRefreshProblem.TimedOut => Loc.T("The Live TV source didn’t answer in time."),
+        LiveTvRefreshProblem.Refused => Loc.T("The Live TV source refused the user name or password."),
+        LiveTvRefreshProblem.AnsweredError => Loc.T("The Live TV source answered with an error ({code}).", new { code = detail }),
+        LiveTvRefreshProblem.StoppedPartway => Loc.T("The Live TV source stopped sending the guide part-way."),
+        _ => null,
     };
 
     /// <summary>The status is asked for a lot, and the count only changes as programmes run out or a refresh finishes (which clears it).</summary>

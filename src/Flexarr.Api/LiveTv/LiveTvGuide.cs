@@ -13,6 +13,13 @@ public enum LiveTvRefreshProblem
     None,
     GuideUnreadable,
     DidntFinish,
+    NotDispatcharr,
+    NoChannelList,
+    Unreachable,
+    TimedOut,
+    Refused,
+    AnsweredError,
+    StoppedPartway,
 }
 
 /// <summary>How the last refresh of the channels and guide went, for Settings › Connections.</summary>
@@ -24,8 +31,11 @@ public sealed class LiveTvStatus
     public DateTime? RefreshedAt { get; private set; }
     public string? Error { get; private set; }
 
-    /// <summary>What <see cref="Error"/> is, when it isn't the source's own words.</summary>
+    /// <summary>What <see cref="Error"/> is, for putting in words per request.</summary>
     public LiveTvRefreshProblem Problem { get; private set; }
+
+    /// <summary>What the problem's words quote: the connection's own message, or the answer's status code.</summary>
+    public string? ProblemDetail { get; private set; }
 
     /// <summary>What went wrong the last time Dispatcharr was asked to download its guides, until a refresh has moved on from it.</summary>
     public GuideDownloadProblem DownloadProblem { get; private set; }
@@ -142,13 +152,14 @@ public sealed class LiveTvStatus
         }
     }
 
-    internal void Finished(DateTime at, string? error, LiveTvRefreshProblem problem = LiveTvRefreshProblem.None)
+    internal void Finished(DateTime at, string? error, LiveTvRefreshProblem problem = LiveTvRefreshProblem.None, string? detail = null)
     {
         lock (_lock)
         {
             Refreshing = false;
             Error = error;
             Problem = problem;
+            ProblemDetail = detail;
             RefreshesFinished++;
             AttemptedAt = at;
             _missing = null;
@@ -292,6 +303,7 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
 
         string? error = null;
         var problem = LiveTvRefreshProblem.None;
+        string? detail = null;
         try
         {
             var (channels, changed) = await SyncChannelsAsync(account, now, stamp: refreshing, ct);
@@ -307,7 +319,7 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
         }
         catch (XtreamException ex)
         {
-            error = ex.Message;
+            (error, problem, detail) = (ex.Message, ex.Problem, ex.Detail);
             LogFailed(ex.Message);
         }
         catch (XmlException ex)
@@ -325,7 +337,7 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
         {
             if (refreshing || error is not null)
             {
-                status.Finished(now, error, problem);
+                status.Finished(now, error, problem, detail);
             }
         }
     }

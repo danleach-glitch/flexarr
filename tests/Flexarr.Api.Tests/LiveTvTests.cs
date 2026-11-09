@@ -41,6 +41,9 @@ public sealed class FakeDispatcharr : HttpMessageHandler
 
     public bool GuideSourceFails { get; set; }
 
+    /// <summary>When set, how every request fails, as the HTTP client fails: thrown, or an answer.</summary>
+    public Func<HttpResponseMessage>? Fails { get; set; }
+
     /// <summary>Answers who a key belongs to, as Dispatcharr 0.20 does; otherwise a 404, as an older one.</summary>
     public bool SaysWhoKeysAreFor { get; set; }
 
@@ -50,6 +53,11 @@ public sealed class FakeDispatcharr : HttpMessageHandler
     {
         var url = request.RequestUri!;
         Requests.Enqueue(url);
+        if (Fails is { } fails)
+        {
+            return Task.FromResult(fails());
+        }
+
         if (SaysWhoKeysAreFor && url.AbsolutePath == "/api/accounts/users/me/")
         {
             return Task.FromResult(request.Headers.TryGetValues("X-API-Key", out var key) && key.Single() == AdminKey
@@ -936,6 +944,54 @@ public sealed class LiveTvTests : IDisposable
         // A refresh nobody pressed moves on from it.
         _server.Services.GetRequiredService<LiveTvStatus>().ForgetDownloadProblem();
         Assert.False((await StatusAsync()).GetProperty("downloadSkipped").GetBoolean());
+    }
+
+    public static TheoryData<string, string, string> SourceFailures => new()
+    {
+        { "unreachable", "Flexarr can’t reach the Live TV source: Connection refused (dispatcharr:9191)", "⟦reach Connection refused (dispatcharr:9191)⟧" },
+        { "slow", "The Live TV source didn’t answer in time.", "⟦late⟧" },
+        { "refused", "The Live TV source refused the user name or password.", "⟦refused⟧" },
+        { "broken", "The Live TV source answered with an error (500).", "⟦broken 500⟧" },
+    };
+
+    [Theory]
+    [MemberData(nameof(SourceFailures))]
+    public async Task A_source_failing_is_said_in_the_language_of_whoever_asks(string how, string english, string pseudo)
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        var folder = Directory.CreateDirectory(Path.Combine(_factory.DataDirectory, "languages")).FullName;
+        File.WriteAllText(Path.Combine(folder, "en-XA.json"), """
+            {"format":1,"code":"en-XA","name":"Pseudo (test)","direction":"ltr","version":7,"coverage":{"web":1},"messages":{
+            "Flexarr can’t reach the Live TV source: {reason}":"⟦reach {reason}⟧",
+            "The Live TV source didn’t answer in time.":"⟦late⟧",
+            "The Live TV source refused the user name or password.":"⟦refused⟧",
+            "The Live TV source answered with an error ({code}).":"⟦broken {code}⟧"},
+            "scopes":{}}
+            """);
+        _server.Services.GetRequiredService<Flexarr.Api.Localization.LanguageIndex>().LoadKept();
+
+        // Each as the HTTP client really fails: thrown, or an answer.
+        _dispatcharr.Fails = how switch
+        {
+            "unreachable" => () => throw new HttpRequestException("Connection refused (dispatcharr:9191)"),
+            "slow" => () => throw new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout of 100 seconds elapsing."),
+            "refused" => () => new HttpResponseMessage(HttpStatusCode.Unauthorized),
+            _ => () => new HttpResponseMessage(HttpStatusCode.InternalServerError),
+        };
+        await RefreshAsync();
+
+        Assert.Equal(english, (await client.GetFromJsonAsync<JsonElement>(Api("livetv/status"))).GetProperty("error").GetString());
+
+        // The one failure, read later by someone in another language.
+        var other = Client();
+        other.DefaultRequestHeaders.AcceptLanguage.ParseAdd("en-XA");
+        Assert.Equal(pseudo, (await other.GetFromJsonAsync<JsonElement>(Api("livetv/status"))).GetProperty("error").GetString());
+
+        // Testing a connection in Settings says the same.
+        var tested = await (await other.PostAsJsonAsync(Api("settings/livetv/test"),
+            new { baseUrl = FakeDispatcharr.Root, username = FakeDispatcharr.User, password = FakeDispatcharr.Password })).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(pseudo, tested.GetProperty("error").GetString());
     }
 
     [Fact]
