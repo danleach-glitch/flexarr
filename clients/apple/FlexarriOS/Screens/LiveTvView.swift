@@ -125,6 +125,7 @@ struct LiveTvView: View {
         }
         .onDisappear { isVisible = false }
         .onChange(of: model.liveTvRefreshResult) { sayRefreshResult() }
+        .onChange(of: model.liveTvStatus) { followStatus() }
         .banner($notice, systemImage: "record.circle")
         .banner($refreshNotice, systemImage: refreshProblem == nil ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
     }
@@ -150,6 +151,14 @@ struct LiveTvView: View {
             .disabled(model.isRefreshingLiveTv)
             .accessibilityLabel(model.isRefreshingLiveTv ? t(Words.refreshingGuide) : t(Words.refreshGuide))
         }
+    }
+
+    /// The red line lasts as long as the problem: once the server has more to say (a scheduled refresh has been through
+    /// since, say), the line says that, or goes.
+    private func followStatus() {
+        guard refreshProblem != nil, let status = model.liveTvStatus, !status.refreshing else { return }
+        refreshProblem = status.error ?? status.downloadError
+        if refreshProblem == nil { refreshNotice = nil }
     }
 
     private func sayRefreshResult() {
