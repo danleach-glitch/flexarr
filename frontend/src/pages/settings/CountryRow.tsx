@@ -3,9 +3,10 @@ import { ApiError, getPodcastCountries, getSettings, saveSettings } from '../../
 import { AsyncButton } from '../../components/AsyncButton'
 import { useApi } from '../../hooks/useApi'
 import { useSession } from '../../hooks/sessionContext'
+import { showNotice } from '../../lib/notice'
 import { ratingSteps } from '../../lib/ratings'
 import { t } from '../../i18n'
-import { SettingRow } from './shared'
+import { SaveStatus, SettingRow } from './shared'
 import { errorText } from './useSettings'
 
 /** How long a pick waits to be saved: on a closed select, arrow keys and typing a name change it at every step. */
@@ -79,19 +80,27 @@ export function CountryRow() {
   const [picked, setPicked] = useState<string>()
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string>()
+  const [justSaved, setJustSaved] = useState(false)
   const waiting = useRef<{ timer: ReturnType<typeof setTimeout>; send: () => void }>(undefined)
   const saves = useRef<Promise<unknown>>(Promise.resolve())
   const latest = useRef(0)
   const lastSaved = useRef<string>(undefined)
+  const here = useRef(true)
   // Leaving straight after a pick doesn't lose it.
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    here.current = true
+    return () => {
+      here.current = false
       if (!waiting.current) return
       clearTimeout(waiting.current.timer)
       waiting.current.send()
-    },
-    [],
-  )
+    }
+  }, [])
+  useEffect(() => {
+    if (!justSaved) return
+    const hide = setTimeout(() => setJustSaved(false), 3000)
+    return () => clearTimeout(hide)
+  }, [justSaved])
 
   async function send(country: string, ask: number) {
     waiting.current = undefined
@@ -103,9 +112,12 @@ export function CountryRow() {
       lastSaved.current = country
       if (ask !== latest.current) return
       setSaving(false)
+      setJustSaved(true)
       reloadMe?.()
     } catch (e) {
       if (ask !== latest.current) return
+      // Gone from the page, this row can't say so.
+      if (!here.current) showNotice(t('Couldn’t save the country: {message}', { message: errorText(e) }))
       setPicked(lastSaved.current)
       setSaving(false)
       setSaveError(errorText(e))
@@ -117,30 +129,33 @@ export function CountryRow() {
     setPicked(country)
     setSaving(true)
     setSaveError(undefined)
+    setJustSaved(false)
     if (waiting.current) clearTimeout(waiting.current.timer)
     waiting.current = { timer: setTimeout(() => void send(country, ask), SAVE_PAUSE_MS), send: () => void send(country, ask) }
   }
 
-  const error = saveError ?? loadError
   return (
     <SettingRow
       // A row with a button in it can't be a label, whose control would be the button.
       as={tryAgain ? 'div' : 'label'}
       label={t('Country')}
       help={
-        error ? (
-          <>
-            <span className="error setting-load-error" role="alert">
-              {error}
-            </span>
-            {tryAgain}
-          </>
-        ) : (
-          help()
-        )
+        <>
+          {loadError ? (
+            <>
+              <span className="error setting-load-error" role="alert">
+                {loadError}
+              </span>
+              {tryAgain}
+            </>
+          ) : (
+            help()
+          )}
+          <SaveStatus saved={justSaved ? t('Saved') : null} error={saveError} />
+        </>
       }
     >
-      <CountrySelect options={options} chosen={picked ?? saved} onPick={choose} busy={saving} invalid={error !== undefined} name={tryAgain ? t('Country') : undefined} />
+      <CountrySelect options={options} chosen={picked ?? saved} onPick={choose} busy={saving} invalid={(saveError ?? loadError) !== undefined} name={tryAgain ? t('Country') : undefined} />
     </SettingRow>
   )
 }

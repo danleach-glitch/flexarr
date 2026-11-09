@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { clearApiCache } from '../../api/client'
+import { NoticeHost } from '../../components/Notice'
 import { SessionProvider } from '../../hooks/session'
 import { mockApi } from '../../test/mockApi'
 import { CountryRow } from './CountryRow'
@@ -129,6 +130,42 @@ describe('Country', () => {
       await waitFor(() => expect(select).not.toHaveAttribute('aria-busy'))
       expect(select.value).toBe('gb')
       expect(screen.queryByRole('alert')).toBeNull()
+    })
+
+    it('says Saved once it has, and not before', async () => {
+      let finish: (value: unknown) => void = () => {}
+      const { select } = await open(() => new Promise((resolve) => (finish = resolve)))
+
+      fireEvent.change(select, { target: { value: 'us' } })
+      expect(screen.queryByText('Saved')).toBeNull()
+      await new Promise((done) => setTimeout(done, 700))
+      expect(screen.queryByText('Saved')).toBeNull()
+
+      finish({ podcasts: { country: 'us', resolvedCountry: 'us', detectedCountry: 'gb' } })
+      expect(await screen.findByText('Saved')).toHaveAttribute('role', 'status')
+      // A further pick isn't saved yet.
+      fireEvent.change(select, { target: { value: 'gb' } })
+      expect(screen.queryByText('Saved')).toBeNull()
+    })
+
+    it('says a save failed after leaving, where it can still be seen', async () => {
+      render(<NoticeHost />)
+      const { select, unmount } = await open(() => new Response(JSON.stringify({ title: 'Not today' }), { status: 500 }))
+
+      fireEvent.change(select, { target: { value: 'us' } })
+      unmount()
+
+      expect(await screen.findByText('Couldn’t save the country: Not today')).toBeInTheDocument()
+    })
+
+    it('doesn’t raise a notice for a failure the row can show', async () => {
+      render(<NoticeHost />)
+      const { select } = await open(() => new Response(JSON.stringify({ title: 'Not today' }), { status: 500 }))
+
+      fireEvent.change(select, { target: { value: 'us' } })
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Not today')
+      expect(screen.queryByText(/Couldn’t save the country/)).toBeNull()
     })
 
     it('saves a pick made just before leaving', async () => {
