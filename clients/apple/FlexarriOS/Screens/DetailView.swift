@@ -134,7 +134,7 @@ struct DetailView: View {
                     } else {
                         TitleArt(item: item, maxWidth: 300, maxHeight: 120, fontSize: 52)
                     }
-                    FactsLine(facts: item.facts(scores: !model.isKids), scores: model.isKids ? nil : item.scores)
+                    FactsLine(facts: item.facts(scores: !model.isKids, versions: detail?.versions), scores: model.isKids ? nil : item.scores)
                     if let genres = detail?.genres, !genres.isEmpty {
                         Text(genres.prefix(3).joined(separator: ", "))
                             .font(.subheadline.weight(.medium))
@@ -190,7 +190,8 @@ struct DetailView: View {
                              platform: .phone, canPlayTrailers: canPlayTrailers,
                              canDownload: item.kind == .movie || item.kind == .episode,
                              canSearchSubtitles: detail?.canSearchSubtitles == true && detail?.files.first != nil,
-                             canWatchlist: watchlistState(item) != nil)
+                             canWatchlist: watchlistState(item) != nil,
+                             canChooseVersion: (detail?.versions?.count ?? 0) > 1)
     }
 
     /// Whether it's on the watchlist, or nil when it can't go on one here: only films and shows, from servers that have one.
@@ -305,6 +306,8 @@ struct DetailView: View {
                         }
                     case .button:
                         EmptyView()
+                    case .version:
+                        versionMenu(item)
                     case .subtitles:
                         if let file = detail?.files.first {
                             Button { subtitleSearchFile = SubtitleSearchFile(id: file.id) } label: {
@@ -321,6 +324,32 @@ struct DetailView: View {
                 Label(t("More"), systemImage: Symbol.more)
             }
             .accessibilityLabel(t("More actions"))
+        }
+    }
+
+    private func chooseVersion(_ item: ItemSummary, _ fileId: String?) {
+        Task {
+            if await !model.chooseVersion(item, fileId: fileId) { savedSubtitles = t("That didn’t work. Try again.") }
+        }
+    }
+
+    /// Automatic first, then each version, with a check on what's chosen.
+    private func versionMenu(_ item: ItemSummary) -> some View {
+        let versions = detail?.versions ?? []
+        return Menu {
+            Picker(selection: Binding(get: { versions.first(where: \.chosen)?.fileId }, set: { fileId in
+                chooseVersion(item, fileId)
+            })) {
+                Text(t(Words.automatic)).tag(String?.none)
+                ForEach(versions) { version in
+                    Text(version.name(among: versions)).tag(String?.some(version.fileId))
+                }
+            } label: {
+                EmptyView()
+            }
+            .pickerStyle(.inline)
+        } label: {
+            Label(t(Words.version), systemImage: Symbol.version)
         }
     }
 
