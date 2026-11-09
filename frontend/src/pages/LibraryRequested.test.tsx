@@ -93,6 +93,25 @@ describe('LibraryRequested', () => {
     await waitFor(() => expect(unrequested).toEqual([['tv', 1399, [2, 3]]]))
   })
 
+  it('shows the title in place of a cover that won’t load', async () => {
+    albums.push({ ...albums[1], musicBrainzId: 'rg-3', title: 'No Cover', image: '/covers/gone.jpg' })
+    try {
+      const { container } = render(
+        <MemoryRouter>
+          <LibraryRequested library={library} viewSwitch={null} />
+        </MemoryRouter>,
+      )
+      await screen.findByText('No Cover')
+      fireEvent.error(container.querySelector('img')!)
+
+      expect(container.querySelector('img')).toBeNull()
+      expect(container.querySelectorAll('.artwork-fallback')).toHaveLength(3)
+      expect([...container.querySelectorAll('.artwork-fallback')].some((f) => f.textContent === 'No Cover')).toBe(true)
+    } finally {
+      albums.pop()
+    }
+  })
+
   it('asks again every 30 seconds while something is downloading', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {

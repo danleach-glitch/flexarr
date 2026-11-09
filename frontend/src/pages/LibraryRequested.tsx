@@ -162,6 +162,8 @@ function titleRow(item: TitleRequested): Row {
 function RequestedCard({ row, square, offline, service, onGone }: { row: Row; square: boolean; offline: boolean; service: string; onGone: () => void }) {
   const [asking, setAsking] = useState(false)
   const [error, setError] = useState<string>()
+  // A cover that won't load shows the title, not the browser's broken-image mark.
+  const [brokenImage, setBrokenImage] = useState<string | null>(null)
 
   async function unrequest() {
     setError(undefined)
@@ -177,7 +179,7 @@ function RequestedCard({ row, square, offline, service, onGone }: { row: Row; sq
   const art = (
     <div className="card-frame">
       <div className={square ? 'artwork artwork-square' : 'artwork artwork-poster'}>
-        {row.image ? <img src={imageUrl(row.image, 342)} alt="" loading="lazy" /> : <span className="artwork-fallback">{row.title}</span>}
+        {row.image && row.image !== brokenImage ? <img src={imageUrl(row.image, 342)} alt="" loading="lazy" onError={() => setBrokenImage(row.image)} /> : <span className="artwork-fallback">{row.title}</span>}
       </div>
     </div>
   )
