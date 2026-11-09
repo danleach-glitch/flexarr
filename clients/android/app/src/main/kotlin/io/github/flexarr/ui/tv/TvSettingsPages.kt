@@ -336,6 +336,10 @@ internal fun TvPlaybackSettings(model: AppModel) {
     }
 }
 
+/** What the 4K row says. The height goes in as words: as a number it would read "1,080p". */
+internal fun fourKHelp(maxHeight: Int): String =
+    if (maxHeight >= 2160) t("This TV plays 4K files.") else t("This TV doesn’t play 4K files, so your server sends them at {height}p.", "height" to maxHeight.toString())
+
 /** What Lossless surround does here: [taken] are the formats the equipment connected takes as they are. */
 internal fun losslessSurroundHelp(sound: SoundSettings, taken: Set<String>): String = when {
     sound.losslessSurround && sound.decodesSurround -> t("While dialogue boost, night mode or speakers is on, surround is decoded first: Dolby by this TV, DTS and TrueHD by your server.")
@@ -696,7 +700,7 @@ internal fun TvDiagnosticsSettings(model: AppModel) {
             TvSettingsRow(
                 t("4K"), onClick = {}, icon = Icons.Filled._4k, reportOnly = true,
                 value = if (profile.maxHeight >= 2160) t("Yes") else t("No"),
-                help = if (profile.maxHeight >= 2160) t("This TV plays 4K files.") else t("This TV doesn’t play 4K files, so your server sends them at {height}p.", "height" to profile.maxHeight),
+                help = fourKHelp(profile.maxHeight),
             )
         }
         item {

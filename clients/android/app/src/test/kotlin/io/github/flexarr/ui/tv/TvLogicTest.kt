@@ -87,6 +87,13 @@ class TvLogicTest {
     }
 
     @Test
+    fun `the 4K help says a height as a height, in every language`() {
+        assertEquals("This TV doesn’t play 4K files, so your server sends them at 1080p.", fourKHelp(1080))
+        assertEquals("This TV doesn’t play 4K files, so your server sends them at 1440p.", fourKHelp(1440))
+        assertEquals("This TV plays 4K files.", fourKHelp(2160))
+    }
+
+    @Test
     fun `a report row reads its value and help aloud`() {
         assertEquals("Surround out, Dolby Digital Plus, Formats it takes.", reportRowDescription("Surround out", "Dolby Digital Plus", "Formats it takes."))
         assertEquals("HDR, HDR10", reportRowDescription("HDR", "HDR10", null))
