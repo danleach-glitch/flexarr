@@ -41,6 +41,12 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
     /// </summary>
     private readonly ConcurrentDictionary<string, DateTime> _searchedAt = new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// Albums whose bad copy has gone but whose search failed, with their release groups: nothing in Lidarr's queue will
+    /// bring them back to mind, so the next sweep searches first.
+    /// </summary>
+    private readonly ConcurrentDictionary<(string Lidarr, int Album), string> _searchOwed = new();
+
     /// <summary>How long an album Lidarr still says it has never searched for waits before it's asked again.</summary>
     internal TimeSpan SearchAgainAfter { get; set; } = TimeSpan.FromHours(6);
 
@@ -128,9 +134,10 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
     private async Task SweepAsync(MusicRequestContext c, ArrInstance lidarr, List<AlbumAsked> requests, CancellationToken ct)
     {
         var queue = await c.Client.GetQueueAsync(lidarr, ct);
+        var asked = requests.Select(r => r.Album).ToHashSet(StringComparer.Ordinal);
+        await PayOwedSearchesAsync(c, lidarr, asked, ct);
         var searched = await KeepLookingAsync(c, lidarr, requests, queue, ct);
         NoteSearched(lidarr, searched);
-        var asked = requests.Select(r => r.Album).ToHashSet(StringComparer.Ordinal);
         foreach (var item in queue)
         {
             if (item.Album is not { } album || item.AlbumId is not { } albumId || album.ForeignAlbumId is not { } id || !asked.Contains(id) || !IsMissingTracks(item))
@@ -150,19 +157,37 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
                 continue; // stays as "couldn't import"
             }
 
-            _retries.AddOrUpdate(key, 1, (_, tries) => tries + 1);
             if (!album.Monitored)
             {
                 await c.Client.SetAlbumsMonitoredAsync(lidarr, [albumId], monitored: true, ct); // Lidarr keeps looking if this search finds nothing
             }
 
+            // Only now does it use up a try: Lidarr being away for a moment says nothing about the album.
             await c.Client.BlocklistFromQueueAsync(lidarr, item.Id, ct);
+            _retries.AddOrUpdate(key, 1, (_, tries) => tries + 1);
+            _searchOwed[(lidarr.BaseUrl.ToString(), albumId)] = id;
             await c.Client.SearchAlbumsAsync(lidarr, [albumId], ct);
+            _searchOwed.TryRemove((lidarr.BaseUrl.ToString(), albumId), out _);
             MusicRequested.Forget(c.Cache);
             LogRetrying(logger, album.Title, item.Title);
         }
 
         await SearchFirstTimeAsync(c, lidarr, asked, queue, searched, ct);
+    }
+
+    /// <summary>The searches a blocklisted copy still needs. One still asked for: a request taken back wants nothing more.</summary>
+    private async Task PayOwedSearchesAsync(MusicRequestContext c, ArrInstance lidarr, HashSet<string> asked, CancellationToken ct)
+    {
+        foreach (var ((home, albumId), releaseGroup) in _searchOwed.Where(o => o.Key.Lidarr == lidarr.BaseUrl.ToString()).ToList())
+        {
+            if (asked.Contains(releaseGroup))
+            {
+                await c.Client.SearchAlbumsAsync(lidarr, [albumId], ct);
+                MusicRequested.Forget(c.Cache);
+            }
+
+            _searchOwed.TryRemove((home, albumId), out _);
+        }
     }
 
     /// <summary>Searches for the requested albums Lidarr has never looked for. Once it has, finding them is up to its RSS sync.</summary>

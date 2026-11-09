@@ -690,6 +690,71 @@ public sealed class MusicRequestTests : IAsyncLifetime
         Assert.Equal(Endpoints.MusicRequests.MusicImportRetry.MaxRetries, _sent.Count(s => s.Request == "DELETE /api/v1/queue/5"));
     }
 
+    private async Task LidarrHoldsABadCopyAsync()
+    {
+        _lidarr.Responses["GET /api/v1/queue?page=1&pageSize=200&includeArtist=true&includeAlbum=true"] = $$$"""
+            {"page":1,"pageSize":200,"totalRecords":1,"records":[
+              {"id":5,"albumId":9,"artistId":3,"title":"partial","downloadId":"partial","status":"completed","size":100,"sizeleft":0,"trackedDownloadStatus":"warning","trackedDownloadState":"importFailed",
+               "statusMessages":[{"title":"partial","messages":["Has missing tracks"]}],
+               "album":{"id":9,"artistId":3,"title":"moisturizer","foreignAlbumId":"{{{Moisturizer}}}","monitored":true} }]}
+            """;
+        _lidarr.Responses["DELETE /api/v1/queue/5?removeFromClient=true&blocklist=true&skipRedownload=true"] = "{}";
+        _lidarr.Responses[$"GET /api/v1/album?foreignAlbumId={Moisturizer}"] = "[]";
+        await InDbAsync(async db =>
+        {
+            db.MediaRequests.Add(new Core.Notifications.MediaRequest { ProfileId = "owner", Kind = MediaKind.Album, MusicBrainzId = Moisturizer, Title = "moisturizer", ArtistName = "Wet Leg" });
+            return await db.SaveChangesAsync();
+        });
+    }
+
+    [Fact]
+    public async Task A_Lidarr_blip_doesnt_use_up_an_import_retry()
+    {
+        await LidarrHoldsABadCopyAsync();
+        var refusing = true;
+        _lidarr.Before = (r, _) => refusing && r.Method == HttpMethod.Delete ? throw new HttpRequestException("Connection refused") : Task.CompletedTask;
+        var retry = _server.Services.GetRequiredService<Endpoints.MusicRequests.MusicImportRetry>();
+
+        for (var i = 0; i < Endpoints.MusicRequests.MusicImportRetry.MaxRetries + 1; i++)
+        {
+            await retry.SweepAsync(CancellationToken.None);
+        }
+
+        refusing = false;
+        _sent.Clear();
+        for (var i = 0; i < Endpoints.MusicRequests.MusicImportRetry.MaxRetries + 1; i++)
+        {
+            await retry.SweepAsync(CancellationToken.None);
+        }
+
+        Assert.Equal(Endpoints.MusicRequests.MusicImportRetry.MaxRetries, _sent.Count(s => s.Request == "DELETE /api/v1/queue/5"));
+    }
+
+    [Fact]
+    public async Task A_search_that_failed_after_the_blocklist_is_made_at_the_next_sweep()
+    {
+        await LidarrHoldsABadCopyAsync();
+        var refusing = true;
+        _lidarr.Before = (r, _) => refusing && r.RequestUri!.AbsolutePath == "/api/v1/command" ? throw new HttpRequestException("Connection refused") : Task.CompletedTask;
+        var retry = _server.Services.GetRequiredService<Endpoints.MusicRequests.MusicImportRetry>();
+
+        await retry.SweepAsync(CancellationToken.None);
+        Assert.Single(_sent, s => s.Request == "DELETE /api/v1/queue/5");
+        Assert.Single(_sent, s => s.Request == "POST /api/v1/command");
+
+        // The bad copy has gone from the queue, so nothing there would bring it back to mind.
+        _lidarr.Responses["GET /api/v1/queue?page=1&pageSize=200&includeArtist=true&includeAlbum=true"] = """{"page":1,"pageSize":200,"totalRecords":0,"records":[]}""";
+        refusing = false;
+        _sent.Clear();
+        await retry.SweepAsync(CancellationToken.None);
+        Assert.Equal(9, _sent.Single(s => s.Request == "POST /api/v1/command").Body!["albumIds"]![0]!.GetValue<int>());
+
+        // Paid: not again.
+        _sent.Clear();
+        await retry.SweepAsync(CancellationToken.None);
+        Assert.DoesNotContain(_sent, s => s.Request == "POST /api/v1/command");
+    }
+
     [Fact]
     public async Task A_Lidarr_dropping_the_connection_mid_read_only_waits_for_the_next_sweep()
     {
