@@ -31,6 +31,14 @@ public static class TitleVersions
             .Where(f => copies.Contains(f.MediaItemId) && f.ProbeError == null).ToListAsync(ct);
     }
 
+    /// <summary>The speed the profile keeps for a show, set through whichever copy.</summary>
+    public static async Task<double?> ShowSpeedAsync(FlexarrDbContext db, Guid seriesId, string profileId, CancellationToken ct)
+    {
+        var copies = await CopiesAsync(db, seriesId, ct);
+        return await db.ShowPlaybackSpeeds.AsNoTracking().Where(s => s.ProfileId == profileId && copies.Contains(s.SeriesId))
+            .Select(s => (double?)s.Speed).FirstOrDefaultAsync(ct);
+    }
+
     /// <summary>What the profile chose for the title, on whichever copy.</summary>
     public static async Task<VersionChoice?> ChoiceAsync(FlexarrDbContext db, MediaItem item, string profileId, CancellationToken ct)
     {

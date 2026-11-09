@@ -260,9 +260,9 @@ public sealed class PlaybackService(
             if (item.Kind == MediaKind.Episode)
             {
                 // The player opens at the speed kept for the show (below): the stream is made that fast from the start.
-                transcode.Speed = await db.ShowPlaybackSpeeds.AsNoTracking()
-                    .Where(s => s.ProfileId == profile.Id && db.MediaItems.Any(season => season.Id == item.ParentId && season.ParentId == s.SeriesId))
-                    .Select(s => (double?)s.Speed).FirstOrDefaultAsync(ct) ?? 1;
+                transcode.Speed = await db.MediaItems.Where(season => season.Id == item.ParentId).Select(season => season.ParentId).FirstOrDefaultAsync(ct) is { } show
+                    ? await TitleVersions.ShowSpeedAsync(db, show, profile.Id, ct) ?? 1
+                    : 1;
             }
         }
 
@@ -326,9 +326,12 @@ public sealed class PlaybackService(
         var basePath = $"/api/v1/playback/{id}";
         var burned = decision.Transcode?.BurnSubtitle is not null;
         var series = ancestors.FirstOrDefault(a => a.Kind == MediaKind.Series)?.Id;
-        var speed = series is { } seriesId
-            ? await db.ShowPlaybackSpeeds.AsNoTracking().Where(s => s.ProfileId == profile.Id && s.SeriesId == seriesId).Select(s => (double?)s.Speed).FirstOrDefaultAsync(ct)
-            : null;
+        var speed = series is { } seriesId ? await TitleVersions.ShowSpeedAsync(db, seriesId, profile.Id, ct) : null;
+
+        // Subtitle timing belongs to the file, so it's kept on the copy holding the file, whichever copy was opened.
+        var subtitleDelay = file.MediaItemId == item.Id
+            ? state?.SubtitleDelaySeconds ?? 0
+            : await db.PlaybackStates.AsNoTracking().Where(p => p.UserId == profile.Id && p.MediaItemId == file.MediaItemId).Select(p => p.SubtitleDelaySeconds).FirstOrDefaultAsync(ct);
 
         return new PlaybackInfoDto(
             id,
@@ -351,7 +354,7 @@ public sealed class PlaybackService(
             decision.Transcode is { } t ? Summary(t, file) : null,
             shuffling,
             watching,
-            state?.SubtitleDelaySeconds ?? 0,
+            subtitleDelay,
             before is { } beforeId ? summaries[beforeId] : null,
             file.AudioDelaySeconds,
             decision.Transcode?.AudioDelaySeconds is not (null or 0),

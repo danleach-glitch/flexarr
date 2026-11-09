@@ -328,6 +328,54 @@ public sealed class TitleVersionsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AShowsSpeed_IsKeptAcrossItsCopies()
+    {
+        var (hd, uhd, _) = await SeedShowAsync();
+        var client = Client();
+        (await client.PutAsJsonAsync(Api($"/items/{hd}/playback-speed"), new { speed = 1.5 })).EnsureSuccessStatusCode();
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            Assert.Equal(1.5, await Flexarr.Api.Playback.TitleVersions.ShowSpeedAsync(db, uhd, PlaybackState.DefaultUser, default));
+        }
+
+        (await client.PutAsJsonAsync(Api($"/items/{uhd}/playback-speed"), new { speed = 2.0 })).EnsureSuccessStatusCode();
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            Assert.Equal(2.0, await Flexarr.Api.Playback.TitleVersions.ShowSpeedAsync(db, hd, PlaybackState.DefaultUser, default));
+        }
+
+        (await client.PutAsJsonAsync(Api($"/items/{hd}/playback-speed"), new { speed = 1.0 })).EnsureSuccessStatusCode();
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            Assert.Null(await Flexarr.Api.Playback.TitleVersions.ShowSpeedAsync(db, uhd, PlaybackState.DefaultUser, default));
+        }
+    }
+
+    [Fact]
+    public async Task SubtitleTiming_StaysWithTheFile_WhicheverCopyOpensIt()
+    {
+        var client = Client();
+        async Task<(string Session, double Delay)> Open(Guid item)
+        {
+            var info = await (await client.PostAsJsonAsync(Api("/playback"), new { itemId = item, profile = Big })).EnsureSuccessStatusCode().Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal(_uhdFile, info.GetProperty("fileId").GetGuid());
+            return (info.GetProperty("sessionId").GetString()!, info.GetProperty("subtitleDelaySeconds").GetDouble());
+        }
+
+        var (session, before) = await Open(_hdItem);
+        Assert.Equal(0, before);
+        (await client.PostAsJsonAsync(Api($"/playback/{session}/progress"), new { positionSeconds = 30 })).EnsureSuccessStatusCode();
+        (await client.PutAsJsonAsync(Api($"/items/{_hdItem}/subtitle-delay"), new { seconds = 2.5 })).EnsureSuccessStatusCode();
+
+        Assert.Equal(2.5, (await Open(_uhdItem)).Delay);
+        Assert.Equal(2.5, (await Open(_hdItem)).Delay);
+    }
+
+    [Fact]
     public async Task AHiddenCopy_AddsNothingToAShow()
     {
         var (hd, _, _) = await SeedShowAsync();
