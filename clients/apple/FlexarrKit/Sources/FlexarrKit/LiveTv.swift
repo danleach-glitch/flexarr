@@ -48,6 +48,8 @@ public enum LiveTvRefreshEnd: Sendable, Hashable {
 
     /// How long after a refresh ended how it went is still worth saying.
     public static let newsFor: TimeInterval = 120
+    /// How long a failure is left up before a look at the status can take it away.
+    public static let seenFor: TimeInterval = 30
 }
 
 /// A programme in the guide.

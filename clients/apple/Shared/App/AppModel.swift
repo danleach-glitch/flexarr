@@ -1264,10 +1264,11 @@ final class AppModel {
         needsProfileChoice = false
     }
 
-    /// Live TV's status again, for how many channels have no listings.
-    func reloadLiveTvStatus() async {
+    /// Live TV's status again, for how many channels have no listings. False when the server wasn't heard from.
+    @discardableResult
+    func reloadLiveTvStatus() async -> Bool {
         let asked = credentials
-        guard isMainProfile, let client, let status = try? await client.liveTvStatus(), credentials == asked else { return }
+        guard isMainProfile, let client, let status = try? await client.liveTvStatus(), credentials == asked else { return false }
         liveTvStatus = status
         // One given up on has now finished: say how, as nobody's still waiting to.
         if isLiveTvRefreshTakingAWhile {
@@ -1278,6 +1279,7 @@ final class AppModel {
                 liveTvRefreshResult = Self.refreshResult(status)
             }
         }
+        return true
     }
 
     /// How a finished refresh went, by its status.

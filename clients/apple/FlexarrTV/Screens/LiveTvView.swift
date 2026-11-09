@@ -28,6 +28,8 @@ struct LiveTvView: View {
     @State private var upcoming: Int?
     /// What went wrong refreshing the guide.
     @State private var refreshProblem: String?
+    /// When a failed refresh was said.
+    @State private var refreshFailedAt = Date.distantPast
     /// It worked, a moment ago: the button says so itself, so nothing in the sidebar moves when it stops saying it.
     @State private var justRefreshed = false
     @State private var justRefreshedEnds: Task<Void, Never>?
@@ -82,7 +84,7 @@ struct LiveTvView: View {
                 // A channel plays over this screen rather than replacing it.
                 if !model.liveTv.isWatching {
                     await load()
-                    await model.reloadLiveTvStatus()
+                    if await model.reloadLiveTvStatus() { followStatusAfterLook() }
                 }
                 try? await Task.sleep(for: .seconds(60))
             }
@@ -122,12 +124,22 @@ struct LiveTvView: View {
         refreshProblem = status.error ?? status.downloadError
     }
 
+    /// A press that failed never reached the status, so a look that finds it unchanged is news too: the server's fine, or
+    /// here's what it says is wrong. Not straight after saying it, or a look that happens to be due would take it away
+    /// before it's read.
+    private func followStatusAfterLook() {
+        guard Date().timeIntervalSince(refreshFailedAt) >= LiveTvRefreshEnd.seenFor else { return }
+        followStatus()
+    }
+
     private func sayRefreshResult() {
         // Not in the background or behind a channel's player: the button's few seconds of saying so would go unseen.
         guard isVisible, scenePhase == .active, !model.liveTv.isWatching, let result = model.takeLiveTvRefreshResult() else { return }
         switch result {
         case .worked: refreshProblem = nil
-        case .failed(let problem): refreshProblem = problem
+        case .failed(let problem):
+            refreshProblem = problem
+            refreshFailedAt = Date()
         case .stillGoing, .tooLate: break // Said by `isLiveTvRefreshTakingAWhile`, or not news.
         }
         // Before fetching: a big line-up takes seconds, and the button would read Refresh guide again meanwhile.

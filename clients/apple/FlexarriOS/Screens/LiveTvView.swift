@@ -13,6 +13,8 @@ struct LiveTvView: View {
     @State private var notice: String?
     @State private var refreshNotice: String?
     @State private var refreshProblem: String?
+    /// When a failed refresh was said.
+    @State private var refreshFailedAt = Date.distantPast
     /// Up on screen, rather than gone behind a pushed page or another tab.
     @State private var isVisible = false
     /// Unchosen, the view is Favourites when there are some, otherwise All.
@@ -117,7 +119,7 @@ struct LiveTvView: View {
                 // A channel plays over this screen rather than replacing it.
                 if !model.liveTv.isWatching {
                     await load()
-                    await model.reloadLiveTvStatus()
+                    if await model.reloadLiveTvStatus() { followStatusAfterLook() }
                 }
                 try? await Task.sleep(for: .seconds(60))
             }
@@ -168,6 +170,14 @@ struct LiveTvView: View {
         if refreshProblem == nil { refreshNotice = nil }
     }
 
+    /// A press that failed never reached the status, so a look that finds it unchanged is news too: the server's fine, or
+    /// here's what it says is wrong. Not straight after saying it, or a look that happens to be due would take it away
+    /// before it's read.
+    private func followStatusAfterLook() {
+        guard Date().timeIntervalSince(refreshFailedAt) >= LiveTvRefreshEnd.seenFor else { return }
+        followStatus()
+    }
+
     private func sayRefreshResult() {
         // Not in the background (music keeps the app alive) or behind a channel's player: the banner would time out unseen.
         guard isVisible, scenePhase == .active, !model.liveTv.isWatching, let result = model.takeLiveTvRefreshResult() else { return }
@@ -178,6 +188,7 @@ struct LiveTvView: View {
         case .failed(let problem):
             refreshProblem = problem
             refreshNotice = problem
+            refreshFailedAt = Date()
         case .stillGoing, .tooLate: break // Said by `isLiveTvRefreshTakingAWhile`, or not news.
         }
         Task {
