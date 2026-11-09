@@ -106,6 +106,105 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
         Assert.Contains(watched, Queued(off));
     }
 
+    [Fact]
+    public async Task AWatchedFolder_StartupSkipped_StaysOn12Hours_UntilItsNextFullScan()
+    {
+        var folder = Directory.CreateDirectory(Path.Combine(factory.MediaDirectory, $"restarted-{Guid.NewGuid():N}")).FullName;
+        using (var scope = factory.Services.CreateScope())
+        {
+            scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().Libraries.Add(new Library
+            {
+                Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies,
+                Folders = [new LibraryFolder { Path = folder, FullScanAt = DateTime.UtcNow.AddHours(-6) }],
+            });
+            await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().SaveChangesAsync();
+        }
+
+        async Task SetLastScanAsync(TimeSpan ago)
+        {
+            using var scope = factory.Services.CreateScope();
+            var when = DateTime.UtcNow - ago;
+            await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().LibraryFolders.Where(f => f.Path == folder)
+                .ExecuteUpdateAsync(u => u.SetProperty(f => f.FullScanAt, when));
+        }
+
+        using var watcher = new FolderWatcher(new RecordingScanQueue(), factory.Services.GetRequiredService<IServiceScopeFactory>(), new StaticOptions(new Flexarr.Api.Configuration.FlexarrOptions()),
+            TimeProvider.System, NullLogger<FolderWatcher>.Instance);
+        await watcher.SyncAsync(default);
+        Assert.True(watcher.KeepsUpWith(folder));
+        var queue = new RecordingScanQueue();
+        using var worker = new LibraryScanWorker(queue, factory.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance,
+            factory.Services.GetRequiredService<LibraryWorkGate>(), watcher);
+        bool Queued() => queue.Requests.Any(r => r.Path == folder);
+
+        await worker.EnqueueAllAsync(LibraryScanWorker.StartupReason, default);
+        Assert.False(Queued()); // scanned in full under 12 hours ago: a restart doesn't scan it again
+
+        await worker.EnqueueAllAsync("Scheduled", default);
+        Assert.False(Queued());
+
+        // The scan startup relied on is now 12 hours old, and the folder hasn't been read since the restart: not a week.
+        await SetLastScanAsync(TimeSpan.FromHours(13));
+        await worker.EnqueueAllAsync("Scheduled", default);
+        Assert.True(Queued());
+    }
+
+    [Fact]
+    public async Task AWatchedFolder_StartupSkipped_GoesBackToWeekly_AfterAFullScan()
+    {
+        var folder = Directory.CreateDirectory(Path.Combine(factory.MediaDirectory, $"rescanned-{Guid.NewGuid():N}")).FullName;
+        using (var scope = factory.Services.CreateScope())
+        {
+            scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().Libraries.Add(new Library
+            {
+                Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies,
+                Folders = [new LibraryFolder { Path = folder, FullScanAt = DateTime.UtcNow.AddHours(-13) }],
+            });
+            await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().SaveChangesAsync();
+        }
+
+        using var watcher = new FolderWatcher(new RecordingScanQueue(), factory.Services.GetRequiredService<IServiceScopeFactory>(), new StaticOptions(new Flexarr.Api.Configuration.FlexarrOptions()),
+            TimeProvider.System, NullLogger<FolderWatcher>.Instance);
+        await watcher.SyncAsync(default);
+        var queue = new RecordingScanQueue();
+        using var worker = new LibraryScanWorker(queue, factory.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance,
+            factory.Services.GetRequiredService<LibraryWorkGate>(), watcher);
+
+        await worker.EnqueueAllAsync(LibraryScanWorker.StartupReason, default);
+        Assert.Contains(queue.Requests, r => r.Path == folder); // over 12 hours: scanned at startup, so not "skipped"
+
+        // A restarted server that did skip it, then scanned: a newer full scan ends the 12-hour rule.
+        var second = new RecordingScanQueue();
+        using var restarted = new LibraryScanWorker(second, factory.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance,
+            factory.Services.GetRequiredService<LibraryWorkGate>(), watcher);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var hoursAgo = DateTime.UtcNow.AddHours(-6);
+            await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().LibraryFolders.Where(f => f.Path == folder)
+                .ExecuteUpdateAsync(u => u.SetProperty(f => f.FullScanAt, hoursAgo));
+        }
+
+        await restarted.EnqueueAllAsync(LibraryScanWorker.StartupReason, default);
+        using (var scope = factory.Services.CreateScope())
+        {
+            // Finished an hour ago, so newer than the one skipped, and then looked at as if a day had passed.
+            var hourAgo = DateTime.UtcNow.AddHours(-1);
+            await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().LibraryFolders.Where(f => f.Path == folder)
+                .ExecuteUpdateAsync(u => u.SetProperty(f => f.FullScanAt, hourAgo));
+        }
+
+        await restarted.EnqueueAllAsync("Scheduled", default); // sees the newer scan and forgets the skip
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dayAgo = DateTime.UtcNow.AddDays(-1);
+            await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().LibraryFolders.Where(f => f.Path == folder)
+                .ExecuteUpdateAsync(u => u.SetProperty(f => f.FullScanAt, dayAgo));
+        }
+
+        await restarted.EnqueueAllAsync("Scheduled", default);
+        Assert.DoesNotContain(second.Requests, r => r.Path == folder);
+    }
+
     private sealed class StaticOptions(Flexarr.Api.Configuration.FlexarrOptions value) : Microsoft.Extensions.Options.IOptionsMonitor<Flexarr.Api.Configuration.FlexarrOptions>
     {
         public Flexarr.Api.Configuration.FlexarrOptions CurrentValue => value;

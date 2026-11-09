@@ -53,6 +53,12 @@ public sealed partial class LibraryScanWorker(
     /// <summary>When the schedule last queued each library folder, since the server started: one queued but not yet done isn't queued again.</summary>
     private readonly Dictionary<string, DateTime> _queuedAt = new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// The full scans of folders startup left alone for being recent, by path. Whatever was copied in while the server was
+    /// down hasn't been seen, so these stay on <see cref="ScheduledScanInterval"/> until a scan newer than that one.
+    /// </summary>
+    private readonly Dictionary<string, DateTime?> _skippedAtStartup = new(StringComparer.Ordinal);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         // Catch up on anything that changed while the server was down (and finish interrupted scans). A folder scanned
@@ -130,7 +136,7 @@ public sealed partial class LibraryScanWorker(
     /// <summary>
     /// Each library folder whose last full scan finished <see cref="ScheduledScanInterval"/> ago or more (or that never
     /// had one), unless the schedule queued it within that time; <see cref="WatchedScanInterval"/> for a folder that's
-    /// being watched, except at startup or while it's on hold.
+    /// being watched, except at startup, while it's on hold, or until the first full scan after a startup that skipped it.
     /// </summary>
     internal async Task EnqueueAllAsync(string reason, CancellationToken ct)
     {
@@ -147,9 +153,19 @@ public sealed partial class LibraryScanWorker(
 
             // At startup the watcher wasn't running while the server was down, so whatever changed then was missed. And a
             // folder on hold depends on full scans: only they end a hold, or see that it's lasted (LibraryScanner.KeepHolding).
-            var interval = reason != StartupReason && folder.Hold is null && watcher?.KeepsUpWith(folder.Path) == true ? WatchedScanInterval : ScheduledScanInterval;
+            if (_skippedAtStartup.TryGetValue(folder.Path, out var skipped) && folder.FullScanAt > skipped)
+            {
+                _skippedAtStartup.Remove(folder.Path);
+            }
+
+            var interval = reason != StartupReason && folder.Hold is null && !_skippedAtStartup.ContainsKey(folder.Path) && watcher?.KeepsUpWith(folder.Path) == true ? WatchedScanInterval : ScheduledScanInterval;
             if (last is { } at && at <= now && now - at < interval)
             {
+                if (reason == StartupReason)
+                {
+                    _skippedAtStartup[folder.Path] = folder.FullScanAt;
+                }
+
                 continue;
             }
 
