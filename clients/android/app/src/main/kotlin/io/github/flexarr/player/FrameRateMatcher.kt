@@ -26,7 +26,8 @@ import io.github.flexarr.logging.FlexarrLog
 internal class FrameRateMatcher(private val player: Player, private val view: SurfaceView) :
     Player.Listener, SurfaceHolder.Callback, VideoFrameMetadataListener {
     /** The rate the video wants, and the one last asked of the surface (−1: a new surface, nothing asked yet). */
-    private var wanted = 0f
+    internal var wanted = 0f
+        private set
     private var asked = 0f
     private var stopped = false
 
@@ -62,6 +63,12 @@ internal class FrameRateMatcher(private val player: Player, private val view: Su
     }
 
     override fun onTracksChanged(tracks: Tracks) {
+        // Between titles (each setMediaItem empties them): the screen stays as it is, or it blinks twice for a film at
+        // the same rate as the last. Only stop() goes back to its own.
+        if (tracks.isEmpty) {
+            measuring = false
+            return
+        }
         val rate = frameRate(tracks)
         val video = tracks.groups.any { it.type == C.TRACK_TYPE_VIDEO && it.isSelected }
         measuring = rate == 0f && video
@@ -79,11 +86,12 @@ internal class FrameRateMatcher(private val player: Player, private val view: Su
         if (times.size > FRAMES) times.removeFirst()
         val rate = measured(times)
         if (rate == null) {
-            // No steady rate after a few windows of frames: the screen is left at its own.
+            // No steady rate after a few windows of frames: the screen goes back to its own, if the title before asked for another.
             if (++looked >= FRAMES * GIVE_UP_WINDOWS) {
                 measuring = false
                 times.clear()
                 looked = 0
+                view.post { if (!stopped) apply(0f) }
             }
             return
         }
