@@ -431,7 +431,25 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
                     DetailActions.Button.DOWNLOAD -> DownloadAction(model, item, slot)
                     DetailActions.Button.MORE -> Box(slot) {
                         LabeledAction(t("More"), FlexarrIcons.more, { more = true }, Modifier.fillMaxWidth())
-                        DropdownMenu(more, onDismissRequest = { more = false }) {
+                        DropdownMenu(more, onDismissRequest = { more = false; choosingVersion = false }) {
+                            // Version's list takes the menu's place, so there's no second popup to open as the first one closes.
+                            if (choosingVersion) {
+                                val versions = detail.versions.orEmpty()
+                                val choose = { fileId: String? -> more = false; choosingVersion = false; navigator.chooseVersion(item, fileId) }
+                                DropdownMenuItem(
+                                    text = { Text(t(Words.automatic)) },
+                                    leadingIcon = { RadioButton(versions.none { it.chosen }, onClick = null) },
+                                    onClick = { choose(null) },
+                                )
+                                versions.forEach { version ->
+                                    DropdownMenuItem(
+                                        text = { Text(version.name(versions)) },
+                                        leadingIcon = { RadioButton(version.chosen, onClick = null) },
+                                        onClick = { choose(version.fileId) },
+                                    )
+                                }
+                                return@DropdownMenu
+                            }
                             actions.menu.forEach { entry ->
                                 when (entry) {
                                     is DetailActions.MenuItem.Moved -> when (entry.button) {
@@ -454,7 +472,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
                                         else -> Unit
                                     }
                                     DetailActions.MenuItem.Version ->
-                                        DropdownMenuItem(text = { Text(t(Words.version)) }, onClick = { more = false; choosingVersion = true })
+                                        DropdownMenuItem(text = { Text(t(Words.version)) }, onClick = { choosingVersion = true })
                                     DetailActions.MenuItem.Subtitles -> file?.let { found ->
                                         DropdownMenuItem(text = { Text(t("Search for subtitles")) }, onClick = { more = false; searchingSubtitlesFor = found.id })
                                     }
@@ -464,22 +482,6 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
                                 }
                             }
                             if (playsOn) DropdownMenuItem(text = { Text(t("Play on another screen")) }, onClick = { more = false; choosingScreen = true })
-                        }
-                        val versions = detail.versions.orEmpty()
-                        DropdownMenu(choosingVersion, onDismissRequest = { choosingVersion = false }) {
-                            val choose = { fileId: String? -> choosingVersion = false; navigator.chooseVersion(item, fileId) }
-                            DropdownMenuItem(
-                                text = { Text(t(Words.automatic)) },
-                                leadingIcon = { RadioButton(versions.none { it.chosen }, onClick = null) },
-                                onClick = { choose(null) },
-                            )
-                            versions.forEach { version ->
-                                DropdownMenuItem(
-                                    text = { Text(version.name(versions)) },
-                                    leadingIcon = { RadioButton(version.chosen, onClick = null) },
-                                    onClick = { choose(version.fileId) },
-                                )
-                            }
                         }
                     }
                 }
