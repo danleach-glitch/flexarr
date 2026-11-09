@@ -59,6 +59,12 @@ public sealed partial class LibraryScanWorker(
     /// </summary>
     private readonly Dictionary<string, DateTime?> _skippedAtStartup = new(StringComparer.Ordinal);
 
+    /// <summary>How long a watched scan that failed waits before its next try: the watcher won't hear of those files again.</summary>
+    internal TimeSpan RetryWatchedAfter { get; set; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>The tries after the first. Then it's the weekly scan's: a folder that goes on failing shouldn't go on being scanned.</summary>
+    internal const int MaxWatchedRetries = 2;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         // Catch up on anything that changed while the server was down (and finish interrupted scans). A folder scanned
@@ -105,8 +111,28 @@ public sealed partial class LibraryScanWorker(
                 catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
                 {
                     LogScanFailed(ex, PathComparison.Printable(request.Path));
+                    _ = RetryLaterAsync(request, stoppingToken);
                 }
             }
+        }
+    }
+
+    /// <summary>Queues a failed watched scan again, in a while: a NAS's hiccup or a busy database shouldn't hide a new film for a week.</summary>
+    private async Task RetryLaterAsync(LibraryScanRequest request, CancellationToken ct)
+    {
+        if (request.Reason != FolderWatcher.Reason || request.Retries >= MaxWatchedRetries)
+        {
+            return;
+        }
+
+        try
+        {
+            await Task.Delay(RetryWatchedAfter, ct);
+            await queue.EnqueueAsync(request with { Retries = request.Retries + 1 }, ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Shutting down: the next start catches up.
         }
     }
 
@@ -200,6 +226,9 @@ public sealed partial class LibraryScanWorker(
                     ForceMetadata = covered.Any(o => o.ForceMetadata),
                     LastChange = covered.All(o => o.LastChange is not null) ? covered.Max(o => o.LastChange) : null,
                     OnlySubtitles = covered.All(o => o.OnlySubtitles),
+                    Retries = covered.Max(o => o.Retries),
+                    // A broader scan in its place: the watcher still won't hear of these files again if it fails.
+                    Reason = covered.Any(o => o.Reason == FolderWatcher.Reason) ? FolderWatcher.Reason : r.Reason,
                 };
             });
     }

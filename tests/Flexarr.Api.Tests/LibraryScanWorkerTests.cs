@@ -4,6 +4,7 @@ using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
 using Flexarr.Core.Probing;
 using Flexarr.Core.Scanning;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -258,6 +259,16 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
         // A scan of the whole folder covers its titles.
         worker.NoteScanned("/films", started.AddSeconds(5));
         Assert.True(worker.AlreadyScanned(title with { Path = "/films/Heat", LastChange = started }));
+    }
+
+    [Fact]
+    public void Coalesce_AWatchedRequest_UnderABroaderOne_StaysAWatchedOne()
+    {
+        var merged = LibraryScanWorker.Coalesce([
+            new LibraryScanRequest("/films", LibraryScanWorker.StartupReason),
+            new LibraryScanRequest("/films/Dune", FolderWatcher.Reason, Retries: 1),
+        ]).Single();
+        Assert.Equal(("/films", FolderWatcher.Reason, 1), (merged.Path, merged.Reason, merged.Retries));
     }
 
     [Fact]
@@ -538,6 +549,96 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
         };
 
         Assert.Equal(371980, Assert.Single(LibraryScanWorker.Coalesce(requests)).TvdbId);
+    }
+
+    /// <summary>Fails for what's <see cref="Under"/> a folder, the first <paramref name="times"/> times; the worker's startup scan also reads what other tests left.</summary>
+    private sealed class FailingProbe(int times) : IMediaProbe
+    {
+        private int _calls;
+
+        public int Calls => Volatile.Read(ref _calls);
+
+        public string? Under { get; set; }
+
+        public Task<ProbeResult> ProbeAsync(string path, CancellationToken cancellationToken) =>
+            path.StartsWith(Under ?? "?", StringComparison.Ordinal) && Interlocked.Increment(ref _calls) <= times
+                ? throw new InvalidOperationException("The disk went away")
+                : new FixedProbe().ProbeAsync(path, cancellationToken);
+    }
+
+    private async Task<(WebApplicationFactory<Program> Host, Library Library, string Title)> FilmToScanAsync(FailingProbe probe)
+    {
+        var host = factory.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.AddSingleton<IMediaProbe>(probe)));
+        var root = Directory.CreateDirectory(Path.Combine(factory.MediaDirectory, $"films-{Guid.NewGuid():N}")).FullName;
+        var title = Directory.CreateDirectory(Path.Combine(root, "Dune (2021)")).FullName;
+        File.WriteAllText(Path.Combine(title, "Dune (2021).mkv"), "x");
+        probe.Under = title;
+        // Scanned just now, so the worker's startup leaves the folder to the request under test.
+        var library = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = root, FullScanAt = DateTime.UtcNow }] };
+        using var scope = host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        db.Libraries.Add(library);
+        await db.SaveChangesAsync();
+        return (host, library, title);
+    }
+
+    [Fact]
+    public async Task AWatchedScanThatFails_IsTriedAgain_AndFindsTheFilm()
+    {
+        var probe = new FailingProbe(times: 1);
+        var (host, library, title) = await FilmToScanAsync(probe);
+        using (host)
+        {
+            var queue = new LibraryScanQueue();
+            await queue.EnqueueAsync(new LibraryScanRequest(title, FolderWatcher.Reason));
+            using var worker = new LibraryScanWorker(queue, host.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance,
+                host.Services.GetRequiredService<LibraryWorkGate>()) { RetryWatchedAfter = TimeSpan.FromMilliseconds(50) };
+            await worker.StartAsync(default);
+
+            var scanned = false;
+            for (var i = 0; i < 200 && !scanned; i++)
+            {
+                await Task.Delay(100);
+                using var scope = host.Services.CreateScope();
+                scanned = await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaItems.AnyAsync(m => m.LibraryId == library.Id);
+            }
+
+            await worker.StopAsync(default);
+            Assert.True(scanned, "the second try should find the film");
+            Assert.True(probe.Calls >= 2);
+        }
+    }
+
+    [Fact]
+    public async Task AWatchedScanThatKeepsFailing_StopsTrying_AndOtherScansAreNotRetried()
+    {
+        var probe = new FailingProbe(times: int.MaxValue);
+        var (host, _, title) = await FilmToScanAsync(probe);
+        using (host)
+        {
+            var queue = new LibraryScanQueue();
+            await queue.EnqueueAsync(new LibraryScanRequest(title, FolderWatcher.Reason));
+            using var worker = new LibraryScanWorker(queue, host.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance,
+                host.Services.GetRequiredService<LibraryWorkGate>()) { RetryWatchedAfter = TimeSpan.FromMilliseconds(50) };
+            await worker.StartAsync(default);
+
+            var tries = 1 + LibraryScanWorker.MaxWatchedRetries;
+            for (var i = 0; i < 200 && probe.Calls < tries; i++)
+            {
+                await Task.Delay(100);
+            }
+
+            Assert.Equal(tries, probe.Calls);
+            await queue.EnqueueAsync(new LibraryScanRequest(title, "Sonarr Download"));
+            for (var i = 0; i < 100 && probe.Calls == tries; i++)
+            {
+                await Task.Delay(100);
+            }
+
+            await Task.Delay(TimeSpan.FromSeconds(3)); // a retry would come round well within this: the debounce is 2 seconds
+            await worker.StopAsync(default);
+            Assert.Equal(tries + 1, probe.Calls); // a webhook's was asked for by Sonarr's next event
+        }
     }
 
     private sealed class FixedProbe : IMediaProbe

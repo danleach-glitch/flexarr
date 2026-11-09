@@ -12,8 +12,9 @@ namespace Flexarr.Core.Scanning;
 /// can have its details fetched alone rather than with the whole Radarr or Sonarr library.
 /// <see cref="LastChange"/>: when the folder watcher last heard of a change here; a scan of it that started after that has seen it.
 /// <see cref="OnlySubtitles"/>: only subtitle files changed, so the title's details needn't be looked up.
+/// <see cref="Retries"/>: how many times this scan has failed and been queued again.
 /// </summary>
-public sealed record LibraryScanRequest(string Path, string Reason, bool ForceMetadata = false, bool Deleted = false, int? TmdbId = null, int? TvdbId = null, DateTimeOffset? LastChange = null, bool OnlySubtitles = false);
+public sealed record LibraryScanRequest(string Path, string Reason, bool ForceMetadata = false, bool Deleted = false, int? TmdbId = null, int? TvdbId = null, DateTimeOffset? LastChange = null, bool OnlySubtitles = false, int Retries = 0);
 
 public interface ILibraryScanQueue
 {
