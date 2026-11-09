@@ -119,7 +119,7 @@ describe('LibraryRequested', () => {
   })
 
   describe('an album that couldn’t be imported', () => {
-    const stuck: MusicRequested = { ...albums[1], musicBrainzId: 'rg-stuck', title: 'City Lounge', state: 'couldNotImport' }
+    const stuck: MusicRequested = { ...albums[1], musicBrainzId: 'rg-stuck', title: 'City Lounge', state: 'couldNotImport', canRetry: true }
     const openWithStuck = async () => {
       albums.unshift(stuck)
       render(

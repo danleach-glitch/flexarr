@@ -138,7 +138,7 @@ function albumRow(item: MusicRequested): Row {
     progress: item.progress,
     releaseDate: item.releaseDate,
     undo: () => unrequestAlbum({ musicBrainzId: item.musicBrainzId }),
-    retry: () => retryAlbum({ musicBrainzId: item.musicBrainzId }),
+    retry: item.canRetry === true ? () => retryAlbum({ musicBrainzId: item.musicBrainzId }) : undefined,
   }
 }
 

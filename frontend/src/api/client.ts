@@ -1859,6 +1859,8 @@ export interface MusicRequested {
   /** While downloading, 0 to 1. */
   progress: number | null
   artistLibraryItemId: string | null
+  /** Whether Try again would do anything for this profile. Absent from servers before 0.64. */
+  canRetry?: boolean
 }
 /** What Lidarr awaits; given a library, only its artists. */
 export const getMusicRequested = (libraryId?: string, signal?: AbortSignal) =>
