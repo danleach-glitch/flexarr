@@ -89,7 +89,8 @@ public sealed class TitleLinkerTests : IAsyncLifetime
     {
         var pairs = Enumerable.Range(0, 600).Select(n =>
             (Hd: Add(_hd, MediaKind.Movie, $"Film {n}", tmdb: $"{n}"), Uhd: Add(_uhd, MediaKind.Movie, $"Film {n}", tmdb: $"{n}"))).ToList();
-        _db.PlaybackStates.Add(new PlaybackState { UserId = "me", MediaItemId = pairs[^1].Hd.Id, Watched = true, PlayCount = 1, LastPlayedAt = DateTime.UtcNow });
+        await _db.SaveChangesAsync();
+        _db.PlaybackStates.Add(new PlaybackState { MediaItemId = pairs[^1].Hd.Id, Watched = true, PlayCount = 1, LastPlayedAt = DateTime.UtcNow });
         var last = pairs[^1].Uhd.Id;
         await LinkAsync();
 
