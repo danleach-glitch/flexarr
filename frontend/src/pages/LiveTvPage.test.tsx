@@ -382,6 +382,35 @@ describe('refreshing the Live TV guide', () => {
       expect(screen.getByRole('button', { name: 'Refresh guide' })).toBeInTheDocument()
     })
 
+    // The count is kept in memory: a restart takes it back to 0, which may be what it was, and takes the refresh with it.
+    it.each([0, 4])(
+      'a server restart ends the wait with the count at %i before it, without saying it worked',
+      (countBefore) =>
+        fake(async () => {
+          const state = server()
+          state.finished = countBefore
+          openPage(true)
+          await press()
+          await passes(2500)
+
+          state.down = true
+          await passes(2500)
+          state.down = false
+          state.refreshing = false
+          state.finished = 0
+          state.refreshedAt = new Date().toISOString()
+          const before = state.channelFetches
+          await passes(2500)
+
+          expect(screen.getByRole('button', { name: 'Refresh guide' })).toBeInTheDocument()
+          expect(state.channelFetches).toBeGreaterThan(before)
+          expect(screen.queryByText('Guide refreshed')).toBeNull()
+          await passes(6 * 60_000)
+          expect(screen.queryByText(/taking a while/)).toBeNull()
+        })(),
+      20000,
+    )
+
     it(
       'press, leave, come back: the wait goes on, and the end refetches and says so',
       fake(async () => {

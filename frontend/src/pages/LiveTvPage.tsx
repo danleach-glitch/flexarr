@@ -93,9 +93,10 @@ export default function LiveTvPage() {
       return
     }
     // Servers from before the release after 0.63 don't count finished refreshes: one that fails as the last did shows nothing changing.
+    // The count goes up as a refresh stops, so one seen under way that stopped without it went with a server restart, which starts the count again.
     const finished =
       refreshesFinished != null
-        ? refreshesFinished !== before.refreshesFinished
+        ? seen || refreshesFinished !== before.refreshesFinished
         : seen || refreshedAt !== before.refreshedAt || error !== before.error || downloadError !== before.downloadError || Date.now() - at > OLD_SERVER_STARTS_WITHIN_MS
     if (!finished) {
       liveTvRefresh.going = Date.now()
@@ -107,7 +108,9 @@ export default function LiveTvPage() {
     // Worth saying only if it's news. A failure needs no saying: the status shows it for as long as it's so.
     const recent = (time: number) => Date.now() - time < RESULT_KEPT_MS
     const justEnded = recent(liveTvRefresh.going ?? at) || (!!refreshedAt && refreshedAt !== before.refreshedAt && recent(Date.parse(refreshedAt)))
-    setRefreshWorked(justEnded && !error && !downloadError)
+    // A restart forgets any failure too, and the refresh didn't get to finish.
+    const restarted = refreshesFinished != null && before.refreshesFinished != null && refreshesFinished <= before.refreshesFinished
+    setRefreshWorked(justEnded && !restarted && !error && !downloadError)
   }, [refresh, status.data, setRefresh])
   useEffect(() => {
     if (!refresh || !status.error) return
