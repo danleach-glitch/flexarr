@@ -127,7 +127,7 @@ describe('LibraryRequested', () => {
           <LibraryRequested library={library} viewSwitch={null} />
         </MemoryRouter>,
       )
-      return screen.findByRole('button', { name: 'Try City Lounge again' })
+      return screen.findByRole('button', { name: 'Try again: City Lounge' })
     }
     afterEach(() => {
       if (albums.includes(stuck)) albums.splice(albums.indexOf(stuck), 1)
@@ -145,7 +145,7 @@ describe('LibraryRequested', () => {
       await waitFor(() => expect(retried).toEqual([{ musicBrainzId: 'rg-stuck' }]))
       // Lidarr's queue may still say it for a moment: the card has moved on regardless.
       expect(await screen.findByText('Searching')).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: 'Try City Lounge again' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Try again: City Lounge' })).toBeNull()
       expect(screen.queryByRole('link', { name: /Why couldn’t/ })).toBeNull()
     })
 
@@ -156,7 +156,7 @@ describe('LibraryRequested', () => {
       fireEvent.click(button)
 
       expect(await screen.findByRole('alert')).toHaveTextContent('Lidarr said no')
-      expect(screen.getByRole('button', { name: 'Try City Lounge again' })).toBeEnabled()
+      expect(screen.getByRole('button', { name: 'Try again: City Lounge' })).toBeEnabled()
     })
 
     it('moves the keyboard to the next card’s Unrequest, not its Try again', async () => {
@@ -193,7 +193,7 @@ describe('LibraryRequested', () => {
         </MemoryRouter>,
       )
       await screen.findByText(/^Downloading/)
-      expect(screen.queryByRole('button', { name: /^Try / })).toBeNull()
+      expect(screen.queryByRole('button', { name: /^Try again/ })).toBeNull()
       expect(screen.queryByRole('link', { name: /Why/ })).toBeNull()
     })
   })

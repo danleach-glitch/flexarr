@@ -238,7 +238,7 @@ function RequestedCard({ row, square, offline, service, onGone, onRetried }: { r
       )}
       <div className="external-card-actions">
         {stuck && row.retry && (
-          <AsyncButton className="button small" aria-label={t('Try {title} again', { title: row.title })} onClick={retry} disabled={offline} title={offline ? t('{service} isn’t answering.', { service }) : undefined}>
+          <AsyncButton className="button small" aria-label={t('Try again: {title}', { title: row.title })} onClick={retry} disabled={offline} title={offline ? t('{service} isn’t answering.', { service }) : undefined}>
             {t('Try again')}
           </AsyncButton>
         )}
