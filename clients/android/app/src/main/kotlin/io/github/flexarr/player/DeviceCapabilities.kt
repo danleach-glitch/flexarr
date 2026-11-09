@@ -25,8 +25,8 @@ object DeviceCapabilities {
     data class Facts(
         /** Decodable types, lower case (`video/hevc`, `audio/ac3`). */
         val decoders: Set<String>,
-        /** Video types with a hardware decoder that takes 3840×2160. */
-        val uhdDecoders: Set<String>,
+        /** The tallest 16:9 picture each video type's hardware decoders take ([tallest]); a type without one isn't here. */
+        val decoderHeights: Map<String, Int>,
         /** `Display.HdrCapabilities.HDR_TYPE_*` the screen takes in any of its modes. */
         val hdrTypes: Set<Int>,
         /** Surround formats the output takes as they are (`ac3`, `eac3`, `eac3-joc`, `dts`, `dts-hd`, `truehd`), by name. */
@@ -44,12 +44,30 @@ object DeviceCapabilities {
      * Android's own software decoders take 3840×2160 too, but can't keep up with it: only a hardware decoder counts, so
      * a box without one gets 1080p from the server.
      */
-    private val uhdDecoders: Set<String> by lazy {
-        codecs.filter(::isHardware).flatMap { info ->
-            info.supportedTypes.filter { it.startsWith("video/") }.filter { type ->
-                runCatching { info.getCapabilitiesForType(type).videoCapabilities?.isSizeSupported(3840, 2160) == true }.getOrDefault(false)
-            }.map { it.lowercase() }
-        }.toSet()
+    private val decoderHeights: Map<String, Int> by lazy {
+        val heights = mutableMapOf<String, Int>()
+        for (info in codecs.filter(::isHardware)) {
+            for (type in info.supportedTypes.filter { it.startsWith("video/") }) {
+                val video = runCatching { info.getCapabilitiesForType(type).videoCapabilities }.getOrNull() ?: continue
+                val height = tallest { width, height -> runCatching { video.isSizeSupported(width, height) }.getOrDefault(false) } ?: continue
+                heights.merge(type.lowercase(), height, ::maxOf)
+            }
+        }
+        heights
+    }
+
+    /** The tallest of the sizes people's files come in that a decoder takes, by the 16:9 picture that fills it. */
+    internal fun tallest(takes: (width: Int, height: Int) -> Boolean): Int? =
+        listOf(3840 to 2160, 2560 to 1440, 1920 to 1080).firstOrNull { (width, height) -> takes(width, height) }?.second
+
+    /**
+     * How tall a picture the server may send as it is. The server takes one height for every codec, so it's the height of
+     * the codec the big files come in that this device decodes: a 4K H.264 decoder says nothing about 4K HEVC. Decoding
+     * that codec only in software can't keep up with more than 1080p.
+     */
+    internal fun maxHeight(decoders: Set<String>, heights: Map<String, Int>): Int {
+        val decides = LARGE_FILE_CODECS.firstOrNull { it in decoders } ?: return 1080
+        return maxOf(heights[decides] ?: 1080, 1080)
     }
 
     /**
@@ -65,7 +83,7 @@ object DeviceCapabilities {
         val sound = SoundSettings.current(context)
         return Facts(
             decoders = decoders,
-            uhdDecoders = uhdDecoders,
+            decoderHeights = decoderHeights,
             hdrTypes = hdrTypes(context),
             passthrough = passthrough(context),
             passesThrough = !sound.decodesSurround,
@@ -112,7 +130,7 @@ object DeviceCapabilities {
             audioCodecs = (decoded + passedThrough).distinct(),
             hdr = hdr10 || hlg || dolbyVision,
             // A 1080p screen still takes 4K files when a decoder does: it scales them itself, so the server needn't convert.
-            maxHeight = if (facts.uhdDecoders.any { it in UHD_VIDEO }) 2160 else 1080,
+            maxHeight = maxHeight(decoders, facts.decoderHeights),
             // Android mixes surround down for headphones and speakers itself.
             maxAudioChannels = 8,
             maxBitrate = 0,
@@ -201,7 +219,8 @@ object DeviceCapabilities {
     const val HDR10_PLUS = 4 // HDR_TYPE_HDR10_PLUS
     const val DOLBY_VISION = 1 // HDR_TYPE_DOLBY_VISION
 
-    private val UHD_VIDEO = setOf("video/hevc", "video/av01", "video/x-vnd.on2.vp9", "video/avc")
+    /** Most likely first, of what a big file is in. */
+    private val LARGE_FILE_CODECS = listOf("video/hevc", "video/av01", "video/x-vnd.on2.vp9", "video/avc")
 
     @OptIn(UnstableApi::class)
     private val ENCODINGS = listOf(

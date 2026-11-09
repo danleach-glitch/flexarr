@@ -12,11 +12,11 @@ class DeviceCapabilitiesTest {
 
     private fun facts(
         decoders: Set<String> = tvDecoders,
-        uhd: Set<String> = setOf("video/hevc"),
+        heights: Map<String, Int> = mapOf("video/hevc" to 2160),
         hdr: Set<Int> = emptySet(),
         passthrough: Set<String> = emptySet(),
         passesThrough: Boolean = true,
-    ) = DeviceCapabilities.Facts(decoders, uhd, hdr, passthrough, passesThrough)
+    ) = DeviceCapabilities.Facts(decoders, heights, hdr, passthrough, passesThrough)
 
     @Test fun hdrTypes_comeFromTheScreen() {
         val profile = DeviceCapabilities.profile(facts(hdr = setOf(DeviceCapabilities.HDR10, DeviceCapabilities.HLG, DeviceCapabilities.HDR10_PLUS)))
@@ -41,10 +41,38 @@ class DeviceCapabilitiesTest {
     }
 
     @Test fun fourK_comesFromTheDecoders() {
-        assertEquals(2160, DeviceCapabilities.profile(facts(uhd = setOf("video/hevc"))).maxHeight)
-        assertEquals(1080, DeviceCapabilities.profile(facts(uhd = emptySet())).maxHeight)
+        assertEquals(2160, DeviceCapabilities.profile(facts(heights = mapOf("video/hevc" to 2160))).maxHeight)
+        assertEquals(1080, DeviceCapabilities.profile(facts(heights = emptyMap())).maxHeight)
         // An image decoder that takes 4K doesn't count.
-        assertEquals(1080, DeviceCapabilities.profile(facts(uhd = setOf("video/mjpeg"))).maxHeight)
+        assertEquals(1080, DeviceCapabilities.profile(facts(heights = mapOf("video/mjpeg" to 2160))).maxHeight)
+    }
+
+    @Test fun fourKH264_saysNothingAboutHevc() {
+        val heights = mapOf("video/avc" to 2160, "video/hevc" to 1080)
+        assertEquals(1080, DeviceCapabilities.profile(facts(heights = heights)).maxHeight)
+        // HEVC only in software can't keep up with 4K either.
+        assertEquals(1080, DeviceCapabilities.profile(facts(heights = mapOf("video/avc" to 2160))).maxHeight)
+    }
+
+    @Test fun fourKHevc_isntHeldBackByH264() {
+        assertEquals(2160, DeviceCapabilities.profile(facts(heights = mapOf("video/avc" to 1080, "video/hevc" to 2160))).maxHeight)
+    }
+
+    @Test fun withoutHevc_h264Decides() {
+        val decoders = setOf("video/avc")
+        assertEquals(2160, DeviceCapabilities.profile(facts(decoders = decoders, heights = mapOf("video/avc" to 2160))).maxHeight)
+    }
+
+    @Test fun aPhoneLimitedTo1440p_takes1440pFiles() {
+        assertEquals(1440, DeviceCapabilities.profile(facts(heights = mapOf("video/hevc" to 1440))).maxHeight)
+    }
+
+    @Test fun aDecodersHeight_isTheSizeItReallyTakes() {
+        fun upTo(maxWidth: Int, maxHeight: Int) = DeviceCapabilities.tallest { width, height -> width <= maxWidth && height <= maxHeight }
+        assertEquals(2160, upTo(4096, 2304))
+        assertEquals(1440, upTo(2560, 1440))
+        assertEquals(1080, upTo(1920, 1088))
+        assertEquals(null, upTo(1280, 720))
     }
 
     @Test fun passthrough_addsDtsAndTrueHd() {
