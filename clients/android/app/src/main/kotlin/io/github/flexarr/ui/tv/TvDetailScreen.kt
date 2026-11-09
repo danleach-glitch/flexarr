@@ -286,7 +286,7 @@ private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, 
         }
         Row(horizontalArrangement = Arrangement.spacedBy(11.dp), verticalAlignment = Alignment.CenterVertically) {
             val isKids = LocalContext.current.appModel.isKids
-            TvFactsLine(item.facts(scores = !isKids), scores = if (isKids) null else item.scores)
+            TvFactsLine(item.facts(scores = !isKids, versions = detail.versions), scores = if (isKids) null else item.scores)
             if (detail.genres.isNotEmpty()) Text(detail.genres.take(3).joinToString(", "), fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
         }
         detail.overview?.takeIf { it.isNotEmpty() }?.let {
@@ -309,6 +309,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail,
     val scope = rememberCoroutineScope()
     val model = context.appModel
     var more by remember { mutableStateOf(false) }
+    var choosingVersion by remember { mutableStateOf(false) }
     var searchingSubtitlesFor by remember { mutableStateOf<String?>(null) }
     var focusedName by remember { mutableStateOf<String?>(null) }
     val file = detail.files.firstOrNull()
@@ -336,6 +337,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail,
             platform = DetailActions.Platform.TV,
             canPlayTrailers = trailerIntent != null,
             canSearchSubtitles = detail.canSearchSubtitles == true && file != null,
+            canChooseVersion = (detail.versions?.size ?: 0) > 1,
         ),
     )
     val first = remember { FocusRequester() }
@@ -401,11 +403,19 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail,
             when (entry) {
                 // Only a phone's row runs out of room.
                 is DetailActions.MenuItem.Moved -> null
+                DetailActions.MenuItem.Version -> MenuAction(t(Words.version)) { choosingVersion = true }
                 DetailActions.MenuItem.Subtitles -> file?.let { found -> MenuAction(t("Search for subtitles")) { searchingSubtitlesFor = found.id } }
                 DetailActions.MenuItem.GoToShow -> series?.let { show -> MenuAction(t(Words.goToShow)) { navigator.openItem(show.id) } }
             }
         }
         TvItemMenu(item.displayTitle, entries, onDismiss = { more = false })
+    }
+    if (choosingVersion) {
+        val versions = detail.versions.orEmpty()
+        val marked = { name: String, chosen: Boolean -> if (chosen) "✓ $name" else name }
+        val entries = listOf(MenuAction(marked(t(Words.automatic), versions.none { it.chosen })) { navigator.chooseVersion(item, null) }) +
+            versions.map { version -> MenuAction(marked(version.name(versions), version.chosen)) { navigator.chooseVersion(item, version.fileId) } }
+        TvItemMenu(t(Words.version), entries, onDismiss = { choosingVersion = false })
     }
     searchingSubtitlesFor?.let { fileId ->
         // Over the page, as in the player: a panel down the right.
