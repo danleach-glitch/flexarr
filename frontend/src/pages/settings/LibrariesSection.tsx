@@ -52,19 +52,33 @@ export function LibrariesSection() {
   // Watching folders for new files (servers before 0.64 don't say, and don't watch).
   const settings = useApi((signal) => getSettings(signal), [])
   const [watchError, setWatchError] = useState<string>()
+  // The switch moves at once, however slow the connection, and goes back if saving fails.
+  const [watchPicked, setWatchPicked] = useState<boolean>()
+  // One save at a time, so flicking it twice can't arrive in the wrong order; only the last says how it went.
+  const watchSaves = useRef<Promise<unknown>>(Promise.resolve())
+  const watchAsk = useRef(0)
   const timers = useRef<ReturnType<typeof setTimeout>[]>([])
   useEffect(() => () => timers.current.forEach(clearTimeout), [])
 
   async function watch(on: boolean) {
+    const ask = ++watchAsk.current
     setWatchError(undefined)
+    setWatchPicked(on)
+    const saving = watchSaves.current.catch(() => undefined).then(() => saveSettings({ watchFolders: on }))
+    watchSaves.current = saving
     try {
-      await saveSettings({ watchFolders: on })
+      await saving
+      if (ask !== watchAsk.current) return
       settings.reload()
       // The server starts or stops watching within a few seconds, longer if a big folder takes a while to walk.
       timers.current.forEach(clearTimeout)
       timers.current = [3000, 10000, 30000].map((after) => setTimeout(() => all.reload(), after))
     } catch (e) {
+      if (ask !== watchAsk.current) return
+      setWatchPicked(undefined)
       setWatchError(errorText(e))
+      // An earlier flick may have saved: what's shown goes back to what the server has.
+      settings.reload()
     }
   }
 
@@ -102,7 +116,7 @@ export function LibrariesSection() {
       )}
       {managed.length > 0 && (
         <WatchSwitch
-          watching={settings.data?.watchFolders}
+          watching={watchPicked ?? settings.data?.watchFolders}
           loading={settings.loading && !settings.data}
           error={watchError ?? (settings.error && errorText(settings.error))}
           onChange={(on) => void watch(on)}
