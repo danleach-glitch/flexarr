@@ -88,7 +88,7 @@ When you have more than one library, each profile has a switch for each. A libra
 
 Any profile except the main one can have an age limit, in **Settings › Profiles**: **U**, **PG**, **12**, **15** or **18**, or on a server in the US, **G**, **PG**, **PG-13**, **TV-14** or **R**. Titles rated above it are hidden from that profile on every device: Home, the libraries, search, Continue watching, the next episode, collections, Siri and notifications. Opening one by its link says it isn't there.
 
-The names follow the **Country** in **Settings › Overview**. It only renames the same five steps, so changing it doesn't change what anyone sees:
+The names follow the **Country** in **Settings › Overview**, and are the same five steps either way:
 
 | UK | US | The US step also lets through |
 | --- | --- | --- |
@@ -99,6 +99,8 @@ The names follow the **Country** in **Settings › Overview**. It only renames t
 | 18 | R | NC-17, TV-MA |
 
 A PG-13 limit hides TV-14 shows, so choose TV-14 to allow them.
+
+A film looked up on TMDB, rather than coming from Radarr, shows your country's rating but counts by the strictest of that, the UK's and the US's. Moving between the UK and the US can't let more through, but a film can show PG-13 and still be over a PG-13 limit. **Allow for kids** on its page lets it through.
 
 Ratings from any country count. An age is rounded up to the next step, so Germany's 16 counts as 18 (R), and a few have an equivalent of their own: PG-13 is 12, TV-14 is 15, and R and TV-MA are 18. A rating with its reasons ("Rated R for violence") counts by its first word. A show's seasons and episodes follow the show.
 

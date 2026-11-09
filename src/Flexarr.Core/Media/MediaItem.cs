@@ -105,7 +105,14 @@ public sealed class MediaItem
     public string? ContentRating { get; set; }
 
     /// <summary>
-    /// The age it's suitable from (see <see cref="RatingAges"/>): from its own <see cref="ContentRating"/>, or, for a
+    /// The certificate age limits go by when it's stricter than <see cref="ContentRating"/>: a film looked up on TMDB shows
+    /// its own country's, but its age comes from the strictest of that, the UK's and the US's, so moving the server between
+    /// the UK and the US can't loosen a limit. Null, its <see cref="ContentRating"/> decides. Set only with a ContentRating.
+    /// </summary>
+    public string? StrictestRating { get; set; }
+
+    /// <summary>
+    /// The age it's suitable from (see <see cref="RatingAges"/>): from its own <see cref="StrictestRating"/> or <see cref="ContentRating"/>, or, for a
     /// season, episode, album or track without one, its parent's. Null is unrated. Kept up to date by the context.
     /// </summary>
     public int? RatingAge { get; set; }

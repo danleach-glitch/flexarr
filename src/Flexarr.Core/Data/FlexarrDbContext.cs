@@ -631,7 +631,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
         foreach (var entry in ChangeTracker.Entries<MediaItem>())
         {
             if (entry.State != EntityState.Added && (entry.State != EntityState.Modified
-                || !entry.Property(i => i.ContentRating).IsModified && !entry.Property(i => i.KidsOverride).IsModified && !entry.Property(i => i.ParentId).IsModified))
+                || !entry.Property(i => i.ContentRating).IsModified && !entry.Property(i => i.StrictestRating).IsModified && !entry.Property(i => i.KidsOverride).IsModified && !entry.Property(i => i.ParentId).IsModified))
             {
                 continue;
             }
@@ -649,7 +649,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             }
             else
             {
-                entry.Property(i => i.RatingAge).CurrentValue = RatingAges.For(item.Kind, item.ContentRating);
+                entry.Property(i => i.RatingAge).CurrentValue = RatingAges.For(item.Kind, item.StrictestRating ?? item.ContentRating);
             }
 
             rated.Add(item.Id);
@@ -693,11 +693,18 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
     public async Task ReconcileRatingAgesAsync(CancellationToken ct)
     {
         var items = MediaItems.IgnoreQueryFilters();
-        var ratings = await items.Where(i => i.ContentRating != null).Select(i => i.ContentRating!).Distinct().ToListAsync(ct);
+        var ratings = await items.Where(i => i.ContentRating != null && i.StrictestRating == null).Select(i => i.ContentRating!).Distinct().ToListAsync(ct);
         foreach (var rating in ratings)
         {
             var age = RatingAges.Of(rating);
-            await items.Where(i => i.ContentRating == rating && i.RatingAge != age).ExecuteUpdateAsync(u => u.SetProperty(i => i.RatingAge, age), ct);
+            await items.Where(i => i.ContentRating == rating && i.StrictestRating == null && i.RatingAge != age).ExecuteUpdateAsync(u => u.SetProperty(i => i.RatingAge, age), ct);
+        }
+
+        var strictest = await items.Where(i => i.StrictestRating != null).Select(i => i.StrictestRating!).Distinct().ToListAsync(ct);
+        foreach (var rating in strictest)
+        {
+            var age = RatingAges.Of(rating);
+            await items.Where(i => i.StrictestRating == rating && i.RatingAge != age).ExecuteUpdateAsync(u => u.SetProperty(i => i.RatingAge, age), ct);
         }
 
         // Clean podcasts are for everyone; other titles without a rating aren't rated.

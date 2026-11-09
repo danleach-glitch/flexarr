@@ -352,6 +352,7 @@ public sealed partial class MetadataRefresher(
         item.Year = movie.Year > 0 ? movie.Year : item.Year;
         item.Overview = NullIfEmpty(movie.Overview);
         item.ContentRating = NullIfEmpty(movie.Certification);
+        item.StrictestRating = null;
         item.Studio = NullIfEmpty(movie.Studio);
         item.RuntimeMinutes = movie.Runtime > 0 ? movie.Runtime : null;
         item.Status = movie.Status;
@@ -1152,6 +1153,7 @@ public sealed partial class MetadataRefresher(
         item.Year = series.Year > 0 ? series.Year : taggedYear ?? item.Year;
         item.Overview = NullIfEmpty(series.Overview);
         item.ContentRating = NullIfEmpty(series.Certification);
+        item.StrictestRating = null;
         item.Studio = NullIfEmpty(series.Network);
         item.RuntimeMinutes = series.Runtime > 0 ? series.Runtime : null;
         item.Status = series.Status;
@@ -1357,6 +1359,7 @@ public sealed partial class MetadataRefresher(
         item.Year = movie.Year > 0 ? movie.Year : item.Year;
         item.Overview = NullIfEmpty(movie.Overview);
         item.ContentRating = Certification(movie.ReleaseDates, settings.Country);
+        item.StrictestRating = StrictestCertification(movie.ReleaseDates, settings.Country, item.ContentRating);
         item.Studio = movie.ProductionCompanies is [var studio, ..] ? studio.Name : null;
         item.RuntimeMinutes = movie.Runtime > 0 ? movie.Runtime : null;
         item.Status = movie.Status;
@@ -1386,8 +1389,8 @@ public sealed partial class MetadataRefresher(
     }
 
     /// <summary>
-    /// The age rating for the release in the server's country (people know their own), else the UK's (age limits use
-    /// its steps), else the US one, else any release with one.
+    /// The age rating to show: the release in the server's country (people know their own), else the UK's (age limits
+    /// use its steps), else the US one, else any release with one.
     /// </summary>
     private static string? Certification(TmdbReleases? releases, string? country)
     {
@@ -1398,6 +1401,16 @@ public sealed partial class MetadataRefresher(
             .Concat(all.SelectMany(r => r.ReleaseDates))
             .Select(r => NullIfEmpty(r.Certification)).FirstOrDefault(c => c is not null);
     }
+
+    /// <summary>
+    /// What age limits go by when it's stricter than the <paramref name="shown"/> certificate: the strictest of the
+    /// server's country's, the UK's and the US's, so moving the server between the UK and the US changes nothing a limit
+    /// lets through. See <see cref="MediaItem.StrictestRating"/>.
+    /// </summary>
+    internal static string? StrictestCertification(TmdbReleases? releases, string? country, string? shown) =>
+        RatingAges.StricterThan(shown, (releases?.Results ?? [])
+            .Where(r => r.Iso31661 == country || r.Iso31661 is "GB" or "US")
+            .SelectMany(r => r.ReleaseDates).Select(r => r.Certification));
 
     private async Task ApplyTmdbCreditsAsync(MediaItem item, TmdbCredits credits, CancellationToken ct)
     {
@@ -1671,6 +1684,8 @@ public sealed partial class MetadataRefresher(
         item.Year = nfo.Year ?? item.Year;
         item.Overview = nfo.Plot ?? item.Overview;
         item.ContentRating = nfo.ContentRating ?? item.ContentRating;
+        // The file's own rating is someone's choice, and has the last word.
+        item.StrictestRating = nfo.ContentRating is null ? item.StrictestRating : null;
         item.Studio = nfo.Studio ?? item.Studio;
         item.RuntimeMinutes = nfo.RuntimeMinutes ?? item.RuntimeMinutes;
         item.ReleaseDate = nfo.Premiered ?? item.ReleaseDate;

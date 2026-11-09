@@ -6,8 +6,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Profiles
 
-- Age limits now use the US's names on a server in the US: **G**, **PG**, **PG-13**, **TV-14** and **R**. Everywhere else they stay **U**, **PG**, **12**, **15** and **18**. Changing them only changes the names, so every profile keeps seeing the same titles.
-- **Country** is now its own setting in **Settings › Overview**, moved from Podcasts, and the setup guide asks for it. It sets the names of age limits, whose certificates titles show first (now including titles from Discover), podcast charts and the Audible store.
+- Age limits now use the US's names on a server set to the US: **G**, **PG**, **PG-13**, **TV-14** and **R**. Everywhere else they stay **U**, **PG**, **12**, **15** and **18**.
+- **Country** is now its own setting in **Settings › Overview**, moved from Podcasts, and the setup guide asks for it. It sets the names of age limits, whose ratings titles show first (now including titles from Discover), podcast charts, and the Audible store unless you've chosen one.
+- A film looked up on TMDB now counts towards age limits by the strictest of your country's, the UK's and the US's ratings, whichever it shows, so moving between the UK and the US can't let more through. Some films may go over a profile's limit when their details next refresh; **Allow for kids** on a film's page lets one through.
 
 ### Live TV
 

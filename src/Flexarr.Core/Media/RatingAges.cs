@@ -106,6 +106,17 @@ public static class RatingAges
         return Short(r);
     }
 
+    /// <summary>
+    /// The one of <paramref name="ratings"/> with the highest age, if that's higher than <paramref name="shown"/>'s;
+    /// otherwise null, as <paramref name="shown"/> says enough. Ratings Flexarr can't read don't count.
+    /// </summary>
+    public static string? StricterThan(string? shown, IEnumerable<string?> ratings)
+    {
+        ArgumentNullException.ThrowIfNull(ratings);
+        var strictest = ratings.Select(r => (Rating: r, Age: Of(r))).Where(r => r.Age is not null).DefaultIfEmpty().MaxBy(r => r.Age);
+        return strictest.Age > Of(shown) || strictest.Age is not null && Of(shown) is null ? strictest.Rating : null;
+    }
+
     /// <summary>A rating of one short word: named, or an age written as a number.</summary>
     private static int? Short(string r)
     {

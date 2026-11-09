@@ -96,7 +96,7 @@ public class KidsProfileTests
     }
 
     [Fact]
-    public async Task TheServersCountry_RenamesAgeLimits_AndChangesNothingAProfileSees()
+    public async Task TheServersCountry_RenamesAgeLimits_WithoutTouchingWhatsSavedOrSeenNow()
     {
         using var server = new FlexarrApiFactory();
         await server.SetMainPinAsync(MainPin);
@@ -125,6 +125,12 @@ public class KidsProfileTests
         Assert.Equal("uk", await SystemAsync());
         Assert.Equal(HttpStatusCode.BadRequest, (await admin.PutAsJsonAsync(Api("/settings"), new { podcasts = new { country = "xx" } })).StatusCode);
         Assert.Equal("uk", await SystemAsync());
+
+        // Chosen and then cleared, it's the server's region's again, as it was before anyone chose.
+        var detected = Flexarr.Api.Podcasts.PodcastCountries.RatingSystem(null).ToString().ToLowerInvariant();
+        await admin.PutAsJsonAsync(Api("/settings"), new { podcasts = new { country = "us" } });
+        await admin.PutAsJsonAsync(Api("/settings"), new { podcasts = new { country = "" } });
+        Assert.Equal(detected, await SystemAsync());
     }
 
     [Fact]

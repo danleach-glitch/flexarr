@@ -76,6 +76,16 @@ public class RatingAgesTests
     }
 
     [Fact]
+    public void StricterThan_IsTheHighestAge_OnlyWhenItsAboveWhatsShown()
+    {
+        Assert.Equal("15", RatingAges.StricterThan("PG-13", ["PG-13", "15", null, "nonsense"]));
+        Assert.Null(RatingAges.StricterThan("15", ["PG-13", "15"]));
+        Assert.Null(RatingAges.StricterThan("PG-13", []));
+        Assert.Equal("PG", RatingAges.StricterThan("NR", ["PG"]));
+        Assert.Null(RatingAges.StricterThan("NR", ["NR"]));
+    }
+
+    [Fact]
     public void Labels_AreTheUkNames() =>
         Assert.Equal(["U", "PG", "12", "15", "18"], RatingAges.Steps.Select(RatingAges.Label));
 

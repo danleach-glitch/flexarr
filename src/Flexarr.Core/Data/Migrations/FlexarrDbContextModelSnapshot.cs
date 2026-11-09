@@ -948,6 +948,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<string>("Status")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("StrictestRating")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Studio")
                         .HasColumnType("TEXT");
 
