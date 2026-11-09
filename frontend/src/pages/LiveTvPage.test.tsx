@@ -245,6 +245,54 @@ describe('refreshing the Live TV guide', () => {
   })
 })
 
+describe('On now', () => {
+  const status = { configured: true, channels: 2, refreshing: false, refreshedAt: null, error: null, rewindMinutes: 0 }
+  const row = { id: 'c1', number: 1, name: 'Channel One', group: null, logoUrl: null, isFavourite: false, now: null, next: null }
+  const open = () =>
+    render(
+      <MemoryRouter>
+        <LiveTvPage />
+      </MemoryRouter>,
+    )
+
+  it('keeps its channels on screen through one failed look, with Try again above them', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      let down = false
+      mockApi({ '/livetv/status': status, '/livetv/channels': () => (down ? new Response('', { status: 500 }) : [row]) })
+      open()
+      await screen.findByText('Channel One')
+
+      down = true
+      await vi.advanceTimersByTimeAsync(60_000)
+
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent('Couldn’t load the channels')
+      expect(screen.getByText('Channel One')).toBeInTheDocument()
+
+      down = false
+      fireEvent.click(within(alert).getByRole('button', { name: 'Try again' }))
+      await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+      expect(screen.getByText('Channel One')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('offers Try again when nothing has loaded yet', async () => {
+    let down = true
+    mockApi({ '/livetv/status': status, '/livetv/channels': () => (down ? new Response('', { status: 500 }) : [row]) })
+    open()
+
+    const alert = await screen.findByRole('alert')
+    down = false
+    fireEvent.click(within(alert).getByRole('button', { name: 'Try again' }))
+
+    expect(await screen.findByText('Channel One')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+})
+
 describe('the Live TV guide', () => {
   it('opens a programme’s details by redrawing its own channel’s line, not every channel’s', async () => {
     mockApi({

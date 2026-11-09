@@ -226,7 +226,7 @@ const FAVOURITES = '\u0000favourites'
 
 // Only redrawn when a refresh finishes, not by every look at the status above it.
 const OnNow = memo(function OnNow({ refreshed }: { refreshed: number }) {
-  const { data, error, reload } = useApi(getLiveChannels, [])
+  const { data, error, loading, reload } = useApi(getLiveChannels, [])
   usePolling(reload, 60_000)
   useEffect(() => {
     if (refreshed) reload()
@@ -244,12 +244,15 @@ const OnNow = memo(function OnNow({ refreshed }: { refreshed: number }) {
     </li>
   )
 
-  if (error) return <p className="error">{t('Couldn’t load the channels: {error}', { error: error.message })}</p>
+  const failure = error && <PageError error={error} message={t('Couldn’t load the channels: {error}', { error: error.message })} onRetry={reload} retrying={loading} />
+  // Channels already on screen stay there, with the failure above them.
+  if (failure && !data?.length) return failure
   if (!data) return <PageLoading label={t('Loading channels')} />
   if (data.length === 0) return <p className="page-message muted">{t('No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user.')}</p>
 
   return (
     <>
+      {failure}
       <div className="chips livetv-groups" role="toolbar" aria-label={t('Channel groups')}>
         <button className={group === FAVOURITES ? 'chip active' : 'chip'} onClick={() => setGroup(FAVOURITES)}>
           <Star filled className="chip-star" /> {t('Favourites')}
