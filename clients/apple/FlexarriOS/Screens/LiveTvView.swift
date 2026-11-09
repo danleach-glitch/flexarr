@@ -63,7 +63,7 @@ struct LiveTvView: View {
                 } else if showsGuide {
                     VStack(spacing: 0) {
                         chips.padding(.vertical, 6)
-                        missingListings.padding(.bottom, 6)
+                        if hasMissingListingsNote { missingListings.padding(.bottom, 6) }
                         LiveGuideView(channels: shown, favouritesOnly: filter == .favourites, order: order, refreshed: refreshed,
                                       onFavourite: { setFavourite($0, !$0.isFavourite) })
                     }
@@ -151,27 +151,31 @@ struct LiveTvView: View {
     }
 
     /// For the main profile, who can do something about it, with where it says how.
-    @ViewBuilder private var missingListings: some View {
-        if model.isMainProfile {
-            VStack(alignment: .leading, spacing: 2) {
-                if let refreshProblem {
-                    Text(refreshProblem).foregroundStyle(Color.usher)
-                }
-                if let count = model.liveTvStatus?.channelsWithoutListings, count > 0 {
-                    let text = Text(t("{count, plural, one {# channel has no listings} other {# channels have no listings}}", ["count": count]))
-                        .foregroundStyle(Color.usher)
-                    let why = Link(t("Why?"), destination: URL(string: "https://flexarr.io/guide/live-tv#channels-with-no-listings")!)
-                    // Beside each other when they fit; at the largest text sizes, one under the other.
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 6) { text; why }
-                        VStack(alignment: .leading, spacing: 2) { text; why }
-                    }
+    private var missingListings: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if let refreshProblem {
+                Text(refreshProblem).foregroundStyle(Color.usher)
+            }
+            if let count = model.liveTvStatus?.channelsWithoutListings, count > 0 {
+                let text = Text(t("{count, plural, one {# channel has no listings} other {# channels have no listings}}", ["count": count]))
+                    .foregroundStyle(Color.usher)
+                let why = Link(t("Why?"), destination: URL(string: "https://flexarr.io/guide/live-tv#channels-with-no-listings")!)
+                // Beside each other when they fit; at the largest text sizes, one under the other.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 6) { text; why }
+                    VStack(alignment: .leading, spacing: 2) { text; why }
                 }
             }
-            .font(.footnote)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, Layout.edge)
         }
+        .font(.footnote)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, Layout.edge)
+    }
+
+    /// Whether `missingListings` has anything to say. Nothing means no row at all: a list's empty row would still be a
+    /// row's height of blank above the channels.
+    private var hasMissingListingsNote: Bool {
+        model.isMainProfile && (refreshProblem != nil || (model.liveTvStatus?.channelsWithoutListings ?? 0) > 0)
     }
 
     private var favourites: [LiveChannel] { (channels ?? []).filter(\.isFavourite) }
@@ -206,10 +210,12 @@ struct LiveTvView: View {
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
 
-            missingListings
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
+            if hasMissingListingsNote {
+                missingListings
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+            }
 
             ForEach(shown) { channel in
                 ChannelRow(channel: channel, starting: model.liveTv.startingChannel == channel.id)
