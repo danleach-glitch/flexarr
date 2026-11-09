@@ -17,6 +17,10 @@ namespace Flexarr.Api.Endpoints.MusicRequests;
 /// for the album. So an artist a request added is monitored here, with the album, while the album is missing. Nothing
 /// else of theirs is monitored, so this starts no discography. An artist Lidarr had already is the admin's to decide.
 /// </para>
+/// <para>
+/// And Lidarr only honours "search when added" at the artist's next full scan, which can be its daily refresh when the
+/// add itself didn't scan them. So a requested album it has never searched for is searched for here.
+/// </para>
 /// </summary>
 public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogger<MusicImportRetry> logger) : BackgroundService
 {
@@ -83,7 +87,7 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
     private async Task SweepAsync(MusicRequestContext c, ArrInstance lidarr, List<AlbumAsked> requests, CancellationToken ct)
     {
         var queue = await c.Client.GetQueueAsync(lidarr, ct);
-        await KeepLookingAsync(c, lidarr, requests, queue, ct);
+        var searched = await KeepLookingAsync(c, lidarr, requests, queue, ct);
         var asked = requests.Select(r => r.Album).ToHashSet(StringComparer.Ordinal);
         foreach (var item in queue)
         {
@@ -115,15 +119,47 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
             MusicRequested.Forget(c.Cache);
             LogRetrying(logger, album.Title, item.Title);
         }
+
+        await SearchFirstTimeAsync(c, lidarr, asked, queue, searched, ct);
     }
 
-    /// <summary>Monitors the artists requests added, and their albums still missing, and searches for what that just put back on the list.</summary>
-    private static async Task KeepLookingAsync(MusicRequestContext c, ArrInstance lidarr, List<AlbumAsked> requests, IReadOnlyList<ArrQueueItem> queue, CancellationToken ct)
+    /// <summary>Searches for the requested albums Lidarr has never looked for. Once it has, finding them is up to its RSS sync.</summary>
+    private static async Task SearchFirstTimeAsync(MusicRequestContext c, ArrInstance lidarr, HashSet<string> asked, IReadOnlyList<ArrQueueItem> queue, HashSet<int> searched, CancellationToken ct)
     {
+        var search = new List<int>();
+        foreach (var id in asked)
+        {
+            search.AddRange((await c.Client.GetAlbumsByForeignIdAsync(lidarr, id, ct))
+                .Where(a => AwaitsFirstSearch(a, DateTime.UtcNow) && !searched.Contains(a.Id) && !queue.Any(q => q.AlbumId == a.Id))
+                .Select(a => a.Id));
+        }
+
+        if (search.Count > 0)
+        {
+            await c.Client.SearchAlbumsAsync(lidarr, search, ct);
+            MusicRequested.Forget(c.Cache);
+        }
+    }
+
+    /// <summary>
+    /// Monitored, out already, with no files and never searched for. An album with no tracks yet hasn't been scanned:
+    /// a search now would have no running time to judge a release's size by, so it waits for the next sweep.
+    /// </summary>
+    private static bool AwaitsFirstSearch(LidarrAlbum album, DateTime now) =>
+        album is { Monitored: true, LastSearchTime: null, Statistics: { TrackCount: > 0, TrackFileCount: 0 } }
+        && !(album.ReleaseDate > now);
+
+    /// <summary>
+    /// Monitors the artists requests added, and their albums still missing, and searches for what that just put back on
+    /// the list. Returns the albums it searched for.
+    /// </summary>
+    private static async Task<HashSet<int>> KeepLookingAsync(MusicRequestContext c, ArrInstance lidarr, List<AlbumAsked> requests, IReadOnlyList<ArrQueueItem> queue, CancellationToken ct)
+    {
+        var searched = new HashSet<int>();
         var byArtist = requests.Where(r => r.ArtistItAdded is not null).ToLookup(r => r.ArtistItAdded!, r => r.Album, StringComparer.Ordinal);
         if (byArtist.Count == 0)
         {
-            return;
+            return searched;
         }
 
         var changed = false;
@@ -158,6 +194,7 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
             if (search.Count > 0)
             {
                 await c.Client.SearchAlbumsAsync(lidarr, search, ct);
+                searched.UnionWith(search);
             }
 
             changed = true;
@@ -168,6 +205,8 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
             MusicMatcher.Forget(c.Cache, lidarr);
             MusicRequested.Forget(c.Cache);
         }
+
+        return searched;
     }
 
     private static bool IsMissingTracks(ArrQueueItem item) =>

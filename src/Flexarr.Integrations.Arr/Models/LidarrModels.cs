@@ -51,6 +51,9 @@ public sealed record LidarrAlbum
     public bool Monitored { get; init; }
     public DateTime? ReleaseDate { get; init; }
 
+    /// <summary>When Lidarr last searched for it; null if it never has.</summary>
+    public DateTime? LastSearchTime { get; init; }
+
     /// <summary>Running time in milliseconds.</summary>
     public long Duration { get; init; }
     public IReadOnlyList<string> Genres { get; init; } = [];
