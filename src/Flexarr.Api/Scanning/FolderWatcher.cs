@@ -121,6 +121,18 @@ public sealed partial class FolderWatcher(
     /// <summary>Starts a watcher: this is where the system walks the folder's tree, and can refuse.</summary>
     internal Action<FileSystemWatcher> Enable { get; set; } = watcher => watcher.EnableRaisingEvents = true;
 
+    /// <summary>Tells which folder a path is, to notice one swapped. Tests replace it, having no hung mount to hand.</summary>
+    internal Func<string, string?> Identify { get; set; } = FolderKind.Identity;
+
+    /// <summary>How long a resync waits for its looks at the folders before getting on without the ones still looking.</summary>
+    internal TimeSpan LooksWaitedFor { get; set; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>Reads a title's files. Tests replace it, having no hung mount to hand.</summary>
+    internal Func<string, string> ReadSnapshot { get; set; } = Snapshot;
+
+    /// <summary>How long a flush waits for each library folder's titles before the next flush can start on the others.</summary>
+    internal TimeSpan FlushesWaitedFor { get; set; } = TimeSpan.FromSeconds(10);
+
     /// <summary>
     /// This many titles gone from one library folder within <see cref="GoneWithin"/> is no longer someone deleting or
     /// renaming a film: only a scan of the library folder asks whether most of it has vanished, and holds it if so.
@@ -142,6 +154,15 @@ public sealed partial class FolderWatcher(
 
     /// <summary>Folders whose watch is on its way: a mount that's stopped answering can take as long as it likes.</summary>
     private readonly HashSet<string> _starting = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Looks at folders still going: a mount that's stopped answering can take as long as it likes, so each holds a thread,
+    /// and there's only ever one to a folder.
+    /// </summary>
+    private readonly Dictionary<string, Task<string?>> _looking = new(StringComparer.Ordinal);
+
+    /// <summary>Library folders whose waiting titles are being looked at, which are only ever looked at one lot at a time for the same reason.</summary>
+    private readonly HashSet<string> _flushing = new(StringComparer.Ordinal);
 
     /// <summary>Stopped for good: a start finishing now has nowhere to go.</summary>
     private bool _stopped;
@@ -295,7 +316,7 @@ public sealed partial class FolderWatcher(
                 .Select(f => f.Key).ToList();
         }
 
-        var found = live.ToDictionary(path => path, FolderKind.Identity, StringComparer.Ordinal);
+        var found = await LookAtAsync(live, ct);
         lock (_lock)
         {
             finished.AddRange(_broken);
@@ -390,6 +411,57 @@ public sealed partial class FolderWatcher(
         catch (TimeoutException)
         {
             // Still going, which is theirs to sort out.
+        }
+    }
+
+    /// <summary>
+    /// Which folder each path is, for those that answer. One that doesn't is left out, which leaves it as it is: it's asked
+    /// again once that look has finished, and whatever that look says by then is out of date, so it's not kept.
+    /// </summary>
+    private async Task<Dictionary<string, string?>> LookAtAsync(List<string> paths, CancellationToken ct)
+    {
+        var fresh = new List<Task<string?>>();
+        var looks = new List<(string Path, Task<string?> Look)>();
+        lock (_lock)
+        {
+            foreach (var path in paths)
+            {
+                if (_looking.ContainsKey(path))
+                {
+                    continue; // Still on the last one, and not worth waiting for again.
+                }
+
+                var look = Task.Run(() => LookAt(path), CancellationToken.None);
+                _looking[path] = look;
+                fresh.Add(look);
+                looks.Add((path, look));
+            }
+        }
+
+        try
+        {
+            await Task.WhenAll(fresh).WaitAsync(LooksWaitedFor, time, ct);
+        }
+        catch (TimeoutException)
+        {
+            // Still going, which is theirs to sort out.
+        }
+
+        return looks.Where(l => l.Look.IsCompletedSuccessfully).ToDictionary(l => l.Path, l => l.Look.Result, StringComparer.Ordinal);
+    }
+
+    private string? LookAt(string path)
+    {
+        try
+        {
+            return Identify(path);
+        }
+        finally
+        {
+            lock (_lock)
+            {
+                _looking.Remove(path);
+            }
         }
     }
 
@@ -721,13 +793,58 @@ public sealed partial class FolderWatcher(
     internal async Task FlushAsync(CancellationToken ct)
     {
         var now = time.GetUtcNow();
-        List<(string Path, Pending Pending)> quiet;
+        List<IGrouping<string, (string Path, Pending Pending)>> roots;
         lock (_lock)
         {
-            quiet = _pending.Where(p => Overdue(p.Value, now) || (now - p.Value.LastEvent >= QuietFor && (p.Value.Snapshot is null || now - p.Value.SnapshotAt >= SettleFor)))
-                .Select(p => (p.Key, p.Value)).ToList();
+            // Each library folder on its own, so one on a mount that's stopped answering holds up nobody else's titles.
+            roots = _pending.Where(p => !_flushing.Contains(p.Value.Root)
+                    && (Overdue(p.Value, now) || (now - p.Value.LastEvent >= QuietFor && (p.Value.Snapshot is null || now - p.Value.SnapshotAt >= SettleFor))))
+                .Select(p => (Path: p.Key, Pending: p.Value)).GroupBy(p => p.Pending.Root).ToList();
+            _flushing.UnionWith(roots.Select(r => r.Key));
         }
 
+        if (roots.Count == 0)
+        {
+            return;
+        }
+
+        var flushes = roots.Select(root => Task.Run(() => FlushRootAsync(root.Key, [.. root], now, ct), CancellationToken.None)).ToList();
+        try
+        {
+            await Task.WhenAll(flushes).WaitAsync(FlushesWaitedFor, time, ct);
+        }
+        catch (TimeoutException)
+        {
+            // Still going, which is theirs to sort out.
+        }
+    }
+
+    /// <summary>One library folder's quiet titles. Runs alone: nothing it hits may be left to the caller, who may have moved on.</summary>
+    private async Task FlushRootAsync(string root, List<(string Path, Pending Pending)> quiet, DateTimeOffset now, CancellationToken ct)
+    {
+        try
+        {
+            await FlushTitlesAsync(root, quiet, now, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogFlushFailed(ex);
+        }
+        catch (OperationCanceledException)
+        {
+            // The server's stopping; what's waiting is looked at by the next one's scan.
+        }
+        finally
+        {
+            lock (_lock)
+            {
+                _flushing.Remove(root);
+            }
+        }
+    }
+
+    private async Task FlushTitlesAsync(string root, List<(string Path, Pending Pending)> quiet, DateTimeOffset now, CancellationToken ct)
+    {
         var gone = new List<(string Path, Pending Pending)>();
         foreach (var (path, pending) in quiet)
         {
@@ -736,7 +853,7 @@ public sealed partial class FolderWatcher(
             var overdue = Overdue(pending, now);
             var settled = overdue || path == pending.Root;
             // Read outside the lock: listing a big show's folder takes a moment, and events keep arriving meanwhile.
-            var snapshot = settled ? null : Snapshot(path);
+            var snapshot = settled ? null : ReadSnapshot(path);
             var ready = false;
             lock (_lock)
             {
@@ -772,9 +889,9 @@ public sealed partial class FolderWatcher(
             }
         }
 
-        foreach (var titles in gone.GroupBy(g => g.Pending.Root))
+        if (gone.Count > 0)
         {
-            await TitlesGoneAsync(titles.Key, titles.ToList(), ct);
+            await TitlesGoneAsync(root, gone, ct);
         }
     }
 
