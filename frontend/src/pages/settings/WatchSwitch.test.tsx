@@ -60,26 +60,47 @@ describe('Notice new files, saving', () => {
   }
 
   it('moves straight away, before the save has answered', async () => {
-    let answer: (value?: unknown) => void = () => {}
+    let answer: ((value?: unknown) => void) | undefined
     const box = await open(() => new Promise((resolve) => (answer = resolve)))
 
     fireEvent.click(box)
 
     expect(box).not.toBeChecked()
     expect(box).toBeEnabled()
-    answer()
+    await waitFor(() => expect(answer).toBeDefined())
+    answer?.()
     await waitFor(() => expect(box).not.toBeChecked())
   })
 
   it('goes back, and says why, when it can’t save', async () => {
-    let answer: (value: unknown) => void = () => {}
+    let answer: ((value: unknown) => void) | undefined
     const box = await open(() => new Promise((resolve) => (answer = resolve)))
 
     fireEvent.click(box)
     expect(box).not.toBeChecked()
-    answer(new Response(JSON.stringify({ title: 'Not today' }), { status: 500 }))
+    await waitFor(() => expect(answer).toBeDefined())
+    answer?.(new Response(JSON.stringify({ title: 'Not today' }), { status: 500 }))
 
     await waitFor(() => expect(box).toBeChecked())
     expect(await screen.findByRole('alert')).toBeInTheDocument()
+  })
+
+  it('saves flicks in order, ending on the last', async () => {
+    const answers: ((value?: unknown) => void)[] = []
+    const box = await open(() => new Promise((resolve) => answers.push(resolve)))
+
+    fireEvent.click(box)
+    fireEvent.click(box)
+    expect(box).toBeChecked()
+    await waitFor(() => expect(answers).toHaveLength(1))
+    // The second waits for the first.
+    await new Promise((done) => setTimeout(done, 20))
+    expect(answers).toHaveLength(1)
+
+    answers[0]()
+    await waitFor(() => expect(answers).toHaveLength(2))
+    expect(box).toBeChecked()
+    answers[1]()
+    await waitFor(() => expect(box).toBeChecked())
   })
 })
