@@ -202,12 +202,14 @@ public static class MusicRequested
     }
 
     /// <summary>
-    /// A copy on its way in: one Lidarr gave up on stays in its queue, and a search can grab another beside it.
+    /// A copy on its way in: one Lidarr gave up on stays in its queue, and a search can grab another beside it. A download
+    /// client's warning (stalled, say) may never clear, so it doesn't count unless Lidarr has already taken the copy on.
     /// </summary>
     internal static bool IsMoving(ArrQueueItem queued) =>
-        queued.TrackedDownloadState is not ("importBlocked" or "importFailed" or "failedPending" or "failed") && queued.Status != "failed";
+        queued.TrackedDownloadState is not ("importBlocked" or "importFailed" or "failedPending" or "failed") && queued.Status != "failed"
+        && (queued.Status != "warning" || queued.TrackedDownloadState is "importPending" or "importing" or "imported");
 
-    /// <summary>Which copy the card goes by: one on its way, then one someone could do something about, then one on its way out.</summary>
+    /// <summary>Which copy the card goes by: one on its way, then one someone could do something about, then one stalled or on its way out.</summary>
     private static int Telling(ArrQueueItem queued) => IsMoving(queued) ? 2 : queued.TrackedDownloadState is "importBlocked" or "importFailed" ? 1 : 0;
 
     private static (string State, double? Progress) FromQueue(ArrQueueItem queued)

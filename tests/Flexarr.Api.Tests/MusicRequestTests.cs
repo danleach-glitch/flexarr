@@ -1137,11 +1137,11 @@ public sealed class MusicRequestTests : IAsyncLifetime
     }
 
     /// <summary>A copy still downloading.</summary>
-    private void LidarrIsDownloadingMoisturizer()
+    private void LidarrIsDownloadingMoisturizer(string status = "downloading")
     {
         LidarrAwaitsMoisturizer();
         var queue = $$$"""
-            {"id":5,"albumId":9,"artistId":3,"title":"going","downloadId":"going","status":"downloading","size":100,"sizeleft":50,"trackedDownloadStatus":"ok","trackedDownloadState":"downloading",
+            {"id":5,"albumId":9,"artistId":3,"title":"going","downloadId":"going","status":"{{{status}}}","size":100,"sizeleft":50,"trackedDownloadStatus":"ok","trackedDownloadState":"downloading",
              "album":{"id":9,"artistId":3,"title":"moisturizer","foreignAlbumId":"{{{Moisturizer}}}","monitored":true} }
             """;
         _lidarr.Responses["GET /api/v1/queue?page=1&pageSize=200&includeArtist=true&includeAlbum=true"] = $$"""{"page":1,"pageSize":200,"totalRecords":1,"records":[{{queue}}]}""";
@@ -1185,14 +1185,15 @@ public sealed class MusicRequestTests : IAsyncLifetime
     }
 
     /// <summary>The copy Lidarr gave up on, still in its queue, and another a search grabbed beside it, in the order given.</summary>
-    private void LidarrHasAStuckCopyAndAMovingOne(bool stuckFirst, string statusOfTheOther = "downloading", string stateOfTheOther = "downloading", bool monitored = true)
+    private void LidarrHasAStuckCopyAndAMovingOne(bool stuckFirst, string statusOfTheOther = "downloading", string stateOfTheOther = "downloading", bool monitored = true,
+        string stuckSays = "Album match is not close enough: 78.9% vs 80% [album, year]")
     {
         LidarrAwaitsMoisturizer();
         var flag = monitored ? "true" : "false";
         var album = "\"album\":" + $$"""{"id":9,"artistId":3,"title":"moisturizer","foreignAlbumId":"{{Moisturizer}}","monitored":{{flag}} }""";
         var stuck = $$$"""
             {"id":5,"albumId":9,"artistId":3,"title":"complete","downloadId":"complete","status":"completed","size":100,"sizeleft":0,"trackedDownloadStatus":"warning","trackedDownloadState":"importBlocked",
-             "statusMessages":[{"title":"complete","messages":["Album match is not close enough: 78.9% vs 80% [album, year]"]}],{{{album}}} }
+             "statusMessages":[{"title":"complete","messages":["{{{stuckSays}}}"]}],{{{album}}} }
             """;
         var other = $$$"""
             {"id":6,"albumId":9,"artistId":3,"title":"going","downloadId":"going","status":"{{{statusOfTheOther}}}","size":100,"sizeleft":50,"trackedDownloadStatus":"ok","trackedDownloadState":"{{{stateOfTheOther}}}",{{{album}}} }
@@ -1232,6 +1233,60 @@ public sealed class MusicRequestTests : IAsyncLifetime
         await AskedForMoisturizerAsync(addedArtist: false);
 
         Assert.Equal("couldNotImport", await RequestedStateAsync());
+    }
+
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    public async Task A_stuck_copy_is_said_beside_a_stalled_one(bool stuckFirst, bool monitored)
+    {
+        await MusicLibraryAsync();
+        LidarrHasAStuckCopyAndAMovingOne(stuckFirst, statusOfTheOther: "warning", monitored: monitored);
+        await AskedForMoisturizerAsync(addedArtist: false);
+
+        Assert.Equal("couldNotImport", await RequestedStateAsync());
+    }
+
+    [Fact]
+    public async Task TryAgain_BesideAStalledCopy_BlocklistsOnlyTheStuckOne_AndSearches()
+    {
+        await MusicLibraryAsync();
+        LidarrHasAStuckCopyAndAMovingOne(stuckFirst: true, statusOfTheOther: "warning", stuckSays: "Has missing tracks");
+        _lidarr.Responses["DELETE /api/v1/queue/5?removeFromClient=true&blocklist=true&skipRedownload=true"] = "{}";
+        await AskedForMoisturizerAsync(addedArtist: false);
+        _sent.Clear();
+
+        Assert.Equal(HttpStatusCode.NoContent, (await TryAgainAsync()).StatusCode);
+
+        Assert.Equal("DELETE /api/v1/queue/5", Assert.Single(_sent, s => s.Request.StartsWith("DELETE", StringComparison.Ordinal)).Request);
+        Assert.Single(_sent, s => s.Request == "POST /api/v1/command");
+    }
+
+    [Fact]
+    public async Task TryAgain_OnAStalledCopyAlone_Says409_AndTouchesNothing()
+    {
+        await MusicLibraryAsync();
+        LidarrIsDownloadingMoisturizer(status: "warning");
+        await AskedForMoisturizerAsync(addedArtist: false);
+        _sent.Clear();
+
+        Assert.Equal(HttpStatusCode.Conflict, (await TryAgainAsync()).StatusCode);
+        Assert.False(WroteToLidarr());
+    }
+
+    [Fact]
+    public async Task A_copy_lidarr_is_importing_counts_as_moving_even_with_a_warning()
+    {
+        await MusicLibraryAsync();
+        LidarrHasAStuckCopyAndAMovingOne(stuckFirst: true, statusOfTheOther: "warning", stateOfTheOther: "importing");
+        await AskedForMoisturizerAsync(addedArtist: false);
+        _sent.Clear();
+
+        Assert.Equal("importing", await RequestedStateAsync());
+        Assert.Equal(HttpStatusCode.Conflict, (await TryAgainAsync()).StatusCode);
+        Assert.False(WroteToLidarr());
     }
 
     [Fact]
