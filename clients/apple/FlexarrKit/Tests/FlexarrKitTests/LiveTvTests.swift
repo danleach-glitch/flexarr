@@ -31,6 +31,30 @@ struct LiveTvTests {
         #expect(status(error: "No").finishedRefresh(since: before, sawRefreshing: false))
     }
 
+    private func refreshingClient(status body: String) -> FlexarrClient {
+        let host = "livetv-\(UUID().uuidString.lowercased()).local"
+        StubProtocol.register(host: host, path: "/api/v1/livetv/status", .init(status: 200, body: Data(body.utf8)))
+        StubProtocol.register(host: host, path: "/api/v1/livetv/refresh", .init(status: 204, body: Data()))
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubProtocol.self]
+        return FlexarrClient(baseURL: URL(string: "http://\(host):8383")!, apiKey: "secret", session: URLSession(configuration: configuration))
+    }
+
+    @Test func waitingGivesUpSayingARefreshIsStillGoing() async throws {
+        let client = refreshingClient(status: #"{"configured":true,"channels":1,"refreshing":true,"error":"An old failure","rewindMinutes":60}"#)
+        #expect(try await client.refreshLiveTv(looks: 3, every: .milliseconds(1)) == .stillGoing)
+    }
+
+    @Test func waitingEndsWithTheStatusOnceARefreshHasFinished() async throws {
+        let client = refreshingClient(status: #"{"configured":true,"channels":1,"refreshing":false,"rewindMinutes":60}"#)
+        // A server that doesn't count: the eighth look calls it done.
+        guard case .finished(let status) = try await client.refreshLiveTv(looks: 9, every: .milliseconds(1)) else {
+            Issue.record("should have finished")
+            return
+        }
+        #expect(status?.channels == 1)
+    }
+
     @Test func statusFromAnOlderServerHasNoCountOfMissingListings() throws {
         let old = try JSONDecoder().decode(LiveTvStatus.self, from: Data(#"{"configured":true,"channels":1,"refreshing":false,"rewindMinutes":60}"#.utf8))
         #expect(old.channelsWithoutListings == nil)

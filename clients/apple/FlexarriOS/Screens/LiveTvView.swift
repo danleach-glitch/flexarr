@@ -55,7 +55,10 @@ struct LiveTvView: View {
         Group {
             if let channels {
                 if channels.isEmpty {
-                    StatusView(state: .empty(t("No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user.")))
+                    VStack(spacing: 12) {
+                        StatusView(state: .empty(t("No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user.")))
+                        if model.isLiveTvRefreshTakingAWhile { takingAWhile.padding(.horizontal, Layout.edge).padding(.bottom, 12) }
+                    }
                 } else if macShowsRecordings {
                     #if os(macOS)
                     LiveRecordingsView()
@@ -129,6 +132,7 @@ struct LiveTvView: View {
                     case .failed(let problem):
                         refreshProblem = problem
                         refreshNotice = problem
+                    case .stillGoing: break // Said by `isLiveTvRefreshTakingAWhile`.
                     }
                     await load()
                     refreshed += 1
@@ -156,6 +160,7 @@ struct LiveTvView: View {
             if let refreshProblem {
                 Text(refreshProblem).foregroundStyle(Color.usher)
             }
+            if model.isLiveTvRefreshTakingAWhile { takingAWhile }
             if let count = model.liveTvStatus?.channelsWithoutListings, count > 0 {
                 let text = Text(t("{count, plural, one {# channel has no listings} other {# channels have no listings}}", ["count": count]))
                     .foregroundStyle(Color.usher)
@@ -180,7 +185,14 @@ struct LiveTvView: View {
     /// Whether `missingListings` has anything to say. Nothing means no row at all: a list's empty row would still be a
     /// row's height of blank above the channels.
     private var hasMissingListingsNote: Bool {
-        model.isMainProfile && (refreshProblem != nil || (model.liveTvStatus?.channelsWithoutListings ?? 0) > 0)
+        model.isMainProfile && (refreshProblem != nil || model.isLiveTvRefreshTakingAWhile || (model.liveTvStatus?.channelsWithoutListings ?? 0) > 0)
+    }
+
+    /// Quiet: not a failure, and not done yet either.
+    private var takingAWhile: some View {
+        Text(t(Words.guideTakingAWhile))
+            .font(.footnote)
+            .foregroundStyle(Color.usher)
     }
 
     private var favourites: [LiveChannel] { (channels ?? []).filter(\.isFavourite) }

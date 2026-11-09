@@ -30,6 +30,14 @@ public struct LiveTvStatus: Codable, Sendable, Hashable {
     }
 }
 
+/// How waiting for a refresh ended.
+public enum LiveTvRefreshEnd: Sendable, Hashable {
+    /// It finished, with this status (nil from a server with no Live TV), however it went.
+    case finished(LiveTvStatus?)
+    /// The wait gave up with it still running. The server carries on.
+    case stillGoing
+}
+
 /// A programme in the guide.
 public struct LiveProgramme: Codable, Sendable, Hashable, Identifiable {
     public let id: Int64
@@ -311,16 +319,17 @@ extension FlexarrClient {
         }
     }
 
-    /// Refreshes the channels and guide (the main profile only), and waits for it: the status once it's done, or as it
-    /// stands once it's been a while. With an admin key saved, the server has Dispatcharr download its guides first,
-    /// which takes minutes at worst. Servers before the release after 0.63 refuse a locked main profile.
-    public func refreshLiveTv() async throws -> LiveTvStatus? {
+    /// Refreshes the channels and guide (the main profile only), and waits for it, for `looks` looks at the status (six
+    /// minutes): how it finished, or that it's still going, which says nothing yet about how it'll go. With an admin key
+    /// saved, the server has Dispatcharr download its guides first, which takes minutes at worst. Servers before the
+    /// release after 0.63 refuse a locked main profile.
+    public func refreshLiveTv(looks: Int = 180, every interval: Duration = .seconds(2)) async throws -> LiveTvRefreshEnd {
         let before = try await liveTvStatus()
         _ = try await send("POST", "livetv/refresh")
         var sawRefreshing = false
         var badLooks = 0
-        for look in 1...180 {
-            try await Task.sleep(for: .seconds(2))
+        for look in 1...looks {
+            try await Task.sleep(for: interval)
             let status: LiveTvStatus?
             do {
                 status = try await liveTvStatus()
@@ -332,11 +341,11 @@ extension FlexarrClient {
                 if badLooks >= 3 { throw error }
                 continue
             }
-            guard let status else { return nil }
+            guard let status else { return .finished(nil) }
             sawRefreshing = sawRefreshing || status.refreshing
-            if status.finishedRefresh(since: before, sawRefreshing: sawRefreshing, looks: look) { return status }
+            if status.finishedRefresh(since: before, sawRefreshing: sawRefreshing, looks: look) { return .finished(status) }
         }
-        return try await liveTvStatus()
+        return .stillGoing
     }
 
     /// Every channel's programmes from `from` for `hours` (at most a day). `descriptions: false` leaves each

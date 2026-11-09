@@ -164,6 +164,7 @@ struct LiveTvView: View {
                     switch result {
                     case .worked: refreshNote = t(Words.guideRefreshed)
                     case .failed(let problem): refreshNote = problem
+                    case .stillGoing: break // Said by `isLiveTvRefreshTakingAWhile`.
                     }
                     await load()
                     await loadGuide(force: true)
@@ -187,6 +188,9 @@ struct LiveTvView: View {
             Group {
                 if let refreshNote {
                     Text(refreshNote).lineLimit(3)
+                }
+                if model.isLiveTvRefreshTakingAWhile {
+                    Text(t(Words.guideTakingAWhile)).lineLimit(3)
                 }
                 if let count = model.liveTvStatus?.channelsWithoutListings, count > 0 {
                     Text(t("{count, plural, one {# channel has no listings} other {# channels have no listings}}", ["count": count]))
