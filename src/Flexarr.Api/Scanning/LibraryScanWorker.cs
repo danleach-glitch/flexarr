@@ -202,7 +202,8 @@ public sealed partial class LibraryScanWorker(
 
     /// <summary>
     /// Drops duplicates and paths already covered by a broader request in the same batch. A path counts as deleted
-    /// only if every request for it says so.
+    /// only if every request for it says so. A title's changed cover or .nfo the watcher heard of isn't passed up to a
+    /// broader request, which would look every title in it up again: the title is scanned alone, after.
     /// </summary>
     public static IEnumerable<LibraryScanRequest> Coalesce(IEnumerable<LibraryScanRequest> requests)
     {
@@ -218,18 +219,20 @@ public sealed partial class LibraryScanWorker(
             .ToList();
         return distinct
             .Where(r => !distinct.Any(o => o.Path != r.Path && PathComparison.IsUnder(r.Path, o.Path)))
-            .Select(r =>
+            .SelectMany(r =>
             {
                 var covered = all.Where(o => PathComparison.IsUnder(o.Path, r.Path)).ToList();
-                return r with
+                bool StaysApart(LibraryScanRequest o) => o.ForceMetadata && o.Reason == FolderWatcher.Reason && PathComparison.Key(o.Path) != PathComparison.Key(r.Path);
+                var apart = covered.Where(StaysApart).DistinctBy(o => PathComparison.Key(o.Path));
+                return apart.Prepend(r with
                 {
-                    ForceMetadata = covered.Any(o => o.ForceMetadata),
+                    ForceMetadata = covered.Any(o => o.ForceMetadata && !StaysApart(o)),
                     LastChange = covered.All(o => o.LastChange is not null) ? covered.Max(o => o.LastChange) : null,
                     OnlySubtitles = covered.All(o => o.OnlySubtitles),
                     Retries = covered.Max(o => o.Retries),
                     // A broader scan in its place: the watcher still won't hear of these files again if it fails.
                     Reason = covered.Any(o => o.Reason == FolderWatcher.Reason) ? FolderWatcher.Reason : r.Reason,
-                };
+                });
             });
     }
 

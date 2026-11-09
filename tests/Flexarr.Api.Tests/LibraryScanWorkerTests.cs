@@ -262,6 +262,26 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
     }
 
     [Fact]
+    public void Coalesce_AChangedCoverTheWatcherHeardOf_IsntPassedUpToTheWholeFolder()
+    {
+        var merged = LibraryScanWorker.Coalesce([
+            new LibraryScanRequest("/films", FolderWatcher.Reason),
+            new LibraryScanRequest("/films/Dune", FolderWatcher.Reason, ForceMetadata: true),
+            new LibraryScanRequest("/films/Heat", FolderWatcher.Reason),
+        ]).ToList();
+
+        Assert.Equal(["/films", "/films/Dune"], merged.Select(r => r.Path)); // the folder first, then the one title afresh
+        Assert.Equal([false, true], merged.Select(r => r.ForceMetadata));
+
+        // Asked for by someone, a whole folder afresh is what's wanted.
+        var asked = LibraryScanWorker.Coalesce([
+            new LibraryScanRequest("/films", "Refresh"),
+            new LibraryScanRequest("/films/Dune", "Radarr Rename", ForceMetadata: true),
+        ]).Single();
+        Assert.True(asked.ForceMetadata);
+    }
+
+    [Fact]
     public void Coalesce_AWatchedRequest_UnderABroaderOne_StaysAWatchedOne()
     {
         var merged = LibraryScanWorker.Coalesce([
