@@ -273,10 +273,17 @@ public static partial class MusicRequestEndpoints
             UndoRefused(current, c.Cache) ?? Counted(current, c.Cache, await LidarrAsync(() => MusicUndo.UnfollowAsync(c, body, ct), loggers.CreateLogger("Flexarr.MusicRequests"), ct)));
 
         // Cancel an album asked for, for the household: Lidarr stops wanting it and drops its download.
-        music.MapPost("/unrequest", async (MusicUndoBody body, MusicRequestContext c, CurrentProfile current, ILoggerFactory loggers, CancellationToken ct) =>
+        music.MapPost("/unrequest", async (MusicUndoBody body, MusicRequestContext c, MusicImportRetry retry, CurrentProfile current, ILoggerFactory loggers, CancellationToken ct) =>
         {
             var logger = loggers.CreateLogger("Flexarr.MusicRequests");
-            return UndoRefused(current, c.Cache) ?? Counted(current, c.Cache, await LidarrAsync(() => MusicUndo.UnrequestAsync(c, body, logger, ct), logger, ct));
+            return UndoRefused(current, c.Cache) ?? Counted(current, c.Cache, await LidarrAsync(() => MusicUndo.UnrequestAsync(c, body, retry, logger, ct), logger, ct));
+        });
+
+        // Try an album that couldn't be imported again, from the start: since 0.64.
+        music.MapPost("/retry", async (MusicUndoBody body, MusicRequestContext c, MusicImportRetry retry, CurrentProfile current, ILoggerFactory loggers, CancellationToken ct) =>
+        {
+            var logger = loggers.CreateLogger("Flexarr.MusicRequests");
+            return UndoRefused(current, c.Cache) ?? Counted(current, c.Cache, await LidarrAsync(() => MusicUndo.RetryAsync(c, body, retry, logger, ct), logger, ct));
         });
 
         music.MapPost("/", async (MusicRequestBody body, MusicRequestContext c, CurrentProfile current, ILoggerFactory loggers, CancellationToken ct) =>

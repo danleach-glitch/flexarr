@@ -943,6 +943,87 @@ public sealed class MusicRequestTests : IAsyncLifetime
         Assert.Equal("None", page.GetProperty("availability").GetString());
     }
 
+    private void LidarrGaveUpOnMoisturizer()
+    {
+        LidarrAwaitsMoisturizer();
+        var queue = $$$"""
+            {"id":5,"albumId":9,"artistId":3,"title":"partial","downloadId":"partial","status":"completed","size":100,"sizeleft":0,"trackedDownloadStatus":"warning","trackedDownloadState":"importFailed",
+             "statusMessages":[{"title":"partial","messages":["Has missing tracks"]}],
+             "album":{"id":9,"artistId":3,"title":"moisturizer","foreignAlbumId":"{{{Moisturizer}}}","monitored":true} }
+            """;
+        _lidarr.Responses["GET /api/v1/queue?page=1&pageSize=200&includeArtist=true&includeAlbum=true"] = $$"""{"page":1,"pageSize":200,"totalRecords":1,"records":[{{queue}}]}""";
+        _lidarr.Responses["GET /api/v1/queue/details?albumIds=9"] = $"[{queue}]";
+        _lidarr.Responses["DELETE /api/v1/queue/5?removeFromClient=true&blocklist=true&skipRedownload=true"] = "{}";
+    }
+
+    [Fact]
+    public async Task Unrequesting_GivesAnAlbumAskedForAgain_ItsFullShareOfTries()
+    {
+        await MusicLibraryAsync();
+        LidarrGaveUpOnMoisturizer();
+        await AskedForMoisturizerAsync(addedArtist: false);
+        var retry = _server.Services.GetRequiredService<Endpoints.MusicRequests.MusicImportRetry>();
+        for (var i = 0; i < Endpoints.MusicRequests.MusicImportRetry.MaxRetries + 1; i++)
+        {
+            await retry.SweepAsync(CancellationToken.None);
+        }
+
+        Assert.Equal(HttpStatusCode.NoContent, (await Client().PostAsJsonAsync(Api("/requests/music/unrequest"), new { musicBrainzId = Moisturizer })).StatusCode);
+        await AskedForMoisturizerAsync(addedArtist: false);
+        _sent.Clear();
+
+        await retry.SweepAsync(CancellationToken.None);
+
+        Assert.Contains(_sent, s => s.Request == "DELETE /api/v1/queue/5");
+    }
+
+    [Fact]
+    public async Task TryAgain_BlocklistsWhatFailed_SearchesAgain_AndStartsTheTriesOver()
+    {
+        await MusicLibraryAsync();
+        LidarrGaveUpOnMoisturizer();
+        await AskedForMoisturizerAsync(addedArtist: false);
+        var retry = _server.Services.GetRequiredService<Endpoints.MusicRequests.MusicImportRetry>();
+        for (var i = 0; i < Endpoints.MusicRequests.MusicImportRetry.MaxRetries + 1; i++)
+        {
+            await retry.SweepAsync(CancellationToken.None);
+        }
+
+        _sent.Clear();
+        var response = await Client().PostAsJsonAsync(Api("/requests/music/retry"), new { musicBrainzId = Moisturizer });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal("/api/v1/queue/5", Assert.Single(_lidarr.Requests.TakeLast(10), r => r.StartsWith("DELETE", StringComparison.Ordinal)).Split(' ')[1].Split('?')[0]);
+        Assert.Contains("blocklist=true", _lidarr.Requests.Last(r => r.StartsWith("DELETE", StringComparison.Ordinal)), StringComparison.Ordinal);
+        var search = _sent.Single(s => s.Request == "POST /api/v1/command").Body!;
+        Assert.Equal(("AlbumSearch", 9), (search["name"]!.GetValue<string>(), search["albumIds"]![0]!.GetValue<int>()));
+        Assert.Null((await InDbAsync(db => db.MediaRequests.SingleAsync())).FulfilledAt); // still asked for
+
+        // The sweep has its tries back.
+        _sent.Clear();
+        await retry.SweepAsync(CancellationToken.None);
+        Assert.Contains(_sent, s => s.Request == "DELETE /api/v1/queue/5");
+    }
+
+    [Fact]
+    public async Task TryAgain_LeavesAnAlbumNobodyHasAnOpenRequestFor()
+    {
+        await MusicLibraryAsync();
+        LidarrGaveUpOnMoisturizer();
+
+        var response = await Client().PostAsJsonAsync(Api("/requests/music/retry"), new { musicBrainzId = Moisturizer });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.DoesNotContain(_sent, s => s.Request == "POST /api/v1/command" || s.Request.StartsWith("DELETE", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task TryAgain_NamingNoAlbum_IsRefused()
+    {
+        await MusicLibraryAsync();
+        Assert.Equal(HttpStatusCode.BadRequest, (await Client().PostAsJsonAsync(Api("/requests/music/retry"), new { })).StatusCode);
+    }
+
     [Fact]
     public async Task Unrequesting_ADownloadThatJustLeftTheQueue_StillCancels()
     {

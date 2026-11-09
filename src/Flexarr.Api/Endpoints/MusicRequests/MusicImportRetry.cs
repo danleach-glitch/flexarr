@@ -112,6 +112,22 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
 
     private sealed record AlbumAsked(string Album, string? ArtistItAdded);
 
+    /// <summary>The album starts afresh: its request was taken back, or someone's asked for it to be tried again.</summary>
+    public void StartAfresh(ArrInstance lidarr, int albumId)
+    {
+        ArgumentNullException.ThrowIfNull(lidarr);
+        _retries.TryRemove(Key(lidarr, albumId), out _);
+        _searchedAt.TryRemove(Key(lidarr, albumId), out _);
+        _searchOwed.TryRemove((lidarr.BaseUrl.ToString(), albumId), out _);
+    }
+
+    /// <summary>A search made elsewhere: the sweep's first search for this album needn't repeat it.</summary>
+    public void Searched(ArrInstance lidarr, int albumId)
+    {
+        ArgumentNullException.ThrowIfNull(lidarr);
+        NoteSearched(lidarr, [albumId]);
+    }
+
     private static string Key(ArrInstance lidarr, int albumId) => $"{lidarr.BaseUrl}|{albumId}";
 
     private void NoteSearched(ArrInstance lidarr, IEnumerable<int> albumIds)
