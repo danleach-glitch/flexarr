@@ -1018,7 +1018,7 @@ public sealed partial class FolderWatcher(
     {
         foreach (var segment in name.Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries))
         {
-            if (segment.StartsWith('.') || segment.EndsWith('~') || NotMedia.Contains(segment))
+            if (segment.StartsWith('.') || segment.EndsWith('~') || MediaFileEnumerator.NotMedia.Contains(segment))
             {
                 return true;
             }
@@ -1026,12 +1026,6 @@ public sealed partial class FolderWatcher(
 
         return Path.GetExtension(name).ToLowerInvariant() is ".part" or ".partial" or ".tmp" or ".temp" or ".!qb" or ".crdownload" or ".download" or ".filepart";
     }
-
-    /// <summary>What Windows and NAS systems keep in media folders. By name: a film can be called <c>#Alive</c> or <c>@Home</c>.</summary>
-    private static readonly HashSet<string> NotMedia = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "Thumbs.db", "desktop.ini", "#recycle", "#snapshot", "@eaDir", "@tmp", "@Recycle", "@Recently-Snapshot", "@__thumb", "@SynoResource", "$RECYCLE.BIN", "System Volume Information", "lost+found",
-    };
 
     /// <summary>
     /// A cover, poster or other picture kept beside the title, or its <c>.nfo</c>: the title's details are read afresh.

@@ -94,6 +94,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         int added = 0, updated = 0, removed = 0, unchanged = 0, unmatched = 0, failures = 0, missing = 0;
         var held = false; // A folder looked unmounted: remove nothing this time.
         var incomplete = false;
+        var unreadableFolders = new List<string>();
 
         foreach (var (root, target) in targets)
         {
@@ -311,9 +312,11 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 LogUnreadable(root, unreadable.Count, PathComparison.Printable(unreadable[0]));
             }
 
-            // A root-only lost+found is on every drive's top level, and never was the library's: anything else may be
-            // hiding files whose grace has run out, which are no more gone than the rest.
-            if (unreadable.Any(d => !Path.GetFileName(d).Equals("lost+found", StringComparison.Ordinal)))
+            unreadableFolders.AddRange(unreadable);
+
+            // A root-only lost+found or NAS recycle bin is no sign of trouble, and never was the library's: anything else
+            // may be hiding files whose grace has run out, which are no more gone than the rest.
+            if (unreadable.Any(d => !MediaFileEnumerator.IsInNotMedia(root, d)))
             {
                 held = true;
                 incomplete = true;
@@ -355,7 +358,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
         if (!held)
         {
-            removed = await RemoveExpiredAsync(library.Id, cancellationToken).ConfigureAwait(false);
+            removed = await RemoveExpiredAsync(library.Id, roots, scope is null ? null : targets.Select(t => t.Scope).ToList(), unreadableFolders, cancellationToken).ConfigureAwait(false);
         }
 
         await PruneEmptyItemsAsync(db, library.Id, cancellationToken).ConfigureAwait(false);
@@ -688,13 +691,37 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         : url.StartsWith("embedded://", StringComparison.Ordinal) ? url["embedded://".Length..]
         : null;
 
-    /// <summary>Removes files missing for longer than <see cref="MissingGracePeriod"/>.</summary>
-    private async Task<int> RemoveExpiredAsync(Guid libraryId, CancellationToken ct)
+    /// <summary>
+    /// Removes files missing for longer than <see cref="MissingGracePeriod"/>, if this scan could have seen them come
+    /// back: not in a folder it couldn't read, or in a part of the library it didn't look at (that part may be unreadable,
+    /// or unmounted, for all it knows; its own scan will see to them). A file under none of the library's folders has no
+    /// scan of its own.
+    /// </summary>
+    /// <param name="libraryId">The library.</param>
+    /// <param name="roots">The library's folders.</param>
+    /// <param name="scanned">What this scan was limited to; null for all of it.</param>
+    /// <param name="unreadable">Folders it couldn't read.</param>
+    /// <param name="ct">Stops it.</param>
+    private async Task<int> RemoveExpiredAsync(Guid libraryId, List<string> roots, List<string>? scanned, List<string> unreadable, CancellationToken ct)
     {
         var cutoff = DateTime.UtcNow - MissingGracePeriod;
-        return await db.MediaFiles.IgnoreQueryFilters()
-            .Where(f => f.MissingSince != null && f.MissingSince < cutoff && f.MediaItem!.LibraryId == libraryId)
-            .ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        var expired = db.MediaFiles.IgnoreQueryFilters().Where(f => f.MissingSince != null && f.MissingSince < cutoff && f.MediaItem!.LibraryId == libraryId);
+        if (scanned is null && unreadable.Count == 0)
+        {
+            return await expired.ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        }
+
+        var ids = (await expired.Select(f => new { f.Id, f.Path }).ToListAsync(ct).ConfigureAwait(false))
+            .Where(f => !unreadable.Any(d => PathComparison.IsUnder(f.Path, d))
+                && (scanned is null || scanned.Any(s => PathComparison.IsUnder(f.Path, s)) || !roots.Any(r => PathComparison.IsUnder(f.Path, r))))
+            .Select(f => f.Id).ToList();
+        var removed = 0;
+        foreach (var chunk in ids.Chunk(500))
+        {
+            removed += await db.MediaFiles.IgnoreQueryFilters().Where(f => chunk.Contains(f.Id)).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        }
+
+        return removed;
     }
 
     /// <summary>

@@ -25,6 +25,12 @@ public static partial class MediaFileEnumerator
 
     private static readonly IReadOnlySet<string> BookExtensions = new HashSet<string>(AudioExtensions.Concat(ProtectedBookExtensions), StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>What Windows and NAS systems keep in media folders. By name: a film can be called <c>#Alive</c> or <c>@Home</c>.</summary>
+    public static readonly IReadOnlySet<string> NotMedia = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "Thumbs.db", "desktop.ini", "#recycle", "#snapshot", "@eaDir", "@tmp", "@Recycle", "@Recently-Snapshot", "@__thumb", "@SynoResource", "$RECYCLE.BIN", "System Volume Information", "lost+found",
+    };
+
     // Not IgnoreInaccessible: a folder that can't be read would then look empty, its files deleted. Each folder's
     // listing is tried on its own instead, and one that fails is reported as unreadable.
     private static readonly EnumerationOptions Options = new()
@@ -96,6 +102,13 @@ public static partial class MediaFileEnumerator
             }
         }
     }
+
+    /// <summary>
+    /// A folder inside <paramref name="root"/> that's in one of those, however far down: never the library's, so not being
+    /// able to read it says nothing about the library. Only the part below the root counts, and the root itself is never one.
+    /// </summary>
+    public static bool IsInNotMedia(string root, string directory) =>
+        Path.GetRelativePath(root, directory).Split(Path.DirectorySeparatorChar).Any(NotMedia.Contains);
 
     private static bool IsMedia(string path, IReadOnlySet<string> extensions) =>
         extensions.Contains(Path.GetExtension(path)) && !Path.GetFileName(path).StartsWith("._", StringComparison.Ordinal);

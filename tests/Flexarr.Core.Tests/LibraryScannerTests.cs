@@ -740,6 +740,102 @@ public sealed class LibraryScannerTests : IAsyncLifetime
         }
     }
 
+    [Theory]
+    [InlineData("movies/#recycle")]
+    [InlineData("movies/@Recycle")]
+    [InlineData("movies/#snapshot/daily")] // A readable bin with someone else's folder inside it.
+    public async Task AFolderOfTheNasOwnThatCantBeRead_LeavesTheScanComplete_AndIsntPurged(string bin)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var root = Touch("movies/Heat (1995)/Heat (1995).mkv", "movies/Alien (1979)/Alien (1979).mkv", bin + "/Old (2001)/Old (2001).mkv");
+        var library = await AddLibrary(LibraryType.Movies, Path.Combine(root, "movies"));
+        await Scanner().ScanAsync(library, null, default);
+        var alien = Path.Combine(root, "movies/Alien (1979)/Alien (1979).mkv");
+        File.Delete(alien);
+        await _db.MediaFiles.Where(f => f.Path == alien || f.Path.Contains("Old (2001)"))
+            .ExecuteUpdateAsync(u => u.SetProperty(f => f.MissingSince, DateTime.UtcNow.AddDays(-2)));
+        _db.ChangeTracker.Clear();
+        var locked = Path.Combine(root, bin);
+        var mode = File.GetUnixFileMode(locked);
+        File.SetUnixFileMode(locked, UnixFileMode.None);
+        try
+        {
+            var result = await Scanner().ScanAsync(library, null, default);
+
+            Assert.False(result.Incomplete);
+            Assert.Equal(1, result.Removed);
+            Assert.False(await _db.MediaFiles.IgnoreQueryFilters().AnyAsync(f => f.Path == alien));
+            Assert.True(await _db.MediaFiles.IgnoreQueryFilters().AnyAsync(f => f.Path.Contains("Old (2001)")));
+        }
+        finally
+        {
+            File.SetUnixFileMode(locked, mode);
+        }
+    }
+
+    [Fact]
+    public async Task AnUnreadableFolder_ThatsOnlyCalledSomethingLikeABin_StillMarksTheScanIncomplete()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var root = Touch("#recycle/Heat (1995)/Heat (1995).mkv", "#recycle/#Alive (2020)/#Alive (2020).mkv");
+        // The library's own folder may be called anything: only what's below it counts.
+        var library = await AddLibrary(LibraryType.Movies, Path.Combine(root, "#recycle"));
+        await Scanner().ScanAsync(library, null, default);
+        var locked = Path.Combine(root, "#recycle/#Alive (2020)");
+        var mode = File.GetUnixFileMode(locked);
+        File.SetUnixFileMode(locked, UnixFileMode.None);
+        try
+        {
+            Assert.True((await Scanner().ScanAsync(library, null, default)).Incomplete);
+        }
+        finally
+        {
+            File.SetUnixFileMode(locked, mode);
+        }
+    }
+
+    [Fact]
+    public async Task ATitlesScan_PurgesOnlyWhatItLookedAt()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var root = Touch("movies/Heat (1995)/Heat (1995).mkv", "movies/Heat (1995)/Heat (1995) Cut.mkv", "movies/Alien (1979)/Alien (1979).mkv");
+        var library = await AddLibrary(LibraryType.Movies, Path.Combine(root, "movies"));
+        await Scanner().ScanAsync(library, null, default);
+        var cut = Path.Combine(root, "movies/Heat (1995)/Heat (1995) Cut.mkv");
+        var alien = Path.Combine(root, "movies/Alien (1979)/Alien (1979).mkv");
+        File.Delete(cut);
+        await _db.MediaFiles.Where(f => f.Path == cut || f.Path == alien).ExecuteUpdateAsync(u => u.SetProperty(f => f.MissingSince, DateTime.UtcNow.AddDays(-2)));
+        _db.ChangeTracker.Clear();
+        var locked = Path.GetDirectoryName(alien)!;
+        var mode = File.GetUnixFileMode(locked);
+        File.SetUnixFileMode(locked, UnixFileMode.None);
+        try
+        {
+            // Alien's folder can't be read, which a scan of Heat's has no way of knowing.
+            var result = await Scanner().ScanAsync(library, Path.Combine(root, "movies/Heat (1995)"), default);
+
+            Assert.Equal(1, result.Removed);
+            Assert.False(await _db.MediaFiles.IgnoreQueryFilters().AnyAsync(f => f.Path == cut));
+            Assert.True(await _db.MediaFiles.IgnoreQueryFilters().AnyAsync(f => f.Path == alien));
+        }
+        finally
+        {
+            File.SetUnixFileMode(locked, mode);
+        }
+    }
+
     [Fact]
     public async Task Music_AnUpgradedOrRenamedTrack_KeepsItsTrack()
     {
