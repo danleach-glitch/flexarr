@@ -2,7 +2,10 @@ package io.github.flexarr.player
 
 import android.app.Activity
 import android.app.Application
+import android.hardware.display.DisplayManager
 import android.os.Looper
+import android.view.Display
+import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.media3.common.C
@@ -19,16 +22,34 @@ import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.android.internal.DisplayConfig
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.Implementation
+import org.robolectric.annotation.Implements
+import org.robolectric.shadows.ShadowDisplayManager
+import org.robolectric.util.ReflectionHelpers
 import java.lang.reflect.Proxy
 
 /** What the matcher wants of the screen as titles come and go. */
 @RunWith(RobolectricTestRunner::class)
-@Config(application = Application::class, sdk = [34])
+@Config(application = Application::class, sdk = [34], shadows = [MatchContentSetting::class])
 class FrameRateMatcherSwitchTest {
     private var playWhenReady = true
     private var plays = 0
     private val switching = mutableListOf<Boolean>()
+    private val leftPaused = mutableListOf<Boolean>()
+    private var stayPaused: () -> Unit = {}
+    private val holds = object : ScreenHolds {
+        override fun holdStarted(stayPaused: () -> Unit) {
+            switching += true
+            this@FrameRateMatcherSwitchTest.stayPaused = stayPaused
+        }
+
+        override fun holdEnded(leftPaused: Boolean) {
+            switching += false
+            this@FrameRateMatcherSwitchTest.leftPaused += leftPaused
+        }
+    }
 
     private val player = Proxy.newProxyInstance(Player::class.java.classLoader, arrayOf(Player::class.java)) { _, method, _ ->
         when (method.name) {
@@ -49,7 +70,7 @@ class FrameRateMatcherSwitchTest {
     /** On a screen, as a view's post only runs once it's attached. */
     private fun matcher(): FrameRateMatcher {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
-        return FrameRateMatcher(player, SurfaceView(activity).also(activity::setContentView), switching::add)
+        return FrameRateMatcher(player, SurfaceView(activity).also(activity::setContentView), holds)
     }
 
     private fun tracks(rate: Float = Format.NO_VALUE.toFloat()): Tracks {
@@ -159,6 +180,119 @@ class FrameRateMatcherSwitchTest {
         assertEquals(0, plays)
     }
 
+    /** A surface that's there: Robolectric's SurfaceView has none. */
+    private class ShownSurfaceView(context: android.content.Context) : SurfaceView(context) {
+        val surface = object : Surface(android.graphics.SurfaceTexture(0)) {
+            override fun isValid() = true
+        }
+        private val fake = Proxy.newProxyInstance(SurfaceHolder::class.java.classLoader, arrayOf(SurfaceHolder::class.java)) { _, method, _ ->
+            if (method.name == "getSurface") surface else null
+        } as SurfaceHolder
+
+        override fun getHolder(): SurfaceHolder = fake
+    }
+
+    private fun changeDisplay(change: (DisplayConfig) -> Unit) = ReflectionHelpers.callStaticMethod<Unit>(
+        ShadowDisplayManager::class.java,
+        "changeDisplay",
+        ReflectionHelpers.ClassParameter.from(Int::class.javaPrimitiveType, Display.DEFAULT_DISPLAY),
+        ReflectionHelpers.ClassParameter.from(java.util.function.Consumer::class.java, java.util.function.Consumer<DisplayConfig> { change(it) }),
+    )
+
+    /** A real matcher on a TV set to always switch, at [current] Hz with 24 and 60 to go to. */
+    private fun onATv(current: Int = 60, setting: Int = DisplayManager.MATCH_CONTENT_FRAMERATE_ALWAYS): FrameRateMatcher {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        fun mode(id: Int, hz: Float) = ReflectionHelpers.callConstructor(
+            Display.Mode::class.java,
+            ReflectionHelpers.ClassParameter.from(Int::class.javaPrimitiveType, id),
+            ReflectionHelpers.ClassParameter.from(Int::class.javaPrimitiveType, 3840),
+            ReflectionHelpers.ClassParameter.from(Int::class.javaPrimitiveType, 2160),
+            ReflectionHelpers.ClassParameter.from(Float::class.javaPrimitiveType, hz),
+        )
+        changeDisplay { it.supportedModes = arrayOf(mode(1, 60f), mode(2, 24f)); it.modeId = if (current == 60) 1 else 2; it.defaultModeId = 1 }
+        MatchContentSetting.setting = setting
+        shadowOf(Looper.getMainLooper()).idle()
+        return FrameRateMatcher(player, ShownSurfaceView(activity).also(activity::setContentView), holds)
+    }
+
+    private fun theScreenChangesTo(mode: Int) {
+        changeDisplay { it.modeId = mode }
+        shadowOf(Looper.getMainLooper()).idle()
+    }
+
+    @Test fun aTitleAtARateTheScreenMustBlankFor_isHeldUntilItHasSwitched() {
+        val matcher = onATv()
+        matcher.onTracksChanged(tracks(24f))
+        assertEquals(listOf(true), switching)
+        assertFalse(playWhenReady)
+        // The real listener hears the mode change; the TV then takes a moment to show a picture.
+        theScreenChangesTo(2)
+        pass(FrameRateMatcher.SETTLE_MS - 1)
+        assertEquals(0, plays)
+        pass(1)
+        assertEquals(1, plays)
+        assertEquals(listOf(true, false), switching)
+        assertEquals(listOf(false), leftPaused)
+    }
+
+    @Test fun aTitleTheScreenNeedsNoChangeFor_isntHeld() {
+        onATv(current = 24).onTracksChanged(tracks(24f))
+        assertTrue(switching.isEmpty())
+        assertTrue(playWhenReady)
+        // 30 at 60 is a multiple.
+        onATv().onTracksChanged(tracks(30f))
+        assertTrue(switching.isEmpty())
+    }
+
+    @Test fun aTvNotSetToAlwaysSwitch_isntHeld() {
+        onATv(setting = DisplayManager.MATCH_CONTENT_FRAMERATE_SEAMLESSS_ONLY).onTracksChanged(tracks(24f))
+        assertTrue(switching.isEmpty())
+        assertTrue(playWhenReady)
+    }
+
+    @Test fun aPauseMeantAsOne_staysPaused() {
+        val matcher = onATv()
+        matcher.onTracksChanged(tracks(24f))
+        stayPaused()
+        assertEquals(listOf(true), leftPaused)
+        theScreenChangesTo(2)
+        pass(FrameRateMatcher.SWITCH_WAIT_MS * 2)
+        assertEquals(0, plays)
+        assertFalse(playWhenReady)
+        // Play from there just plays, with no hold left to get in its way.
+        player.play()
+        matcher.onPlayWhenReadyChanged(true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
+        assertEquals(listOf(true, false), switching)
+    }
+
+    @Test fun everyWayOutOfAHold_saysWhetherItsLeftPaused() {
+        // Waited out, or switched: plays.
+        onATv().onTracksChanged(tracks(24f))
+        pass(FrameRateMatcher.SWITCH_WAIT_MS)
+        assertEquals(listOf(false), leftPaused)
+        leftPaused.clear()
+        // Play pressed: playing, whatever the screen's doing.
+        val pressed = onATv()
+        pressed.onTracksChanged(tracks(25f))
+        pressed.onTracksChanged(tracks(24f))
+        player.play()
+        pressed.onPlayWhenReadyChanged(true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
+        assertEquals(listOf(false), leftPaused)
+        leftPaused.clear()
+        // The surface gone (Home): paused, and nobody's been told yet.
+        val home = onATv()
+        home.onTracksChanged(tracks(24f))
+        home.surfaceDestroyed(mockHolder)
+        assertEquals(listOf(true), leftPaused)
+        leftPaused.clear()
+        playWhenReady = true
+        // Closed.
+        val closed = onATv()
+        closed.onTracksChanged(tracks(24f))
+        closed.stop()
+        assertEquals(listOf(true), leftPaused)
+    }
+
     @Test fun onlyASwitchThatIsntSeamless_blanksTheScreen() {
         val tv = listOf(23.976f, 24f, 50f, 59.94f, 60f)
         assertTrue(FrameRateMatcher.blanks(24f, 60f, emptyList(), tv))
@@ -193,4 +327,15 @@ class FrameRateMatcherSwitchTest {
     }
 
     private val mockHolder = Proxy.newProxyInstance(SurfaceHolder::class.java.classLoader, arrayOf(SurfaceHolder::class.java)) { _, _, _ -> null } as SurfaceHolder
+}
+
+/** The TV's own Match content frame rate setting, which Robolectric has no way to set. */
+@Implements(DisplayManager::class)
+class MatchContentSetting : ShadowDisplayManager() {
+    @Implementation(minSdk = 31)
+    protected fun getMatchContentFrameRateUserPreference(): Int = setting
+
+    companion object {
+        var setting = DisplayManager.MATCH_CONTENT_FRAMERATE_NEVER
+    }
 }

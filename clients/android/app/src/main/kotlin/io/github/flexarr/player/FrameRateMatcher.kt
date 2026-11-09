@@ -18,6 +18,15 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.video.VideoFrameMetadataListener
 import io.github.flexarr.logging.FlexarrLog
 
+/** What the player hears of playing being held for a TV's change of frame rate ([FrameRateMatcher.hold]). */
+internal interface ScreenHolds {
+    /** Held. [stayPaused] ends it without playing on: a pause meant as one, which the hold's own would otherwise swallow. */
+    fun holdStarted(stayPaused: () -> Unit)
+
+    /** Over. [leftPaused]: not playing on, and since the hold's own pause wasn't reported, nobody's been told. */
+    fun holdEnded(leftPaused: Boolean)
+}
+
 /**
  * On a TV, asks the screen for the playing video's frame rate (24 for most films), so motion doesn't judder. The TV's own
  * *Match content frame rate* setting decides whether it switches (Android 12 and later), as the Apple TV follows Match
@@ -27,13 +36,13 @@ import io.github.flexarr.logging.FlexarrLog
  * Android 11 switches only when it's seamless; before that there's nothing to ask.
  *
  * A switch that isn't seamless blacks the screen for a few seconds, so playing is held across it ([hold]), or those
- * seconds of the film and its sound would be lost. [onSwitching] says while it is, for the player to show it's waiting.
+ * seconds of the film and its sound would be lost. [holds] hears while it is, for the player to show it's waiting.
  */
 @OptIn(UnstableApi::class)
 internal class FrameRateMatcher(
     private val player: Player,
     private val view: SurfaceView,
-    private val onSwitching: (Boolean) -> Unit = {},
+    private val holds: ScreenHolds? = null,
 ) : Player.Listener, SurfaceHolder.Callback, VideoFrameMetadataListener {
     /** The rate the video wants, and the one last asked of the surface (−1: a new surface, nothing asked yet). */
     internal var wanted = 0f
@@ -178,7 +187,7 @@ internal class FrameRateMatcher(
         holding = true
         heldMode = view.display?.mode?.modeId
         displays.registerDisplayListener(displayListener, Handler(Looper.getMainLooper()))
-        onSwitching(true)
+        holds?.holdStarted { release(resume = false) }
         player.pause()
         view.postDelayed(endHold, SWITCH_WAIT_MS)
     }
@@ -195,7 +204,8 @@ internal class FrameRateMatcher(
         holding = false
         view.removeCallbacks(endHold)
         displays.unregisterDisplayListener(displayListener)
-        onSwitching(false)
+        // Before playing, so that's reported as usual. Otherwise it's paused unless Play is what ended it.
+        holds?.holdEnded(leftPaused = !resume && !player.playWhenReady)
         if (resume) player.play()
     }
 

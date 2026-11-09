@@ -40,7 +40,7 @@ class VideoCasting(private val activity: ComponentActivity, private val controll
             if (info == null || handedOff == info.sessionId || !casting.takes(info.item.id)) return@LaunchedEffect
             handedOff = info.sessionId
             val at = controller.player.currentPosition / 1000.0
-            controller.player.pause()
+            controller.pause()
             casting.castVideo(info, at, replaces = if (controller.isOffline) null else info.sessionId)
         }
     }

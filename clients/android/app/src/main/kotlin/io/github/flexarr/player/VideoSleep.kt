@@ -15,7 +15,7 @@ import kotlin.math.ceil
  * dimmed until someone's there. It lasts as long as the screen, so a timer of minutes carries on into the next
  * episode (or channel). The iPhone player's sleep timer, which both of its screens share.
  */
-class VideoSleep(scope: CoroutineScope, private val player: Player, private val onChange: () -> Unit = {}) {
+class VideoSleep(scope: CoroutineScope, private val player: Player, private val pause: () -> Unit = player::pause, private val onChange: () -> Unit = {}) {
     enum class Phase {
         Off,
         /** The last minute: "Still watching?" over the dimmed picture. */
@@ -88,7 +88,7 @@ class VideoSleep(scope: CoroutineScope, private val player: Player, private val 
         if (phase == Phase.Asleep) return
         if (timer.setting != null) timer.set(null)
         phase = Phase.Asleep
-        player.pause()
+        pause()
         onChange()
     }
 
