@@ -145,7 +145,7 @@ public sealed class LiveTvStatus
         }
     }
 
-    // At most once a day, so a guide whose channels run out a few at a time still settles down to Every.
+    // Not every time, so a guide whose channels run out a few at a time doesn't stay on hourly.
     private bool MoreRanOut(int missing, DateTime now) => missing > _missingAfterRead && !(now - _lookedAfresh < LiveTvGuide.LooksAfreshAtMost);
 
     /// <summary>The count of channels without listings, while it's fresh enough to save asking the database.</summary>
@@ -207,7 +207,7 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
     public static readonly TimeSpan EveryWhileMissing = TimeSpan.FromHours(1);
 
     /// <summary>How often more channels running out starts <see cref="EveryWhileMissing"/> over.</summary>
-    public static readonly TimeSpan LooksAfreshAtMost = TimeSpan.FromDays(1);
+    public static readonly TimeSpan LooksAfreshAtMost = TimeSpan.FromHours(6);
 
     /// <summary>However often Refresh is pressed, Dispatcharr's sources (often someone's IPTV provider) are only asked this often.</summary>
     public static readonly TimeSpan DownloadsAtMost = TimeSpan.FromMinutes(15);

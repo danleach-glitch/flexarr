@@ -841,7 +841,7 @@ public sealed class LiveTvTests : IDisposable
     }
 
     [Fact]
-    public async Task Channels_running_out_beside_one_thats_always_empty_get_their_hourly_look_once_a_day()
+    public async Task Channels_running_out_beside_one_thats_always_empty_get_their_hourly_look_every_six_hours()
     {
         var client = Client();
         await ConnectAsync(client);
@@ -881,10 +881,17 @@ public sealed class LiveTvTests : IDisposable
         Assert.Equal(1, status.QuietRefreshes);
         Assert.False(await guide.IsDueAsync(DateTime.UtcNow.AddMinutes(90), CancellationToken.None));
 
-        // A guide whose channels run out one after another doesn't stay on hourly: the next, the same day, waits its turn.
+        // A guide whose channels run out one after another doesn't stay on hourly: the next, within six hours, waits its turn.
         await RunOutAsync("BBC One");
         Assert.False(await guide.IsDueAsync(DateTime.UtcNow.AddMinutes(90), CancellationToken.None));
-        Assert.True(status.MoreHaveRunOut(3, DateTime.UtcNow.AddDays(1).AddMinutes(1)));
+
+        // Four hours on, with the wait grown past the next refresh due, it still waits until the six are up, then doesn't.
+        var start = DateTime.UtcNow;
+        status.GuideRead(2, start.AddHours(4));
+        status.Finished(start.AddHours(4), error: null);
+        Assert.Equal(2, status.QuietRefreshes);
+        Assert.False(await guide.IsDueAsync(start.AddHours(5).AddMinutes(30), CancellationToken.None));
+        Assert.True(await guide.IsDueAsync(start.AddHours(6).AddMinutes(5), CancellationToken.None));
     }
 
     [Fact]
