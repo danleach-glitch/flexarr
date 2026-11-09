@@ -521,6 +521,41 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RadarrsCertificate_ClearsAnEarlierStrictestRating()
+    {
+        await AddMovieAsync("Dune", null, poster: null, arrId: 7, tmdbId: "438631");
+        await _db.MediaItems.ExecuteUpdateAsync(u => u.SetProperty(i => i.StrictestRating, "15"));
+        _db.ChangeTracker.Clear();
+        _radarr.Responses["/api/v3/movie"] = """[{"id":7,"title":"Dune","year":2021,"tmdbId":438631,"path":"/movies/Dune","certification":"PG-13"}]""";
+
+        await Refresher().RefreshLibraryAsync(_library, force: true, default);
+
+        var dune = await _db.MediaItems.AsNoTracking().SingleAsync();
+        Assert.Equal(("PG-13", null), (dune.ContentRating, dune.StrictestRating));
+    }
+
+    [Theory]
+    [InlineData("<mpaa>12A</mpaa>", "12A", null)] // someone's choice, with the last word
+    [InlineData("", "PG", "15")] // says nothing of ratings: what the title had stands
+    public async Task AnNfosRating_ClearsAnEarlierStrictestRating_AndOneWithoutLeavesIt(string rating, string shown, string? strictest)
+    {
+        var folder = Directory.CreateDirectory(Path.Combine(_dir, "Arrival")).FullName;
+        await File.WriteAllTextAsync(Path.Combine(folder, "movie.nfo"), $"<movie><title>Arrival</title>{rating}</movie>");
+        _db.MediaItems.Add(new MediaItem
+        {
+            LibraryId = _library.Id, Kind = MediaKind.Movie, Title = "Arrival", SortTitle = "arrival", Path = folder,
+            ContentRating = "PG", StrictestRating = "15",
+        });
+        await _db.SaveChangesAsync();
+        _db.ChangeTracker.Clear();
+
+        await Refresher().RefreshLibraryAsync(_library, force: true, default);
+
+        var item = await _db.MediaItems.AsNoTracking().SingleAsync();
+        Assert.Equal((shown, strictest), (item.ContentRating, item.StrictestRating));
+    }
+
+    [Fact]
     public async Task ARottenScore_LosesItsCertificate()
     {
         await AddMovieAsync("Dune", null, poster: null, arrId: 7, tmdbId: "438631");
