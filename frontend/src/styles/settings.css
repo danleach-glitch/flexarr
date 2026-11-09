@@ -123,6 +123,12 @@
   margin-top: 18px;
 }
 
+/* Under a setting that couldn't load: what happened, with Try again on its own line. */
+.setting-load-error {
+  display: block;
+  margin-bottom: 8px;
+}
+
 /* A connection's line, with its form opening under it. */
 .connection {
   padding: 14px 0;

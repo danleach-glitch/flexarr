@@ -125,7 +125,7 @@ export function CountryRow() {
       help={
         error ? (
           <>
-            <span className="error" role="alert">
+            <span className="error setting-load-error" role="alert">
               {error}
             </span>
             {tryAgain}
