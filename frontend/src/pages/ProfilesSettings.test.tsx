@@ -169,6 +169,17 @@ describe('Profile menu', () => {
 })
 
 describe('Age limits', () => {
+  it('goes by the server’s names', async () => {
+    const child = { ...kids, hiddenLibraryIds: [], maxRatingAge: 12, isKids: true }
+    mockApi({ '/libraries': [movies], '/me': { ...adminHere, ratingSystem: 'us' }, '/profiles': [child] })
+    renderAt('/settings/profiles')
+
+    expect(await screen.findByText(/Kids profile, up to PG-13/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: `Edit ${child.name}` }))
+    const limit = await screen.findByRole('combobox', { name: 'Up to' })
+    expect(within(limit).getAllByRole('option').map((o) => o.textContent)).toEqual(['No limit', 'R', 'TV-14', 'PG-13', 'PG', 'G'])
+  })
+
   it('saves a profile’s age limit', async () => {
     let limit: Record<string, unknown> | undefined
     const child = { ...kids, hiddenLibraryIds: [], maxRatingAge: 8, isKids: true }
