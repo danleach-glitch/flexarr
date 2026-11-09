@@ -279,12 +279,19 @@ public sealed class BookMetadataOptions
 public sealed class PodcastOptions
 {
     /// <summary>
-    /// The country whose podcast charts and directory Browse shows, as a two-letter code ("gb", "us"). Unset, it's
-    /// the server's own region.
+    /// The server's country, as a two-letter code ("gb", "us"): whose podcast charts and directory Browse shows, whose
+    /// certificates titles look for first, Audible's store and the names of age limits. Unset, it's the server's own
+    /// region. It lives here, not at the top level, because it began as the charts' and servers have it saved here.
     /// </summary>
     public string? Country { get; set; }
 
     public string ResolvedCountry => Flexarr.Api.Podcasts.PodcastCountries.Resolve(Country);
+
+    /// <summary>The country whose charts and directory Browse shows: Apple has them for most, not all.</summary>
+    public string ResolvedChartsCountry => Flexarr.Api.Podcasts.PodcastCountries.ChartsFor(ResolvedCountry);
+
+    /// <summary>Whose names age limits go by.</summary>
+    public Flexarr.Core.Media.RatingSystem RatingSystem => Flexarr.Api.Podcasts.PodcastCountries.RatingSystem(Country);
 }
 
 /// <summary>Which rows Home and each library's Browse view show, in order. Rows not listed keep their built-in place.</summary>

@@ -17,6 +17,7 @@ public sealed class OnlineMetadataTests : IAsyncLifetime
     private readonly FakeWeb _web = new();
     private FlexarrDbContext _db = null!;
     private string? _tmdbKey = "key123";
+    private string? _country;
 
     public async Task InitializeAsync()
     {
@@ -65,6 +66,63 @@ public sealed class OnlineMetadataTests : IAsyncLifetime
         Assert.Equal("https://image.tmdb.org/t/p/original/logo.png", item.LogoUrl);
         Assert.Equal(["Drama"], item.Genres.Select(g => g.Name));
         Assert.Equal([("Amy Adams", CreditRole.Actor), ("Denis Villeneuve", CreditRole.Director)], item.Credits.OrderBy(c => c.Order).Select(c => (c.Person!.Name, c.Role)));
+    }
+
+    private void RatedFilm(string releases) =>
+        _web.Responses["api.themoviedb.org/3/movie/949?append_to_response=credits,release_dates,videos,images&include_image_language=en,null&api_key=key123"] =
+            $$$"""{"id":949,"title":"Heat","release_dates":{"results":[{{{releases}}}]}}""";
+
+    private const string RatedInBoth = """
+        {"iso_3166_1":"GB","release_dates":[{"certification":"15","type":3}]},
+        {"iso_3166_1":"US","release_dates":[{"certification":"PG-13","type":3}]},
+        {"iso_3166_1":"FR","release_dates":[{"certification":"U","type":3}]}
+        """;
+
+    private async Task<(string? Shown, string? Strictest, int? Age)> RatingInAsync(Library library, Guid film, string? country)
+    {
+        _country = country;
+        await Refresher().RefreshLibraryAsync(library, force: true, default);
+        _db.ChangeTracker.Clear();
+        var item = await _db.MediaItems.SingleAsync(i => i.Id == film);
+        return (item.ContentRating, item.StrictestRating, item.RatingAge);
+    }
+
+    [Fact]
+    public async Task MovingBetweenTheUkAndTheUs_ChangesWhatsShown_NotAFilmsAge()
+    {
+        var (library, film) = await AddAsync(LibraryType.Movies, new MediaItem { Kind = MediaKind.Movie, Title = "Heat", SortTitle = "heat", TmdbId = "949", Path = "/nowhere/Heat" });
+        RatedFilm(RatedInBoth);
+
+        Assert.Equal(("15", null, 15), await RatingInAsync(library, film.Id, "GB"));
+        Assert.Equal(("PG-13", "15", 15), await RatingInAsync(library, film.Id, "US")); // a limit of PG-13 still hides it
+        Assert.Equal(("15", null, 15), await RatingInAsync(library, film.Id, "GB"));
+        // A country that rates it lower shows its own, and can't loosen a limit either.
+        Assert.Equal(("U", "15", 15), await RatingInAsync(library, film.Id, "FR"));
+
+        await _db.ReconcileRatingAgesAsync(default);
+        _db.ChangeTracker.Clear();
+        Assert.Equal(15, (await _db.MediaItems.SingleAsync(i => i.Id == film.Id)).RatingAge);
+    }
+
+    [Fact]
+    public async Task ACountryStricterThanTheUkAndTheUs_SetsTheAgeWhileItsChosen()
+    {
+        var (library, film) = await AddAsync(LibraryType.Movies, new MediaItem { Kind = MediaKind.Movie, Title = "Heat", SortTitle = "heat", TmdbId = "949", Path = "/nowhere/Heat" });
+        RatedFilm(RatedInBoth + """,{"iso_3166_1":"DE","release_dates":[{"certification":"16","type":3}]}""");
+
+        Assert.Equal(("16", null, 18), await RatingInAsync(library, film.Id, "DE"));
+    }
+
+    [Fact]
+    public async Task AFilmRatedOnlyElsewhere_GoesByThatRating_AndAnUnreadableOneKeepsItHidden()
+    {
+        var (library, film) = await AddAsync(LibraryType.Movies, new MediaItem { Kind = MediaKind.Movie, Title = "Heat", SortTitle = "heat", TmdbId = "949", Path = "/nowhere/Heat" });
+
+        RatedFilm("""{"iso_3166_1":"FR","release_dates":[{"certification":"12","type":3}]}""");
+        Assert.Equal(("12", null, 12), await RatingInAsync(library, film.Id, "US"));
+
+        RatedFilm("""{"iso_3166_1":"US","release_dates":[{"certification":"NR","type":3}]}""");
+        Assert.Equal(("NR", null, null), await RatingInAsync(library, film.Id, "US"));
     }
 
     [Fact]
@@ -166,14 +224,16 @@ public sealed class OnlineMetadataTests : IAsyncLifetime
 
     private MetadataRefresher Refresher()
     {
-        var settings = new Settings(_dir, _tmdbKey);
+        var settings = new Settings(_dir, _tmdbKey, _country);
         return new MetadataRefresher(_db, new ArrClient(new HttpClient(_web)), new TvMazeClient(new HttpClient(_web)),
             new ImageCache(new HttpClient(_web), settings, NullLogger<ImageCache>.Instance), settings, NullLogger<MetadataRefresher>.Instance,
             new TmdbClient(new HttpClient(_web)));
     }
 
-    private sealed class Settings(string cache, string? tmdbKey) : IMetadataSettings
+    private sealed class Settings(string cache, string? tmdbKey, string? country) : IMetadataSettings
     {
+        public string? Country => country;
+
         public IReadOnlyList<ArrInstance> ArrInstances { get; } = [];
         public IReadOnlyList<PathMapping> PathMappings { get; } = [];
         public string CacheDirectory => cache;

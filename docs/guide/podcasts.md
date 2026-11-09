@@ -15,7 +15,7 @@ Open **Podcasts** and choose **Browse**.
 - **Search** finds any show in that directory.
 - **A feed's address** works too: paste it into the search box to add a show Apple doesn't list, such as a private or members-only feed.
 
-Whose charts you see is set by the main profile in **Settings › Libraries**, under **Podcasts › Charts and search**. It starts as the server's own region.
+Whose charts you see follows the **Country** the main profile sets in **Settings › Overview**. It starts as the server's own region.
 
 ## Following a show
 

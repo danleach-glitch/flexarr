@@ -76,6 +76,35 @@ public class RatingAgesTests
     }
 
     [Fact]
+    public void StricterThan_IsTheHighestAge_OnlyWhenItsAboveWhatsShown()
+    {
+        Assert.Equal("15", RatingAges.StricterThan("PG-13", ["PG-13", "15", null, "nonsense"]));
+        Assert.Null(RatingAges.StricterThan("15", ["PG-13", "15"]));
+        Assert.Null(RatingAges.StricterThan("PG-13", []));
+        Assert.Equal("PG", RatingAges.StricterThan("NR", ["PG"]));
+        Assert.Null(RatingAges.StricterThan("NR", ["NR"]));
+    }
+
+    [Fact]
     public void Labels_AreTheUkNames() =>
         Assert.Equal(["U", "PG", "12", "15", "18"], RatingAges.Steps.Select(RatingAges.Label));
+
+    [Theory]
+    [InlineData("us", RatingSystem.Us)]
+    [InlineData("US", RatingSystem.Us)]
+    [InlineData("pr", RatingSystem.Us)]
+    [InlineData("gb", RatingSystem.Uk)]
+    [InlineData("de", RatingSystem.Uk)]
+    [InlineData(null, RatingSystem.Uk)]
+    public void ACountry_PicksItsNames(string? country, RatingSystem system) =>
+        Assert.Equal(system, RatingAges.SystemFor(country));
+
+    [Theory]
+    [InlineData("G", 0)]
+    [InlineData("PG", 8)]
+    [InlineData("PG-13", 12)]
+    [InlineData("TV-14", 15)]
+    [InlineData("R", 18)]
+    public void AUsStepsName_IsTheAgeOfThatRating(string rating, int age) =>
+        Assert.Equal(age, RatingAges.Of(rating));
 }

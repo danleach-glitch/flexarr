@@ -4,7 +4,7 @@ Built: server, web, Apple TV, iPhone/iPad and Android (phases 1 to 5). What wait
 
 Decided so far:
 
-- **Ratings:** UK (BBFC) steps: **U · PG · 12 · 15 · 18**. Every country's rating is rounded up to the next step (Germany's 16 is 18), with UK equivalents for a few (PG-13 is 12, TV-14 is 15, R is 18); a rating with its reasons counts by its first word. Titles looked up on TMDB take the GB certificate first; Radarr and Sonarr only give US ones, which convert well enough.
+- **Ratings:** five steps, named for the server's country: **U · PG · 12 · 15 · 18**, or in the US **G · PG · PG-13 · TV-14 · R**. Only the names differ. Every country's rating is rounded up to the next step (Germany's 16 is 18), with UK equivalents for a few (PG-13 is 12, TV-14 is 15, R is 18); a rating with its reasons counts by its first word. Titles looked up on TMDB show the server's country's certificate first; Radarr and Sonarr only give US ones, which convert well enough.
 - **Requests:** kids profiles never request. Titles above their limit don't appear at all, so there's nothing to ask for.
 - **Parent:** the main profile. Its PIN lets a child leave a kids profile and unlocks a device locked to kids.
 - **Unrated titles** (all music and home videos, and some films and shows) are hidden from a limited profile unless a parent allows the title or the whole library.
@@ -27,7 +27,7 @@ Decided so far:
 Everything over its limit is gone, enforced by the server, so older apps get the filter too:
 
 - libraries, Home rows, Continue Watching, Up Next and the next-episode countdown
-- search, Discover (TMDB results without a suitable GB/US certificate are left out), Coming Soon and Upcoming
+- search and Upcoming
 - people pages (their filmographies), collections (smart ones re-evaluated per profile), and playlists (other profiles' shared playlists lose items it can't see)
 - Live TV: only channels the main profile has allowed (guide ratings are unreliable); DVR recordings inherit their channel
 - podcasts marked explicit, and music unless the library is fine for kids
@@ -52,8 +52,9 @@ Everything over its limit is gone, enforced by the server, so older apps get the
 
 ### Ratings to an age
 
+- The server's country (`podcasts.country`, set in Settings › Overview; unset, its detected region) picks the names: the US's in the US, the UK's otherwise, including when the region isn't known. `/me` says which as `ratingSystem`. The apps never show the steps' names, so only the web uses it.
 - `RatingAges` (Flexarr.Core) maps every certificate the library holds and the common ones beyond it (BBFC, MPAA, US TV, FSK, ACMA, and ages written as numbers: `-16`, `16+`, `MA15+`) to an age: 0 (U), 8 (PG), 12, 15 or 18. Unknown values count as unrated. A podcast without the explicit flag is 0.
-- TMDB lookups take the GB certificate first, then US, then any.
+- TMDB lookups show the server's country's certificate first, then GB, then US, then any. A film's age comes from the strictest of its country's, GB and US certificates (`StrictestRating`, kept when stricter than the one shown), so moving between the UK and the US can't loosen a limit. Leaving a country stricter than both can, at the film's next refresh. Radarr, Sonarr and .nfo ratings have one certificate and are unaffected.
 - `MediaItem` has `RatingAge` (null when unrated) and `KidsOverride` (none, allow, block); `Library` and `LiveChannel` have `FineForKids`; `Profile` has `MaxRatingAge` and `IsKids`. Migration `KidsProfiles`.
 - The context keeps ages right: saving an item works out its age from its rating; seasons, episodes, albums and tracks without a rating of their own take their parent's age and override, after each save that touches them. At startup `ReconcileRatingAgesAsync` works every age out afresh (older databases, or a newer table of ratings).
 

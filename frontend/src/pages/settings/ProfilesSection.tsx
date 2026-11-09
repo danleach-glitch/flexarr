@@ -19,6 +19,7 @@ import {
   updateProfile,
   type Library,
   type Profile,
+  type RatingSystem,
   type RequestDestination,
 } from '../../api/client'
 import { AsyncButton, IconButton } from '../../components/AsyncButton'
@@ -48,6 +49,7 @@ export function ProfilesSection() {
   const me = useApi(getMe, [])
   // Until /me answers, assume there is one, so the Kids switch isn't disabled for a moment.
   const mainHasPin = me.data?.adminPinMissing !== true
+  const ratingSystem = me.data?.ratingSystem
   const reload = () => {
     setEditing(undefined)
     setVersion((v) => v + 1)
@@ -72,6 +74,8 @@ export function ProfilesSection() {
           <ProfileForm
             defaultColour={freeColour(data ?? [])}
             libraries={libraries}
+            ratingSystem={ratingSystem}
+            limitsReady={me.data !== undefined || me.error !== undefined}
             destinations={destinations}
             musicDestinations={musicDestinations}
             mainHasPin={mainHasPin}
@@ -88,6 +92,8 @@ export function ProfilesSection() {
               profile={editing}
               defaultColour={freeColour(data)}
               libraries={libraries}
+              ratingSystem={ratingSystem}
+              limitsReady={me.data !== undefined || me.error !== undefined}
               destinations={destinations}
               musicDestinations={musicDestinations}
               mainHasPin={mainHasPin}
@@ -108,7 +114,7 @@ export function ProfilesSection() {
                   {p.isCurrent && <span className="tag profile-you">{t('You')}</span>}
                 </strong>
                 <span className="muted">
-                  {[p.isMain ? t('Main profile, manages the server') : p.isKids ? null : t('Profile'), p.hasPin ? t('PIN') : t('No PIN'), ageLimitText(p)].filter(Boolean).join('\u2003')}
+                  {[p.isMain ? t('Main profile, manages the server') : p.isKids ? null : t('Profile'), p.hasPin ? t('PIN') : t('No PIN'), me.data ? ageLimitText(p, ratingSystem) : null].filter(Boolean).join('\u2003')}
                 </span>
               </span>
               <span className="library-row-actions">
@@ -135,6 +141,8 @@ function ProfileForm({
   profile,
   defaultColour,
   libraries,
+  ratingSystem,
+  limitsReady,
   destinations,
   musicDestinations,
   mainHasPin,
@@ -144,6 +152,9 @@ function ProfileForm({
   profile?: Profile
   defaultColour: string
   libraries: Library[]
+  ratingSystem?: RatingSystem
+  /** Whether the names are known: until then, a US server's limits would show as the UK's. */
+  limitsReady: boolean
   destinations: RequestDestination[]
   musicDestinations: { id: string; name: string; isDefault: boolean }[]
   mainHasPin: boolean
@@ -334,6 +345,7 @@ function ProfileForm({
             <label className="profile-library">
               <span>{t('Up to')}</span>
               <select
+                disabled={!limitsReady}
                 value={maxRatingAge ?? ''}
                 onChange={(e) => {
                   const age = e.target.value === '' ? null : Number(e.target.value)
@@ -344,7 +356,7 @@ function ProfileForm({
                 }}
               >
                 <option value="">{t('No limit')}</option>
-                {[...ratingSteps].reverse().map((s) => (
+                {ratingSteps(ratingSystem).reverse().map((s) => (
                   <option key={s.age} value={s.age}>
                     {s.label}
                   </option>

@@ -5,7 +5,6 @@ import {
   deleteLibrary,
   getAllLibraries,
   getLibraryHealthScore,
-  getPodcastCountries,
   getSettings,
   saveSettings,
   scanLibrary,
@@ -157,14 +156,10 @@ function LibraryTools() {
   )
 }
 
-/** The built-in Podcasts library: where episodes wait on their way to phones, and whose charts Browse shows. */
+/** The built-in Podcasts library: where episodes wait on their way to phones. */
 function PodcastLibrary({ library, onMoved }: { library: Library; onMoved: () => void }) {
   const [choosing, setChoosing] = useState(false)
   const [error, setError] = useState<string>()
-  const settings = useApi((signal) => getSettings(signal), [])
-  const countries = useApi((signal) => getPodcastCountries(signal), [])
-  const chosen = settings.data?.podcasts?.country ?? ''
-  const regionName = countries.data?.find((c) => c.code === settings.data?.podcasts?.resolvedCountry)?.name
 
   async function move(path: string) {
     try {
@@ -172,16 +167,6 @@ function PodcastLibrary({ library, onMoved }: { library: Library; onMoved: () =>
       setChoosing(false)
       setError(undefined)
       onMoved()
-    } catch (e) {
-      setError(errorText(e))
-    }
-  }
-
-  async function chooseCountry(country: string) {
-    setError(undefined)
-    try {
-      await saveSettings({ podcasts: { country } })
-      settings.reload()
     } catch (e) {
       setError(errorText(e))
     }
@@ -205,16 +190,6 @@ function PodcastLibrary({ library, onMoved }: { library: Library; onMoved: () =>
           </button>
         </div>
       )}
-      <SettingRow label={t('Charts and search')} help={t('Whose Apple Podcasts charts and directory Browse shows.')}>
-        <select value={chosen} onChange={(e) => void chooseCountry(e.target.value)} disabled={!settings.data || !countries.data}>
-          <option value="">{!chosen && regionName ? t('This server’s region ({region})', { region: regionName }) : t('This server’s region')}</option>
-          {countries.data?.map((c) => (
-            <option key={c.code} value={c.code}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      </SettingRow>
     </SettingsGroup>
   )
 }

@@ -97,6 +97,37 @@ describe('Setup guide', () => {
     expect(sent(api, 'PUT', '/settings')).toBeUndefined()
   })
 
+  it('asks for the server’s country on the first card, saving it', async () => {
+    const api = mockApi({
+      '/profiles': [main],
+      '/podcasts/countries': [{ code: 'us', name: 'United States' }],
+      '/settings': { arr: [], pathMappings: [], podcasts: { country: null, resolvedCountry: 'us', detectedCountry: null } },
+      'PUT /settings': { arr: [], pathMappings: [], podcasts: { country: 'us', resolvedCountry: 'us', detectedCountry: null } },
+      'PUT /setup-guide': undefined,
+    })
+    renderAt('name')
+
+    await screen.findByRole('option', { name: 'United States' })
+    expect(screen.getByRole('option', { name: 'Not set' })).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('combobox', { name: 'Country' }), { target: { value: 'us' } })
+
+    await vi.waitFor(() => expect(sent(api, 'PUT', '/settings')).toEqual({ podcasts: { country: 'us' } }))
+    expect(screen.queryByRole('heading', { name: 'Connect your apps' })).toBeNull()
+  })
+
+  it('leaves the country out for anyone who can’t change it', async () => {
+    mockApi({
+      '/profiles': [main],
+      '/podcasts/countries': [{ code: 'us', name: 'United States' }],
+      '/settings': () => new Response('', { status: 403 }),
+      'PUT /setup-guide': undefined,
+    })
+    renderAt('name')
+
+    await screen.findByRole('textbox', { name: 'Your name' })
+    await vi.waitFor(() => expect(screen.queryByRole('combobox', { name: 'Country' })).toBeNull())
+  })
+
   it('keeps an app’s API key hidden as it’s typed', async () => {
     mockApi({ '/profiles': [main], '/settings': { arr: [], pathMappings: [] }, '/arr/discover': [], 'PUT /setup-guide': undefined })
     renderAt('apps')

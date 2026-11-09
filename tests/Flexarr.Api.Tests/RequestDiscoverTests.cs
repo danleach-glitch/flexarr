@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
@@ -248,6 +249,30 @@ public sealed class RequestDiscoverTests : IAsyncLifetime
                 page.GetProperty("recommendations").EnumerateArray().Select(i => (i.GetProperty("tmdbId").GetInt32(), i.GetProperty("title").GetString()!,
                     i.GetProperty("availability").GetString()!, i.GetProperty("libraryItemId").ValueKind == JsonValueKind.Null ? (Guid?)null : i.GetProperty("libraryItemId").GetGuid())));
         }
+    }
+
+    [Fact]
+    public async Task AnOutsideTitlesCertificate_IsTheServersCountrysFirst()
+    {
+        var certified = JsonNode.Parse(Title("movie", 501, "Rated Twice"))!;
+        certified["releases"] = JsonNode.Parse("""
+            {"results":[
+              {"iso_3166_1":"DE","release_dates":[{"certification":"16"}]},
+              {"iso_3166_1":"GB","release_dates":[{"certification":"15"}]},
+              {"iso_3166_1":"US","release_dates":[{"certification":"R"}]}]}
+            """);
+        _seerr.Responses["GET /api/v1/movie/501"] = certified.ToJsonString();
+        async Task<string?> InAsync(string country)
+        {
+            await Client().PutAsJsonAsync(Api("/settings"), new { podcasts = new { country } });
+            return (await Client().GetFromJsonAsync<JsonElement>(Api("/requests/title/movie/501"))).GetProperty("certification").GetString();
+        }
+
+        Assert.Equal("15", await InAsync("gb"));
+        Assert.Equal("R", await InAsync("us"));
+        Assert.Equal("16", await InAsync("de"));
+        // None of its own there, so the British one, as for a title in the library.
+        Assert.Equal("15", await InAsync("fr"));
     }
 
     [Fact]

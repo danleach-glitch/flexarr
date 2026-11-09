@@ -1,10 +1,12 @@
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using Flexarr.Api.Authentication;
+using Flexarr.Api.Configuration;
 using Flexarr.Api.Updates;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Security;
@@ -43,9 +45,13 @@ public sealed record TailscaleLinkRequest(string Login, string? ProfileId);
 /// No profile is chosen here yet and the main profile's own PIN is needed to be it: show who's watching. Only for
 /// clients that send <c>X-Flexarr-Profile-Choice: 1</c>. Absent from servers before 0.63.
 /// </param>
+/// <param name="RatingSystem">
+/// Whose names the server's age limits go by: "uk" (U, PG, 12, 15, 18) or "us" (G, PG, PG-13, TV-14, R), for the same
+/// ages. Absent from servers before 0.64, which are the UK's.
+/// </param>
 public sealed record MeDto(string ProfileId, string Method, NetworkZone Zone, bool IsAdmin, string? TailscaleLogin, bool CanUnlock = false, bool AdminPinMissing = false,
     DateTime? UnlockedUntil = null, bool IsKids = false, int? MaxRatingAge = null, bool KidsLock = false, bool IsGuest = false, string? Language = null,
-    bool ChooseProfile = false);
+    bool ChooseProfile = false, string? RatingSystem = null);
 
 /// <summary>The language a profile picked; null to follow each device's own.</summary>
 public sealed record LanguageChoice(string? Language);
@@ -56,7 +62,7 @@ public static class RemoteAccessEndpoints
     {
         // Who this request is: which profile, how it signed in, and from where.
         api.MapGet("/me", async (HttpContext http, Flexarr.Api.Profiles.CurrentProfile profile, FlexarrDbContext db, AdminUnlocks unlocks, SignIns signIns,
-            CancellationToken ct) =>
+            IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
         {
             return new MeDto(
                 profile.Id,
@@ -69,7 +75,8 @@ public static class RemoteAccessEndpoints
                 profile.IsAdmin ? unlocks.UnlockedUntil(profile.SignInId) : null,
                 db.ServesKids, db.MaxRatingAge, signIns.ById(profile.SignInId)?.KidsLock == true, profile.IsGuest,
                 await db.Profiles.AsNoTracking().Where(p => p.Id == profile.Id).Select(p => p.Language).FirstOrDefaultAsync(ct),
-                http.User.HasClaim(FlexarrClaims.ChooseProfile, "true"));
+                http.User.HasClaim(FlexarrClaims.ChooseProfile, "true"),
+                options.CurrentValue.Podcasts.RatingSystem.ToString().ToLowerInvariant());
         }).WithTags("Remote access");
 
         // Each profile's own, like its playback preferences: anyone signed in as it may change it, kids included.

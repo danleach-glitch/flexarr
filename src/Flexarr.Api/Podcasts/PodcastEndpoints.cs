@@ -130,7 +130,7 @@ public static class PodcastEndpoints
         {
             var visible = await db.Libraries.AnyAsync(l => l.Type == LibraryType.Podcasts, ct);
             var any = visible || await db.Libraries.IgnoreQueryFilters().AnyAsync(l => l.Type == LibraryType.Podcasts, ct);
-            return new PodcastStatusDto(visible, !any, options.CurrentValue.Podcasts.ResolvedCountry);
+            return new PodcastStatusDto(visible, !any, options.CurrentValue.Podcasts.ResolvedChartsCountry);
         }).WithTags("Podcasts");
 
         // The shows this profile follows, the most recently updated first.
@@ -156,7 +156,7 @@ public static class PodcastEndpoints
                 DirectoryPodcast? found;
                 try
                 {
-                    found = await directory.LookupAsync(iTunesId, options.CurrentValue.Podcasts.ResolvedCountry, ct);
+                    found = await directory.LookupAsync(iTunesId, options.CurrentValue.Podcasts.ResolvedChartsCountry, ct);
                 }
                 catch (HttpRequestException ex)
                 {
@@ -473,7 +473,7 @@ public static class PodcastEndpoints
 
             try
             {
-                var found = await directory.SearchAsync(q.Trim(), options.CurrentValue.Podcasts.ResolvedCountry, ct);
+                var found = await directory.SearchAsync(q.Trim(), options.CurrentValue.Podcasts.ResolvedChartsCountry, ct);
                 return Results.Ok(await DirectoryAsync(db, profile.Id, found, ct));
             }
             catch (HttpRequestException ex)
@@ -492,7 +492,7 @@ public static class PodcastEndpoints
 
             try
             {
-                var found = await directory.TopAsync(options.CurrentValue.Podcasts.ResolvedCountry, genre, ct);
+                var found = await directory.TopAsync(options.CurrentValue.Podcasts.ResolvedChartsCountry, genre, ct);
                 return Results.Ok(await DirectoryAsync(db, profile.Id, found, ct));
             }
             catch (HttpRequestException ex)

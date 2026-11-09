@@ -4,6 +4,7 @@ import { useApi } from '../../hooks/useApi'
 import { usePolling } from '../../hooks/usePolling'
 import { episodeCode, formatClock } from '../../lib/format'
 import { SettingLink, SettingsGroup, SettingsHeader } from './shared'
+import { CountryRow } from './CountryRow'
 import { ServerNameRow } from './ServerNameRow'
 import { locale, t, Words } from '../../i18n'
 
@@ -66,6 +67,7 @@ export function OverviewSection() {
 
       <SettingsGroup title={t('Server')}>
         <ServerNameRow name={status ? (status.serverName ?? null) : undefined} />
+        <CountryRow />
         <SettingLink
           to="/settings/libraries"
           label={t(Words.libraries)}

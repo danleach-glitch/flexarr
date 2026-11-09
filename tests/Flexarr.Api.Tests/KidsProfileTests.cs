@@ -96,6 +96,44 @@ public class KidsProfileTests
     }
 
     [Fact]
+    public async Task TheServersCountry_RenamesAgeLimits_WithoutTouchingWhatsSavedOrSeenNow()
+    {
+        using var server = new FlexarrApiFactory();
+        await server.SetMainPinAsync(MainPin);
+        var items = await SeedAsync(server);
+        var ada = await CreateAsync(server, "Ada", 8, isKids: true);
+        var tv = await TvAsync(server);
+        Assert.Equal(HttpStatusCode.OK, (await SelectAsync(tv, ada)).StatusCode);
+        var admin = Admin(server);
+        async Task<string?> SystemAsync() => (await tv.GetFromJsonAsync<JsonElement>(Api("/me"))).GetProperty("ratingSystem").GetString();
+        async Task<(HttpStatusCode Paddington, HttpStatusCode Alien, int Limit)> SeenAsync() => (
+            (await tv.GetAsync(Api($"/items/{items["paddington"]}"))).StatusCode,
+            (await tv.GetAsync(Api($"/items/{items["alien"]}"))).StatusCode,
+            (await tv.GetFromJsonAsync<JsonElement>(Api("/me"))).GetProperty("maxRatingAge").GetInt32());
+
+        await admin.PutAsJsonAsync(Api("/settings"), new { podcasts = new { country = "gb" } });
+        Assert.Equal("uk", await SystemAsync());
+        var before = await SeenAsync();
+        Assert.Equal((HttpStatusCode.OK, HttpStatusCode.NotFound, 8), before);
+
+        await admin.PutAsJsonAsync(Api("/settings"), new { podcasts = new { country = "us" } });
+        Assert.Equal("us", await SystemAsync());
+        Assert.Equal(before, await SeenAsync());
+
+        // Any other country goes by the UK's names, and an unknown one is still refused.
+        await admin.PutAsJsonAsync(Api("/settings"), new { podcasts = new { country = "de" } });
+        Assert.Equal("uk", await SystemAsync());
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PutAsJsonAsync(Api("/settings"), new { podcasts = new { country = "xx" } })).StatusCode);
+        Assert.Equal("uk", await SystemAsync());
+
+        // Chosen and then cleared, it's the server's region's again, as it was before anyone chose.
+        var detected = Flexarr.Api.Podcasts.PodcastCountries.RatingSystem(null).ToString().ToLowerInvariant();
+        await admin.PutAsJsonAsync(Api("/settings"), new { podcasts = new { country = "us" } });
+        await admin.PutAsJsonAsync(Api("/settings"), new { podcasts = new { country = "" } });
+        Assert.Equal(detected, await SystemAsync());
+    }
+
+    [Fact]
     public async Task AnAgeLimit_ShowsOnlyWhatsRatedWithinIt_AndKeepsItFromRequests()
     {
         using var server = new FlexarrApiFactory();

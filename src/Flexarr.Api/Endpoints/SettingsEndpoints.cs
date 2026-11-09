@@ -76,7 +76,8 @@ public sealed record LiveTvSettingsUpdate(string BaseUrl, string? Username, stri
 public sealed record LiveTvTestDto(bool Ok, int? Channels, int? MaxConnections, DateTime? ExpiresAt, string? Error);
 
 /// <param name="Country">The chosen country, or null for the server's region (<paramref name="ResolvedCountry"/>).</param>
-public sealed record PodcastSettingsDto(string? Country, string ResolvedCountry);
+/// <param name="DetectedCountry">The server's own region; null when it can't tell, when <paramref name="ResolvedCountry"/> only falls back. Absent from servers before 0.64.</param>
+public sealed record PodcastSettingsDto(string? Country, string ResolvedCountry, string? DetectedCountry = null);
 
 public sealed record SeerrConnectionDto(string BaseUrl, bool HasApiKey);
 
@@ -197,7 +198,7 @@ public static class SettingsEndpoints
 
             if (update.Podcasts is { Country: { Length: > 0 } country } && Podcasts.PodcastCountries.Known(country) is null)
             {
-                return Problems.Field("Apple has no podcast charts for “{country}”.", field: "podcasts", args: new { country });
+                return Problems.Field("“{country}” isn’t a country Flexarr knows.", field: "podcasts", args: new { country });
             }
 
             // A new recordings folder must be one Flexarr can write to now: otherwise every recording fails later (in the Mac
@@ -544,7 +545,7 @@ public static class SettingsEndpoints
         o.FfmpegPath,
         o.FfprobePath,
         o.WebhookSecret,
-        new PodcastSettingsDto(Podcasts.PodcastCountries.Known(o.Podcasts.Country), o.Podcasts.ResolvedCountry),
+        new PodcastSettingsDto(Podcasts.PodcastCountries.Known(o.Podcasts.Country), o.Podcasts.ResolvedCountry, Podcasts.PodcastCountries.Detected()),
         o.LiveTv is { BaseUrl.Length: > 0 } l
             ? new LiveTvSettingsDto(l.BaseUrl, l.Username, l.Password.Length > 0, l.RewindMinutes, l.DvrFolder, dvrFolder, l.MaxStreams,
                 l.PaddingBeforeMinutes, l.PaddingAfterMinutes, l.MinFreeGigabytes, !string.IsNullOrEmpty(l.AdminApiKey))

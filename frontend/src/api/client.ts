@@ -2021,6 +2021,8 @@ export const forgetPin = (id: string, adminPin: string) => request<Profile>('POS
 /** Changing or removing the admin PIN takes `currentPin`, or `apiKey` if it's forgotten. */
 type ProfileChanges = { name: string; color: string; pin?: string; removePin?: boolean; hiddenLibraryIds?: string[]; currentPin?: string; apiKey?: string }
 
+export type RatingSystem = 'uk' | 'us'
+
 /** A profile's age limit (null for none) and whether it's a child's; a kids profile always has a limit. */
 export type AgeLimit = { maxRatingAge: number | null; isKids: boolean }
 
@@ -2121,6 +2123,8 @@ export interface Me {
   maxRatingAge?: number | null
   /** This browser is locked to kids profiles. Absent from servers before 0.56. */
   kidsLock?: boolean
+  /** Whose names the server's age limits go by. Absent from servers before 0.64, which are the UK's. */
+  ratingSystem?: RatingSystem
   /** A family guest's device: it stays on its profile. Absent from servers before 0.57. */
   isGuest?: boolean
   /** The profile's chosen language (a BCP 47 code); null follows the browser. Absent from servers before 0.61. */

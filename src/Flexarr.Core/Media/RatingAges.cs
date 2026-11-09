@@ -14,6 +14,13 @@ public enum KidsOverride
     Block,
 }
 
+/// <summary>Whose names the age limits go by. The steps underneath are the same for both, so changing it only renames them.</summary>
+public enum RatingSystem
+{
+    Uk,
+    Us,
+}
+
 /// <summary>
 /// Turns a content rating from any country into the age it's suitable from, on the UK's steps (U, PG, 12, 15, 18), so
 /// one age limit works across a library whose ratings came from the US, the UK, Germany or Australia. A rating means
@@ -38,6 +45,10 @@ public static class RatingAges
         ParentalGuidance => "PG",
         _ => age.ToString(CultureInfo.InvariantCulture),
     };
+
+    /// <summary>The names a country's age limits go by: the US's in the US and Puerto Rico, the UK's everywhere else and when it's not known.</summary>
+    public static RatingSystem SystemFor(string? country) =>
+        country?.Trim().ToUpperInvariant() is "US" or "PR" ? RatingSystem.Us : RatingSystem.Uk;
 
     /// <summary>
     /// The age an item of <paramref name="kind"/> rated <paramref name="rating"/> is suitable from; null when it has no
@@ -82,6 +93,17 @@ public static class RatingAges
         }
 
         return Short(r);
+    }
+
+    /// <summary>
+    /// The one of <paramref name="ratings"/> with the highest age, if that's higher than <paramref name="shown"/>'s;
+    /// otherwise null, as <paramref name="shown"/> says enough. Ratings Flexarr can't read don't count.
+    /// </summary>
+    public static string? StricterThan(string? shown, IEnumerable<string?> ratings)
+    {
+        ArgumentNullException.ThrowIfNull(ratings);
+        var strictest = ratings.Select(r => (Rating: r, Age: Of(r))).Where(r => r.Age is not null).DefaultIfEmpty().MaxBy(r => r.Age);
+        return strictest.Age > Of(shown) || strictest.Age is not null && Of(shown) is null ? strictest.Rating : null;
     }
 
     /// <summary>A rating of one short word: named, or an age written as a number.</summary>

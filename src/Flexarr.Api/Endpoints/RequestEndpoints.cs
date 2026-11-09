@@ -68,6 +68,7 @@ public sealed record ExternalDetailDto(
     IReadOnlyList<string> Genres,
     int? RuntimeMinutes,
     int? Seasons,
+    // Only for showing: a rating from any country, the server's own first, so "15" or "16" as well as "R".
     string? Certification,
     string? Status,
     double? TmdbRating,
@@ -254,7 +255,7 @@ public static partial class RequestEndpoints
                 library = await LibraryIndexAsync(db, recommended.Append(title.Deserialize<SeerrResult>(Web)!.Id).Append(tmdbId), ct);
                 var onWatchlist = (await watchlist.MembershipAsync(current.Id, new Watchlist.WatchlistAdd(null, mediaType, tmdbId), ct)).OnWatchlist;
                 var wanted = await watchlist.KeysAsync(current.Id, ct);
-                return Results.Ok(Detail(mediaType, title, ratings, recommendations, library, hidden, wanted) with { OnWatchlist = onWatchlist });
+                return Results.Ok(Detail(mediaType, title, ratings, recommendations, library, hidden, options.CurrentValue.Podcasts.ResolvedCountry, wanted) with { OnWatchlist = onWatchlist });
             }
             catch (HttpRequestException ex)
             {
@@ -516,7 +517,7 @@ public static partial class RequestEndpoints
     }
 
     private static ExternalDetailDto Detail(string mediaType, JsonElement t, JsonElement? ratings, JsonElement? recommendations, Dictionary<string, Guid> library,
-        IReadOnlySet<Core.Libraries.LibraryType> hidden, IReadOnlySet<string>? watchlist = null)
+        IReadOnlySet<Core.Libraries.LibraryType> hidden, string country, IReadOnlySet<string>? watchlist = null)
     {
         var movie = mediaType == "movie";
         var summary = ToDto(t.Deserialize<SeerrResult>(Web)! with { MediaType = mediaType }, library);
@@ -533,11 +534,12 @@ public static partial class RequestEndpoints
             return e.ValueKind == JsonValueKind.Array ? e.EnumerateArray() : [];
         }
 
-        // A US certificate, else British; Seerr lists every country's.
+        // The server's own country's certificate, else British, else American, as library titles go; Seerr lists every country's.
+        string[] certificateCountries = [country.ToUpperInvariant(), "GB", "US"];
         string? certification = movie
-            ? CertificateCountries.Select(country => Array(t, "releases", "results").Where(r => Str(r, "iso_3166_1") == country)
+            ? certificateCountries.Select(country => Array(t, "releases", "results").Where(r => Str(r, "iso_3166_1") == country)
                 .SelectMany(r => Array(r, "release_dates")).Select(d => Str(d, "certification")).FirstOrDefault(c => !string.IsNullOrEmpty(c))).FirstOrDefault(c => c is not null)
-            : CertificateCountries.Select(country => Array(t, "contentRatings", "results").Where(r => Str(r, "iso_3166_1") == country).Select(r => Str(r, "rating")).FirstOrDefault())
+            : certificateCountries.Select(country => Array(t, "contentRatings", "results").Where(r => Str(r, "iso_3166_1") == country).Select(r => Str(r, "rating")).FirstOrDefault())
                 .FirstOrDefault(c => !string.IsNullOrEmpty(c));
 
         var videos = Array(t, "relatedVideos").Where(v => Str(v, "site") == "YouTube").ToList();
@@ -573,8 +575,6 @@ public static partial class RequestEndpoints
     }
 
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
-
-    private static readonly string[] CertificateCountries = ["US", "GB"];
 
     private static string? Str(JsonElement e, string name) =>
         e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;

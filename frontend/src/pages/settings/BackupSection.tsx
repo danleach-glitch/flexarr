@@ -46,7 +46,7 @@ const sections: { id: string; label: string; help: string; off?: boolean }[] = [
   { id: 'liveTv', label: Words.liveTv, help: tk('The Dispatcharr source and the DVR’s settings.') },
   { id: 'streaming', label: tk('Streaming'), help: tk('Hardware acceleration and limits.') },
   { id: 'layout', label: tk('Home & browse'), help: tk('The rows for profiles that haven’t chosen their own.') },
-  { id: 'podcasts', label: Words.podcasts, help: tk('The country for charts.') },
+  { id: 'podcasts', label: tk('Country'), help: tk('The names of age limits, podcast charts and the Audible store.') },
   { id: 'notifications', label: tk('Notifications'), help: tk('Push notifications to phones.') },
   { id: 'access', label: tk('Access'), help: tk('When to ask for the API key, and trusted proxies. Asks for the admin PIN.') },
   { id: 'machine', label: tk('This machine’s paths'), help: tk('ffmpeg, the cache and backups folders. Usually wrong on another machine, and it asks for the admin PIN.'), off: true },
