@@ -271,8 +271,8 @@ public sealed class RequestDiscoverTests : IAsyncLifetime
         Assert.Equal("15", await InAsync("gb"));
         Assert.Equal("R", await InAsync("us"));
         Assert.Equal("16", await InAsync("de"));
-        // None of its own there, so the American one.
-        Assert.Equal("R", await InAsync("fr"));
+        // None of its own there, so the British one, as for a title in the library.
+        Assert.Equal("15", await InAsync("fr"));
     }
 
     [Fact]

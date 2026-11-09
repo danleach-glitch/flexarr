@@ -68,6 +68,7 @@ public sealed record ExternalDetailDto(
     IReadOnlyList<string> Genres,
     int? RuntimeMinutes,
     int? Seasons,
+    // Only for showing: a rating from any country, the server's own first, so "15" or "16" as well as "R".
     string? Certification,
     string? Status,
     double? TmdbRating,
@@ -533,8 +534,8 @@ public static partial class RequestEndpoints
             return e.ValueKind == JsonValueKind.Array ? e.EnumerateArray() : [];
         }
 
-        // The server's own country's certificate, else American, else British; Seerr lists every country's.
-        string[] certificateCountries = [country.ToUpperInvariant(), "US", "GB"];
+        // The server's own country's certificate, else British, else American, as library titles go; Seerr lists every country's.
+        string[] certificateCountries = [country.ToUpperInvariant(), "GB", "US"];
         string? certification = movie
             ? certificateCountries.Select(country => Array(t, "releases", "results").Where(r => Str(r, "iso_3166_1") == country)
                 .SelectMany(r => Array(r, "release_dates")).Select(d => Str(d, "certification")).FirstOrDefault(c => !string.IsNullOrEmpty(c))).FirstOrDefault(c => c is not null)

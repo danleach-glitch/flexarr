@@ -763,7 +763,7 @@ public static partial class ProfileEndpoints
     {
         if (request.MaxRatingAge is { } age && !RatingAges.Steps.Contains(age))
         {
-            return Problems.Field("An age limit is U (0), PG (8), 12, 15 or 18.", field: "maxRatingAge");
+            return Problems.Field("An age limit is 0, 8, 12, 15 or 18.", field: "maxRatingAge");
         }
 
         if (request.IsKids && request.MaxRatingAge is null)
