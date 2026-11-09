@@ -88,6 +88,11 @@ describe('Notice new files, saving', () => {
   it('saves flicks in order, ending on the last', async () => {
     const answers: ((value?: unknown) => void)[] = []
     const box = await open(() => new Promise((resolve) => answers.push(resolve)))
+    const bodies = () =>
+      vi
+        .mocked(fetch)
+        .mock.calls.filter(([input, init]) => String(input).endsWith('/settings') && init?.method === 'PUT')
+        .map(([, init]) => JSON.parse(String(init?.body)) as unknown)
 
     fireEvent.click(box)
     fireEvent.click(box)
@@ -96,11 +101,14 @@ describe('Notice new files, saving', () => {
     // The second waits for the first.
     await new Promise((done) => setTimeout(done, 20))
     expect(answers).toHaveLength(1)
+    expect(bodies()).toEqual([{ watchFolders: false }])
 
     answers[0]()
     await waitFor(() => expect(answers).toHaveLength(2))
     expect(box).toBeChecked()
     answers[1]()
     await waitFor(() => expect(box).toBeChecked())
+    // Off, then on: the server ends where the switch does.
+    expect(bodies()).toEqual([{ watchFolders: false }, { watchFolders: true }])
   })
 })
