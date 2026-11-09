@@ -402,6 +402,29 @@ describe('the Live TV guide', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
+  it('keeps Try again and the keyboard in place while it asks, and through a repeat failure', async () => {
+    let answer: ((r: Response) => void) | undefined
+    mockApi({
+      '/livetv/status': status,
+      '/livetv/channels': [],
+      '/livetv/guide': () => (answer ? new Promise((resolve) => (answer = resolve)) : new Response('', { status: 500 })),
+    })
+    open()
+    const button = within(await screen.findByRole('alert')).getByRole('button', { name: 'Try again' })
+    button.focus()
+
+    answer = () => undefined
+    fireEvent.click(button)
+    await waitFor(() => expect(button).toHaveAttribute('aria-busy', 'true'))
+    expect(button).toBeInTheDocument()
+    expect(button).toHaveFocus()
+
+    answer(new Response('', { status: 500 }))
+    await waitFor(() => expect(button).not.toHaveAttribute('aria-busy'))
+    expect(button).toBeInTheDocument()
+    expect(button).toHaveFocus()
+  })
+
   it('clears a failed load when a later refresh brings the guide', async () => {
     let finished = 1
     let down = true

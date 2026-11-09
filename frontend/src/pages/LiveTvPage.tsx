@@ -406,6 +406,7 @@ const Guide = memo(function Guide({ refreshed }: { refreshed: number }) {
   const [loaded, setLoaded] = useState<{ guide: LiveGuide; favourites: boolean }>()
   const guide = loaded?.guide
   const [failed, setFailed] = useState<Error>()
+  const [asking, setAsking] = useState(true)
   const [selected, setSelected] = useState<{ channel: LiveGuide['channels'][number]; programme: LiveProgramme }>()
   const [now, setNow] = useState(() => Date.now())
   /** Bumped when a recording changes, so the guide's marks are fetched again. */
@@ -439,10 +440,12 @@ const Guide = memo(function Guide({ refreshed }: { refreshed: number }) {
 
   useEffect(() => {
     const controller = new AbortController()
-    // Each ask starts clean: a blip mid-refresh isn't still showing once a later one has worked.
-    setFailed(undefined)
+    // A failure stays up until the answer, with its Try again and the keyboard on it; a blip mid-refresh goes once a later ask has worked.
+    setAsking(true)
     getLiveGuide(from, hours, controller.signal, { favourites: favouritesOnly }).then(
       (loaded) => {
+        setAsking(false)
+        setFailed(undefined)
         setLoaded({ guide: loaded, favourites: favouritesOnly })
         // The programme open in the details keeps up with its marks.
         setSelected((open) => {
@@ -453,7 +456,9 @@ const Guide = memo(function Guide({ refreshed }: { refreshed: number }) {
         })
       },
       (e: unknown) => {
-        if (!controller.signal.aborted) setFailed(e instanceof Error ? e : new Error(String(e)))
+        if (controller.signal.aborted) return
+        setAsking(false)
+        setFailed(e instanceof Error ? e : new Error(String(e)))
       },
     )
     return () => controller.abort()
@@ -464,7 +469,7 @@ const Guide = memo(function Guide({ refreshed }: { refreshed: number }) {
   const width = hours * 60 * PX_PER_MINUTE
   const slots = Array.from({ length: hours * 2 }, (_, i) => new Date(from.getTime() + i * 30 * 60_000))
 
-  const failure = failed && <PageError error={failed} message={t('Couldn’t load the guide: {error}', { error: failed.message })} onRetry={() => setVersion((v) => v + 1)} />
+  const failure = failed && <PageError error={failed} message={t('Couldn’t load the guide: {error}', { error: failed.message })} onRetry={() => setVersion((v) => v + 1)} retrying={asking} />
   // A guide already on screen stays there, with the failure above it.
   if (failure && !guide) return failure
   // No favourites after all: on to every channel, still loading.
