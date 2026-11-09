@@ -1594,19 +1594,18 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         if (isRefreshingLiveTv) return
         liveTvRefreshFor = credentials
         scope.launch {
-            val outcome: LiveTvRefreshOutcome
-            try {
+            val outcome = try {
                 val end = client.refreshLiveTv()
                 // Someone else may have been chosen meanwhile, whose status this isn't.
                 if (this@AppModel.credentials != credentials) return@launch
                 end.status?.let { liveTvStatus = it }
-                outcome = end.problem?.let { LiveTvRefreshOutcome(it, isProblem = true) }
+                end.problem?.let { LiveTvRefreshOutcome(it, isProblem = true) }
                     ?: LiveTvRefreshOutcome(if (end.stillGoing) t(Words.guideTakingAWhile) else t(Words.guideRefreshed))
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
                 if (this@AppModel.credentials != credentials) return@launch
-                outcome = LiveTvRefreshOutcome(refreshFailure(e), isProblem = true)
+                LiveTvRefreshOutcome(refreshFailure(e), isProblem = true)
             } finally {
                 if (liveTvRefreshFor === credentials) liveTvRefreshFor = null
             }
