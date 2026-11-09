@@ -125,7 +125,7 @@ struct LiveTvView: View {
                     refreshProblem = nil
                     guard let result = await model.refreshLiveTv() else { return }
                     switch result {
-                    case .worked: refreshNotice = Words.guideRefreshed
+                    case .worked: refreshNotice = t(Words.guideRefreshed)
                     case .failed(let problem):
                         refreshProblem = problem
                         refreshNotice = problem
@@ -136,7 +136,7 @@ struct LiveTvView: View {
             } label: {
                 // The same size either way, or the Mac's labelled button jumps.
                 Label {
-                    Text(Words.refreshGuide)
+                    Text(t(Words.refreshGuide))
                 } icon: {
                     if model.isRefreshingLiveTv {
                         ProgressView().controlSize(.small)
@@ -146,7 +146,7 @@ struct LiveTvView: View {
                 }
             }
             .disabled(model.isRefreshingLiveTv)
-            .accessibilityLabel(model.isRefreshingLiveTv ? Words.refreshingGuide : Words.refreshGuide)
+            .accessibilityLabel(model.isRefreshingLiveTv ? t(Words.refreshingGuide) : t(Words.refreshGuide))
         }
     }
 
