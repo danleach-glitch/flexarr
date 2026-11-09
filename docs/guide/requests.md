@@ -109,7 +109,7 @@ Flexarr remembers who asked for what. When the movie or show arrives, whoever re
 
 To follow a request while it downloads, open the library's **Requested** view on the web (below), or **Coming soon** in Flexarr's sidebar for what Sonarr and Radarr are expecting.
 
-On the web, Movies and TV libraries have a **Requested** view: every movie or show asked for through Seerr (in Flexarr or in Seerr itself) that's on its way to that library and isn't in yet. Each says **Searching**, **Downloading** with how far it's got, **Importing**, **Couldn't import**, or **Out** and its date. A show lists the seasons asked for. **Unrequest** takes one back.
+On the web, Movies and TV libraries have a **Requested** view: every movie or show asked for through Seerr (in Flexarr or in Seerr itself) that's on its way to that library and isn't in yet. Each says **Searching**, **Downloading** with how far it's got, **Importing**, or **Out** and its date. A show lists the seasons asked for. **Unrequest** takes one back.
 
 ## Music
 
