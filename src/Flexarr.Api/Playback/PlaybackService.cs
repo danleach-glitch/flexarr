@@ -35,6 +35,9 @@ public sealed class PlaybackService(
     /// <summary>A copied Dolby track whose first frame is later than this into the file is converted (see StartAsync).</summary>
     private const double LateAudioSeconds = 0.5;
 
+    private sealed record Plan(IReadOnlyList<SubtitleTrack> Subtitles, List<MediaStream> AudioStreams, int? AudioIndex, string? SubtitleKey, long Away, long OtherCaps,
+        PlaybackOptions Options, PlaybackDecision Decision);
+
     public async Task<PlaybackInfoDto?> StartAsync(PlaybackRequest request, CancellationToken ct)
     {
         var item = await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == request.ItemId, ct);
@@ -55,29 +58,73 @@ public sealed class PlaybackService(
             return null;
         }
 
-        var files = await db.MediaFiles.AsNoTracking().Include(f => f.Streams).Include(f => f.Markers)
-            .Where(f => f.MediaItemId == item.Id && f.ProbeError == null).ToListAsync(ct);
-        var file = files.FirstOrDefault(f => f.Id == request.FileId)
-            ?? files.OrderByDescending(f => f.Height).ThenByDescending(f => f.Bitrate).FirstOrDefault();
-        if (file is null)
+        var files = await TitleVersions.FilesAsync(db, item, ct);
+        if (files.Count == 0)
         {
             return item.Kind == MediaKind.PodcastEpisode ? await StartPodcastAsync(item, request, ct) : null;
+        }
+
+        var preferences = await LanguagePreferencesAsync(item, ct);
+        var transcoding = options.CurrentValue.Transcoding;
+        // A family guest on Tailscale's slow shared relays is held to what fits through them.
+        var slowLink = await guestLinks.CapAsync(ct) ?? 0;
+        var teletext = FfmpegFilters.HasDecoder(PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue).FfmpegPath, "libzvbi_teletextdec");
+        var remote = http?.HttpContext is { } context && AwayFromHome.IsRemote(context);
+
+        // What playing a given file would take. Versions differ, so it's asked for each before choosing one.
+        Plan PlanFor(MediaFile candidate)
+        {
+            IReadOnlyList<SubtitleTrack> tracks = Subtitles.For(candidate, teletext);
+            if (!request.Profile.SelectsTracksItself)
+            {
+                // Teletext this server can't read can't be converted or burned in either; only a player that decodes it can show it.
+                tracks = tracks.Where(s => !s.IsTeletext || s.IsText).ToList();
+            }
+
+            var audio = candidate.Streams.Where(s => s.Type == StreamType.Audio).OrderBy(s => s.Index).ToList();
+            var audioTrack = request.AudioStreamIndex ?? AudioTracks.InLanguage(audio, preferences.Audio)?.Index;
+            var subtitle = request.SubtitleKey switch
+            {
+                "off" => null,
+                { } key => key,
+                null => ChooseSubtitle(tracks, preferences.Subtitle, audio.FirstOrDefault(a => a.Index == audioTrack)?.Language ?? audio.FirstOrDefault()?.Language),
+            };
+
+            // Away from home, a file that needs more than the viewer's connection carries is converted to fit, unless the
+            // viewer chose a quality themselves (the web player's menu).
+            var awayCap = request.MaxBitrate is null && request.MaxHeight is null
+                ? AwayFromHome.Cap(transcoding.AwayFromHome, remote, request.MeasuredBitrate, candidate.Bitrate) ?? 0
+                : 0;
+            var caps = new[] { request.MaxBitrate ?? 0, transcoding.MaxStreamingBitrate, slowLink }.Where(b => b > 0).DefaultIfEmpty(0).Min();
+            var cap = new[] { caps, awayCap }.Where(b => b > 0).DefaultIfEmpty(0).Min();
+            var shaping = request.Sound is { } shaped ? shaped with { MaxChannels = shaped.MaxChannels is { } max ? Math.Clamp(max, 1, 8) : null } : null;
+            var opts = new PlaybackOptions(audioTrack, subtitle, cap, request.MaxHeight, request.ForceTranscode, candidate.AudioDelaySeconds, shaping);
+            return new Plan(tracks, audio, audioTrack, subtitle, awayCap, caps, opts, PlaybackDecider.Decide(candidate, request.Profile, tracks, opts));
+        }
+
+        // A file asked for by name (a stream restarting) is that file, if this profile can see it. Otherwise: see VersionPicker.
+        var file = files.FirstOrDefault(f => f.Id == request.FileId);
+        if (file is null)
+        {
+            var choice = files.Count > 1 ? await TitleVersions.ChoiceAsync(db, item, profile.Id, ct) : null;
+            file = VersionPicker.Pick(files, choice, Math.Min(request.Profile.MaxHeight, request.MaxHeight ?? int.MaxValue), candidate =>
+            {
+                var plan = PlanFor(candidate);
+                return PlaybackDecider.TierOf(plan.Decision, candidate, request.Profile, plan.Options);
+            })!;
         }
 
         // Work for the title being watched: previews for scrubbing, the season's intros and credits, its subtitles.
         // Only got ready ahead of Play (a page looked at), it waits until a player uses the stream.
         var needsPreviews = file.Streams.Any(s => s.Type == StreamType.Video)
             && Trickplay.Read(PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue).CacheDirectory, file.Id) is null;
-        var markSeason = file.MarkersScannedAt is null && item.Kind == MediaKind.Episode ? item.ParentId : null;
+        // The season the file itself is in: a linked copy's, when it's a copy's file that's playing.
+        var markSeason = file.MarkersScannedAt is null && item.Kind == MediaKind.Episode
+            ? file.MediaItemId == item.Id ? item.ParentId : await db.MediaItems.Where(i => i.Id == file.MediaItemId).Select(i => i.ParentId).FirstOrDefaultAsync(ct)
+            : null;
 
         var state = await db.PlaybackStates.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == profile.Id && p.MediaItemId == item.Id, ct);
-        var preferences = await LanguagePreferencesAsync(item, ct);
-        var subtitles = Subtitles.For(file, FfmpegFilters.HasDecoder(PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue).FfmpegPath, "libzvbi_teletextdec"));
-        if (!request.Profile.SelectsTracksItself)
-        {
-            // Teletext this server can't read can't be converted or burned in either; only a player that decodes it can show it.
-            subtitles = subtitles.Where(s => !s.IsTeletext || s.IsText).ToList();
-        }
+        var (subtitles, audioStreams, audioIndex, subtitleKey, away, otherCaps, playbackOptions, decision) = PlanFor(file);
 
         void Watching()
         {
@@ -98,31 +145,6 @@ public sealed class PlaybackService(
         {
             Watching();
         }
-
-        var audioStreams = file.Streams.Where(s => s.Type == StreamType.Audio).OrderBy(s => s.Index).ToList();
-
-        var audioIndex = request.AudioStreamIndex
-            ?? AudioTracks.InLanguage(audioStreams, preferences.Audio)?.Index;
-        var subtitleKey = request.SubtitleKey switch
-        {
-            "off" => null,
-            { } key => key,
-            null => ChooseSubtitle(subtitles, preferences.Subtitle, audioStreams.FirstOrDefault(a => a.Index == audioIndex)?.Language ?? audioStreams.FirstOrDefault()?.Language),
-        };
-
-        var transcoding = options.CurrentValue.Transcoding;
-        // A family guest on Tailscale's slow shared relays is held to what fits through them.
-        var slowLink = await guestLinks.CapAsync(ct) ?? 0;
-        // Away from home, a file that needs more than the viewer's connection carries is converted to fit, unless the
-        // viewer chose a quality themselves (the web player's menu).
-        var away = request.MaxBitrate is null && request.MaxHeight is null
-            ? AwayFromHome.Cap(transcoding.AwayFromHome, http?.HttpContext is { } context && AwayFromHome.IsRemote(context), request.MeasuredBitrate, file.Bitrate) ?? 0
-            : 0;
-        var otherCaps = new[] { request.MaxBitrate ?? 0, transcoding.MaxStreamingBitrate, slowLink }.Where(b => b > 0).DefaultIfEmpty(0).Min();
-        var maxBitrate = new[] { otherCaps, away }.Where(b => b > 0).DefaultIfEmpty(0).Min();
-        var sound = request.Sound is { } shaping ? shaping with { MaxChannels = shaping.MaxChannels is { } max ? Math.Clamp(max, 1, 8) : null } : null;
-        var playbackOptions = new PlaybackOptions(audioIndex, subtitleKey, maxBitrate, request.MaxHeight, request.ForceTranscode, file.AudioDelaySeconds, sound);
-        var decision = PlaybackDecider.Decide(file, request.Profile, subtitles, playbackOptions);
 
         // Converting only because of the connection: say so (not "the quality limit", which nobody set), and if the
         // server turns out to be too busy to convert, the file plays as it is, as it would have before.

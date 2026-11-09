@@ -299,13 +299,22 @@ public static partial class SubtitleSearchEndpoints
             return new Found(Problems.Of("Subtitles can be found for movies and episodes.", status: StatusCodes.Status400BadRequest));
         }
 
+        var chosen = Choose(await PlayableFilesAsync(db, id, ct), fileId);
+
+        // A linked copy's file is its own Radarr's or Sonarr's to look after.
+        if (chosen is not null && chosen.MediaItemId != item.Id
+            && await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == chosen.MediaItemId, ct) is { } copy)
+        {
+            item = copy;
+        }
+
         if (item.ArrId is not { } arrId)
         {
             return new Found(Problems.Of("Bazarr finds subtitles for what {app} manages, and this isn’t one of them.",
                 new { app = item.Kind == MediaKind.Movie ? "Radarr" : "Sonarr" }, status: StatusCodes.Status409Conflict));
         }
 
-        if (Choose(await PlayableFilesAsync(db, id, ct), fileId) is not { } file)
+        if (chosen is not { } file)
         {
             return new Found(Problems.Of("This has no file to find subtitles for.", status: StatusCodes.Status404NotFound));
         }
@@ -356,12 +365,12 @@ public static partial class SubtitleSearchEndpoints
         return Problems.Of("Bazarr isn’t answering. Try again later.", status: StatusCodes.Status502BadGateway);
     }
 
-    private static Task<List<MediaFile>> PlayableFilesAsync(FlexarrDbContext db, Guid id, CancellationToken ct) =>
-        db.MediaFiles.AsNoTracking().Include(f => f.Streams).Where(f => f.MediaItemId == id && f.ProbeError == null).ToListAsync(ct);
+    private static async Task<List<MediaFile>> PlayableFilesAsync(FlexarrDbContext db, Guid id, CancellationToken ct) =>
+        await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id, ct) is { } item ? await TitleVersions.FilesAsync(db, item, ct) : [];
 
     /// <summary>The requested copy, or the one playback would choose.</summary>
     private static MediaFile? Choose(List<MediaFile> files, Guid? fileId) =>
-        files.FirstOrDefault(f => f.Id == fileId) ?? files.OrderByDescending(f => f.Height).ThenByDescending(f => f.Bitrate).FirstOrDefault();
+        files.FirstOrDefault(f => f.Id == fileId) ?? VersionRules.BestFirst(files).FirstOrDefault();
 
     /// <summary>The name of a file as Bazarr gives it, whichever way its slashes go.</summary>
     private static string FileName(string path) => path[(path.LastIndexOfAny(['/', '\\']) + 1)..];

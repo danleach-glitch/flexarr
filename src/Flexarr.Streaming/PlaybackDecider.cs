@@ -209,6 +209,42 @@ public static class PlaybackDecider
         };
     }
 
+    /// <summary>
+    /// How hard <paramref name="decision"/> makes the file to play, for choosing between versions. Repackaging is judged
+    /// from what's known of the file, without opening it as <see cref="Repackaged"/> does, so it can be a little hopeful.
+    /// </summary>
+    public static PlaybackTier TierOf(PlaybackDecision decision, MediaFile file, DeviceProfile profile, PlaybackOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(decision);
+        ArgumentNullException.ThrowIfNull(file);
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(options);
+
+        if (decision.Method == PlaybackMethod.DirectPlay)
+        {
+            return PlaybackTier.AsItIs;
+        }
+
+        var video = file.Streams.Where(s => s.Type == StreamType.Video).OrderBy(s => s.Index).FirstOrDefault();
+        var maxBitrate = Min(profile.MaxBitrate, options.MaxBitrate ?? 0);
+        var presentable = file.VideoRange switch
+        {
+            VideoRange.Sdr => true,
+            VideoRange.Hdr10 => profile.Hdr && profile.Hdr10 == true,
+            VideoRange.Hlg => profile.Hdr && profile.Hlg == true,
+            VideoRange.DolbyVision => profile.Hdr && (profile.DolbyVision || profile.Hdr10 == true),
+            _ => false,
+        };
+        var repackaged = profile.Fmp4 && !options.ForceTranscode && decision.Transcode?.BurnSubtitle is null
+            && file.VideoCodec is "h264" or "hevc"
+            && profile.VideoCodecs.Contains(file.VideoCodec!, StringComparer.OrdinalIgnoreCase)
+            && (video is null || DecodableProfile(video))
+            && Math.Max(file.Height ?? 0, (file.Width ?? 0) * 9 / 16) <= Math.Min(profile.MaxHeight, options.MaxHeight ?? int.MaxValue)
+            && (maxBitrate <= 0 || (file.Bitrate ?? long.MaxValue) <= maxBitrate)
+            && presentable;
+        return repackaged ? PlaybackTier.Repackaged : PlaybackTier.Converted;
+    }
+
     public static PlaybackDecision Decide(MediaFile file, DeviceProfile profile, IReadOnlyList<SubtitleTrack> subtitles, PlaybackOptions options)
     {
         ArgumentNullException.ThrowIfNull(file);

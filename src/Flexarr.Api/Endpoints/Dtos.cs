@@ -95,6 +95,11 @@ public sealed record FileDto(Guid Id, string Path, long Size, string? Container,
     string? VideoCodec, int? Width, int? Height, VideoRange VideoRange, string? AudioCodec, int? AudioChannels,
     string? ProbeError, IReadOnlyList<StreamDto> Streams, bool Hdr10Plus);
 
+/// <summary>One version of a title for its Version choice. Absent from servers before 0.64.</summary>
+public sealed record VersionDto(Guid FileId, string Label, string? Edition, double? DurationSeconds, long Size, bool Chosen);
+
+public sealed record VersionChoiceRequest(Guid? FileId);
+
 public sealed record CreditDto(Guid PersonId, string Name, CreditRole Role, string? Character, string? Image);
 
 /// <param name="OnWatchlist">For a film or show, whether it's on the profile's watchlist (absent from servers before 0.56).</param>
@@ -131,7 +136,10 @@ public sealed record ItemDetailDto(
     // The title it's sorted by. Absent from servers before 0.59.
     string? SortTitle = null,
     // A cover chosen by hand in Fix match, which refreshes keep. Absent from servers before 0.59.
-    bool? ArtworkLocked = null);
+    bool? ArtworkLocked = null,
+    // A film's or episode's versions, across its copies this profile can see, best first, with two or more only.
+    // Absent from servers before 0.64.
+    IReadOnlyList<VersionDto>? Versions = null);
 
 /// <summary>A parent's say over a title for profiles with an age limit.</summary>
 public sealed record KidsOverrideRequest(KidsOverride Override);
