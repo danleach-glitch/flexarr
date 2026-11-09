@@ -115,13 +115,6 @@ class TvLiveTvScreenTest {
         while (tries++ < 20 && rule.onAllNodesWithText(words).fetchSemanticsNodes().isNotEmpty()) settle()
     }
 
-    /** A slow machine's network may need longer than one [settle]; then one more, for what follows it such as focus. */
-    private fun settleUntilShown(words: String) {
-        var tries = 0
-        while (tries++ < 20 && rule.onAllNodesWithText(words).fetchSemanticsNodes().isEmpty()) settle()
-        settle()
-    }
-
     /** Focus into the list (where it comes back to the row it left) and on to [category], as the remote does it. */
     private fun moveTo(category: String) {
         rule.onNodeWithText("All channels").performSemanticsAction(SemanticsActions.RequestFocus)
@@ -193,13 +186,12 @@ class TvLiveTvScreenTest {
     @Test fun aFirstGuideThatFails_saysSo_withTryAgainFocused_andTryAgainBringsIt() {
         guideFails = true
         show()
-        settleUntilShown(guideFailure)
         rule.onNodeWithText(guideFailure).assertExists()
         rule.onNodeWithText("Try again").assertIsFocused()
         // Still failing: still there, and still focused.
         val asked = server.requestsTo("/livetv/guide").size
         press("Try again")
-        settleUntilShown(guideFailure)
+        settle()
         assertEquals(asked + 1, server.requestsTo("/livetv/guide").size)
         try {
             rule.onNodeWithText(guideFailure).assertExists()
