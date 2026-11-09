@@ -473,26 +473,25 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
         {
             return await ReadAccentColorAsync(remoteUrl, ct).ConfigureAwait(false);
         }
-        catch (ImageCacheBusyException)
+        catch (Exception ex) when (ex is ImageCacheBusyException or ImageNotReadException)
         {
             return null; // left unset, so the next refresh tries again
         }
     }
 
-    /// <summary>As <see cref="AccentColorAsync"/>, throwing <see cref="ImageCacheBusyException"/> when the image wasn't looked at, for a caller that remembers having tried.</summary>
+    /// <summary>
+    /// As <see cref="AccentColorAsync"/>, for a caller that remembers having tried: null only for an image that was read and
+    /// has no colour to speak of (greyscale). <see cref="ImageCacheBusyException"/> or <see cref="ImageNotReadException"/>
+    /// when it wasn't looked at.
+    /// </summary>
     public async Task<string?> ReadAccentColorAsync(string remoteUrl, CancellationToken ct)
     {
-        var path = await GetAsync(remoteUrl, 92, ct).ConfigureAwait(false);
-        if (path is null)
-        {
-            return null;
-        }
-
+        var path = await GetAsync(remoteUrl, 92, ct).ConfigureAwait(false) ?? throw new ImageNotReadException("The image couldn't be fetched");
         var format = path.EndsWith(".png", StringComparison.Ordinal) ? "png_pipe" : InputFormat(await HeaderAsync(path, ct).ConfigureAwait(false));
         var pixels = await RunFfmpegAsync(
             ["-v", "error", "-protocol_whitelist", "file", .. format is null ? Array.Empty<string>() : ["-f", format], "-i", path,
                 "-vf", "scale=32:32", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], captureOutput: true, ct).ConfigureAwait(false);
-        return pixels is null ? null : AccentColor.FromPixels(pixels);
+        return pixels is null ? throw new ImageNotReadException("ffmpeg couldn't read the image") : AccentColor.FromPixels(pixels);
     }
 
     /// <summary>
@@ -900,6 +899,24 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
 }
 
 /// <summary>Too many other images are being fetched right now; asking again in a moment will likely work.</summary>
+/// <summary>An image couldn't be fetched or read: a share asleep, say. That says nothing of what's in it.</summary>
+public sealed class ImageNotReadException : Exception
+{
+    public ImageNotReadException()
+    {
+    }
+
+    public ImageNotReadException(string message)
+        : base(message)
+    {
+    }
+
+    public ImageNotReadException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+}
+
 public sealed class ImageCacheBusyException : Exception
 {
     public ImageCacheBusyException()

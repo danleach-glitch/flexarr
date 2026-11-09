@@ -600,6 +600,7 @@ public sealed partial class MetadataRefresher(
                     || (i.AccentColor == null && (i.MetadataUpdatedAt == null || (i.MetadataSource != Tags && !i.MatchLocked))
                         && (scanned == null || scanned.Contains(i.Id)))))
             .ToListAsync(ct).ConfigureAwait(false);
+        var unread = 0;
         foreach (var item in items)
         {
             string? accent;
@@ -607,8 +608,9 @@ public sealed partial class MetadataRefresher(
             {
                 accent = await images.ReadAccentColorAsync(item.PosterUrl!, ct).ConfigureAwait(false);
             }
-            catch (ImageCacheBusyException)
+            catch (Exception ex) when (ex is ImageCacheBusyException or ImageNotReadException)
             {
+                unread++;
                 continue; // not looked at: the next refresh tries again
             }
 
@@ -622,7 +624,7 @@ public sealed partial class MetadataRefresher(
         }
 
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
-        return new MetadataRefreshResult(0, items.Count, 0);
+        return new MetadataRefreshResult(0, items.Count - unread, 0);
     }
 
     private async Task ApplyArtistAsync(MediaItem artist, List<MediaItem> albums, LidarrArtist lidarrArtist, ArrInstance lidarr, CancellationToken ct)
