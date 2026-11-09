@@ -173,7 +173,7 @@ struct LiveTvView: View {
     private var missingListings: some View {
         VStack(alignment: .leading, spacing: 2) {
             if let refreshProblem {
-                Text(refreshProblem).foregroundStyle(Color.usher)
+                Text(refreshProblem).foregroundStyle(Color.danger)
             }
             if model.isLiveTvRefreshTakingAWhile { takingAWhile }
             if let count = model.liveTvStatus?.channelsWithoutListings, count > 0 {

@@ -27,6 +27,8 @@ struct LiveTvView: View {
     @State private var upcoming: Int?
     /// What went wrong refreshing the guide.
     @State private var refreshNote: String?
+    /// The note is why it failed, rather than that it worked.
+    @State private var refreshFailed = false
     /// Up on screen, rather than gone behind a player or another tab.
     @State private var isVisible = false
 
@@ -111,8 +113,12 @@ struct LiveTvView: View {
     private func sayRefreshResult() {
         guard isVisible, let result = model.takeLiveTvRefreshResult() else { return }
         switch result {
-        case .worked: refreshNote = t(Words.guideRefreshed)
-        case .failed(let problem): refreshNote = problem
+        case .worked:
+            refreshNote = t(Words.guideRefreshed)
+            refreshFailed = false
+        case .failed(let problem):
+            refreshNote = problem
+            refreshFailed = true
         case .stillGoing: break // Said by `isLiveTvRefreshTakingAWhile`.
         }
         Task {
@@ -200,7 +206,7 @@ struct LiveTvView: View {
             .buttonStyle(CategoryButtonStyle(selected: false))
             Group {
                 if let refreshNote {
-                    Text(refreshNote).lineLimit(3)
+                    Text(refreshNote).lineLimit(3).foregroundStyle(refreshFailed ? Color.danger : Color.usher)
                 }
                 if model.isLiveTvRefreshTakingAWhile {
                     Text(t(Words.guideTakingAWhile)).lineLimit(3)
