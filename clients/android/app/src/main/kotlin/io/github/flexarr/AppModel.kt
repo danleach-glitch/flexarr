@@ -1597,9 +1597,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                 problem = status?.error ?: status?.downloadError
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
-            } catch (_: Exception) {
+            } catch (e: Exception) {
                 if (this@AppModel.credentials != credentials) return@launch
-                problem = t("Couldn’t reach the server.")
+                problem = refreshFailure(e)
             } finally {
                 if (liveTvRefreshFor === credentials) liveTvRefreshFor = null
             }
@@ -2075,6 +2075,10 @@ internal fun awaitsProfile(chosenHere: Boolean, loaded: Boolean, needsProfile: B
 
 /** Who's watching offline ([offlineProfiles]); [asksWho]: nobody, and "Who's watching?" stays up until the server's back. */
 internal data class OfflineProfiles(val profiles: List<Profile>, val asksWho: Boolean = false)
+
+/** Why a Live TV refresh failed: the server's own words when it answered (a lapsed admin unlock, say). */
+internal fun refreshFailure(error: Exception): String =
+    (error as? FlexarrException)?.message ?: t("Couldn’t reach the server.")
 
 /**
  * Why this device can't sign out, or null when it can: child lock is on ([AppModel.kidsLock], remembered offline too),
