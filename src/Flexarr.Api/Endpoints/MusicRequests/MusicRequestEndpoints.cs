@@ -487,12 +487,35 @@ public static partial class MusicRequestEndpoints
     private static async Task<List<MusicExternalDto>> AlbumsLikeYoursAsync(MusicRequestContext c, OwnedMusic owned, List<MusicExternalDto> artists, CancellationToken ct)
     {
         var albums = await Task.WhenAll(artists.Select(async artist =>
-            BestAlbum(await Quietly(() => c.Catalog.ArtistAlbumsAsync(artist.DeezerId, ct)) ?? []) is { } best
+            await OwnBestAlbumAsync(c, await Quietly(() => c.Catalog.ArtistAlbumsAsync(artist.DeezerId, ct)) ?? [], ct) is { } best
                 ? best with { Artist = new DeezerArtist(artist.DeezerId, artist.Title) }
                 : null));
         // An album with several artists on it can be the pick of more than one.
         return albums.OfType<DeezerAlbum>().DistinctBy(a => a.Id).Select(a => Album(a, owned)).ToList();
     }
+
+    /// <summary>
+    /// <see cref="BestAlbum"/>, passing over a compilation they're merely on: an artist's list can call it an album, and
+    /// only the album's own page says it's by Various Artists. Not asked about many: three goes, then it's left out.
+    /// </summary>
+    private static async Task<DeezerAlbum?> OwnBestAlbumAsync(MusicRequestContext c, IReadOnlyList<DeezerAlbum> albums, CancellationToken ct)
+    {
+        var left = albums.ToList();
+        for (var goes = 0; goes < 3 && BestAlbum(left) is { } best; goes++)
+        {
+            if (await Quietly(() => c.Catalog.AlbumAsync(best.Id, ct)) is not { } page || !IsCompilation(page))
+            {
+                return best; // no answer from Deezer: what its list says will do
+            }
+
+            left.Remove(best);
+        }
+
+        return null;
+    }
+
+    internal static bool IsCompilation(DeezerAlbum album) =>
+        album.RecordType == "compile" || MusicNames.Normalise(album.Artist?.Name) == "various artists";
 
     /// <summary>
     /// The album of an artist's that most people follow. Deezer's fans favour best-ofs, so a studio album with at least

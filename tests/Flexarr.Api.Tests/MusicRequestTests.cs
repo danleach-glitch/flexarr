@@ -235,6 +235,34 @@ public sealed class MusicRequestTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AlbumsYouMightLike_PassesOverACompilationAnArtistIsMerelyOn()
+    {
+        var (library, artist, _) = await SeedOwnedAsync();
+        await InDbAsync(async db =>
+        {
+            var album = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Album, Title = "Played", SortTitle = "played", ParentId = artist.Id };
+            var track = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Track, Title = "CPR", SortTitle = "cpr", Parent = album };
+            db.MediaItems.AddRange(album, track);
+            db.PlaybackStates.Add(new PlaybackState { UserId = "owner", MediaItem = track, PlayCount = 3 });
+            return await db.SaveChangesAsync();
+        });
+        _deezer.Responses["GET /artist/5/albums?limit=100"] = """
+            {"data":[
+                {"id":60,"title":"City Lounge, Vol 1.1","record_type":"album","fans":9000},
+                {"id":51,"title":"The Overload","record_type":"album","fans":4000}
+            ]}
+            """;
+        _deezer.Responses["GET /album/60"] = """{"id":60,"title":"City Lounge, Vol 1.1","record_type":"album","artist":{"id":5080,"name":"Various Artists"}}""";
+        _deezer.Responses["GET /artist/6/albums?limit=100"] = """{"data":[{"id":70,"title":"Hits Mix","record_type":"album","fans":100}]}""";
+        _deezer.Responses["GET /album/70"] = """{"id":70,"title":"Hits Mix","record_type":"compile","artist":{"id":6,"name":"Dry Cleaning"}}""";
+
+        var discover = await Client().GetFromJsonAsync<JsonElement>(Api("/requests/music/discover"));
+
+        var row = discover.GetProperty("rows").EnumerateArray().Single(r => r.GetProperty("id").GetString() == "music-like-albums");
+        Assert.Equal(["The Overload"], row.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("title").GetString())); // nothing of Dry Cleaning's but the compilation
+    }
+
+    [Fact]
     public async Task AlbumsYouMightLike_IsTheBestAlbumOfEachArtistLikeYours()
     {
         var (library, artist, _) = await SeedOwnedAsync();
