@@ -993,6 +993,31 @@ public sealed class LibraryScannerTests : IAsyncLifetime
         Assert.Equal(3, await _db.MediaItems.CountAsync(i => i.Kind == MediaKind.Episode));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task HomeVideos_ALooseClip_ScannedAlone_JoinsTheFoldersOwnSeason(bool slashAtTheEnd)
+    {
+        var root = Touch("home/First.mp4");
+        var home = Path.Combine(root, "home");
+        var library = await AddLibrary(LibraryType.HomeVideos, slashAtTheEnd ? home + "/" : home);
+        await Scanner().ScanAsync(library, null, default);
+
+        // Each as the folder watcher would ask, from a fresh context, as the scan worker's are.
+        foreach (var clip in new[] { "Second.mp4", "Third.mp4" })
+        {
+            Touch($"home/{clip}");
+            _db.ChangeTracker.Clear();
+            library = await _db.Libraries.Include(l => l.Folders).SingleAsync(l => l.Id == library.Id);
+            await Scanner().ScanAsync(library, Path.Combine(home, clip), default);
+        }
+
+        var season = await _db.MediaItems.AsNoTracking().SingleAsync(i => i.Kind == MediaKind.Season);
+        var numbers = await _db.MediaItems.AsNoTracking().Where(i => i.Kind == MediaKind.Episode).Select(i => new { i.ParentId, i.EpisodeNumber }).ToListAsync();
+        Assert.All(numbers, n => Assert.Equal(season.Id, n.ParentId));
+        Assert.Equal([1, 2, 3], numbers.Select(n => n.EpisodeNumber ?? 0).Order());
+    }
+
     [Fact]
     public async Task ARescan_HoldsOnlyTheFilesItChanges_AndSavesEachChange()
     {

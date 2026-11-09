@@ -880,7 +880,9 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             var episodes = items.AsNoTracking().Where(i => i.Kind == MediaKind.Episode);
             if (folders is not null && folders.All(f => f is not null))
             {
-                var seriesIds = parents.Where(i => i.Kind == MediaKind.Series && i.Path is not null && folders.Contains(PathComparison.Key(i.Path)))
+                // A home video straight in the library folder has that folder for its show, whatever the scan's scope.
+                var homes = scoped!.Select(t => PathComparison.Key(t.Root)).ToHashSet(StringComparer.Ordinal);
+                var seriesIds = parents.Where(i => i.Kind == MediaKind.Series && i.Path is not null && (folders.Contains(PathComparison.Key(i.Path)) || homes.Contains(PathComparison.Key(i.Path))))
                     .Select(i => i.Id).ToList();
                 seasons = seasons.Where(i => i.ParentId != null && seriesIds.Contains(i.ParentId.Value));
                 episodes = episodes.Where(i => i.Parent!.ParentId != null && seriesIds.Contains(i.Parent.ParentId.Value));
