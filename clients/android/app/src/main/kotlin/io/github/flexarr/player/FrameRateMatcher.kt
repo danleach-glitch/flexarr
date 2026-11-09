@@ -221,11 +221,16 @@ internal class FrameRateMatcher(
          * Whether asking for [rate] makes a screen at [current] change mode in a way that blanks it: [seamless] are the
          * rates it can go to without ([android.view.Display.Mode.getAlternativeRefreshRates]), [modes] all it has at this
          * size. A rate the screen is already at a multiple of (24 at 120) needs no change, and without a mode that suits
-         * there's none to change to.
+         * there's none to change to. 59.94 and 60, or 23.976 and 24, aren't the same: the screen goes to the exact one
+         * if it has it, so the near one only counts when it hasn't.
          */
         fun blanks(rate: Float, current: Float, seamless: List<Float>, modes: List<Float>): Boolean {
-            fun suits(hz: Float) = (hz / rate).let { kotlin.math.abs(it - Math.round(it)) < 0.01f && it >= 0.99f }
-            return !suits(current) && seamless.none(::suits) && modes.any(::suits)
+            val multiple = { hz: Float -> Math.round(hz / rate).toFloat() }
+            fun near(hz: Float) = (hz / rate).let { kotlin.math.abs(it - multiple(hz)) < 0.01f && it >= 0.99f }
+            // A thousandth apart is the difference between the two kinds of rate, so half of it is the same rate.
+            fun exact(hz: Float) = near(hz) && kotlin.math.abs(hz / rate / multiple(hz) - 1f) < 0.0005f
+            val suits: (Float) -> Boolean = if ((modes + current).any(::exact)) ::exact else ::near
+            return !suits(current) && seamless.none(suits) && modes.any(suits)
         }
 
         /** The rates videos are made at: a measured one close to one of these is taken as it. */

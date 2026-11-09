@@ -174,5 +174,23 @@ class FrameRateMatcherSwitchTest {
         assertFalse(FrameRateMatcher.blanks(24f, 60f, emptyList(), listOf(50f, 60f)))
     }
 
+    @Test fun aNearRate_stillBlanksWhenTheScreenHasTheExactOne() {
+        val tv = listOf(23.976f, 24f, 50f, 59.94f, 60f)
+        assertTrue(FrameRateMatcher.blanks(23.976f, 24f, emptyList(), tv))
+        assertTrue(FrameRateMatcher.blanks(24f, 23.976f, emptyList(), tv))
+        assertTrue(FrameRateMatcher.blanks(59.94f, 60f, emptyList(), tv))
+        assertTrue(FrameRateMatcher.blanks(60f, 59.94f, emptyList(), tv))
+        assertTrue(FrameRateMatcher.blanks(29.97f, 60f, emptyList(), tv))
+        assertTrue(FrameRateMatcher.blanks(23.976f, 120f, emptyList(), tv + 119.88f + 120f))
+        // Exact already, a display's rounding included, or at an exact multiple.
+        assertFalse(FrameRateMatcher.blanks(59.94f, 59.94006f, emptyList(), tv))
+        assertFalse(FrameRateMatcher.blanks(23.976f, 119.88f, emptyList(), tv + 119.88f))
+        // It can go to the exact one without blanking.
+        assertFalse(FrameRateMatcher.blanks(59.94f, 60f, listOf(59.94f), tv))
+        // No closer mode: the near one it's at is as good as it gets, and one it isn't at is still a change.
+        assertFalse(FrameRateMatcher.blanks(23.976f, 24f, emptyList(), listOf(24f, 60f)))
+        assertTrue(FrameRateMatcher.blanks(23.976f, 60f, emptyList(), listOf(24f, 60f)))
+    }
+
     private val mockHolder = Proxy.newProxyInstance(SurfaceHolder::class.java.classLoader, arrayOf(SurfaceHolder::class.java)) { _, _, _ -> null } as SurfaceHolder
 }
