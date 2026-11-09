@@ -368,10 +368,19 @@
   gap: 8px 16px;
 }
 
+.onboard-country label > span {
+  font-size: var(--step--1);
+  font-weight: 600;
+}
+
+.onboard-country select {
+  max-width: 100%;
+}
+
 .onboard-country p:not(.onboard-error) {
   margin: 8px 0 0;
   font-size: var(--step--1);
-  color: var(--text-muted);
+  color: var(--usher);
 }
 
 .onboard-people {

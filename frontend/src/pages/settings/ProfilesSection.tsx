@@ -75,6 +75,7 @@ export function ProfilesSection() {
             defaultColour={freeColour(data ?? [])}
             libraries={libraries}
             ratingSystem={ratingSystem}
+            limitsReady={me.data !== undefined || me.error !== undefined}
             destinations={destinations}
             musicDestinations={musicDestinations}
             mainHasPin={mainHasPin}
@@ -92,6 +93,7 @@ export function ProfilesSection() {
               defaultColour={freeColour(data)}
               libraries={libraries}
               ratingSystem={ratingSystem}
+              limitsReady={me.data !== undefined || me.error !== undefined}
               destinations={destinations}
               musicDestinations={musicDestinations}
               mainHasPin={mainHasPin}
@@ -112,7 +114,7 @@ export function ProfilesSection() {
                   {p.isCurrent && <span className="tag profile-you">{t('You')}</span>}
                 </strong>
                 <span className="muted">
-                  {[p.isMain ? t('Main profile, manages the server') : p.isKids ? null : t('Profile'), p.hasPin ? t('PIN') : t('No PIN'), ageLimitText(p, ratingSystem)].filter(Boolean).join('\u2003')}
+                  {[p.isMain ? t('Main profile, manages the server') : p.isKids ? null : t('Profile'), p.hasPin ? t('PIN') : t('No PIN'), me.data ? ageLimitText(p, ratingSystem) : null].filter(Boolean).join('\u2003')}
                 </span>
               </span>
               <span className="library-row-actions">
@@ -140,6 +142,7 @@ function ProfileForm({
   defaultColour,
   libraries,
   ratingSystem,
+  limitsReady,
   destinations,
   musicDestinations,
   mainHasPin,
@@ -150,6 +153,8 @@ function ProfileForm({
   defaultColour: string
   libraries: Library[]
   ratingSystem?: RatingSystem
+  /** Whether the names are known: until then, a US server's limits would show as the UK's. */
+  limitsReady: boolean
   destinations: RequestDestination[]
   musicDestinations: { id: string; name: string; isDefault: boolean }[]
   mainHasPin: boolean
@@ -340,6 +345,7 @@ function ProfileForm({
             <label className="profile-library">
               <span>{t('Up to')}</span>
               <select
+                disabled={!limitsReady}
                 value={maxRatingAge ?? ''}
                 onChange={(e) => {
                   const age = e.target.value === '' ? null : Number(e.target.value)

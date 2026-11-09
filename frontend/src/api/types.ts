@@ -583,8 +583,8 @@ export interface Settings {
   ffprobePath: string
   /** What Sonarr, Radarr and Lidarr webhooks send instead of the API key. */
   webhookSecret?: string | null
-  /** The podcast charts' country: the one chosen (null for the server's region), and the one in use. */
-  podcasts?: { country: string | null; resolvedCountry: string }
+  /** The server's country: the one chosen (null for its region), the one in use, and the region it could tell (null if it can't; absent before 0.64). */
+  podcasts?: { country: string | null; resolvedCountry: string; detectedCountry?: string | null }
   /** The Live TV source (Dispatcharr); the password is never sent back. */
   liveTv?: {
     baseUrl: string

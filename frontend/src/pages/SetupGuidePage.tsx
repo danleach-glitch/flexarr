@@ -286,6 +286,7 @@ function NameStep({ nav }: { nav: StepNav }) {
           )}
         </div>
       </div>
+      <CountryField />
       {error && (
         <p className="onboard-error" role="alert">
           {error}
@@ -686,7 +687,6 @@ function ProfilesStep({ nav }: { nav: StepNav }) {
           {error}
         </p>
       )}
-      <CountryField />
       <StepFooter
         nav={nav}
         skipLabel={more ? null : t('Skip')}
