@@ -115,6 +115,9 @@ public sealed partial class FolderWatcher(
     /// <summary>Whether a folder is on another machine. Tests replace it, having no share to hand.</summary>
     internal Func<string, bool> IsShare { get; set; } = FolderKind.IsShare;
 
+    /// <summary>How long a resync waits for its folders to start before getting on with the next one.</summary>
+    internal TimeSpan StartsWaitedFor { get; set; } = TimeSpan.FromSeconds(30);
+
     /// <summary>Starts a watcher: this is where the system walks the folder's tree, and can refuse.</summary>
     internal Action<FileSystemWatcher> Enable { get; set; } = watcher => watcher.EnableRaisingEvents = true;
 
@@ -136,6 +139,12 @@ public sealed partial class FolderWatcher(
     private readonly Dictionary<string, DateTimeOffset> _forcedAt = new(StringComparer.Ordinal);
     private readonly Dictionary<string, List<DateTimeOffset>> _goneAt = new(StringComparer.Ordinal);
     private bool _synced;
+
+    /// <summary>Folders whose watch is on its way: a mount that's stopped answering can take as long as it likes.</summary>
+    private readonly HashSet<string> _starting = new(StringComparer.Ordinal);
+
+    /// <summary>Stopped for good: a start finishing now has nowhere to go.</summary>
+    private bool _stopped;
     private volatile bool _syncSoon;
 
     /// <summary>
@@ -230,6 +239,11 @@ public sealed partial class FolderWatcher(
 
     public override void Dispose()
     {
+        lock (_lock)
+        {
+            _stopped = true;
+        }
+
         StopWatching();
         base.Dispose();
     }
@@ -319,6 +333,11 @@ public sealed partial class FolderWatcher(
                     continue;
                 }
 
+                if (_starting.Contains(path))
+                {
+                    continue;
+                }
+
                 if (current?.Watcher is { } running)
                 {
                     if (found.TryGetValue(path, out var identity))
@@ -327,6 +346,7 @@ public sealed partial class FolderWatcher(
                         {
                             finished.Add(running);
                             toStart.Add(path);
+                            _starting.Add(path);
                         }
                         else
                         {
@@ -341,6 +361,7 @@ public sealed partial class FolderWatcher(
                 if (!waiting)
                 {
                     toStart.Add(path);
+                    _starting.Add(path);
                 }
             }
         }
@@ -351,42 +372,79 @@ public sealed partial class FolderWatcher(
         }
 
         // Outside the lock: on Linux starting a watch walks the folder's whole tree, and a network mount that's stopped
-        // answering would hang here. The libraries list and the change events only ever wait for the lock.
-        var back = new List<string>();
-        foreach (var path in toStart)
+        // answering would hang here. The libraries list and the change events only ever wait for the lock. Each on its
+        // own, so one like that holds up neither the other folders nor, past a while, this resync: it finishes when it
+        // finishes, and isn't started twice.
+        bool catchUp;
+        lock (_lock)
+        {
+            catchUp = _synced;
+            _synced = true;
+        }
+
+        var starts = toStart.Select(path => Task.Run(() => StartAndInstallAsync(path, catchUp, ct), CancellationToken.None)).ToList();
+        try
+        {
+            await Task.WhenAll(starts).WaitAsync(StartsWaitedFor, time, ct);
+        }
+        catch (TimeoutException)
+        {
+            // Still going, which is theirs to sort out.
+        }
+    }
+
+    /// <summary>Starts a folder's watch and puts it in place. Runs alone: nothing it hits may be left to the caller, who may have moved on.</summary>
+    private async Task StartAndInstallAsync(string path, bool catchUp, CancellationToken ct)
+    {
+        try
         {
             var (started, starting) = Start(path);
             Exception? late;
+            bool back;
+            bool stopped;
             lock (_lock)
             {
+                _starting.Remove(path);
+                stopped = _stopped;
                 // A library folder new to the server was queued when it was added.
                 var existed = _folders.ContainsKey(path);
-                _folders[path] = started;
+                if (!stopped)
+                {
+                    _folders[path] = started;
+                }
+
                 starting.Installed = true;
                 late = starting.Error;
                 // Watching again after it couldn't be (a drive that's back, the switch turned on): whatever changed in the
                 // meantime was missed, so the folder is scanned. Not at startup, which the schedule already covers.
-                if (existed && _synced && started.Watcher is not null && late is null)
-                {
-                    back.Add(path);
-                }
+                back = existed && catchUp && !stopped && started.Watcher is not null && late is null;
+            }
+
+            if (stopped)
+            {
+                started.Watcher?.Dispose();
+                return;
             }
 
             if (late is not null && started.Watcher is { } refused)
             {
                 Failed(path, refused, late);
             }
-        }
 
-        lock (_lock)
-        {
-            _synced = true;
+            if (back)
+            {
+                LogWatchingAgain(PathComparison.Printable(path));
+                await queue.EnqueueAsync(new LibraryScanRequest(path, Reason), ct);
+            }
         }
-
-        foreach (var path in back)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            LogWatchingAgain(PathComparison.Printable(path));
-            await queue.EnqueueAsync(new LibraryScanRequest(path, Reason), ct);
+            lock (_lock)
+            {
+                _starting.Remove(path);
+            }
+
+            LogChangeFailed(ex, PathComparison.Printable(path));
         }
     }
 

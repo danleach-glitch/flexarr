@@ -434,6 +434,51 @@ public class FolderWatcherTests(FlexarrApiFactory factory) : IClassFixture<Flexa
     }
 
     [Fact]
+    public async Task AFolderThatHangs_DoesntHoldUpTheOthers_NorStartTwice()
+    {
+        using var hung = await WatchAsync(create: false);
+        using var local = await WatchAsync(create: false);
+        using var release = new ManualResetEventSlim();
+        using var entered = new ManualResetEventSlim();
+        var started = 0;
+        hung.Watcher.StartsWaitedFor = TimeSpan.FromMilliseconds(200);
+        hung.Watcher.Enable = watcher =>
+        {
+            if (watcher.Path == hung.Root)
+            {
+                Interlocked.Increment(ref started);
+                entered.Set();
+                release.Wait(TimeSpan.FromSeconds(20));
+            }
+
+            watcher.EnableRaisingEvents = true;
+        };
+        Directory.CreateDirectory(hung.Root);
+        Directory.CreateDirectory(local.Root);
+
+        await hung.Watcher.SyncAsync(default).WaitAsync(TimeSpan.FromSeconds(10)); // both folders are in the database, so this one's watching both
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(10)));
+        Assert.Equal(FolderWatchState.Watching, hung.Watcher.StatusOf(local.Root)?.State);
+        Assert.NotEqual(FolderWatchState.Watching, hung.Watcher.StatusOf(hung.Root)?.State);
+
+        await hung.Watcher.SyncAsync(default).WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(1, started);
+
+        release.Set();
+        await WaitUntilAsync(() => hung.Watcher.StatusOf(hung.Root)?.State == FolderWatchState.Watching);
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> done)
+    {
+        for (var i = 0; i < 100 && !done(); i++)
+        {
+            await Task.Delay(100);
+        }
+
+        Assert.True(done());
+    }
+
+    [Fact]
     public async Task ASlowStart_DoesntHoldUpTheLibrariesList()
     {
         using var setup = await WatchAsync(create: false);
