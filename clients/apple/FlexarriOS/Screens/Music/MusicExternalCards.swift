@@ -190,7 +190,7 @@ struct MusicAlbumRequestButton: View {
         switch model.albumState(album) {
         case .requestable:
             Button {
-                guard let target = MusicRequestTarget.album(album) else { return }
+                guard !asking, let target = MusicRequestTarget.album(album) else { return }
                 asking = true
                 Task {
                     await model.requestMusic(target)
@@ -200,14 +200,18 @@ struct MusicAlbumRequestButton: View {
                 Label(MusicWords.requestAlbum, systemImage: Symbol.request)
             }
             .buttonStyle(RoundActionStyle(ambient: ambient, labelled: labelled))
-            .disabled(asking || paused)
+            .disabled(paused)
             .accessibilityLabel(MusicWords.requestAlbum)
         case .requested:
-            Button { confirming = true } label: {
+            // Presses wait for the answer without disabling it: what it's just become would show dimmed until then.
+            Button {
+                guard !asking else { return }
+                confirming = true
+            } label: {
                 Label(MusicWords.requested, systemImage: Symbol.requested)
             }
             .buttonStyle(RoundActionStyle(selected: true, ambient: ambient, labelled: labelled))
-            .disabled(asking || paused)
+            .disabled(paused)
             .accessibilityLabel(MusicWords.requested)
             .accessibilityHint(MusicWords.unrequestHint)
             .accessibilityAddTraits(.isSelected)
@@ -247,7 +251,9 @@ struct FollowArtistButton: View {
     @State private var confirming = false
 
     var body: some View {
+        // Presses wait for the answer without disabling it: what it's just become would show dimmed until then.
         Button {
+            guard !asking else { return }
             if following {
                 confirming = true
             } else {
@@ -257,7 +263,7 @@ struct FollowArtistButton: View {
             Label(following ? MusicWords.following : MusicWords.follow, systemImage: following ? Symbol.following : Symbol.follow)
         }
         .buttonStyle(RoundActionStyle(selected: following, ambient: ambient, labelled: labelled))
-        .disabled(asking || paused || !enabled)
+        .disabled(paused || !enabled)
         .accessibilityLabel(following ? MusicWords.following : MusicWords.follow)
         .accessibilityHint(following ? MusicWords.stopFollowingHint : "")
         .accessibilityAddTraits(following ? .isSelected : [])
