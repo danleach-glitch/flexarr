@@ -23,7 +23,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A Dispatcharr admin key that’s refused is turned down when you save it, and **Test** only says a key was accepted if it tried that key. A saved key isn’t sent to a changed address.
 - The usual Live TV connection errors now appear in your language.
 - **On now** on the web keeps its channels when a load fails, and offers **Try again**.
-- When the guide can’t load, on the web, on iPhone and iPad or over the picture on Apple TV, it says so and offers **Try again** instead of spinning.
+- When the guide can’t load, on the web, iPhone, iPad, Android, or Android TV and over the picture on Apple TV, it says so and offers **Try again** instead of spinning.
 - On Apple TV, the guide over the picture opens on the channel you’re watching, even with nothing listed for it right now.
 - On Apple TV, the Live TV sidebar scrolls when there are many groups, and channels with no listings can be reached in the guide and played from there.
 - On the web, iPhone, iPad, Apple TV, Android and Android TV, Live TV goes back to its usual view if the group you chose disappears.
@@ -39,7 +39,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A requested album that downloads but can't be imported now says **Couldn't import** instead of waiting forever. If the download was missing tracks, Flexarr rejects it and looks for another copy, up to three times.
 - A **Couldn’t import** album someone asked for has **Try again** on the web, and a **Why?** link to the [guide](https://flexarr.io/guide/requests#couldn-t-import). It keeps a complete copy for you to import by hand, says when an album isn’t stuck or was only just tried, and counts towards the daily limit.
 - A cover that won’t load in **Requested** shows the album’s title.
-- A request shows **Downloading** when a new copy is on its way, even if an earlier copy couldn’t import.
+- A request shows **Downloading** when a new copy is on its way, even if an earlier copy couldn’t import, and a stalled download says **Downloading** and how far it got rather than **Importing**. This goes for films and shows too.
 
 ### iPhone, iPad and Apple TV
 

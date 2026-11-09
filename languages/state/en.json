@@ -606,7 +606,7 @@
   "Couldn’t list the backups: {message}": "w",
   "Couldn’t load the channels: {error}": "w",
   "Couldn’t load the countries: {message}": "w",
-  "Couldn’t load the guide: {error}": "wa",
+  "Couldn’t load the guide: {error}": "wan",
   "Couldn’t load the recordings: {error}": "w",
   "Couldn’t load the settings: {message}": "w",
   "Couldn’t load updates: {message}": "w",
