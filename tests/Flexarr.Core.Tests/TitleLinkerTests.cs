@@ -241,6 +241,39 @@ public sealed class TitleLinkerTests : IAsyncLifetime
         Assert.All(await _db.PlaybackStates.AsNoTracking().ToListAsync(), state => Assert.False(state.Watched));
     }
 
+    [Theory]
+    [InlineData(KidsOverride.Block, KidsOverride.None, KidsOverride.Block)]
+    [InlineData(KidsOverride.Block, KidsOverride.Allow, KidsOverride.Block)]
+    [InlineData(KidsOverride.Allow, KidsOverride.None, KidsOverride.Allow)]
+    [InlineData(KidsOverride.None, KidsOverride.None, KidsOverride.None)]
+    public async Task OnLinking_CopiesAgreeAParentsSay_BlockWinning(KidsOverride first, KidsOverride second, KidsOverride agreed)
+    {
+        var hd = Add(_hd, MediaKind.Movie, "Film", tmdb: "1");
+        var uhd = Add(_uhd, MediaKind.Movie, "Film", tmdb: "1");
+        hd.KidsOverride = first;
+        uhd.KidsOverride = second;
+        await LinkAsync();
+
+        var says = await _db.MediaItems.IgnoreQueryFilters().AsNoTracking().Select(i => i.KidsOverride).ToListAsync();
+        Assert.All(says, say => Assert.Equal(agreed, say));
+    }
+
+    [Fact]
+    public async Task ACopyOfABlockedShow_IsBlocked_DownToItsEpisodes()
+    {
+        var hd = Add(_hd, MediaKind.Series, "Show", tvdb: "1");
+        hd.KidsOverride = KidsOverride.Block;
+        var uhd = Add(_uhd, MediaKind.Series, "Show", tvdb: "1");
+        var season = Add(_uhd, MediaKind.Season, "1", parent: uhd, season: 1);
+        var episode = Add(_uhd, MediaKind.Episode, "E1", parent: season, season: 1, episode: 1);
+        await LinkAsync();
+
+        var says = await _db.MediaItems.IgnoreQueryFilters().AsNoTracking().Where(i => i.LibraryId == _uhd.Id).Select(i => i.KidsOverride).ToListAsync();
+        Assert.Equal(3, says.Count);
+        Assert.All(says, say => Assert.Equal(KidsOverride.Block, say));
+        Assert.NotNull(episode);
+    }
+
     [Fact]
     public async Task Saving_WritesWatchStateToEveryCopy_EvenOneThisProfileCannotSee()
     {

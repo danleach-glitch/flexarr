@@ -298,8 +298,8 @@ public static class ItemEndpoints
             return Results.NoContent();
         }).WithTags("Items");
 
-        // A parent's Allow or Block for profiles with an age limit, on a film, show, artist or podcast (its seasons,
-        // episodes and tracks follow it).
+        // A parent's Allow or Block for profiles with an age limit, on a film, show, artist or podcast, and every copy
+        // of it (its seasons, episodes and tracks follow it).
         api.MapPut("/items/{id:guid}/kids", async (Guid id, KidsOverrideRequest request, FlexarrDbContext db, CancellationToken ct) =>
         {
             if (!Enum.IsDefined(request.Override))
@@ -317,7 +317,15 @@ public static class ItemEndpoints
                 return Problems.Of("Allow or block the whole title: its seasons and episodes follow it.", status: 409);
             }
 
-            item.KidsOverride = request.Override;
+            // On every copy of the title, or Block would leave the title showing through another library's copy.
+            var copies = item.LinkGroupId is { } group
+                ? await db.MediaItems.IgnoreQueryFilters().Where(i => i.LinkGroupId == group).ToListAsync(ct)
+                : [item];
+            foreach (var copy in copies)
+            {
+                copy.KidsOverride = request.Override;
+            }
+
             await db.SaveChangesAsync(ct);
             LibraryVisibility.KidsSettingsChanged();
             return Results.NoContent();

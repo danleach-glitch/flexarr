@@ -19,7 +19,7 @@ public static class TitleLinker
     private const int ItemsPerBatch = 200;
 
     private static readonly System.Linq.Expressions.Expression<Func<MediaItem, Row>> AsRow = i =>
-        new Row(i.Id, i.ParentId, i.Kind, i.TmdbId, i.TvdbId, i.TvMazeId, i.ImdbId, i.SeasonNumber, i.EpisodeNumber, i.EpisodeNumberEnd, i.AirDate, i.LinkGroupId);
+        new Row(i.Id, i.ParentId, i.Kind, i.TmdbId, i.TvdbId, i.TvMazeId, i.ImdbId, i.SeasonNumber, i.EpisodeNumber, i.EpisodeNumberEnd, i.AirDate, i.LinkGroupId, i.KidsOverride);
 
     private static readonly SemaphoreSlim OneAtATime = new(1, 1);
 
@@ -74,6 +74,7 @@ public static class TitleLinker
                 var joined = batch.SelectMany(c => c).Where(c => c.Kind is MediaKind.Movie or MediaKind.Episode && wanted.ContainsKey(c.Id)).Select(c => wanted[c.Id]).ToHashSet();
                 var members = rows.Where(r => wanted.TryGetValue(r.Id, out var group) && joined.Contains(group)).ToLookup(r => wanted[r.Id], r => r.Id);
                 await ShareWatchStateAsync(db, members, ct).ConfigureAwait(false);
+                await AgreeKidsOverridesAsync(db, batch, rows, wanted, ct).ConfigureAwait(false);
                 await transaction.CommitAsync(ct).ConfigureAwait(false);
             }
 
@@ -218,6 +219,29 @@ public static class TitleLinker
     }
 
     /// <summary>
+    /// Films and shows that have just linked agree a parent's say for profiles with an age limit, so it holds for the
+    /// whole title, also for a copy arriving later: Block if any copy has it, otherwise Allow if any has that.
+    /// </summary>
+    private static async Task AgreeKidsOverridesAsync(FlexarrDbContext db, List<IGrouping<Guid?, Row>> batch, List<Row> rows, Dictionary<Guid, Guid> wanted, CancellationToken ct)
+    {
+        var joined = batch.SelectMany(c => c).Where(c => c.Kind is MediaKind.Movie or MediaKind.Series && wanted.ContainsKey(c.Id)).Select(c => wanted[c.Id]).ToHashSet();
+        foreach (var title in rows.Where(r => r.Kind is MediaKind.Movie or MediaKind.Series && wanted.TryGetValue(r.Id, out var group) && joined.Contains(group)).GroupBy(r => wanted[r.Id]))
+        {
+            var says = title.Any(r => r.KidsOverride == KidsOverride.Block) ? KidsOverride.Block
+                : title.Any(r => r.KidsOverride == KidsOverride.Allow) ? KidsOverride.Allow : KidsOverride.None;
+            var differ = title.Where(r => r.KidsOverride != says).Select(r => r.Id).ToList();
+            if (differ.Count == 0)
+            {
+                continue;
+            }
+
+            await db.MediaItems.IgnoreQueryFilters().Where(i => differ.Contains(i.Id))
+                .ExecuteUpdateAsync(u => u.SetProperty(i => i.KidsOverride, says), ct).ConfigureAwait(false);
+            await db.PassDownRatingsAsync(differ, ct).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
     /// Copies that have just linked agree what's been watched, for each profile: watched if any copy was (and it wasn't
     /// since marked unwatched), and the place
     /// and details of whichever was played last.
@@ -274,5 +298,5 @@ public static class TitleLinker
     }
 
     private sealed record Row(Guid Id, Guid? ParentId, MediaKind Kind, string? TmdbId, string? TvdbId, string? TvMazeId, string? ImdbId,
-        int? SeasonNumber, int? EpisodeNumber, int? EpisodeNumberEnd, DateOnly? AirDate, Guid? LinkGroupId);
+        int? SeasonNumber, int? EpisodeNumber, int? EpisodeNumberEnd, DateOnly? AirDate, Guid? LinkGroupId, KidsOverride KidsOverride);
 }

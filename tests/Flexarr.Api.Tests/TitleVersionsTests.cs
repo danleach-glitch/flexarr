@@ -387,4 +387,18 @@ public sealed class TitleVersionsTests : IAsyncLifetime
         var blocked = await Flexarr.Api.Downloads.DownloadSource.FilesAsync(db, _hdItem, "kid", default);
         Assert.Equal([_hdFile], blocked.Select(f => f.Id));
     }
+
+    [Theory]
+    [InlineData("Block")]
+    [InlineData("Allow")]
+    public async Task AParentsSay_CoversEveryCopy(string say)
+    {
+        var response = await Client().PutAsJsonAsync(Api($"/items/{_hdItem}/kids"), new { @override = say });
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var says = await db.MediaItems.IgnoreQueryFilters().Where(i => i.Id == _hdItem || i.Id == _uhdItem).Select(i => i.KidsOverride).ToListAsync();
+        Assert.All(says, s => Assert.Equal(Enum.Parse<KidsOverride>(say), s));
+    }
 }
