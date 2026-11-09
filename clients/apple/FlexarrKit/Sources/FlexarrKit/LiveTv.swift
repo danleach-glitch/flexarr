@@ -36,6 +36,12 @@ public enum LiveTvRefreshEnd: Sendable, Hashable {
     case finished(LiveTvStatus?)
     /// The wait gave up with it still running. The server carries on.
     case stillGoing
+    /// Nobody was looking for so long (the app was suspended) that how it went is no longer news. With the status it
+    /// came back to, when it got one.
+    case unwatched(LiveTvStatus?)
+
+    /// How long after a refresh ended how it went is still worth saying.
+    public static let newsFor: TimeInterval = 120
 }
 
 /// A programme in the guide.
@@ -330,12 +336,15 @@ extension FlexarrClient {
     /// Refreshes the channels and guide (the main profile only), and waits for it, for `looks` looks at the status (six
     /// minutes): how it finished, or that it's still going, which says nothing yet about how it'll go. With an admin key
     /// saved, the server has Dispatcharr download its guides first, which takes minutes at worst. Servers before the
-    /// release after 0.63 refuse a locked main profile.
-    public func refreshLiveTv(looks: Int = 180, every interval: Duration = .seconds(2)) async throws -> LiveTvRefreshEnd {
+    /// release after 0.63 refuse a locked main profile. An app suspended part-way only gets to look again when it's back,
+    /// which may be tomorrow: then it's `unwatched`, whatever it finds.
+    public func refreshLiveTv(looks: Int = 180, every interval: Duration = .seconds(2),
+                              now: @Sendable () -> Date = { Date() }) async throws -> LiveTvRefreshEnd {
         let before = try await liveTvStatus()
         _ = try await send("POST", "livetv/refresh")
         var sawRefreshing = false
         var badLooks = 0
+        var lastLook = now()
         for look in 1...looks {
             try await Task.sleep(for: interval)
             let status: LiveTvStatus?
@@ -345,10 +354,14 @@ extension FlexarrClient {
             } catch {
                 // The server carries on without us: a phone changing network doesn't make the refresh a failure.
                 try Task.checkCancellation()
+                if now().timeIntervalSince(lastLook) > LiveTvRefreshEnd.newsFor { return .unwatched(nil) }
+                lastLook = now()
                 badLooks += 1
                 if badLooks >= 3 { throw error }
                 continue
             }
+            if now().timeIntervalSince(lastLook) > LiveTvRefreshEnd.newsFor { return .unwatched(status) }
+            lastLook = now()
             guard let status else { return .finished(nil) }
             sawRefreshing = sawRefreshing || status.refreshing
             if status.finishedRefresh(since: before, sawRefreshing: sawRefreshing, looks: look) { return .finished(status) }

@@ -175,7 +175,7 @@ struct LiveTvView: View {
         case .failed(let problem):
             refreshProblem = problem
             refreshNotice = problem
-        case .stillGoing: break // Said by `isLiveTvRefreshTakingAWhile`.
+        case .stillGoing, .tooLate: break // Said by `isLiveTvRefreshTakingAWhile`, or not news.
         }
         Task {
             await load()

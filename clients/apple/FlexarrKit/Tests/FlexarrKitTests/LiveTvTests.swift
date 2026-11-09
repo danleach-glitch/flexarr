@@ -55,6 +55,80 @@ struct LiveTvTests {
         #expect(status?.channels == 1)
     }
 
+    /// A clock that jumps as if the app had been suspended between the first look and the second.
+    private final class SuspendedClock: @unchecked Sendable {
+        private let lock = NSLock()
+        private var reads = 0
+        func read() -> Date {
+            lock.withLock { reads += 1 }
+            return Date(timeIntervalSince1970: lock.withLock { reads } > 1 ? 86_400 : 0)
+        }
+    }
+
+    @Test func comingBackLongAfterARefreshFinishedIsntNews() async throws {
+        let client = refreshingClient(status: #"{"configured":true,"channels":1,"refreshing":false,"error":"An old failure","rewindMinutes":60}"#)
+        let clock = SuspendedClock()
+        guard case .unwatched(let status) = try await client.refreshLiveTv(looks: 9, every: .milliseconds(1), now: { clock.read() }) else {
+            Issue.record("should be unwatched")
+            return
+        }
+        #expect(status?.error == "An old failure")
+    }
+
+    @Test func comingBackToARefreshStillGoingKeepsItsStatus() async throws {
+        let client = refreshingClient(status: #"{"configured":true,"channels":1,"refreshing":true,"rewindMinutes":60}"#)
+        let clock = SuspendedClock()
+        guard case .unwatched(let status) = try await client.refreshLiveTv(looks: 2, every: .milliseconds(1), now: { clock.read() }) else {
+            Issue.record("should be unwatched")
+            return
+        }
+        #expect(status?.refreshing == true)
+    }
+
+    /// The status fails from the first look on: what a phone sees waking up with no network yet.
+    private func clientWhoseStatusFailsOnceStarted() -> (FlexarrClient, @Sendable () -> Void) {
+        let host = "livetv-\(UUID().uuidString.lowercased()).local"
+        let path = "/api/v1/livetv/status"
+        StubProtocol.register(host: host, path: path, .init(status: 200, body: Data(#"{"configured":true,"channels":1,"refreshing":true,"rewindMinutes":60}"#.utf8)))
+        StubProtocol.register(host: host, path: "/api/v1/livetv/refresh", .init(status: 204, body: Data()))
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubProtocol.self]
+        let client = FlexarrClient(baseURL: URL(string: "http://\(host):8383")!, apiKey: "secret", session: URLSession(configuration: configuration))
+        return (client, { StubProtocol.register(host: host, path: path, .init(status: 503, body: Data())) })
+    }
+
+    @Test func comingBackWithTheServerNotAnsweringIsntAFailureEither() async throws {
+        let (client, startFailing) = clientWhoseStatusFailsOnceStarted()
+        let clock = SuspendedClock()
+        let end = try await client.refreshLiveTv(looks: 2, every: .milliseconds(1), now: {
+            startFailing()
+            return clock.read()
+        })
+        guard case .unwatched(nil) = end else {
+            Issue.record("should be unwatched, with no status")
+            return
+        }
+    }
+
+    @Test func aServerNotAnsweringWhileWatchedStillFails() async throws {
+        let (client, startFailing) = clientWhoseStatusFailsOnceStarted()
+        await #expect(throws: FlexarrClientError.self) {
+            _ = try await client.refreshLiveTv(looks: 9, every: .milliseconds(1), now: {
+                startFailing()
+                return Date()
+            })
+        }
+    }
+
+    @Test func aRefreshWatchedThroughIsStillNews() async throws {
+        let client = refreshingClient(status: #"{"configured":true,"channels":1,"refreshing":false,"rewindMinutes":60}"#)
+        let end = try await client.refreshLiveTv(looks: 9, every: .milliseconds(1))
+        guard case .finished = end else {
+            Issue.record("should have finished")
+            return
+        }
+    }
+
     @Test func statusFromAnOlderServerHasNoCountOfMissingListings() throws {
         let old = try JSONDecoder().decode(LiveTvStatus.self, from: Data(#"{"configured":true,"channels":1,"refreshing":false,"rewindMinutes":60}"#.utf8))
         #expect(old.channelsWithoutListings == nil)

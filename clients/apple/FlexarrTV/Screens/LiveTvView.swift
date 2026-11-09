@@ -124,7 +124,7 @@ struct LiveTvView: View {
         switch result {
         case .worked: refreshProblem = nil
         case .failed(let problem): refreshProblem = problem
-        case .stillGoing: break // Said by `isLiveTvRefreshTakingAWhile`.
+        case .stillGoing, .tooLate: break // Said by `isLiveTvRefreshTakingAWhile`, or not news.
         }
         // Before fetching: a big line-up takes seconds, and the button would read Refresh guide again meanwhile.
         if result == .worked {

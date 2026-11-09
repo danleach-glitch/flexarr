@@ -18,6 +18,8 @@ enum LiveTvRefreshResult: Equatable {
     case failed(String)
     /// The wait gave up with the refresh still running on the server: neither a success nor a failure yet.
     case stillGoing
+    /// It ended too long ago to be news: nothing to say, but what's on screen is fetched again.
+    case tooLate
 }
 
 /// App-wide state: the signed-in server, who's watching, their libraries and the player.
@@ -65,6 +67,9 @@ final class AppModel {
     /// How the last refresh went, until Live TV has said so (`takeLiveTvRefreshResult`). Held here as a refresh can
     /// finish after its screen has gone: the news waits for the next time it's up.
     private(set) var liveTvRefreshResult: LiveTvRefreshResult?
+    /// When the refresh was last known to be running, or to have ended. How long ago it really ended can't be known
+    /// better from a look that finds it over, so a look a while after the last says nothing rather than old news.
+    @ObservationIgnored private var liveTvRefreshLastKnown = Date.distantPast
     /// How this profile listens to podcasts (auto-download, how many to keep, speed, and from 0.58 the skips and smart
     /// rewind it shares with books); nil until loaded. The podcast player follows it.
     private(set) var podcastPreferences: PodcastPreferences? {
@@ -1265,9 +1270,13 @@ final class AppModel {
         guard isMainProfile, let client, let status = try? await client.liveTvStatus(), credentials == asked else { return }
         liveTvStatus = status
         // One given up on has now finished: say how, as nobody's still waiting to.
-        if !status.refreshing, isLiveTvRefreshTakingAWhile {
-            isLiveTvRefreshTakingAWhile = false
-            liveTvRefreshResult = Self.refreshResult(status)
+        if isLiveTvRefreshTakingAWhile {
+            if status.refreshing {
+                liveTvRefreshLastKnown = Date()
+            } else {
+                isLiveTvRefreshTakingAWhile = false
+                liveTvRefreshResult = Self.refreshResult(status)
+            }
         }
     }
 
@@ -1276,10 +1285,12 @@ final class AppModel {
         (status?.error ?? status?.downloadError).map(LiveTvRefreshResult.failed) ?? .worked
     }
 
-    /// How the last refresh went, once: for Live TV to say while it's up.
+    /// How the last refresh went, once: for Live TV to say while it's up. Coming back to it later than that, success or
+    /// failure, it's `tooLate`.
     func takeLiveTvRefreshResult() -> LiveTvRefreshResult? {
         defer { liveTvRefreshResult = nil }
-        return liveTvRefreshResult
+        guard let result = liveTvRefreshResult else { return nil }
+        return Date().timeIntervalSince(liveTvRefreshLastKnown) > LiveTvRefreshEnd.newsFor ? .tooLate : result
     }
 
     /// Refreshes the channels and guide, and waits for it, leaving how it went in `liveTvRefreshResult`: nothing when the
@@ -1300,6 +1311,7 @@ final class AppModel {
         do {
             let end = try await wait.value
             guard !wait.isCancelled else { return }
+            liveTvRefreshLastKnown = Date()
             switch end {
             case .finished(let status):
                 if let status { liveTvStatus = status }
@@ -1307,8 +1319,17 @@ final class AppModel {
             case .stillGoing:
                 isLiveTvRefreshTakingAWhile = true
                 liveTvRefreshResult = .stillGoing
+            case .unwatched(let status):
+                if let status { liveTvStatus = status }
+                if status?.refreshing == true {
+                    isLiveTvRefreshTakingAWhile = true
+                    liveTvRefreshResult = .stillGoing
+                } else {
+                    liveTvRefreshResult = .tooLate
+                }
             }
         } catch {
+            liveTvRefreshLastKnown = Date()
             if !wait.isCancelled { liveTvRefreshResult = .failed(ConnectionError(error).message) }
         }
     }
