@@ -119,8 +119,8 @@ final class LiveTvTour: XCTestCase {
         press(.menu, wait: 1.5)
     }
 
-    /// A channel with nothing listed can be stopped on (Up and Down don't skip it); Right stays there; Left goes back to
-    /// the category. A category with nothing listed at all takes focus too. Doesn't press Select.
+    /// A channel with nothing listed can be stopped on (Up and Down don't skip it); Right and Left move the window, and Left
+    /// goes on to the category once it can't. A category with nothing listed at all takes focus too. Doesn't press Select.
     func testNoListings() async throws {
         guard try await client.liveTvStatus()?.configured == true else { throw XCTSkip("no Live TV source") }
         let channels = try await client.liveChannels()
@@ -135,13 +135,24 @@ final class LiveTvTour: XCTestCase {
         reachNoListings(within: channels.count)
         shot("72-no-listings")
 
+        // Right moves the window on, and Left back, as from a programme. On a channel still with nothing listed, focus stays.
         press(.right, wait: 1)
-        XCTAssertTrue(focused("No listings"), "Right leaves a channel with no listings where it is")
-        press(.up, wait: 1)
-        press(.down, wait: 1)
-        XCTAssertTrue(focused("No listings"), "back down to the channel with no listings")
-        press(.left, wait: 1.5)
-        XCTAssertTrue(focused(prefix: "All channels"), "Left goes back to the category shown")
+        if focused("No listings") {
+            press(.left, wait: 1.5)
+            XCTAssertTrue(focused("No listings"), "Left moves the window back and stays on the channel")
+        }
+        // Going on from it lands on what's on now, where Select plays, rather than level with the cell's middle.
+        for _ in 0..<3 where !focused("No listings") { press(.left, wait: 1.5) }
+        for _ in 0..<channels.count where focused("No listings") { press(.down, wait: 1) }
+        if !focused("No listings") {
+            let now = try await client.liveGuide(from: Date().addingTimeInterval(-1800), hours: 3, descriptions: false).channels
+                .flatMap { $0.programmes.filter { $0.start <= Date() && $0.end > Date() }.map(\.displayTitle) }
+            let label = app.descendants(matching: .any).matching(NSPredicate(format: "hasFocus == true")).firstMatch.label
+            XCTAssertTrue(now.contains(label), "\(label) isn't on now")
+            reachNoListings(within: channels.count)
+        }
+        for _ in 0..<4 where !focused(prefix: "All channels") { press(.left, wait: 1.5) }
+        XCTAssertTrue(focused(prefix: "All channels"), "Left comes to the category shown, once the window can go back no further")
 
         // A group with nothing listed at all, when there is one.
         let groups = Dictionary(grouping: channels.compactMap { channel in channel.groupName.map { ($0, channel) } }, by: \.0)
@@ -153,8 +164,8 @@ final class LiveTvTour: XCTestCase {
         shot("73-no-listings-group")
         press(.down, wait: 1)
         XCTAssertTrue(focused("No listings"))
-        press(.left, wait: 1.5)
-        XCTAssertTrue(focused(prefix: group), "Left goes back to the group")
+        for _ in 0..<4 where !focused(prefix: group) { press(.left, wait: 1.5) }
+        XCTAssertTrue(focused(prefix: group), "Left comes back to the group")
     }
 
     /// Select on a channel with nothing listed watches it, so not for a server in use.
