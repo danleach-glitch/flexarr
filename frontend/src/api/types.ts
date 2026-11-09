@@ -184,6 +184,10 @@ export interface TitleVersion {
   size: number
   /** The profile's remembered choice. */
   chosen: boolean
+  /** What the file holds. */
+  videoCodec?: string | null
+  audioCodec?: string | null
+  audioChannels?: number | null
 }
 
 export interface ItemDetail {

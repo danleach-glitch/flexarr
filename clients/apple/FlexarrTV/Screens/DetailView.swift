@@ -293,8 +293,8 @@ struct DetailView: View {
                         case .version:
                             Button(t(Words.version)) { showingVersions = true }
                         case .subtitles:
-                            if let file = detail?.files.first {
-                                Button(t("Search for subtitles…")) { subtitleSearchFile = SubtitleSearchFile(id: file.id) }
+                            if let file = detail?.subtitleTargetId {
+                                Button(t("Search for subtitles…")) { subtitleSearchFile = SubtitleSearchFile(id: file) }
                             }
                         case .goToShow:
                             if let series {
@@ -523,14 +523,18 @@ struct DetailView: View {
     }
 
     private func fileInfo(_ file: MediaFile) -> some View {
-        let video = [file.height.map { "\($0)p" }, file.videoCodec?.uppercased(), file.pictureLabel]
-            .compactMap { $0 }.joined(separator: " ")
-        let audio = [file.audioCodec?.uppercased(), file.audioChannels.map(AudioChannels.label)].compactMap { $0 }.joined(separator: " ")
+        // With versions, the one that plays or is chosen, which may be in another copy than the one opened.
+        let version = detail?.shownVersion
+        let video = version.map { [$0.label, $0.videoCodec?.uppercased()].compactMap { $0 }.joined(separator: " ") }
+            ?? [file.height.map { "\($0)p" }, file.videoCodec?.uppercased(), file.pictureLabel].compactMap { $0 }.joined(separator: " ")
+        let audioCodec = version == nil ? file.audioCodec : version?.audioCodec
+        let channels = version == nil ? file.audioChannels : version?.audioChannels
+        let audio = [audioCodec?.uppercased(), channels.map(AudioChannels.label)].compactMap { $0 }.joined(separator: " ")
         return HStack(spacing: 50) {
             if !video.isEmpty { labeled(t("Video"), video) }
             if !audio.isEmpty { labeled(t("Audio"), audio) }
             if let studio = detail?.studio { labeled(t("Studio"), studio) }
-            labeled(t("Size"), formatBytes(file.size))
+            labeled(t("Size"), formatBytes(version?.size ?? file.size))
         }
         .padding(.horizontal, Layout.edge)
     }

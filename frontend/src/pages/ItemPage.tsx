@@ -20,6 +20,7 @@ import {
   type ItemSummary,
   type KidsOverride,
   type MediaFile,
+  type TitleVersion,
 } from '../api/client'
 import { versionLabels, versionName } from '../lib/versions'
 import { showNotice } from '../lib/notice'
@@ -339,7 +340,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
             ))}
           </Row>
         )}
-        {detail.files.length > 0 && <FileInfo files={detail.files} itemId={item.id} kind={item.kind} />}
+        {detail.files.length > 0 && <FileInfo files={detail.files} versions={versions} itemId={item.id} kind={item.kind} />}
       </div>
 
       {deleting && (
@@ -534,11 +535,19 @@ function Cast({ credits, studio }: { credits: Credit[]; studio: string | null })
   )
 }
 
-function FileInfo({ files, itemId, kind }: { files: MediaFile[]; itemId: string; kind: string }) {
+function FileInfo({ files, versions, itemId, kind }: { files: MediaFile[]; versions: TitleVersion[]; itemId: string; kind: string }) {
   const [queued, setQueued] = useState(false)
+  // A version in another copy of the title has no details here, only what it's called and holds.
+  const elsewhere = versions.filter((v) => !files.some((f) => f.id === v.fileId))
+  const count = files.length + elsewhere.length
   return (
     <details className="file-info">
-      <summary>{files.length > 1 ? t('{count} files on disk', { count: files.length }) : t('File and stream details')}</summary>
+      <summary>{count > 1 ? t('{count} files on disk', { count }) : t('File and stream details')}</summary>
+      {elsewhere.map((v) => (
+        <div key={v.fileId} className="file">
+          <p>{[versionName(v, versions), v.videoCodec?.toUpperCase(), v.audioCodec?.toUpperCase(), formatSize(v.size)].filter(Boolean).join(', ')}</p>
+        </div>
+      ))}
       {files.map((file) => (
         <div key={file.id} className="file">
           {file.path && <code>{file.path}</code>}

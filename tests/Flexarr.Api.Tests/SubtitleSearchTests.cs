@@ -174,6 +174,31 @@ public class SubtitleSearchTests : IClassFixture<FlexarrApiFactory>
     }
 
     [Fact]
+    public async Task WithNoFileNamed_ItsForTheVersionChosen()
+    {
+        var bazarr = new FakeBazarr();
+        var (film, video) = await AddFilmAsync(radarrId: 10);
+        Guid smaller;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var file = new MediaFile { MediaItemId = film, Path = Path.Combine(Path.GetDirectoryName(video)!, "Film (2020) 720p.mkv"), Size = 3, Height = 720 };
+            db.Add(file);
+            await db.SaveChangesAsync();
+            smaller = file.Id;
+        }
+
+        bazarr.Film(10, "/data/movies/Film (2020)/Film (2020) 720p.mkv", profileId: 1);
+        bazarr.Responses["GET /api/providers/movies?radarrid=10"] = Results;
+        using var app = bazarr.Serve(factory);
+        var client = Client(app);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.GetAsync(new Uri($"/api/v1/items/{film}/subtitles/search", UriKind.Relative))).StatusCode); // Best first: the 1080p.
+
+        (await client.PutAsJsonAsync(new Uri($"/api/v1/items/{film}/version", UriKind.Relative), new { fileId = smaller })).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync(new Uri($"/api/v1/items/{film}/subtitles/search", UriKind.Relative))).StatusCode);
+    }
+
+    [Fact]
     public async Task ATitleRadarrDoesntManage_IsRefused()
     {
         var bazarr = new FakeBazarr();

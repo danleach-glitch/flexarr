@@ -335,6 +335,10 @@ public struct TitleVersion: Codable, Sendable, Hashable, Identifiable {
     public let size: Int64
     /// The profile's remembered choice.
     public let chosen: Bool
+    /// What the file holds.
+    public var videoCodec: String? = nil
+    public var audioCodec: String? = nil
+    public var audioChannels: Int? = nil
 
     public var id: String { fileId }
 
@@ -376,7 +380,7 @@ public struct ItemDetail: Codable, Sendable {
     /// Overviews of `children`, keyed by child id (seasons carry their episodes' overviews here).
     public let childOverviews: [String: String?]
     /// Subtitles can be found for it through the server's Bazarr (a film or episode Sonarr or Radarr manage, with a
-    /// file), for `files.first`, the copy playback picks. Absent from servers before 0.53.
+    /// file), for `subtitleTargetId`. Absent from servers before 0.53.
     public var canSearchSubtitles: Bool? = nil
     /// A film's or episode's versions to choose from, best first, with two or more. Absent from servers before 0.64.
     public var versions: [TitleVersion]? = nil
@@ -399,6 +403,14 @@ public struct Person: Codable, Sendable, Identifiable {
     public let credits: [PersonCredit]
     /// An author's or narrator's biography. Absent from servers before 0.58.
     public var biography: String? = nil
+}
+
+extension ItemDetail {
+    /// The version the page describes: the one chosen, or else the best.
+    public var shownVersion: TitleVersion? { versions?.first(where: \.chosen) ?? versions?.first }
+
+    /// The file subtitles are found for: the version chosen, or else this copy's best file.
+    public var subtitleTargetId: String? { versions?.first(where: \.chosen)?.fileId ?? files.first?.id }
 }
 
 // MARK: - Home and search

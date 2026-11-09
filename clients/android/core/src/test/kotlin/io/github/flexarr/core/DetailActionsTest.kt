@@ -177,4 +177,14 @@ class DetailActionsTest {
         val junk = FlexarrClient.json.decodeFromString(ItemDetail.serializer(), """{"item":$item,"trailerYouTubeId":"not an id"}""")
         assertEquals(null, junk.trailerId)
     }
+
+    @Test
+    fun `the search and the facts follow the version chosen`() {
+        val item = ItemSummary(id = "film", libraryId = "library", kind = MediaKind.Movie, title = "Film", childCount = 0, artwork = Artwork(), userData = UserData(0.0, false, 0))
+        val versions = listOf(TitleVersion("4K", "4K"), TitleVersion("1080p", "1080p", chosen = true, videoCodec = "hevc"))
+        val detail = ItemDetail(item = item, versions = versions)
+        assertEquals("1080p", detail.subtitleTargetId)
+        assertEquals("hevc", detail.shownVersion?.videoCodec)
+        assertEquals("4K", ItemDetail(item = item, versions = listOf(TitleVersion("4K", "4K"))).shownVersion?.fileId)
+    }
 }

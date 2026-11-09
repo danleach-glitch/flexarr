@@ -393,7 +393,8 @@ public static class ItemEndpoints
             series.Genres.Select(g => g.Name).Order().ToList(),
             series.TvdbId, entity.TmdbId ?? series.TmdbId, entity.ImdbId ?? series.ImdbId,
             ancestors, children, credits, files.Select(f => ToDto(f, paths)).ToList(), childOverviews, entity.MatchLocked,
-            CanSearchSubtitles: bazarr && entity.Kind is (MediaKind.Movie or MediaKind.Episode) && entity.ArrId is not null && files.Count > 0,
+            CanSearchSubtitles: bazarr && entity.Kind is (MediaKind.Movie or MediaKind.Episode) && ((entity.ArrId is not null && files.Count > 0)
+                || (entity.LinkGroupId is { } linked && await db.MediaItems.AnyAsync(i => i.LinkGroupId == linked && i.ArrId != null && i.Files.Any(), ct))),
             RatingAge: entity.RatingAge, KidsOverride: profile.IsMainProfile ? entity.KidsOverride : null,
             Book: entity.Kind == MediaKind.Audiobook ? await Books.BookQueries.DetailAsync(db, entity, profile.Id, ct) : null,
             DetailsLocked: entity.DetailsLocked, SortTitle: entity.SortTitle, ArtworkLocked: entity.ArtworkLocked,
@@ -416,7 +417,7 @@ public static class ItemEndpoints
         var choice = await Playback.TitleVersions.ChoiceAsync(db, item, profileId, ct);
         var chosen = choice is null ? null : Streaming.VersionPicker.Chosen(files, choice);
         return offered
-            .Select(f => new VersionDto(f.Id, VersionRules.Label(f), VersionRules.Edition(f), f.DurationSeconds, f.Size, f.Id == chosen?.Id))
+            .Select(f => new VersionDto(f.Id, VersionRules.Label(f), VersionRules.Edition(f), f.DurationSeconds, f.Size, f.Id == chosen?.Id, f.VideoCodec, f.AudioCodec, f.AudioChannels))
             .ToList();
     }
 

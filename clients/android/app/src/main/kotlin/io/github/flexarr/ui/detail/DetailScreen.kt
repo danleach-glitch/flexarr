@@ -84,6 +84,7 @@ import io.github.flexarr.core.Format
 import io.github.flexarr.core.ItemDetail
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.MediaFile
+import io.github.flexarr.core.TitleVersion
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.ShowMissing
 import io.github.flexarr.core.Availability
@@ -354,7 +355,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
     val from = LocalPlayFrom.current
     val navigator = LocalNavigator.current
     val model = androidx.compose.ui.platform.LocalContext.current.appModel
-    // Subtitles from the server's Bazarr, for the first file (the copy playback picks); saying so once they're saved.
+    // Subtitles from the server's Bazarr, for the version chosen or this copy's best file; saying so once they're saved.
     var searchingSubtitlesFor by remember(item.id) { mutableStateOf<String?>(null) }
     var savedSubtitles by remember { mutableStateOf<String?>(null) }
     var choosingScreen by remember(item.id) { mutableStateOf(false) }
@@ -473,8 +474,8 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
                                     }
                                     DetailActions.MenuItem.Version ->
                                         DropdownMenuItem(text = { Text(t(Words.version)) }, onClick = { choosingVersion = true })
-                                    DetailActions.MenuItem.Subtitles -> file?.let { found ->
-                                        DropdownMenuItem(text = { Text(t("Search for subtitles")) }, onClick = { more = false; searchingSubtitlesFor = found.id })
+                                    DetailActions.MenuItem.Subtitles -> detail.subtitleTargetId?.let { found ->
+                                        DropdownMenuItem(text = { Text(t("Search for subtitles")) }, onClick = { more = false; searchingSubtitlesFor = found })
                                     }
                                     DetailActions.MenuItem.GoToShow -> series?.let { show ->
                                         DropdownMenuItem(text = { Text(t(Words.goToShow)) }, onClick = { more = false; navigator.openItem(show.id) })
@@ -600,7 +601,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.sections(
             }
         }
     }
-    detail.files.firstOrNull()?.let { file -> item(key = "file") { FileInfo(file, detail.studio) } }
+    detail.files.firstOrNull()?.let { file -> item(key = "file") { FileInfo(file, detail.shownVersion, detail.studio) } }
 }
 
 @Composable
@@ -679,14 +680,18 @@ private fun episodeTime(episode: ItemSummary): String? {
 }
 
 @Composable
-private fun FileInfo(file: MediaFile, studio: String?) {
-    val video = listOfNotNull(file.height?.let { "${it}p" }, file.videoCodec?.uppercase(Locale.ROOT), file.pictureLabel).joinToString(" ")
-    val audio = listOfNotNull(file.audioCodec?.uppercase(Locale.ROOT), file.audioChannels?.let(::channelsLabel)).joinToString(" ")
+private fun FileInfo(file: MediaFile, version: TitleVersion?, studio: String?) {
+    // With versions, the one that plays or is chosen, which may be in another copy than the one opened.
+    val video = version?.let { listOfNotNull(it.label, it.videoCodec?.uppercase(Locale.ROOT)).joinToString(" ") }
+        ?: listOfNotNull(file.height?.let { "${it}p" }, file.videoCodec?.uppercase(Locale.ROOT), file.pictureLabel).joinToString(" ")
+    val audioCodec = if (version == null) file.audioCodec else version.audioCodec
+    val channels = if (version == null) file.audioChannels else version.audioChannels
+    val audio = listOfNotNull(audioCodec?.uppercase(Locale.ROOT), channels?.let(::channelsLabel)).joinToString(" ")
     val facts = listOfNotNull(
         video.takeIf { it.isNotEmpty() }?.let { t("Video") to it },
         audio.takeIf { it.isNotEmpty() }?.let { t("Audio") to it },
         studio?.let { t("Studio") to it },
-        t("Size") to fileSizeLabel(file.size),
+        t("Size") to fileSizeLabel(version?.size ?: file.size),
     )
     Column(Modifier.padding(horizontal = Edge), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         facts.chunked(2).forEach { pair ->

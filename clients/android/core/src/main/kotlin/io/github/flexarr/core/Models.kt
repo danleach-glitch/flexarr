@@ -320,6 +320,10 @@ data class TitleVersion(
     val size: Long = 0,
     /** The profile's remembered choice. */
     val chosen: Boolean = false,
+    /** What the file holds. */
+    val videoCodec: String? = null,
+    val audioCodec: String? = null,
+    val audioChannels: Int? = null,
 ) {
     /** What it's called in the list: its label, then its cut and its length where those tell it from the others. */
     fun name(all: List<TitleVersion>): String {
@@ -345,7 +349,7 @@ data class ItemDetail(
     val childOverviews: Map<String, String?> = emptyMap(),
     /**
      * Subtitles can be found for it through the server's Bazarr (a film or episode Sonarr or Radarr manage, with a
-     * file), for `files.first()`, the copy playback picks. Absent from servers before 0.53.
+     * file), for `subtitleTargetId`. Absent from servers before 0.53.
      */
     val canSearchSubtitles: Boolean? = null,
     /** A film's or episode's versions to choose from, best first, with two or more. Absent from servers before 0.64. */
@@ -359,6 +363,12 @@ data class ItemDetail(
     /** TMDB's id for a film or show, as text (a show's seasons are requested by it). */
     val tmdbId: String? = null,
 ) {
+    /** The version the page describes: the one chosen, or else the best. */
+    val shownVersion: TitleVersion? get() = versions?.firstOrNull { it.chosen } ?: versions?.firstOrNull()
+
+    /** The file subtitles are found for: the version chosen, or else this copy's best file. */
+    val subtitleTargetId: String? get() = versions?.firstOrNull { it.chosen }?.fileId ?: files.firstOrNull()?.id
+
     /** The trailer's YouTube id, only when it is one: anything else from metadata never reaches a player's address. */
     val trailerId: String? get() = youTubeId(trailerYouTubeId)
 }

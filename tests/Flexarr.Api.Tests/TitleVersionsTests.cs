@@ -489,6 +489,17 @@ public sealed class TitleVersionsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Versions_SayWhatTheirFilesHold()
+    {
+        var detail = await Client().GetFromJsonAsync<JsonElement>(Api($"/items/{_hdItem}"));
+        Assert.All(detail.GetProperty("versions").EnumerateArray(), v =>
+        {
+            Assert.Equal("hevc", v.GetProperty("videoCodec").GetString());
+            Assert.Equal("aac", v.GetProperty("audioCodec").GetString());
+        });
+    }
+
+    [Fact]
     public async Task AHiddenCopy_AddsNothingToAShow()
     {
         var (hd, _, _) = await SeedShowAsync();
