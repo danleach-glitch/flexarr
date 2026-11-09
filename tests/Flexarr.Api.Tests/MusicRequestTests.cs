@@ -264,6 +264,31 @@ public sealed class MusicRequestTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Keeping_Discover_ready_loads_nothing_while_the_charts_are_still_kept()
+    {
+        await SeedOwnedAsync();
+        var warmer = _server.Services.GetRequiredService<Endpoints.MusicRequests.MusicDiscoverWarmer>();
+        var chart = _deezer.Responses["GET /chart/0/tracks?limit=100"];
+        _deezer.Responses.TryRemove("GET /chart/0/tracks?limit=100", out _);
+
+        // Deezer not giving the charts: nothing's kept, so the next look works it out again.
+        await warmer.RunOnceAsync(CancellationToken.None);
+        _deezer.Responses["GET /chart/0/tracks?limit=100"] = chart;
+        await warmer.RunOnceAsync(CancellationToken.None);
+        Assert.Equal(2, _deezer.Requests.Count(r => r.Contains("/chart/0/tracks", StringComparison.Ordinal)));
+
+        // What Lidarr's list and the library are kept for has run out, as it has by every half-hourly look.
+        ((Microsoft.Extensions.Caching.Memory.MemoryCache)_server.Services.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>()).Clear();
+        var sent = _sent.Count;
+        var asked = _deezer.Requests.Count;
+
+        await warmer.RunOnceAsync(CancellationToken.None);
+
+        Assert.Equal(sent, _sent.Count);
+        Assert.Equal(asked, _deezer.Requests.Count);
+    }
+
+    [Fact]
     public async Task Discover_isnt_kept_ready_while_music_cant_be_requested()
     {
         // No music library.

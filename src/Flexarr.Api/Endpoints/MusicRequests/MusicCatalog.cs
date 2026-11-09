@@ -64,6 +64,9 @@ public sealed class MusicCatalog(IHttpClientFactory httpFactory) : IDisposable
 
     public Task<DeezerAlbum> AlbumAsync(long id, CancellationToken ct) => CachedAsync($"album/{id}", Albums, () => Deezer.GetAlbumAsync(id, ct), ct);
 
+    /// <summary>Whether the charts are still kept: the first thing of Discover's to run out, so nothing else needs asking for yet.</summary>
+    public bool ChartsKept => cache.TryGetValue("chart/tracks", out _);
+
     public Task<IReadOnlyList<DeezerTrack>> ChartTracksAsync(CancellationToken ct) => CachedAsync("chart/tracks", Charts, () => Deezer.GetChartTracksAsync(100, ct), ct);
 
     public Task<IReadOnlyList<DeezerArtist>> ChartArtistsAsync(CancellationToken ct) => CachedAsync("chart/artists", Charts, () => Deezer.GetChartArtistsAsync(30, ct), ct);
