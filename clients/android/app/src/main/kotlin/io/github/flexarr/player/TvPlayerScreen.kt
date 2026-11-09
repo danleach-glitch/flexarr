@@ -215,9 +215,9 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
                 }
             },
     ) {
-        VideoSurface(controller.player, controller.keepsScreenOn)
+        VideoSurface(controller.player, controller.keepsScreenOn, onScreenSwitching = { controller.screenSwitching = it })
         SubtitleLayer(controller)
-        if ((controller.isBuffering || controller.isOpening) && controller.error == null) {
+        if ((controller.isBuffering || controller.isOpening || controller.screenSwitching) && controller.error == null) {
             CircularProgressIndicator(Modifier.align(Alignment.Center), color = Flexarr.screen)
         }
         flash?.let {

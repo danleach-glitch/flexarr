@@ -119,6 +119,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         private set
     var isBuffering by mutableStateOf(true)
         private set
+    /** Playing is held while a TV changes its frame rate ([FrameRateMatcher]): waiting, not paused. */
+    var screenSwitching by mutableStateOf(false)
     /** The file has played to its end (the last frame is up). */
     private var hasEnded by mutableStateOf(false)
     /**
@@ -126,7 +128,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
      * counted down to over the last frame (nothing plays for those seconds, but something is about to). A countdown
      * that follows the picture (over the credits, or to a skip) holds while paused, so it keeps nothing on by itself.
      */
-    val keepsScreenOn: Boolean get() = screenStaysOn(isPlaying, isBuffering || isOpening, error != null, countingDown, hasEnded)
+    val keepsScreenOn: Boolean get() = screenStaysOn(isPlaying, isBuffering || isOpening || screenSwitching, error != null, countingDown, hasEnded)
     var position by mutableDoubleStateOf(0.0)
         private set
     var duration by mutableDoubleStateOf(0.0)
@@ -297,7 +299,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                     keepTicking()
                 }
                 // Paused or playing again: the server hears straight away.
-                if (info != null && player.playbackState == Player.STATE_READY) report(paused = !playing)
+                if (info != null && player.playbackState == Player.STATE_READY && !screenSwitching) report(paused = !playing)
                 // Played again from elsewhere (headphones, say) after the sleep timer ran out: awake.
                 if (playing && sleep.phase == VideoSleep.Phase.Asleep) sleep.wake()
             }

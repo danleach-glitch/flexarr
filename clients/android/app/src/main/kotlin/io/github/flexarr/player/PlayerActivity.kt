@@ -449,11 +449,11 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
  * The picture, filling the screen at its own shape. The screen stays on over it only while [keepAwake] (playing or
  * loading, see [screenStaysOn]): paused, the phone's screen times out and the TV's screensaver starts as usual. The
  * phone's player and the TV's. [matchesFrameRate]: a TV switches to the video's frame rate, for films and episodes; a
- * channel would blink the screen as it's watched, and at each change.
+ * channel would blink the screen as it's watched, and at each change. [onScreenSwitching]: playing is held while it switches.
  */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
-internal fun VideoSurface(player: androidx.media3.common.Player, keepAwake: Boolean, matchesFrameRate: Boolean = true) {
+internal fun VideoSurface(player: androidx.media3.common.Player, keepAwake: Boolean, matchesFrameRate: Boolean = true, onScreenSwitching: (Boolean) -> Unit = {}) {
     var matcher by remember { mutableStateOf<FrameRateMatcher?>(null) }
     DisposableEffect(matcher) {
         matcher?.start()
@@ -469,7 +469,7 @@ internal fun VideoSurface(player: androidx.media3.common.Player, keepAwake: Bool
                 subtitleView?.visibility = android.view.View.GONE
                 this.player = player
                 // A TV switches to the film's frame rate when its own setting allows.
-                if (matchesFrameRate && context.isTelevision) (videoSurfaceView as? android.view.SurfaceView)?.let { matcher = FrameRateMatcher(player, it) }
+                if (matchesFrameRate && context.isTelevision) (videoSurfaceView as? android.view.SurfaceView)?.let { matcher = FrameRateMatcher(player, it, onScreenSwitching) }
             }
         },
         modifier = Modifier.fillMaxSize(),

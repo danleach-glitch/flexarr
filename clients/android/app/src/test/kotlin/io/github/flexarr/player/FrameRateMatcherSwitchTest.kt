@@ -3,6 +3,7 @@ package io.github.flexarr.player
 import android.app.Activity
 import android.app.Application
 import android.os.Looper
+import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.media3.common.C
 import androidx.media3.common.Format
@@ -11,6 +12,8 @@ import androidx.media3.common.Player
 import androidx.media3.common.TrackGroup
 import androidx.media3.common.Tracks
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
@@ -23,7 +26,16 @@ import java.lang.reflect.Proxy
 @RunWith(RobolectricTestRunner::class)
 @Config(application = Application::class, sdk = [34])
 class FrameRateMatcherSwitchTest {
+    private var playWhenReady = true
+    private var plays = 0
+    private val switching = mutableListOf<Boolean>()
+
     private val player = Proxy.newProxyInstance(Player::class.java.classLoader, arrayOf(Player::class.java)) { _, method, _ ->
+        when (method.name) {
+            "play" -> { playWhenReady = true; plays++ }
+            "pause" -> playWhenReady = false
+        }
+        if (method.name == "getPlayWhenReady") return@newProxyInstance playWhenReady
         when (method.returnType) {
             Tracks::class.java -> Tracks.EMPTY
             java.lang.Boolean.TYPE -> false
@@ -37,7 +49,7 @@ class FrameRateMatcherSwitchTest {
     /** On a screen, as a view's post only runs once it's attached. */
     private fun matcher(): FrameRateMatcher {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
-        return FrameRateMatcher(player, SurfaceView(activity).also(activity::setContentView))
+        return FrameRateMatcher(player, SurfaceView(activity).also(activity::setContentView), switching::add)
     }
 
     private fun tracks(rate: Float = Format.NO_VALUE.toFloat()): Tracks {
@@ -85,4 +97,82 @@ class FrameRateMatcherSwitchTest {
         shadowOf(Looper.getMainLooper()).idle()
         assertEquals(0f, matcher.wanted)
     }
+
+    private fun pass(millis: Long) = shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(millis))
+
+    @Test fun heldForASwitch_playsAgainOnceTheScreenHasChanged() {
+        val matcher = matcher()
+        matcher.hold()
+        assertFalse(playWhenReady)
+        assertEquals(listOf(true), switching)
+        matcher.screenSwitched()
+        pass(FrameRateMatcher.SETTLE_MS - 1)
+        assertEquals(0, plays)
+        pass(1)
+        assertEquals(1, plays)
+        assertEquals(listOf(true, false), switching)
+    }
+
+    @Test fun aSwitchThatNeverComes_stillPlaysAgain() {
+        val matcher = matcher()
+        matcher.hold()
+        pass(FrameRateMatcher.SWITCH_WAIT_MS - 1)
+        assertEquals(0, plays)
+        pass(1)
+        assertEquals(1, plays)
+    }
+
+    @Test fun alreadyPaused_isntStartedAfterASwitch() {
+        playWhenReady = false
+        val matcher = matcher()
+        matcher.hold()
+        pass(FrameRateMatcher.SWITCH_WAIT_MS)
+        assertEquals(0, plays)
+        assertEquals(emptyList<Boolean>(), switching)
+    }
+
+    @Test fun playPressedWhileHeld_endsTheHold() {
+        val matcher = matcher()
+        matcher.hold()
+        matcher.onPlayWhenReadyChanged(false, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
+        assertEquals(listOf(true), switching) // its own pause doesn't end it
+        matcher.onPlayWhenReadyChanged(true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
+        assertEquals(listOf(true, false), switching)
+        pass(FrameRateMatcher.SWITCH_WAIT_MS)
+        assertEquals(0, plays)
+    }
+
+    @Test fun leavingWhileHeld_doesntStartPlayingBehindTheScreen() {
+        val surface = matcher()
+        surface.hold()
+        surface.surfaceDestroyed(mockHolder)
+        pass(FrameRateMatcher.SWITCH_WAIT_MS)
+        assertEquals(0, plays)
+        assertEquals(listOf(true, false), switching)
+
+        val stopped = matcher()
+        stopped.start()
+        playWhenReady = true
+        stopped.hold()
+        stopped.stop()
+        pass(FrameRateMatcher.SWITCH_WAIT_MS)
+        assertEquals(0, plays)
+    }
+
+    @Test fun onlyASwitchThatIsntSeamless_blanksTheScreen() {
+        val tv = listOf(23.976f, 24f, 50f, 59.94f, 60f)
+        assertTrue(FrameRateMatcher.blanks(24f, 60f, emptyList(), tv))
+        assertTrue(FrameRateMatcher.blanks(23.976f, 59.94f, emptyList(), tv))
+        assertTrue(FrameRateMatcher.blanks(25f, 60f, emptyList(), tv))
+        // Already there, or at a multiple.
+        assertFalse(FrameRateMatcher.blanks(24f, 24f, emptyList(), tv))
+        assertFalse(FrameRateMatcher.blanks(24f, 120f, emptyList(), tv + 120f))
+        assertFalse(FrameRateMatcher.blanks(30f, 60f, emptyList(), tv))
+        // It can go there without blanking.
+        assertFalse(FrameRateMatcher.blanks(24f, 60f, listOf(24f), tv))
+        // Nothing to go to.
+        assertFalse(FrameRateMatcher.blanks(24f, 60f, emptyList(), listOf(50f, 60f)))
+    }
+
+    private val mockHolder = Proxy.newProxyInstance(SurfaceHolder::class.java.classLoader, arrayOf(SurfaceHolder::class.java)) { _, _, _ -> null } as SurfaceHolder
 }
