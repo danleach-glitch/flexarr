@@ -303,6 +303,7 @@ public sealed partial class LibraryScanWorker(
         // A film or show that came back under a new folder only has its TMDB/TVDB id once Radarr or Sonarr matched it.
         await WatchHistoryCarryOver.CarryOverAsync(db, ct);
         await TraktHolds.ApplyAsync(db, ct);
+        await TitleLinker.LinkAsync(db, ct);
 
         NoteScanned(request.Path, scanStarted);
         if (events is not null)

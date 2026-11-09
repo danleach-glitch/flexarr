@@ -118,6 +118,7 @@ public sealed partial class MetadataRefreshWorker(IServiceScopeFactory scopes, L
                     var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
                     await WatchHistoryCarryOver.CarryOverAsync(db, ct);
                     await TraktHolds.ApplyAsync(db, ct);
+                    await TitleLinker.LinkAsync(db, ct);
                 }
             }
             catch (Exception ex) when (!ct.IsCancellationRequested)

@@ -11,7 +11,7 @@ Someone can have the same film or episode more than once: a 4K and a 1080p copy,
 
 `MediaItem.LinkGroupId` groups copies of one title. It's set by `TitleLinker`, never by hand, and null for a title with one copy. No rows or files move, so unlinking only ever means clearing the column.
 
-- Films link to films, and shows to shows, when they share a TMDB, TVDB or IMDb ID, directly or through a third copy.
+- Films link to films, and shows to shows, when they share a TMDB, TVDB, TVmaze or IMDb ID, directly or through a third copy.
 - An ID shared by more than six titles is taken to be wrong and links nothing.
 - Seasons of linked shows link by number. Episodes of linked seasons link by number or air date, and a multi-episode file links only to one covering the same range.
 - The linker runs after scans and metadata refreshes, after Fix match, and once for existing libraries.
@@ -40,7 +40,7 @@ Without a request for a particular file:
 2. A remembered choice gives way only when it would need converting and another version of the same cut wouldn't.
 3. Otherwise the automatic pick looks at the main cut, the cut of the best-quality file, so it never changes cut by itself. It runs the playback decider on each version: plays as it is, then repackaged, then converted. Within a tier, the highest resolution then bitrate wins.
 
-A request naming a file (`FileId`, used when restarting a stream) always gets that file. If it isn't a version this profile can see, the request is refused rather than silently swapped.
+A request naming a file (`FileId`, used when restarting a stream) gets that file. If it isn't a version this profile can see (gone since, or in a hidden library), the request carries on as if it hadn't named one, as it always has: the file can't be reached, and a stream isn't lost because an upgrade replaced its file. The response's `fileId` says what's playing.
 
 The server remembers the choice, so apps only call the endpoint that sets it, and Play asks for no particular file. Warm-ups, Play on another screen, Siri and MCP all follow from that.
 

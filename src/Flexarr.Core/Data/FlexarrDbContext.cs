@@ -20,6 +20,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
     public DbSet<Person> People => Set<Person>();
     public DbSet<Credit> Credits => Set<Credit>();
     public DbSet<PlaybackState> PlaybackStates => Set<PlaybackState>();
+    public DbSet<VersionChoice> VersionChoices => Set<VersionChoice>();
     public DbSet<ContinueWatchingDismissal> ContinueWatchingDismissals => Set<ContinueWatchingDismissal>();
     public DbSet<ShowPlaybackSpeed> ShowPlaybackSpeeds => Set<ShowPlaybackSpeed>();
     public DbSet<Books.BookDetails> BookDetails => Set<Books.BookDetails>();
@@ -128,6 +129,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             // NamedItems.Searched), so queries for one kind by its parent, path or ids keep the indexes they have.
             e.HasIndex(i => new { i.Kind, i.Title }).HasFilter("\"Kind\" IN ('Episode', 'Album', 'Track', 'Audiobook')");
             e.HasIndex(i => i.Path);
+            e.HasIndex(i => i.LinkGroupId);
             e.HasIndex(i => i.AddedAt);
             e.HasIndex(i => i.FirstSeenAt);
             // Coming soon, requests, notifications and watch history all find titles by these.
@@ -463,6 +465,16 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             e.HasIndex(p => new { p.UserId, p.LastPlayedAt });
         });
 
+        modelBuilder.Entity<VersionChoice>(e =>
+        {
+            e.HasKey(c => new { c.ProfileId, c.MediaItemId });
+            e.Property(c => c.ProfileId).HasMaxLength(64);
+            e.Property(c => c.Label).HasMaxLength(64);
+            e.Property(c => c.Edition).HasMaxLength(128);
+            e.HasOne<MediaItem>().WithMany().HasForeignKey(c => c.MediaItemId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Profile>().WithMany().HasForeignKey(c => c.ProfileId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<ShowPlaybackSpeed>(e =>
         {
             e.HasKey(s => new { s.ProfileId, s.SeriesId });
@@ -498,6 +510,65 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
         });
     }
 
+    /// <summary>For <see cref="Scanning.TitleLinker"/>, which sets every copy's watch state itself.</summary>
+    internal bool LeaveWatchStateAlone { get; set; }
+
+    /// <summary>
+    /// A title's copies share their watch state: what's being saved for one copy goes to the others, hidden from this
+    /// profile or not, so a query for one copy reads the right state without knowing about the rest. Subtitle timing
+    /// stays with its copy: it belongs to those files.
+    /// </summary>
+    private async Task MirrorWatchStateAsync(CancellationToken ct)
+    {
+        if (LeaveWatchStateAlone)
+        {
+            return;
+        }
+
+        var saving = ChangeTracker.Entries<PlaybackState>().Where(e => e.State is EntityState.Added or EntityState.Modified).Select(e => e.Entity).ToList();
+        if (saving.Count == 0)
+        {
+            return;
+        }
+
+        var items = saving.Select(s => s.MediaItemId).Distinct().ToList();
+        var groups = await MediaItems.IgnoreQueryFilters().AsNoTracking()
+            .Where(i => items.Contains(i.Id) && i.LinkGroupId != null).Select(i => new { i.Id, i.LinkGroupId }).ToListAsync(ct);
+        if (groups.Count == 0)
+        {
+            return;
+        }
+
+        var groupOf = groups.ToDictionary(g => g.Id, g => g.LinkGroupId!.Value);
+        var groupIds = groupOf.Values.Distinct().ToList();
+        var copies = (await MediaItems.IgnoreQueryFilters().AsNoTracking()
+                .Where(i => groupIds.Contains(i.LinkGroupId!.Value)).Select(i => new { i.Id, Group = i.LinkGroupId!.Value }).ToListAsync(ct))
+            .ToLookup(c => c.Group, c => c.Id);
+        var profiles = saving.Select(s => s.UserId).Distinct().ToList();
+        var copyIds = copies.SelectMany(c => c).ToList();
+        var existing = (await PlaybackStates.IgnoreQueryFilters()
+                .Where(p => profiles.Contains(p.UserId) && copyIds.Contains(p.MediaItemId)).ToListAsync(ct))
+            .ToDictionary(p => (p.UserId, p.MediaItemId));
+        var beingSaved = saving.Select(s => (s.UserId, s.MediaItemId)).ToHashSet();
+
+        foreach (var state in saving.Where(s => groupOf.ContainsKey(s.MediaItemId)))
+        {
+            foreach (var copy in copies[groupOf[state.MediaItemId]].Where(c => c != state.MediaItemId && !beingSaved.Contains((state.UserId, c))))
+            {
+                if (!existing.TryGetValue((state.UserId, copy), out var other))
+                {
+                    other = new PlaybackState { UserId = state.UserId, MediaItemId = copy };
+                    existing[(state.UserId, copy)] = other;
+                    PlaybackStates.Add(other);
+                }
+
+                other.CopyWatchStateFrom(state);
+            }
+        }
+
+        ChangeTracker.DetectChanges();
+    }
+
     public override int SaveChanges(bool acceptAllChangesOnSuccess) =>
         SaveChangesAsync(acceptAllChangesOnSuccess, CancellationToken.None).GetAwaiter().GetResult();
 
@@ -511,6 +582,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
         var changes = ChangeTracker.HasChanges();
         try
         {
+            await MirrorWatchStateAsync(cancellationToken);
             var rated = Rate();
             var redrawn = Redraw(out var redrawnAt);
             if (rated.Count == 0 && redrawn.Count == 0)

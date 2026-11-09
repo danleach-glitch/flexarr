@@ -325,6 +325,7 @@ builder.Services.AddSingleton<SubtitleSyncs>();
 builder.Services.AddSingleton<LyricsCache>();
 builder.Services.AddSingleton<LoudnessCache>();
 builder.Services.AddHostedService<LoudnessBackfill>();
+builder.Services.AddHostedService<Flexarr.Api.Scanning.TitleLinkBackfill>();
 builder.Services.AddHostedService<TrickplayWorker>();
 builder.Services.AddScoped<PlaybackService>();
 builder.Services.AddScoped<WatchlistService>();

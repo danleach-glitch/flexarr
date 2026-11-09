@@ -83,6 +83,12 @@ public sealed class MediaItem
     /// </summary>
     public DateTime? FirstSeenAt { get; set; }
 
+    /// <summary>
+    /// Shared by the copies of one title: a film or show in two libraries, say an HD one and a 4K one, and their seasons
+    /// and episodes. Null with only one copy. Worked out by <see cref="Scanning.TitleLinker"/>, see docs/multi-versions.md.
+    /// </summary>
+    public Guid? LinkGroupId { get; set; }
+
     public List<MediaFile> Files { get; set; } = [];
 
     /// <summary>

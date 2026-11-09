@@ -31,6 +31,43 @@ public sealed class PlaybackState
 
     /// <summary>Seconds this item's subtitles are shown later (or, negative, earlier) to match the speech.</summary>
     public double SubtitleDelaySeconds { get; set; }
+
+    /// <summary>What a title's copies share (see <see cref="MediaItem.LinkGroupId"/>).</summary>
+    public void CopyWatchStateFrom(PlaybackState other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+
+        PositionSeconds = other.PositionSeconds;
+        DurationSeconds = other.DurationSeconds;
+        Watched = other.Watched;
+        PlayCount = other.PlayCount;
+        LastPlayedAt = other.LastPlayedAt;
+        AudioLanguage = other.AudioLanguage;
+        SubtitleLanguage = other.SubtitleLanguage;
+    }
+}
+
+/// <summary>
+/// The version of a title a profile chose. One row per profile and title (whichever of a linked title's copies holds the
+/// file); without one, playback picks by itself.
+/// </summary>
+public sealed class VersionChoice
+{
+    public required string ProfileId { get; set; }
+
+    /// <summary>The film or episode whose file was chosen.</summary>
+    public Guid MediaItemId { get; set; }
+
+    /// <summary>Not a foreign key: an upgrade replaces the file, and <see cref="Label"/> and <see cref="Edition"/> find the new one.</summary>
+    public Guid MediaFileId { get; set; }
+
+    /// <summary><see cref="VersionRules.Label"/> of the file chosen.</summary>
+    public required string Label { get; set; }
+
+    /// <summary><see cref="VersionRules.Edition"/> of the file chosen.</summary>
+    public string? Edition { get; set; }
+
+    public DateTime ChosenAt { get; set; } = DateTime.UtcNow;
 }
 
 public enum MarkerType

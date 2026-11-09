@@ -1,3 +1,4 @@
+using Flexarr.Core.Scanning;
 using System.Globalization;
 using System.Text;
 using Flexarr.Api.Configuration;
@@ -128,6 +129,7 @@ public static partial class MatchEndpoints
                 item.TvMazeId = item.Kind == MediaKind.Series ? request.Id.ToString(CultureInfo.InvariantCulture) : null;
                 await refresher.RefreshItemAsync(item, ct);
                 await db.SaveChangesAsync(ct);
+                await TitleLinker.LinkAsync(db, ct);
                 LogFixed(logs.CreateLogger("Flexarr.Match"), item.Path ?? item.Title, item.Title, item.Year, source, false);
                 return Results.Ok(new FixMatchResultDto(source, false, true));
             }
@@ -205,6 +207,7 @@ public static partial class MatchEndpoints
             }
 
             await db.SaveChangesAsync(ct);
+            await TitleLinker.LinkAsync(db, ct);
             LogFixed(logs.CreateLogger("Flexarr.Match"), item.Path ?? item.Title, item.Title, item.Year, instance.Name, added);
             return Results.Ok(new FixMatchResultDto(instance.Name, added, complete));
         }).WithTags("Match").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
@@ -222,6 +225,7 @@ public static partial class MatchEndpoints
             item.MatchLocked = false;
             await refresher.RefreshItemAsync(item, ct);
             await db.SaveChangesAsync(ct);
+            await TitleLinker.LinkAsync(db, ct);
             return Results.NoContent();
         }).WithTags("Match").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
 
