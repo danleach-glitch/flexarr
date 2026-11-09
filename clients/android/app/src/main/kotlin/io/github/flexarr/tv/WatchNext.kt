@@ -194,10 +194,14 @@ object WatchNext {
         return current.takeUnless { it.takesPin }
     }
 
-    /** The server answered and won't have this sign-in or profile, rather than couldn't be asked. */
+    /**
+     * The server answered and won't have this sign-in or profile, rather than couldn't be asked. A 403 only when it says
+     * why: a bare one can be a reverse proxy during an outage, which is no reason to forget the row and the cards taken
+     * out of it.
+     */
     internal fun isRefused(error: FlexarrException): Boolean = when (error) {
         is FlexarrException.Unauthorized, is FlexarrException.ParentPinNeeded, is FlexarrException.OwnPinWrong, is FlexarrException.KidsLocked -> true
-        is FlexarrException.Http -> error.status == 401 || error.status == 403
+        is FlexarrException.Http -> error.status == 401 || error.guestRemoved || error.chooseProfile
         else -> false
     }
 

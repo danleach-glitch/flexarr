@@ -9,6 +9,9 @@ import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.Profile
 import io.github.flexarr.core.UserData
 import org.junit.Assert.assertEquals
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
@@ -143,9 +146,36 @@ class WatchNextTest {
 
     @Test fun aRefusal_emptiesTheRow_butBeingOfflineKeepsIt() {
         assertTrue(WatchNext.isRefused(FlexarrException.Unauthorized()))
-        assertTrue(WatchNext.isRefused(FlexarrException.Http(403, null)))
         assertTrue(WatchNext.isRefused(FlexarrException.KidsLocked(null)))
         assertFalse(WatchNext.isRefused(FlexarrException.Http(500, null)))
         assertFalse(WatchNext.isRefused(FlexarrException.Unreachable(java.io.IOException())))
+    }
+
+    /** What the real client makes of an answer to the row's own question. */
+    private fun answering(code: Int, type: String, body: String): FlexarrException {
+        val http = okhttp3.OkHttpClient.Builder().addInterceptor { chain ->
+            okhttp3.Response.Builder().request(chain.request()).protocol(okhttp3.Protocol.HTTP_1_1).code(code).message("")
+                .body(body.toResponseBody(type.toMediaType())).build()
+        }.build()
+        val client = io.github.flexarr.core.FlexarrClient("http://flexarr.test/".toHttpUrl(), apiKey = "key", http = http)
+        return try {
+            kotlinx.coroutines.runBlocking { client.continueWatching(take = 1) }
+            throw AssertionError("It should have failed")
+        } catch (e: FlexarrException) {
+            e
+        }
+    }
+
+    @Test fun aProxysBare403_keepsTheRow() {
+        assertFalse(WatchNext.isRefused(answering(403, "text/html", "<html>403 Forbidden</html>")))
+    }
+
+    @Test fun theServersOwn403s_emptyTheRow() {
+        fun problem(flag: String) = answering(403, "application/problem+json", """{"title":"No","$flag":true}""")
+        assertTrue(WatchNext.isRefused(problem("guestRemoved")))
+        assertTrue(WatchNext.isRefused(problem("chooseProfile")))
+        assertTrue(WatchNext.isRefused(problem("kidsLock")))
+        assertTrue(WatchNext.isRefused(problem("parentPin")))
+        assertTrue(WatchNext.isRefused(answering(401, "application/json", "{}")))
     }
 }
