@@ -912,6 +912,33 @@ public sealed class LiveTvTests : IDisposable
     }
 
     [Fact]
+    public async Task The_status_says_when_a_refresh_didnt_ask_the_sources_again()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        await SaveAdminKeyAsync(client, FakeDispatcharr.AdminKey);
+        async Task<JsonElement> StatusAsync() => await client.GetFromJsonAsync<JsonElement>(Api("livetv/status"));
+
+        // Asked, and a source failed: that isn't skipping.
+        _dispatcharr.GuideSourceFails = true;
+        await DownloadAsync();
+        Assert.False((await StatusAsync()).GetProperty("downloadSkipped").GetBoolean());
+        var asked = _dispatcharr.GuideDownloads;
+
+        // Pressed again within the limit: not asked, and the failure stands beside saying so.
+        _dispatcharr.GuideSourceFails = false;
+        await DownloadAsync();
+        Assert.Equal(asked, _dispatcharr.GuideDownloads);
+        var skipped = await StatusAsync();
+        Assert.True(skipped.GetProperty("downloadSkipped").GetBoolean());
+        Assert.Contains("couldn’t download", skipped.GetProperty("downloadError").GetString(), StringComparison.Ordinal);
+
+        // A refresh nobody pressed moves on from it.
+        _server.Services.GetRequiredService<LiveTvStatus>().ForgetDownloadProblem();
+        Assert.False((await StatusAsync()).GetProperty("downloadSkipped").GetBoolean());
+    }
+
+    [Fact]
     public async Task Each_finished_refresh_is_counted_even_when_it_fails_the_same_way()
     {
         var client = Client();

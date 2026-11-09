@@ -22,8 +22,9 @@ namespace Flexarr.Api.LiveTv;
 /// <param name="ChannelsWithoutListings">Channels with nothing listed from now on; null to any other profile, or without Live TV.</param>
 /// <param name="DownloadError">Why Dispatcharr couldn't be asked to download its guides, last time it was. Main profile only.</param>
 /// <param name="RefreshesFinished">Goes up as each refresh finishes, however it went, for telling when one pressed has. Main profile only.</param>
+/// <param name="DownloadSkipped">The last refresh pressed didn't ask the sources, having asked them within the last 15 minutes. Main profile only. Absent from servers before 0.64.</param>
 public sealed record LiveTvStatusDto(bool Configured, int Channels, bool Refreshing, DateTime? RefreshedAt, string? Error, int RewindMinutes,
-    int? ChannelsWithoutListings = null, string? DownloadError = null, int? RefreshesFinished = null);
+    int? ChannelsWithoutListings = null, string? DownloadError = null, int? RefreshesFinished = null, bool? DownloadSkipped = null);
 
 /// <param name="Recording">"scheduled" or "recording" when it's on the DVR's list (the guide says); otherwise null.</param>
 /// <param name="Series">A series covers it (every showing of its title is recorded).</param>
@@ -109,7 +110,8 @@ public static partial class LiveTvEndpoints
             }
 
             return new LiveTvStatusDto(available, channels, status.Refreshing, refreshed, main ? RefreshErrorText(status) : null, o?.RewindMinutes ?? 60, missing,
-                main && !string.IsNullOrEmpty(o?.AdminApiKey) ? DownloadErrorText(status.DownloadProblem) : null, main ? status.RefreshesFinished : null);
+                main && !string.IsNullOrEmpty(o?.AdminApiKey) ? DownloadErrorText(status.DownloadProblem) : null, main ? status.RefreshesFinished : null,
+                main && !string.IsNullOrEmpty(o?.AdminApiKey) ? status.DownloadSkipped : null);
         }).WithTags("Live TV");
 
         group.MapGet("/channels", async (FlexarrDbContext db, CurrentProfile profile, TimeProvider clock, CancellationToken ct) =>

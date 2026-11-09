@@ -30,6 +30,9 @@ public sealed class LiveTvStatus
     /// <summary>What went wrong the last time Dispatcharr was asked to download its guides, until a refresh has moved on from it.</summary>
     public GuideDownloadProblem DownloadProblem { get; private set; }
 
+    /// <summary>The last refresh pressed didn't ask Dispatcharr's sources, having asked them too recently.</summary>
+    public bool DownloadSkipped { get; private set; }
+
     /// <summary>When Dispatcharr was last asked to download its guides and took it up.</summary>
     public DateTime? DownloadedAt { get; private set; }
 
@@ -67,6 +70,7 @@ public sealed class LiveTvStatus
         lock (_lock)
         {
             DownloadProblem = download.Problem;
+            DownloadSkipped = false;
             // A key refused, or Dispatcharr out of reach before it was asked anything, costs its sources nothing, so
             // trying again straight away is fine. Asked at all, the limit applies, however it went from there.
             if (download.Asked || download.Problem is GuideDownloadProblem.None or GuideDownloadProblem.SourceFailed or GuideDownloadProblem.TimedOut)
@@ -83,6 +87,15 @@ public sealed class LiveTvStatus
         lock (_lock)
         {
             DownloadProblem = GuideDownloadProblem.None;
+            DownloadSkipped = false;
+        }
+    }
+
+    internal void SourcesAsked(bool skipped)
+    {
+        lock (_lock)
+        {
+            DownloadSkipped = skipped;
         }
     }
 
@@ -217,9 +230,11 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
         if (status.DownloadedTooRecently(now, forWhom, DownloadsAtMost))
         {
             // Nothing's being asked this time, so nothing's been learned: a fault with a source stands until one is.
+            status.SourcesAsked(skipped: true);
             return;
         }
 
+        status.SourcesAsked(skipped: false);
         status.Started();
         // A new address or key in Settings shouldn't wait for this one to finish.
         using var changed = CancellationTokenSource.CreateLinkedTokenSource(ct);
