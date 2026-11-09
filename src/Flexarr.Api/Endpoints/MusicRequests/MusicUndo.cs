@@ -161,7 +161,8 @@ public static partial class MusicUndo
     /// for an unrequest) and it's searched for. Only for an album somebody has an open request for, so this can't set off a
     /// search for anything else, and only if it's stuck: a failed copy in the queue, or nothing in the queue and no files.
     /// Nothing to do, or an album this profile can't see, answers 204; one that isn't stuck, or was tried just now, 409.
-    /// An album Lidarr has unmonitored stays so: a search for it by id doesn't ask.
+    /// A search by id doesn't ask whether an album is monitored, so one Lidarr has unmonitored stays so, until a copy of it
+    /// is blocklisted: then, as in the sweep, it's monitored, or nothing goes on looking if this search finds nothing.
     /// </summary>
     /// <param name="c">The services.</param>
     /// <param name="body">Which album.</param>
@@ -211,7 +212,13 @@ public static partial class MusicUndo
             retry.StartAfresh(lidarr, album.Id, groups);
             var hopeless = failed.Where(MusicImportRetry.SaysTracksAreMissing).ToList();
             var shared = await SharedDownloadsAsync(c, lidarr, album.Id, hopeless, ct);
-            foreach (var copy in hopeless.Where(q => q.DownloadId is null || !shared.Contains(q.DownloadId)))
+            var blocklisting = hopeless.Where(q => q.DownloadId is null || !shared.Contains(q.DownloadId)).ToList();
+            if (blocklisting.Count > 0 && !album.Monitored)
+            {
+                await c.Client.SetAlbumsMonitoredAsync(lidarr, [album.Id], monitored: true, ct);
+            }
+
+            foreach (var copy in blocklisting)
             {
                 await c.Client.BlocklistFromQueueAsync(lidarr, copy.Id, ct);
                 retry.OweSearch(lidarr, album.Id, requested); // should the search fail, nothing else will bring this back to mind

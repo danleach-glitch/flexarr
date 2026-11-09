@@ -1222,10 +1222,10 @@ public sealed class MusicRequestTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task TryAgain_DoesntMonitorAnAlbumLidarrHasUnmonitored_AndForgetsOnlyThatAlbumsAnswers()
+    public async Task TryAgain_ThatBlocklistsNothing_DoesntMonitorAnAlbumLidarrHasUnmonitored_AndForgetsOnlyThatAlbumsAnswers()
     {
         await MusicLibraryAsync();
-        LidarrGaveUpOnMoisturizer();
+        LidarrScoredMoisturizerLow();
         const string Other = "aaaaaaaa-0000-4000-8000-000000000001";
         var moisturizer = _lidarr.Responses["GET /api/v1/album?foreignAlbumId=" + Moisturizer];
         _lidarr.Responses["GET /api/v1/album?foreignAlbumId=" + Moisturizer] = moisturizer.Replace("\"monitored\":true", "\"monitored\":false", StringComparison.Ordinal);
@@ -1248,6 +1248,32 @@ public sealed class MusicRequestTests : IAsyncLifetime
         _lidarr.Requests.Clear();
         await Sweep.SweepAsync(CancellationToken.None);
         Assert.DoesNotContain(_lidarr.Requests, r => r.Contains("foreignAlbumId=" + Other, StringComparison.Ordinal)); // still settled
+    }
+
+    [Fact]
+    public async Task TryAgain_ThatBlocklistsACopy_MonitorsAnAlbumLidarrHasUnmonitored_SoSomethingGoesOnLooking()
+    {
+        await MusicLibraryAsync();
+        LidarrGaveUpOnMoisturizer();
+        var moisturizer = _lidarr.Responses["GET /api/v1/album?foreignAlbumId=" + Moisturizer];
+        _lidarr.Responses["GET /api/v1/album?foreignAlbumId=" + Moisturizer] = moisturizer.Replace("\"monitored\":true", "\"monitored\":false", StringComparison.Ordinal);
+        await AskedForMoisturizerAsync(addedArtist: false);
+        _sent.Clear();
+
+        Assert.Equal(HttpStatusCode.NoContent, (await TryAgainAsync()).StatusCode);
+
+        var monitor = _sent.Single(s => s.Request == "PUT /api/v1/album/monitor");
+        Assert.Equal(9, monitor.Body!["albumIds"]![0]!.GetValue<int>());
+        Assert.True(monitor.Body!["monitored"]!.GetValue<bool>());
+        var order = _sent.Select(s => s.Request).ToList();
+        Assert.True(order.IndexOf("PUT /api/v1/album/monitor") < order.IndexOf("DELETE /api/v1/queue/5"));
+
+        // Lidarr refusing leaves the copy where it is, and the turn to try again.
+        _lidarr.Responses.TryRemove("PUT /api/v1/album/monitor", out _);
+        Sweep.TryAgainEvery = TimeSpan.Zero;
+        _sent.Clear();
+        Assert.Equal(HttpStatusCode.BadGateway, (await TryAgainAsync()).StatusCode);
+        Assert.DoesNotContain(_sent, s => s.Request.StartsWith("DELETE", StringComparison.Ordinal) || s.Request == "POST /api/v1/command");
     }
 
     [Fact]
