@@ -1285,6 +1285,20 @@ final class AppModel {
         (status?.error ?? status?.downloadError).map(LiveTvRefreshResult.failed) ?? .worked
     }
 
+    /// Why a refresh's wait failed: what's wrong with the connection when it's that, the server's own words when it had
+    /// some (a lapsed admin unlock, say), otherwise the words every client uses.
+    private static func refreshFailure(_ error: Error) -> String {
+        if let error = error as? URLError {
+            return error.code == .cancelled ? t(Words.serverDidntAnswer) : ConnectionError(error).message
+        }
+        guard let error = error as? FlexarrClientError else { return t(Words.serverDidntAnswer) }
+        switch error {
+        case .http(_, let message?): return message
+        case .http, .unexpectedResponse, .invalidResponse: return t(Words.serverDidntAnswer)
+        default: return ConnectionError(error).message
+        }
+    }
+
     /// How the last refresh went, once: for Live TV to say while it's up. Coming back to it later than that, success or
     /// failure, it's `tooLate`.
     func takeLiveTvRefreshResult() -> LiveTvRefreshResult? {
@@ -1330,7 +1344,7 @@ final class AppModel {
             }
         } catch {
             liveTvRefreshLastKnown = Date()
-            if !wait.isCancelled { liveTvRefreshResult = .failed(ConnectionError(error).message) }
+            if !wait.isCancelled { liveTvRefreshResult = .failed(Self.refreshFailure(error)) }
         }
     }
 
