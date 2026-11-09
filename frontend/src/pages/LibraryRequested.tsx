@@ -27,6 +27,8 @@ import { t, Words } from '../i18n'
 const PAGE_SIZE = 200
 /** How often the view asks again while something is downloading or importing. */
 const REFRESH_MS = 30_000
+/** How long the view keeps asking after Try again, while a search has yet to turn into a download. */
+const AFTER_RETRY_MS = 5 * 60_000
 
 /** One card of the view, whichever library it's in. */
 interface Row {
@@ -69,8 +71,14 @@ export function LibraryRequested({ library, viewSwitch }: { library: Library; vi
   const grid = useRef<HTMLDivElement>(null)
   const rows = data?.rows.filter((r) => !gone.has(r.key))
   const answering = data?.answering !== false
+  const [retries, setRetries] = useState(0)
+  useEffect(() => {
+    if (!retries) return
+    const done = setTimeout(() => setRetries(0), AFTER_RETRY_MS)
+    return () => clearTimeout(done)
+  }, [retries])
   // Downloading 40% moves on: asked again now and then while anything is on its way in, so it doesn't look stuck.
-  usePolling(reload, data?.rows.some((r) => r.state === 'downloading' || r.state === 'importing' || r.state === 'couldNotImport') ? REFRESH_MS : null)
+  usePolling(reload, retries || data?.rows.some((r) => r.state === 'downloading' || r.state === 'importing' || r.state === 'couldNotImport') ? REFRESH_MS : null)
 
   // The card that opened the dialog is gone: the keyboard moves on to the next one's Unrequest (or the grid).
   function remove(key: string, index: number) {
@@ -107,7 +115,10 @@ export function LibraryRequested({ library, viewSwitch }: { library: Library; vi
           ) : (
             <div className={music ? 'poster-grid music-albums' : 'poster-grid'} ref={grid} tabIndex={-1}>
               {rows.slice(0, shown).map((r, i) => (
-                <RequestedCard key={r.key} row={r} square={music} offline={!answering} service={service} onGone={() => remove(r.key, i)} onRetried={reload} />
+                <RequestedCard key={r.key} row={r} square={music} offline={!answering} service={service} onGone={() => remove(r.key, i)} onRetried={() => {
+                  setRetries((n) => n + 1)
+                  reload()
+                }} />
               ))}
             </div>
           )}
@@ -191,6 +202,11 @@ function RequestedCard({ row, square, offline, service, onGone, onRetried }: { r
   }, [retried])
   const state = retried && row.state === 'couldNotImport' ? 'searching' : row.state
   const stuck = state === 'couldNotImport'
+  const canTryAgain = stuck && !!row.retry
+  // Why it couldn't is only about a button that's there.
+  useEffect(() => {
+    if (!canTryAgain) setRetryError(undefined)
+  }, [canTryAgain])
 
   async function retry() {
     setRetryError(undefined)
@@ -237,7 +253,7 @@ function RequestedCard({ row, square, offline, service, onGone, onRetried }: { r
         <progress className="requested-progress" value={row.progress} max={1} aria-label={t('{title} downloading', { title: row.title })} />
       )}
       <div className="external-card-actions">
-        {stuck && row.retry && (
+        {canTryAgain && (
           <AsyncButton className="button small" aria-label={t('Try again: {title}', { title: row.title })} onClick={retry} disabled={offline} title={offline ? t('{service} isn’t answering.', { service }) : undefined}>
             {t('Try again')}
           </AsyncButton>

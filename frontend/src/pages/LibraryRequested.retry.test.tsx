@@ -63,4 +63,58 @@ describe('Try again, against the server', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(words)
     expect(screen.getByRole('button', named)).toBeEnabled()
   })
+
+  it('keeps asking for a few minutes after, though nothing is moving yet, so the download shows', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    let state: MusicRequested['state'] = 'couldNotImport'
+    let asked = 0
+    mockApi({
+      '/requests/music/requested': () => {
+        asked++
+        return [album({ state })]
+      },
+      '/requests/music/status': { configured: true, reachable: true },
+      'POST /requests/music/retry': () => {
+        state = 'searching'
+      },
+    })
+    open()
+    fireEvent.click(await screen.findByRole('button', named))
+    expect(await screen.findByText('Searching')).toBeInTheDocument()
+
+    // Searching on its own wouldn't be asked about again.
+    state = 'downloading'
+    await act(() => vi.advanceTimersByTimeAsync(30_000))
+    await waitFor(() => expect(screen.getByText(/^Downloading/)).toBeInTheDocument())
+
+    state = 'searching'
+    await act(() => vi.advanceTimersByTimeAsync(5 * 60_000))
+    const settled = asked
+    await act(() => vi.advanceTimersByTimeAsync(2 * 60_000))
+    expect(asked).toBe(settled)
+  })
+
+  it('takes its failure away once the album isn’t stuck', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    let state: MusicRequested['state'] = 'couldNotImport'
+    mockApi({
+      '/requests/music/requested': () => [album({ state })],
+      '/requests/music/status': { configured: true, reachable: true },
+      'POST /requests/music/retry': () => problem(409, 'Not stuck'),
+    })
+    open()
+    fireEvent.click(await screen.findByRole('button', named))
+    await screen.findByRole('alert')
+
+    state = 'downloading'
+    await act(() => vi.advanceTimersByTimeAsync(30_000))
+    await waitFor(() => expect(screen.getByText(/^Downloading/)).toBeInTheDocument())
+    expect(screen.queryByRole('alert')).toBeNull()
+
+    // Stuck once more, it starts clean.
+    state = 'couldNotImport'
+    await act(() => vi.advanceTimersByTimeAsync(30_000))
+    await screen.findByRole('button', named)
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
 })
