@@ -11,6 +11,8 @@ import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
+import kotlin.math.abs
+import kotlin.math.max
 
 // Kotlin mirrors of `frontend/src/api/types.ts`, as FlexarrKit's Models.swift is for the Apple apps. JSON is camelCase,
 // enums are strings and timestamps ISO 8601 (kept as strings until something needs them as times). Only what the app
@@ -306,6 +308,29 @@ data class GenreCount(
     val covers: List<String>? = null,
 )
 
+/** One of a title's versions: a file, in this copy of the title or another of its copies. */
+@Serializable
+data class TitleVersion(
+    val fileId: String,
+    /** "4K HDR", "1080p". */
+    val label: String,
+    /** "Director's Cut", from the file's name. */
+    val edition: String? = null,
+    val durationSeconds: Double? = null,
+    val size: Long = 0,
+    /** The profile's remembered choice. */
+    val chosen: Boolean = false,
+) {
+    /** What it's called in the list: its label, then its cut and its length where those tell it from the others. */
+    fun name(all: List<TitleVersion>): String {
+        val lengths = all.mapNotNull { it.durationSeconds }.filter { it > 0 }
+        // The server's rule for one cut (VersionRules): within 5% or a minute, whichever is more.
+        val differ = lengths.any { a -> lengths.any { b -> abs(a - b) > max(60.0, 0.05 * max(a, b)) } }
+        val parts = listOfNotNull(label, edition, if (differ) durationSeconds?.let(Format::runtime) else null).filter { it.isNotEmpty() }
+        return if (parts.isEmpty()) "${size / 1_048_576} MB" else parts.joinToString(", ")
+    }
+}
+
 @Serializable
 data class ItemDetail(
     val item: ItemSummary,
@@ -323,6 +348,8 @@ data class ItemDetail(
      * file), for `files.first()`, the copy playback picks. Absent from servers before 0.53.
      */
     val canSearchSubtitles: Boolean? = null,
+    /** A film's or episode's versions to choose from, best first, with two or more. Absent from servers before 0.64. */
+    val versions: List<TitleVersion>? = null,
     /** Films and shows: whether it's on this profile's watchlist. Absent from servers before 0.56 (no watchlist). */
     val onWatchlist: Boolean? = null,
     /** A book's edition, series, chapters and bookmarks. Absent from servers before 0.58. */
@@ -759,6 +786,10 @@ internal data class ProgressReport(val positionSeconds: Double, val paused: Bool
 
 @Serializable
 internal data class WatchedRequest(val watched: Boolean)
+
+/** No `fileId` goes back to the automatic pick. */
+@Serializable
+internal data class VersionRequest(val fileId: String?)
 
 // Pairing and sign-in
 

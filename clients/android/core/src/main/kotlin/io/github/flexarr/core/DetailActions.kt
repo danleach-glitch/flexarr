@@ -27,6 +27,8 @@ object DetailActions {
          * Watchlist (Add to or Remove from watchlist). Start over and Download never move.
          */
         data class Moved(val button: Button) : MenuItem
+        /** Choose a version, with more than one to choose from. */
+        data object Version : MenuItem
         data object Subtitles : MenuItem
         data object GoToShow : MenuItem
     }
@@ -47,6 +49,8 @@ object DetailActions {
         val canSearchSubtitles: Boolean = false,
         /** It can go on a watchlist here: films and shows, from servers that have one. */
         val canWatchlist: Boolean = true,
+        /** It has more than one version. */
+        val canChooseVersion: Boolean = false,
     )
 
     data class Actions(val buttons: List<Button>, val menu: List<MenuItem>)
@@ -76,6 +80,7 @@ object DetailActions {
         }
         val menu = buildList {
             addAll(moved)
+            if (input.canChooseVersion) add(MenuItem.Version)
             if (input.canSearchSubtitles && !input.isKids) add(MenuItem.Subtitles)
             if (input.kind == Kind.EPISODE) add(MenuItem.GoToShow)
         }

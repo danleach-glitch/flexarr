@@ -117,6 +117,7 @@ import io.github.flexarr.ui.subtitles.SubtitleSearchSheet
 import io.github.flexarr.ui.playon.PlayOnSheet
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import io.github.flexarr.ui.components.PersonCard
@@ -323,7 +324,7 @@ private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, 
                 }
                 // No scores for a child.
                 val isKids = LocalContext.current.appModel.isKids
-                FactsLine(item.facts(scores = !isKids), scores = if (isKids) null else item.scores)
+                FactsLine(item.facts(scores = !isKids, versions = detail.versions), scores = if (isKids) null else item.scores)
                 if (detail.genres.isNotEmpty()) {
                     Text(detail.genres.take(3).joinToString(", "), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
                 }
@@ -359,6 +360,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
     var choosingScreen by remember(item.id) { mutableStateOf(false) }
     var showingTrailer by remember(item.id) { mutableStateOf(false) }
     var more by remember(item.id) { mutableStateOf(false) }
+    var choosingVersion by remember(item.id) { mutableStateOf(false) }
     // What Play starts: the item itself, or for a show the next-up episode (falling back to the selected season's first).
     val playable = when (item.kind) {
         MediaKind.Movie, MediaKind.Episode -> item
@@ -393,6 +395,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
             platform = DetailActions.Platform.PHONE,
             canDownload = item.kind == MediaKind.Movie || item.kind == MediaKind.Episode,
             canSearchSubtitles = detail.canSearchSubtitles == true && file != null,
+            canChooseVersion = (detail.versions?.size ?: 0) > 1,
             canWatchlist = onWatchlist != null,
         ),
     )
@@ -450,6 +453,8 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
                                         }
                                         else -> Unit
                                     }
+                                    DetailActions.MenuItem.Version ->
+                                        DropdownMenuItem(text = { Text(t(Words.version)) }, onClick = { more = false; choosingVersion = true })
                                     DetailActions.MenuItem.Subtitles -> file?.let { found ->
                                         DropdownMenuItem(text = { Text(t("Search for subtitles")) }, onClick = { more = false; searchingSubtitlesFor = found.id })
                                     }
@@ -459,6 +464,22 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
                                 }
                             }
                             if (playsOn) DropdownMenuItem(text = { Text(t("Play on another screen")) }, onClick = { more = false; choosingScreen = true })
+                        }
+                        val versions = detail.versions.orEmpty()
+                        DropdownMenu(choosingVersion, onDismissRequest = { choosingVersion = false }) {
+                            val choose = { fileId: String? -> choosingVersion = false; navigator.chooseVersion(item, fileId) }
+                            DropdownMenuItem(
+                                text = { Text(t(Words.automatic)) },
+                                leadingIcon = { RadioButton(versions.none { it.chosen }, onClick = null) },
+                                onClick = { choose(null) },
+                            )
+                            versions.forEach { version ->
+                                DropdownMenuItem(
+                                    text = { Text(version.name(versions)) },
+                                    leadingIcon = { RadioButton(version.chosen, onClick = null) },
+                                    onClick = { choose(version.fileId) },
+                                )
+                            }
                         }
                     }
                 }

@@ -192,6 +192,11 @@ class FlexarrClient(
         send("POST", "items/$id/watched", body = json.encodeToString(WatchedRequest(watched)))
     }
 
+    /** Remembers which version this profile plays, or with null goes back to the automatic pick. */
+    suspend fun setVersion(id: String, fileId: String?) {
+        send("PUT", "items/$id/version", body = json.encodeToString(VersionRequest(fileId)))
+    }
+
     suspend fun person(id: String): Person = get("people/$id")
 
     suspend fun search(query: String): SearchResults = get("search", mapOf("q" to query))
