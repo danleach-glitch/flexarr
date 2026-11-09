@@ -20,6 +20,7 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.runtime.getValue
@@ -244,16 +245,25 @@ internal fun MusicRequestRoundButton(
     isArtist: Boolean,
     name: String,
     ambient: Color,
+    keys: List<String>,
     onRequest: () -> Unit,
     onUndo: () -> Unit,
     labelled: Boolean = false,
 ) {
     var confirming by remember { mutableStateOf(false) }
     val on = state == MusicRequestState.Requested
+    // No longer on (a request that failed went back): there's nothing to take back any more.
+    LaunchedEffect(on) { if (!on) confirming = false }
     val enabled = model.canAskForMusicHere && (state == MusicRequestState.CanRequest || state == MusicRequestState.Requested)
     val icon = state.icon(isArtist) ?: return
     val label = if (on) (if (isArtist) t(Words.following) else t(Words.requested)) else state.label(isArtist).orEmpty()
-    val press = { if (state == MusicRequestState.CanRequest) onRequest() else confirming = true }
+    val press = {
+        when {
+            model.isMusicOnItsWay(keys) -> Unit
+            state == MusicRequestState.CanRequest -> onRequest()
+            else -> confirming = true
+        }
+    }
     val dimmed = !enabled
     val onClickLabel = if (on) musicUndoConfirm(isArtist) else null
     if (labelled) {
@@ -333,7 +343,7 @@ fun MusicExternalCard(model: AppModel, item: MusicExternal, width: Dp?, modifier
         !canAsk -> emptyList()
         state == MusicRequestState.CanRequest -> listOf(MenuAction(state.label(item.isArtist)!!, state.icon(item.isArtist)) { request() })
         state == MusicRequestState.Requested && !item.isArtist ->
-            listOf(MenuAction(musicUndoConfirm(isArtist = false), FlexarrIcons.requested) { confirming = true })
+            listOf(MenuAction(musicUndoConfirm(isArtist = false), FlexarrIcons.requested) { if (!model.isMusicOnItsWay(listOf(item.id))) confirming = true })
         else -> emptyList()
     }
     val hasPage = item.hasPage
@@ -368,6 +378,7 @@ fun MusicExternalCard(model: AppModel, item: MusicExternal, width: Dp?, modifier
         }
         ItemMenu(actions, menu, onDismiss = { menu = false })
     }
+    LaunchedEffect(state) { if (state != MusicRequestState.Requested) confirming = false }
     if (confirming) MusicUndoDialog(isArtist = false, item.title, onConfirm = { navigator.unrequestMusic(model, item) }, onDismiss = { confirming = false })
 }
 
@@ -393,6 +404,7 @@ private fun MusicRequestChip(model: AppModel, item: MusicExternal, state: MusicR
     val navigator = LocalNavigator.current
     var confirming by remember { mutableStateOf(false) }
     val on = state == MusicRequestState.Requested
+    LaunchedEffect(on) { if (!on) confirming = false }
     val canAsk = model.canAskForMusicHere
     val enabled = when (state) {
         MusicRequestState.CanRequest, MusicRequestState.Requested -> canAsk
@@ -407,8 +419,8 @@ private fun MusicRequestChip(model: AppModel, item: MusicExternal, state: MusicR
             .pressable(
                 {
                     when (state) {
-                        MusicRequestState.CanRequest -> onRequest()
-                        MusicRequestState.Requested -> confirming = true
+                        MusicRequestState.CanRequest -> if (!model.isMusicOnItsWay(listOf(item.id))) onRequest()
+                        MusicRequestState.Requested -> if (!model.isMusicOnItsWay(listOf(item.id))) confirming = true
                         else -> navigator.openMusic(item)
                     }
                 },
@@ -553,6 +565,7 @@ fun ExternalArtistScreen(model: AppModel, deezerId: Long) {
                                         model, follow, isArtist = true, name = artist.name, ambient = Flexarr.silver,
                                         // Named when it's the page's only button; beside In your library, its icon alone.
                                         labelled = libraryId == null,
+                                        keys = keys,
                                         onRequest = { navigator.requestMusic(model, summary, keys) },
                                         onUndo = { navigator.unfollowMusic(model, keys) { it.unfollowArtist(deezerId = deezerId) } },
                                     )
@@ -630,6 +643,7 @@ fun ExternalAlbumScreen(model: AppModel, deezerId: Long) {
                                     MusicRequestRoundButton(
                                         model, request, isArtist = false, name = album.title, ambient = Flexarr.silver,
                                         labelled = true,
+                                        keys = listOf(summary.id),
                                         onRequest = { navigator.requestMusic(model, summary) },
                                         onUndo = { navigator.unrequestMusic(model, summary) },
                                     )

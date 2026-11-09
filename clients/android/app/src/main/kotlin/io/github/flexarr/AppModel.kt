@@ -829,6 +829,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** Music requests, unfollows and unrequests on their way, so a second press (or another card for the same album) sends nothing. */
     private var musicOnItsWay: Set<String> = emptySet()
 
+    /** Something for [keys] is on its way: a press meanwhile does nothing, as on Apple's apps. */
+    fun isMusicOnItsWay(keys: List<String>): Boolean = keys.any { it in musicOnItsWay }
+
     /**
      * Asks Lidarr for what [keys] name (the first one decides), once: false, sending nothing, while it's asked already or
      * something for it is on its way. It shows as asked from the press. Throws what went wrong, having put it back.
