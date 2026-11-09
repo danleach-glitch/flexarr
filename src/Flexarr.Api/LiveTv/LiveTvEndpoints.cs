@@ -61,7 +61,7 @@ public static partial class LiveTvEndpoints
     internal static string? DownloadErrorText(GuideDownloadProblem problem) => problem switch
     {
         GuideDownloadProblem.None => null,
-        GuideDownloadProblem.KeyRefused => Loc.T("Dispatcharr refused the key. It needs an admin’s key, on Dispatcharr 0.20 or later."),
+        GuideDownloadProblem.KeyRefused => Loc.T("Dispatcharr refused the admin API key in Settings › Connections. It needs an admin’s, on Dispatcharr 0.20 or later."),
         GuideDownloadProblem.NotSupported => Loc.T("This version of Dispatcharr can’t be asked to download its guides."),
         GuideDownloadProblem.SourceFailed => Loc.T("Dispatcharr couldn’t download one of its guides. Check its guide sources."),
         GuideDownloadProblem.TimedOut => Loc.T("Dispatcharr is taking a while to download its guides. They’ll come in at the next refresh."),

@@ -152,7 +152,7 @@ public static class SettingsEndpoints
             ToDto(options.CurrentValue, await AvailableAsync(options.CurrentValue, ct), await LiveTv.DvrFolders.ResolveAsync(db, options.CurrentValue, ct),
                 await MainHasOwnPinAsync(db, ct)));
 
-        group.MapPut("/", async (SettingsUpdate update, IOptionsMonitor<FlexarrOptions> options, LiveTv.LiveTvRefreshSignal liveTvRefresh, FlexarrDbContext db,
+        group.MapPut("/", async (SettingsUpdate update, IOptionsMonitor<FlexarrOptions> options, LiveTv.LiveTvRefreshSignal liveTvRefresh, LiveTv.DispatcharrGuides guides, FlexarrDbContext db,
             ILibraryScanQueue scans, HttpContext http, CurrentProfile profile, PinGuard guard, CancellationToken ct) =>
         {
             var current = options.CurrentValue;
@@ -207,6 +207,18 @@ public static class SettingsEndpoints
                 && dvrFolder != current.LiveTv?.DvrFolder && WritableFolder.Problem(dvrFolder) is { } dvrProblem)
             {
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["liveTv"] = [dvrProblem] });
+            }
+
+            // A new admin key is tried now: the next Refresh guide, on another page, is a poor place to find out it's wrong.
+            // Only a refusal stops the save: Dispatcharr being away says nothing about the key.
+            if (update.LiveTv is { AdminApiKey: { } typedKey } tried && typedKey.Trim() is { Length: > 0 } newKey && WebAddress(tried.BaseUrl) is { } dispatcharr
+                && !(newKey == current.LiveTv?.AdminApiKey && SameServer(current.LiveTv.BaseUrl, tried.BaseUrl))
+                && await TriedKeyAsync(guides, dispatcharr, newKey, ct) == LiveTv.GuideDownloadProblem.KeyRefused)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["liveTv"] = [Loc.T("Dispatcharr refused that admin API key. It needs an admin’s, on Dispatcharr 0.20 or later.")],
+                });
             }
 
             // The file watcher reloads options shortly after the write; the response waits for the reload of this write
@@ -625,6 +637,20 @@ public static class SettingsEndpoints
         Uri.TryCreate(text?.Trim(), UriKind.Absolute, out var url) && (url.Scheme == Uri.UriSchemeHttp || url.Scheme == Uri.UriSchemeHttps) ? url : null;
 
     /// <summary>Same scheme, host and port: where a saved key may be sent.</summary>
+    private static async Task<LiveTv.GuideDownloadProblem> TriedKeyAsync(LiveTv.DispatcharrGuides guides, Uri dispatcharr, string key, CancellationToken ct)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(10));
+        try
+        {
+            return await guides.CheckKeyAsync(dispatcharr, key, timeout.Token);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return LiveTv.GuideDownloadProblem.Unreachable;
+        }
+    }
+
     internal static bool SameServer(string? saved, string? given) =>
         WebAddress(saved) is { } a && WebAddress(given) is { } b
         && a.Scheme == b.Scheme && string.Equals(a.Host, b.Host, StringComparison.OrdinalIgnoreCase) && a.Port == b.Port;

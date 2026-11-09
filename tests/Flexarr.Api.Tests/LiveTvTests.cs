@@ -41,12 +41,22 @@ public sealed class FakeDispatcharr : HttpMessageHandler
 
     public bool GuideSourceFails { get; set; }
 
+    /// <summary>Answers who a key belongs to, as Dispatcharr 0.20 does; otherwise a 404, as an older one.</summary>
+    public bool SaysWhoKeysAreFor { get; set; }
+
     private int _guideDownloads;
 
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var url = request.RequestUri!;
         Requests.Enqueue(url);
+        if (SaysWhoKeysAreFor && url.AbsolutePath == "/api/accounts/users/me/")
+        {
+            return Task.FromResult(request.Headers.TryGetValues("X-API-Key", out var key) && key.Single() == AdminKey
+                ? Json("""{"user_level":10}""")
+                : new HttpResponseMessage(HttpStatusCode.Unauthorized));
+        }
+
         if (url.AbsolutePath.StartsWith("/api/epg/", StringComparison.Ordinal))
         {
             if (!request.Headers.TryGetValues("X-API-Key", out var keys) || keys.Single() != AdminKey)
@@ -931,6 +941,26 @@ public sealed class LiveTvTests : IDisposable
         Assert.Equal(1, _dispatcharr.GuideDownloads);
         await DownloadAsync();
         Assert.Equal(1, _dispatcharr.GuideDownloads);
+    }
+
+    [Fact]
+    public async Task Saving_a_wrong_admin_key_says_so_and_leaves_what_was_saved()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        await SaveAdminKeyAsync(client, FakeDispatcharr.AdminKey);
+        _dispatcharr.SaysWhoKeysAreFor = true;
+
+        var refused = await client.PutAsJsonAsync(Api("settings"), new { liveTv = new { baseUrl = FakeDispatcharr.Root, username = FakeDispatcharr.User, adminApiKey = "wrong" } });
+
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Contains("admin API key", await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.True((await LiveTvSettingsAsync(client, l => l.GetProperty("hasAdminApiKey").GetBoolean())).GetProperty("hasAdminApiKey").GetBoolean());
+
+        // The right one is fine, and the same one again isn't asked about.
+        var before = _dispatcharr.Requests.Count(r => r.AbsolutePath == "/api/accounts/users/me/");
+        (await client.PutAsJsonAsync(Api("settings"), new { liveTv = new { baseUrl = FakeDispatcharr.Root, username = FakeDispatcharr.User, adminApiKey = FakeDispatcharr.AdminKey } })).EnsureSuccessStatusCode();
+        Assert.Equal(before, _dispatcharr.Requests.Count(r => r.AbsolutePath == "/api/accounts/users/me/"));
     }
 
     [Fact]
