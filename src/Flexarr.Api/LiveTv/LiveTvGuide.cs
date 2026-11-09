@@ -45,6 +45,9 @@ public sealed class LiveTvStatus
     /// <summary>Channels with nothing ahead after the last refresh: only that falling says more might be on its way.</summary>
     private int? _missingAfterRead;
 
+    /// <summary>How many times a downloaded guide has been read through: it's the slow part of a refresh that finds nothing new.</summary>
+    internal int GuideParses { get; private set; }
+
     /// <summary>Which address and key the download stamp is for: a new one owes nothing to the old one's limit.</summary>
     private int _downloadedFor;
 
@@ -80,6 +83,14 @@ public sealed class LiveTvStatus
         lock (_lock)
         {
             DownloadProblem = GuideDownloadProblem.None;
+        }
+    }
+
+    internal void GuideParsed()
+    {
+        lock (_lock)
+        {
+            GuideParses++;
         }
     }
 
@@ -168,10 +179,11 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
     private static readonly TimeSpan RewriteCutGuideEvery = TimeSpan.FromDays(1);
 
     /// <summary>
-    /// The guide last written to each database (by its connection string): a hash of the downloaded guide and of the
-    /// channels it was read for, and whether anything was left out for being too far ahead or past the limit.
+    /// The guide last written to each database (by its connection string): a hash of its programmes and of the channels
+    /// it was read for, the same of the last file found to hold them, and whether anything was left out for being too far
+    /// ahead or past the limit.
     /// </summary>
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string Hash, bool CutAhead, DateTime At)> Written = new(StringComparer.Ordinal);
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string Hash, string FileHash, bool CutAhead, DateTime At)> Written = new(StringComparer.Ordinal);
 
     /// <summary>Whether a full refresh is due; a channel with nothing ahead brings it forward.</summary>
     public async Task<bool> IsDueAsync(DateTime now, CancellationToken ct)
@@ -358,15 +370,18 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
         var from = now - KeptBehind;
         var until = now + KeptAhead;
 
-        // What's listed, and for which channels: the same again means the same guide, give or take what's slipped into
-        // the past since (see below). The programmes rather than the file, whose bytes can differ with nothing new in them.
+        // Two hashes of the same channels: the file's bytes, which spare reading it at all when they're the same again, and
+        // what's listed in it, because a file's bytes can differ with nothing new in them (a date at the top, say).
+        using var fileHash = System.Security.Cryptography.IncrementalHash.CreateHash(System.Security.Cryptography.HashAlgorithmName.SHA256);
         using var hash = System.Security.Cryptography.IncrementalHash.CreateHash(System.Security.Cryptography.HashAlgorithmName.SHA256);
         foreach (var (guideId, ids) in byGuideId.OrderBy(g => g.Key, StringComparer.Ordinal))
         {
-            hash.AppendData(System.Text.Encoding.UTF8.GetBytes($"{guideId}={string.Join(',', ids.Order())};"));
+            var channel = System.Text.Encoding.UTF8.GetBytes($"{guideId}={string.Join(',', ids.Order())};");
+            fileHash.AppendData(channel);
+            hash.AppendData(channel);
         }
 
-        // Kept on disk until it's known to be new, so the same guide again costs a download and not every programme in memory.
+        // Kept on disk until it's known to be new, so the same file again costs a download and not every programme in memory.
         await using var file = new FileStream(Path.Combine(Path.GetTempPath(), $"flexarr-guide-{Guid.NewGuid():N}.xml"), FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 81920,
             FileOptions.Asynchronous | FileOptions.DeleteOnClose);
         await using (var guide = await client.OpenGuideAsync(account, ct))
@@ -375,17 +390,8 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
             int got;
             while ((got = await guide.ReadAsync(buffer, ct)) > 0)
             {
+                fileHash.AppendData(buffer, 0, got);
                 await file.WriteAsync(buffer.AsMemory(0, got), ct);
-            }
-        }
-
-        file.Position = 0;
-        await foreach (var p in XmltvParser.ProgrammesAsync(file, ct))
-        {
-            if (byGuideId.ContainsKey(p.ChannelId))
-            {
-                hash.AppendData(System.Text.Encoding.UTF8.GetBytes(
-                    $"{p.ChannelId}\0{p.Start.Ticks}\0{p.End.Ticks}\0{p.Title}\0{p.Subtitle}\0{p.Description}\0{p.Category}\0{p.Season}\0{p.Episode}\0{p.ImageUrl}\0{p.IsNew}\n"));
             }
         }
 
@@ -394,15 +400,16 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
         // hold the database's one write lock for nothing. A guide with some left out at the far end does need writing
         // again as they come into reach, but only every so often: they arrive a day at a time.
         var key = db.Database.GetConnectionString() ?? "";
-        var read = Convert.ToHexString(hash.GetHashAndReset());
-        if (Written.TryGetValue(key, out var last) && last.Hash == read && (!last.CutAhead || now - last.At < RewriteCutGuideEvery))
+        var bytes = Convert.ToHexString(fileHash.GetHashAndReset());
+        var known = Written.TryGetValue(key, out var last);
+        var keep = known && (!last.CutAhead || now - last.At < RewriteCutGuideEvery);
+        if (keep && last.FileHash == bytes)
         {
-            await db.LiveProgrammes.Where(p => p.End < from).ExecuteDeleteAsync(ct);
-            status.GuideRead(await MissingAsync(now, ct));
-            return await db.LiveProgrammes.CountAsync(ct);
+            return await SameGuideAsync(from, now, ct);
         }
 
         file.Position = 0;
+        status.GuideParsed();
         var fresh = new List<LiveProgramme>();
         var cutAhead = false;
         // The limit is shared out, so a huge line-up keeps a shorter guide on every channel, not a full one on those that
@@ -413,7 +420,14 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
         await foreach (var p in XmltvParser.ProgrammesAsync(file, ct))
         {
             cutAhead |= p.Start > until;
-            if (p.End < from || p.Start > until || !byGuideId.TryGetValue(p.ChannelId, out var ids))
+            if (!byGuideId.TryGetValue(p.ChannelId, out var ids))
+            {
+                continue;
+            }
+
+            hash.AppendData(System.Text.Encoding.UTF8.GetBytes(
+                $"{p.ChannelId}\0{p.Start.Ticks}\0{p.End.Ticks}\0{p.Title}\0{p.Subtitle}\0{p.Description}\0{p.Category}\0{p.Season}\0{p.Episode}\0{p.ImageUrl}\0{p.IsNew}\n"));
+            if (p.End < from || p.Start > until)
             {
                 continue;
             }
@@ -445,6 +459,14 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
             }
         }
 
+        var read = Convert.ToHexString(hash.GetHashAndReset());
+        if (keep && last.Hash == read)
+        {
+            // A new file with the same programmes: remembered, so it isn't read through again while it stays the same.
+            Written[key] = (last.Hash, bytes, last.CutAhead, last.At);
+            return await SameGuideAsync(from, now, ct);
+        }
+
         if (overLimit)
         {
             LogGuideCut(perChannel);
@@ -465,9 +487,16 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
         }
 
         await transaction.CommitAsync(ct);
-        Written[key] = (read, cutAhead, now);
+        Written[key] = (read, bytes, cutAhead, now);
         status.GuideRead(await MissingAsync(now, ct));
         return fresh.Count;
+    }
+
+    private async Task<int> SameGuideAsync(DateTime from, DateTime now, CancellationToken ct)
+    {
+        await db.LiveProgrammes.Where(p => p.End < from).ExecuteDeleteAsync(ct);
+        status.GuideRead(await MissingAsync(now, ct));
+        return await db.LiveProgrammes.CountAsync(ct);
     }
 
     private Task<int> MissingAsync(DateTime now, CancellationToken ct) =>

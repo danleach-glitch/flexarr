@@ -853,6 +853,51 @@ public sealed class LiveTvTests : IDisposable
     }
 
     [Fact]
+    public async Task A_guide_is_read_through_once_when_new_and_not_at_all_when_its_the_same_file()
+    {
+        var client = Client();
+        var status = _server.Services.GetRequiredService<LiveTvStatus>();
+        await ConnectAsync(client);
+        Assert.Equal(1, status.GuideParses); // new: once, for both knowing it's new and writing it
+
+        await RefreshAsync();
+        Assert.Equal(1, status.GuideParses); // the same file
+
+        var dated = _dispatcharr.Guide.Replace("<tv>", """<tv date="20261109120000">""", StringComparison.Ordinal);
+        _dispatcharr.Guide = dated;
+        await RefreshAsync();
+        Assert.Equal(2, status.GuideParses); // a new file has to be looked in
+        await RefreshAsync();
+        Assert.Equal(2, status.GuideParses); // and is known from then on
+
+        _dispatcharr.Guide = dated.Replace("Doctor Who", "Doctor Who: Specials", StringComparison.Ordinal);
+        await RefreshAsync();
+        Assert.Equal(3, status.GuideParses);
+        var titles = (await GuideProgrammeTitlesAsync()).Order();
+        Assert.Equal(["Doctor Who: Specials", "The News"], titles);
+    }
+
+    [Fact]
+    public async Task The_same_file_is_read_again_for_a_new_channel_it_already_lists()
+    {
+        var client = Client();
+        _dispatcharr.Guide = _dispatcharr.Guide.Replace("</tv>", $"""<programme start="{Xmltv(DateTime.UtcNow.AddMinutes(-5))}" stop="{Xmltv(DateTime.UtcNow.AddMinutes(30))}" channel="301"><title>New arrival</title></programme></tv>""", StringComparison.Ordinal);
+        await ConnectAsync(client);
+        Assert.DoesNotContain("New arrival", await GuideProgrammeTitlesAsync());
+
+        _dispatcharr.Channels.Add((4, 301, "Film4", "UK General", null));
+        await RefreshAsync();
+
+        Assert.Contains("New arrival", await GuideProgrammeTitlesAsync());
+    }
+
+    private async Task<List<string>> GuideProgrammeTitlesAsync()
+    {
+        await using var scope = _server.Services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<Flexarr.Core.Data.FlexarrDbContext>().LiveProgrammes.Select(p => p.Title).ToListAsync();
+    }
+
+    [Fact]
     public async Task A_refresh_that_fails_isnt_tried_again_every_few_minutes_for_an_empty_channel()
     {
         var client = Client();
