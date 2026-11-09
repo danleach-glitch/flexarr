@@ -19,6 +19,8 @@ struct LiveGuideView: View {
     /// The guide as fetched: kept a while (`LiveGuide.keptFor`) rather than downloaded again at every look, and asked
     /// for (`LiveGuidePlan`) for the window shown and an hour more, and for only the favourites while they're shown.
     @State private var kept: KeptLiveGuide?
+    /// Why the guide couldn't be had, with none to show.
+    @State private var failure: String?
     /// The guide being asked for, so the same isn't asked twice at once.
     @State private var asking: LiveGuideRequest?
     @State private var windowStart = LiveGuideView.halfHour(before: Date())
@@ -93,6 +95,11 @@ struct LiveGuideView: View {
                 } action: { _, rows in
                     shownRows = rows
                 }
+            } else if let failure {
+                StatusView(state: .failed(failure) {
+                    self.failure = nil
+                    Task { await load() }
+                })
             } else {
                 StatusView(state: .loading)
             }
@@ -278,7 +285,13 @@ struct LiveGuideView: View {
               request != asking else { return }
         asking = request
         defer { if asking == request { asking = nil } }
-        if let loaded = try? await client.liveGuide(request, kept: kept) { kept = loaded }
+        do {
+            kept = try await client.liveGuide(request, kept: kept)
+            failure = nil
+        } catch {
+            // With a guide to show, it stays up, and the next look asks again.
+            if kept == nil, !Task.isCancelled { failure = ConnectionError(error).message }
+        }
     }
 
     /// Does a recording action, then fetches the guide again for its marks; says why if it couldn't be done.
