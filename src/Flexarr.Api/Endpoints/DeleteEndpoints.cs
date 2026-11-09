@@ -17,7 +17,7 @@ namespace Flexarr.Api.Endpoints;
 /// <summary>What deleting a title will do: Radarr or Sonarr delete it, or (when neither manages it) Flexarr deletes these files.</summary>
 /// <param name="ManagedBy">The app that deletes it, if one does.</param>
 /// <param name="Files">What Flexarr deletes itself: all its files if no app manages it, or a managed episode's extra files.</param>
-/// <param name="Copies">Each copy of a linked title, all of which go when the delete asks for allCopies. Absent from servers before 0.64, and for a title with one copy.</param>
+/// <param name="Copies">Each copy (a copy in a library hidden from a profile that hasn't unlocked has no library or files) of a linked title, all of which go when the delete asks for allCopies. Absent from servers before 0.64, and for a title with one copy.</param>
 public sealed record DeletionDto(string? ManagedBy, IReadOnlyList<string> Files, IReadOnlyList<DeletionCopyDto>? Copies = null);
 
 /// <summary>One copy of a title being deleted: which library it's in, who deletes it, and the files Flexarr deletes itself.</summary>
@@ -34,7 +34,7 @@ public static partial class DeleteEndpoints
     public static RouteGroupBuilder MapDeleteEndpoints(this RouteGroupBuilder api)
     {
         // Asked before confirming, so the dialog can say who deletes it and, when it's Flexarr, list the files.
-        api.MapGet("/items/{id:guid}/deletion", async (Guid id, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, CancellationToken ct) =>
+        api.MapGet("/items/{id:guid}/deletion", async (Guid id, FlexarrDbContext db, Profiles.CurrentProfile profile, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, CancellationToken ct) =>
         {
             var item = await db.MediaItems.AsNoTracking().Include(i => i.Parent).ThenInclude(p => p!.Parent).FirstOrDefaultAsync(i => i.Id == id, ct);
             if (item is null)
@@ -46,13 +46,13 @@ public static partial class DeleteEndpoints
             var instance = item.Kind == MediaKind.Audiobook ? null : Manager(item, options.CurrentValue).Instance
                 ?? (item.Kind == MediaKind.Album ? LidarrOfArtist(item, options.CurrentValue)?.Lidarr : null);
             return Results.Ok(LooksForOwner(item, options.CurrentValue)
-                ? await PlanCopiesAsync(db, item, options.CurrentValue, arr, ct)
+                ? await PlanCopiesAsync(db, item, profile, options.CurrentValue, arr, ct)
                 : new DeletionDto(instance?.Name, instance is null ? await FilesAsync(db, item, ct) : await ExtrasAsync(db, item, instance, Manager(item, options.CurrentValue).ArrId, options.CurrentValue, arr, ct)));
         }).WithTags("Items").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
 
         // Deletes the item named, and every copy of it only when asked to with ?allCopies=true (added in 0.64): a caller
         // that doesn't know about copies mustn't take a copy in another library with it.
-        api.MapDelete("/items/{id:guid}", async (Guid id, bool? allCopies, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, ILoggerFactory logs, Books.BookFileConverter converter,
+        api.MapDelete("/items/{id:guid}", async (Guid id, bool? allCopies, FlexarrDbContext db, Profiles.CurrentProfile profile, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, ILoggerFactory logs, Books.BookFileConverter converter,
             Microsoft.Extensions.Caching.Memory.IMemoryCache cache, CancellationToken ct) =>
         {
             var item = await db.MediaItems.AsNoTracking().Include(i => i.Parent).ThenInclude(p => p!.Parent).FirstOrDefaultAsync(i => i.Id == id, ct);
@@ -62,7 +62,7 @@ public static partial class DeleteEndpoints
             }
 
             return LooksForOwner(item, options.CurrentValue)
-                ? await DeleteCopiesAsync(db, item, allCopies == true, options, arr, logs, converter, cache, ct)
+                ? await DeleteCopiesAsync(db, item, allCopies == true, profile, options, arr, logs, converter, cache, ct)
                 : await DeleteOneAsync(db, item, Manager(item, options.CurrentValue), options, arr, logs, converter, cache, ct);
         }).WithTags("Items").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
 
@@ -86,10 +86,15 @@ public static partial class DeleteEndpoints
     /// them. Each goes through whichever Radarr or Sonarr holds its files, or from disk if none does. One that fails
     /// doesn't stop the others, and is reported.
     /// </summary>
-    private static async Task<IResult> DeleteCopiesAsync(FlexarrDbContext db, MediaItem item, bool allCopies, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, ILoggerFactory logs,
+    private static async Task<IResult> DeleteCopiesAsync(FlexarrDbContext db, MediaItem item, bool allCopies, Profiles.CurrentProfile profile, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, ILoggerFactory logs,
         Books.BookFileConverter converter, Microsoft.Extensions.Caching.Memory.IMemoryCache cache, CancellationToken ct)
     {
         var copies = allCopies ? await CopiesAsync(db, item, ct) : [item];
+        if (!profile.IsAdmin && (await HiddenAsync(db, copies, ct)).Count > 0)
+        {
+            return Problems.Of("One copy is in a library hidden from this profile. Unlock first. Nothing was deleted.", status: StatusCodes.Status403Forbidden);
+        }
+
         var libraries = await db.Libraries.AsNoTracking().IgnoreQueryFilters().ToDictionaryAsync(l => l.Id, l => l.Name, ct);
         var failures = new List<string>();
         var status = StatusCodes.Status502BadGateway;
@@ -141,13 +146,22 @@ public static partial class DeleteEndpoints
     }
 
     /// <summary>What deleting a linked title will do, for each copy.</summary>
-    private static async Task<DeletionDto> PlanCopiesAsync(FlexarrDbContext db, MediaItem item, FlexarrOptions options, ArrClient arr, CancellationToken ct)
+    private static async Task<DeletionDto> PlanCopiesAsync(FlexarrDbContext db, MediaItem item, Profiles.CurrentProfile profile, FlexarrOptions options, ArrClient arr, CancellationToken ct)
     {
         var libraries = await db.Libraries.AsNoTracking().IgnoreQueryFilters().ToDictionaryAsync(l => l.Id, l => l.Name, ct);
         var plans = new List<DeletionCopyDto>();
         var own = new DeletionDto(null, []);
-        foreach (var copy in await CopiesAsync(db, item, ct))
+        var copies = await CopiesAsync(db, item, ct);
+        // Named only once unlocked: the main profile's PIN is what lifts the profile's own hidden libraries.
+        var unnamed = profile.IsAdmin ? [] : await HiddenAsync(db, copies, ct);
+        foreach (var copy in copies)
         {
+            if (unnamed.Contains(copy.Id))
+            {
+                plans.Add(new DeletionCopyDto(copy.Id, "", null, []));
+                continue;
+            }
+
             ArrInstance? instance;
             int? arrId;
             try
@@ -169,6 +183,14 @@ public static partial class DeleteEndpoints
         }
 
         return plans.Count > 1 ? own with { Copies = plans } : own;
+    }
+
+    /// <summary>Those of <paramref name="copies"/> the current profile can't see.</summary>
+    private static async Task<HashSet<Guid>> HiddenAsync(FlexarrDbContext db, List<MediaItem> copies, CancellationToken ct)
+    {
+        var ids = copies.Select(c => c.Id).ToList();
+        var visible = await db.MediaItems.Where(i => ids.Contains(i.Id)).Select(i => i.Id).ToListAsync(ct);
+        return [.. ids.Except(visible)];
     }
 
     /// <summary>A title's copies, including those in libraries hidden from whoever's asking: the item itself last.</summary>

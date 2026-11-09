@@ -408,6 +408,41 @@ public class DeleteTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
     }
 
     [Fact]
+    public async Task ALockedMainProfile_NeedsItsPin_ForACopyItCannotSee()
+    {
+        using var server = new FlexarrApiFactory();
+        await server.SetMainPinAsync("2580");
+        var arr = new FakeArr();
+        using var app = WithSecondRadarr(arr, server);
+        var (hd, uhd, uhdLibrary, _, uhdFile, root) = await AddLinkedFilmAsync(app, arr);
+        await SetHiddenAsync(app, [uhdLibrary]);
+
+        var token = (await (await Admin(app).PostAsJsonAsync(new Uri("/api/v1/session/device", UriKind.Relative), new { deviceName = "TV" })).Content.ReadFromJsonAsync<System.Text.Json.JsonElement>())
+            .GetProperty("token").GetString();
+        var tv = app.CreateClient();
+        tv.DefaultRequestHeaders.Add("X-Api-Key", token);
+        Assert.Equal(HttpStatusCode.NoContent, (await tv.PostAsJsonAsync(new Uri("/api/v1/admin/lock", UriKind.Relative), new { })).StatusCode);
+
+        // It hears there's another copy, not where or what.
+        var plan = await tv.GetFromJsonAsync<DeletionPlan>(new Uri($"/api/v1/items/{hd}/deletion", UriKind.Relative));
+        var hidden = plan!.Copies!.Single(c => c.ItemId == uhd);
+        Assert.Equal("", hidden.Library);
+        Assert.Empty(hidden.Files);
+        Assert.Null(hidden.ManagedBy);
+
+        var refused = await tv.DeleteAsync(new Uri($"/api/v1/items/{hd}?allCopies=true", UriKind.Relative));
+        Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
+        Assert.DoesNotContain(arr.Requests, r => r.StartsWith("DELETE", StringComparison.Ordinal));
+        Assert.True(File.Exists(uhdFile));
+
+        Assert.Equal(HttpStatusCode.OK, (await tv.PostAsJsonAsync(new Uri("/api/v1/admin/unlock", UriKind.Relative), new { pin = "2580" })).StatusCode);
+        var named = await tv.GetFromJsonAsync<DeletionPlan>(new Uri($"/api/v1/items/{hd}/deletion", UriKind.Relative));
+        Assert.NotEqual("", named!.Copies!.Single(c => c.ItemId == uhd).Library);
+        Assert.Equal(HttpStatusCode.NoContent, (await tv.DeleteAsync(new Uri($"/api/v1/items/{hd}?allCopies=true", UriKind.Relative))).StatusCode);
+        Directory.Delete(root, recursive: true);
+    }
+
+    [Fact]
     public async Task APlainDelete_TakesOnlyTheCopyNamed()
     {
         var arr = new FakeArr();

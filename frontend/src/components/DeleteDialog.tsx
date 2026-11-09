@@ -62,7 +62,7 @@ export function DeleteDialog({ item, onDeleted, onClose }: { item: ItemSummary; 
               <ul className="delete-files">
                 {plan.data.copies.map((c) => (
                   <li key={c.itemId}>
-                    <strong>{c.library}</strong> {c.managedBy && t('{app} deletes it', { app: c.managedBy })}
+                    <strong>{c.library || t('A hidden library')}</strong> {c.managedBy && t('{app} deletes it', { app: c.managedBy })}
                     {c.files.slice(0, 5).map((f) => (
                       <code key={f} className="confirm-dialog-path">
                         {f}
