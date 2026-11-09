@@ -59,7 +59,12 @@ struct LiveTvView: View {
                 if channels.isEmpty {
                     VStack(spacing: 12) {
                         StatusView(state: .empty(t("No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user.")))
-                        if model.isLiveTvRefreshTakingAWhile { takingAWhile.padding(.horizontal, Layout.edge).padding(.bottom, 12) }
+                        // Nothing else on the screen says so once the banner's gone.
+                        VStack(spacing: 2) { refreshLines }
+                            .font(.footnote)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, Layout.edge)
+                            .padding(.bottom, 12)
                     }
                 } else if macShowsRecordings {
                     #if os(macOS)
@@ -181,10 +186,7 @@ struct LiveTvView: View {
     /// For the main profile, who can do something about it, with where it says how.
     private var missingListings: some View {
         VStack(alignment: .leading, spacing: 2) {
-            if let refreshProblem {
-                Text(refreshProblem).foregroundStyle(Color.danger)
-            }
-            if model.isLiveTvRefreshTakingAWhile { takingAWhile }
+            refreshLines
             if let count = model.liveTvStatus?.channelsWithoutListings, count > 0 {
                 let text = Text(t("{count, plural, one {# channel has no listings} other {# channels have no listings}}", ["count": count]))
                     .foregroundStyle(Color.usher)
@@ -207,6 +209,14 @@ struct LiveTvView: View {
         .font(.footnote)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Layout.edge)
+    }
+
+    /// How the last refresh went, while there's something to say about it.
+    @ViewBuilder private var refreshLines: some View {
+        if let refreshProblem {
+            Text(refreshProblem).foregroundStyle(Color.danger)
+        }
+        if model.isLiveTvRefreshTakingAWhile { takingAWhile }
     }
 
     /// Whether `missingListings` has anything to say. Nothing means no row at all: a list's empty row would still be a
