@@ -334,4 +334,19 @@ public sealed class TitleVersionsTests : IAsyncLifetime
         var entry = list.EnumerateArray().Single();
         Assert.Equal(_hdItem, entry.GetProperty("item").GetProperty("id").GetGuid());
     }
+
+    [Fact]
+    public async Task Downloads_StartFromAnyCopy_AndNeverAHiddenOne()
+    {
+        var client = Client();
+        double Original(JsonElement options) => options.EnumerateArray().Single(o => o.GetProperty("quality").GetString() == "Original").GetProperty("estimatedBytes").GetDouble();
+
+        // Asked for on the HD copy's page, the original is the best version: the 4K one.
+        var both = await client.GetFromJsonAsync<JsonElement>(Api($"/items/{_hdItem}/download-options"));
+        Assert.Equal(2160 * 1000, Original(both));
+
+        await HideFourKAsync();
+        var hdOnly = await client.GetFromJsonAsync<JsonElement>(Api($"/items/{_hdItem}/download-options"));
+        Assert.Equal(1080 * 1000, Original(hdOnly));
+    }
 }
