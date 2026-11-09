@@ -86,9 +86,21 @@ When you have more than one library, each profile has a switch for each. A libra
 
 ### Age limits
 
-Any profile except the main one can have an age limit, in **Settings › Profiles**: **U**, **PG**, **12**, **15** or **18**. Titles rated above it are hidden from that profile on every device: Home, the libraries, search, Continue watching, the next episode, collections, Siri and notifications. Opening one by its link says it isn't there.
+Any profile except the main one can have an age limit, in **Settings › Profiles**: **U**, **PG**, **12**, **15** or **18**, or on a server in the US, **G**, **PG**, **PG-13**, **TV-14** or **R**. Titles rated above it are hidden from that profile on every device: Home, the libraries, search, Continue watching, the next episode, collections, Siri and notifications. Opening one by its link says it isn't there.
 
-Ratings from any country count. An age is rounded up to the next UK step, so Germany's 16 counts as 18, and a few have a UK equivalent: PG-13 is 12, TV-14 is 15, and R and TV-MA are 18. A rating with its reasons ("Rated R for violence") counts by its first word. A show's seasons and episodes follow the show.
+The names follow the **Country** in **Settings › Overview**. It only renames the same five steps, so changing it doesn't change what anyone sees:
+
+| UK | US | The US step also lets through |
+| --- | --- | --- |
+| U | G | TV-Y, TV-G |
+| PG | PG | TV-Y7, TV-PG |
+| 12 | PG-13 | |
+| 15 | TV-14 | |
+| 18 | R | NC-17, TV-MA |
+
+A PG-13 limit hides TV-14 shows, so choose TV-14 to allow them.
+
+Ratings from any country count. An age is rounded up to the next step, so Germany's 16 counts as 18 (R), and a few have an equivalent of their own: PG-13 is 12, TV-14 is 15, and R and TV-MA are 18. A rating with its reasons ("Rated R for violence") counts by its first word. A show's seasons and episodes follow the show.
 
 An age limit decides what a profile sees, not who can leave it: anyone can switch to another profile, with no PIN but that profile's own. To keep a child on kids profiles, turn on [Child lock](#child-lock).
 
