@@ -235,6 +235,41 @@ public sealed class MusicRequestTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Discover_is_kept_ready_so_opening_it_asks_Deezer_nothing()
+    {
+        var (library, artist, _) = await SeedOwnedAsync();
+        await InDbAsync(async db =>
+        {
+            var album = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Album, Title = "Played", SortTitle = "played", ParentId = artist.Id };
+            var track = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Track, Title = "CPR", SortTitle = "cpr", Parent = album };
+            db.MediaItems.AddRange(album, track);
+            db.PlaybackStates.Add(new PlaybackState { UserId = PlaybackState.DefaultUser, MediaItem = track, PlayCount = 3 });
+            return await db.SaveChangesAsync();
+        });
+        _deezer.Responses["GET /artist/5/albums?limit=100"] = """{"data":[{"id":51,"title":"The Overload","record_type":"album","fans":4000}]}""";
+        _deezer.Responses["GET /artist/6/albums?limit=100"] = """{"data":[]}""";
+        _deezer.Responses["GET /album/51"] = """{"id":51,"title":"The Overload","record_type":"album","artist":{"id":5,"name":"Yard Act"}}""";
+        _deezer.Responses["GET /artist/134334152/albums?limit=100"] = """{"data":[]}""";
+
+        await _server.Services.GetRequiredService<Endpoints.MusicRequests.MusicDiscoverWarmer>().RunOnceAsync(CancellationToken.None);
+        var asked = _deezer.Requests.Count;
+        Assert.True(asked > 0);
+
+        var discover = await Client().GetFromJsonAsync<JsonElement>(Api("/requests/music/discover"));
+
+        Assert.Equal(asked, _deezer.Requests.Count);
+        Assert.Contains(discover.GetProperty("rows").EnumerateArray(), r => r.GetProperty("id").GetString() == "music-charts");
+    }
+
+    [Fact]
+    public async Task Discover_isnt_kept_ready_while_music_cant_be_requested()
+    {
+        // No music library.
+        await _server.Services.GetRequiredService<Endpoints.MusicRequests.MusicDiscoverWarmer>().RunOnceAsync(CancellationToken.None);
+        Assert.Empty(_deezer.Requests);
+    }
+
+    [Fact]
     public async Task AlbumsYouMightLike_PassesOverACompilationAnArtistIsMerelyOn()
     {
         var (library, artist, _) = await SeedOwnedAsync();

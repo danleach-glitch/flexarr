@@ -33,6 +33,9 @@ public sealed class MusicCatalog(IHttpClientFactory httpFactory) : IDisposable
     private static readonly TimeSpan Charts = TimeSpan.FromHours(6);
     private static readonly TimeSpan Catalogue = TimeSpan.FromDays(1);
 
+    /// <summary>An album's own page hardly ever changes, and a cold Discover mostly asks for these.</summary>
+    private static readonly TimeSpan Albums = TimeSpan.FromDays(7);
+
     /// <summary>MusicBrainz takes one request a second from each caller: one at a time, spaced out.</summary>
     private readonly SemaphoreSlim musicBrainzGate = new(1);
 
@@ -59,7 +62,7 @@ public sealed class MusicCatalog(IHttpClientFactory httpFactory) : IDisposable
     public Task<IReadOnlyList<DeezerArtist>> RelatedAsync(long id, CancellationToken ct) =>
         CachedAsync($"artist/{id}/related", Catalogue, () => Deezer.GetRelatedArtistsAsync(id, 20, ct), ct);
 
-    public Task<DeezerAlbum> AlbumAsync(long id, CancellationToken ct) => CachedAsync($"album/{id}", Catalogue, () => Deezer.GetAlbumAsync(id, ct), ct);
+    public Task<DeezerAlbum> AlbumAsync(long id, CancellationToken ct) => CachedAsync($"album/{id}", Albums, () => Deezer.GetAlbumAsync(id, ct), ct);
 
     public Task<IReadOnlyList<DeezerTrack>> ChartTracksAsync(CancellationToken ct) => CachedAsync("chart/tracks", Charts, () => Deezer.GetChartTracksAsync(100, ct), ct);
 

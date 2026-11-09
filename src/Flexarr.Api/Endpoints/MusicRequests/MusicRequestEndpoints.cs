@@ -460,6 +460,18 @@ public static partial class MusicRequestEndpoints
         return top.Where(names.ContainsKey).Select(id => names[id]).ToList();
     }
 
+    /// <summary>Asks Deezer what this profile's Discover would, so the answers are kept for when it's opened.</summary>
+    internal static async Task WarmDiscoverAsync(MusicRequestContext c, string profileId, CancellationToken ct)
+    {
+        var owned = await c.OwnedAsync(ct);
+        var top = await TopArtistsAsync(c.Db, profileId, 12, ct);
+        var like = await Quietly(() => LikeYoursAsync(c, owned, top.Take(8).ToList(), ct)) ?? [];
+        await Quietly(() => AlbumsLikeYoursAsync(c, owned, like, ct));
+        await Quietly(() => NewFromYoursAsync(c, owned, top, ct));
+        await Quietly(() => TopAlbumsAsync(c, owned, ct));
+        await Quietly(() => c.Catalog.GenresAsync(ct));
+    }
+
     /// <summary>Artists Deezer relates to the ones this profile plays most, that the library doesn't have, taking turns.</summary>
     private static async Task<List<MusicExternalDto>> LikeYoursAsync(MusicRequestContext c, OwnedMusic owned, List<string> seeds, CancellationToken ct)
     {

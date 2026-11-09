@@ -199,6 +199,8 @@ builder.Services.AddHostedService<PodcastRefreshWorker>();
 builder.Services.AddHostedService<PodcastChartWarmer>();
 builder.Services.AddSingleton<Flexarr.Api.Endpoints.MusicRequests.MusicImportRetry>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<Flexarr.Api.Endpoints.MusicRequests.MusicImportRetry>());
+builder.Services.AddSingleton<Flexarr.Api.Endpoints.MusicRequests.MusicDiscoverWarmer>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<Flexarr.Api.Endpoints.MusicRequests.MusicDiscoverWarmer>());
 builder.Services.AddSingleton<ProfileImages>();
 builder.Services.AddSingleton<PersonImages>();
 builder.Services.AddSingleton<PersonLookups>();
