@@ -793,13 +793,14 @@ public sealed class LiveTvTests : IDisposable
         var guide = scope.ServiceProvider.GetRequiredService<LiveTvGuide>();
         await RefreshAsync();
         var start = DateTime.UtcNow;
-        Assert.False(await guide.IsDueAsync(start.AddMinutes(90), CancellationToken.None));
+        // Over the hour, but before BBC One's own listings end, which would be news of its own.
+        Assert.False(await guide.IsDueAsync(start.AddMinutes(65), CancellationToken.None));
         Assert.True(await guide.IsDueAsync(start.AddMinutes(150), CancellationToken.None));
 
         // A changed guide that fills nothing in doesn't: Dispatcharr's guide can change with a channel still empty.
         _dispatcharr.Guide = _dispatcharr.Guide.Replace("Doctor Who", "Doctor Who: Specials", StringComparison.Ordinal);
         await RefreshAsync();
-        Assert.False(await guide.IsDueAsync(DateTime.UtcNow.AddMinutes(90), CancellationToken.None));
+        Assert.False(await guide.IsDueAsync(DateTime.UtcNow.AddMinutes(65), CancellationToken.None));
         Assert.True(await guide.IsDueAsync(DateTime.UtcNow.AddMinutes(250), CancellationToken.None));
 
         // One that fills a channel in goes back to looking hourly.
@@ -837,6 +838,53 @@ public sealed class LiveTvTests : IDisposable
 
         await RefreshAsync(); // and it stays empty: only now does the wait begin to grow
         Assert.Equal(1, status.QuietRefreshes);
+    }
+
+    [Fact]
+    public async Task Channels_running_out_beside_one_thats_always_empty_get_their_hourly_look_once_a_day()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        // Sky News (201) never has listings; the others do, for the next few hours.
+        var soon = DateTime.UtcNow.AddMinutes(-5).ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+        var later = DateTime.UtcNow.AddHours(5).ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+        _dispatcharr.Guide = "<tv>" + string.Concat(new[] { 101, 102 }.Select(c => $"""<programme start="{soon} +0000" stop="{later} +0000" channel="{c}"><title>On</title></programme>""")) + "</tv>";
+        var status = _server.Services.GetRequiredService<LiveTvStatus>();
+        await using var scope = _server.Services.CreateAsyncScope();
+        var guide = scope.ServiceProvider.GetRequiredService<LiveTvGuide>();
+        var db = scope.ServiceProvider.GetRequiredService<Flexarr.Core.Data.FlexarrDbContext>();
+        for (var i = 0; i < 5; i++)
+        {
+            await RefreshAsync();
+        }
+
+        Assert.True(status.QuietRefreshes >= 3);
+        Assert.False(await guide.IsDueAsync(DateTime.UtcNow.AddMinutes(90), CancellationToken.None)); // settled
+
+        async Task RunOutAsync(string name)
+        {
+            var ended = DateTime.UtcNow.AddMinutes(-1);
+            var channel = await db.LiveChannels.Where(c => c.Name == name).Select(c => c.Id).SingleAsync();
+            await db.LiveProgrammes.Where(p => p.ChannelId == channel).ExecuteUpdateAsync(u => u.SetProperty(p => p.Start, ended.AddMinutes(-1)).SetProperty(p => p.End, ended));
+        }
+
+        // More run out: the very next look comes within the hour's wait, not at the end of the six.
+        await RunOutAsync("BBC Two");
+        Assert.True(await guide.IsDueAsync(DateTime.UtcNow.AddMinutes(90), CancellationToken.None));
+
+        // Asked for, and still empty: the wait starts over from an hour, and grows again as it stays that way.
+        _dispatcharr.Guide = _dispatcharr.Guide.Replace("channel=\"102\"", "channel=\"999\"", StringComparison.Ordinal);
+        await RefreshAsync();
+        Assert.Equal(0, status.QuietRefreshes);
+        Assert.True(await guide.IsDueAsync(DateTime.UtcNow.AddMinutes(90), CancellationToken.None));
+        await RefreshAsync();
+        Assert.Equal(1, status.QuietRefreshes);
+        Assert.False(await guide.IsDueAsync(DateTime.UtcNow.AddMinutes(90), CancellationToken.None));
+
+        // A guide whose channels run out one after another doesn't stay on hourly: the next, the same day, waits its turn.
+        await RunOutAsync("BBC One");
+        Assert.False(await guide.IsDueAsync(DateTime.UtcNow.AddMinutes(90), CancellationToken.None));
+        Assert.True(status.MoreHaveRunOut(3, DateTime.UtcNow.AddDays(1).AddMinutes(1)));
     }
 
     [Fact]

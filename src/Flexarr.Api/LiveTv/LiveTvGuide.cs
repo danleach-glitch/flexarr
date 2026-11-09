@@ -55,8 +55,11 @@ public sealed class LiveTvStatus
     /// <summary>How many refreshes in a row have left as many channels with nothing listed ahead, or more.</summary>
     public int QuietRefreshes { get; private set; }
 
-    /// <summary>Channels with nothing ahead after the last refresh: only that falling says more might be on its way.</summary>
+    /// <summary>Channels with nothing ahead after the last refresh: that changing says more might be on its way.</summary>
     private int? _missingAfterRead;
+
+    /// <summary>When more channels running out last started the looks over.</summary>
+    private DateTime? _lookedAfresh;
 
     /// <summary>How many times a downloaded guide has been read through: it's the slow part of a refresh that finds nothing new.</summary>
     internal int GuideParses { get; private set; }
@@ -117,15 +120,33 @@ public sealed class LiveTvStatus
         }
     }
 
-    internal void GuideRead(int missing)
+    internal void GuideRead(int missing, DateTime at)
     {
         lock (_lock)
         {
+            var more = MoreRanOut(missing, at);
+            if (more)
+            {
+                _lookedAfresh = at;
+            }
+
             // Coming from none missing, these have just run out: it's their first look, however long all was well.
-            QuietRefreshes = _missingAfterRead is null or 0 || missing < _missingAfterRead ? 0 : QuietRefreshes + 1;
+            QuietRefreshes = more || _missingAfterRead is null or 0 || missing < _missingAfterRead ? 0 : QuietRefreshes + 1;
             _missingAfterRead = missing;
         }
     }
+
+    /// <summary>More channels have nothing ahead than the last refresh left, and they're owed looks of their own.</summary>
+    internal bool MoreHaveRunOut(int missing, DateTime now)
+    {
+        lock (_lock)
+        {
+            return MoreRanOut(missing, now);
+        }
+    }
+
+    // At most once a day, so a guide whose channels run out a few at a time still settles down to Every.
+    private bool MoreRanOut(int missing, DateTime now) => missing > _missingAfterRead && !(now - _lookedAfresh < LiveTvGuide.LooksAfreshAtMost);
 
     /// <summary>The count of channels without listings, while it's fresh enough to save asking the database.</summary>
     internal int? MissingCount(DateTime now, TimeSpan keptFor)
@@ -185,6 +206,9 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
     /// </summary>
     public static readonly TimeSpan EveryWhileMissing = TimeSpan.FromHours(1);
 
+    /// <summary>How often more channels running out starts <see cref="EveryWhileMissing"/> over.</summary>
+    public static readonly TimeSpan LooksAfreshAtMost = TimeSpan.FromDays(1);
+
     /// <summary>However often Refresh is pressed, Dispatcharr's sources (often someone's IPTV provider) are only asked this often.</summary>
     public static readonly TimeSpan DownloadsAtMost = TimeSpan.FromMinutes(15);
 
@@ -220,9 +244,16 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
         }
 
         // A channel with no guide entry has nothing a refresh could find, and a refresh that failed isn't tried again every few minutes.
+        if (!(now - last > EveryWhileMissing) || now - status.AttemptedAt < EveryWhileMissing)
+        {
+            return false;
+        }
+
+        // Channels running out since the last refresh don't wait on one that's been empty for weeks.
         var wait = EveryWhileMissing * (1 << Math.Min(status.QuietRefreshes, 3));
-        return now - last > wait && !(now - status.AttemptedAt < EveryWhileMissing)
-            && await db.LiveChannels.AnyAsync(c => c.GuideId != null && !db.LiveProgrammes.Any(p => p.ChannelId == c.Id && p.End > now), ct);
+        return now - last > wait
+            ? await db.LiveChannels.AnyAsync(c => c.GuideId != null && !db.LiveProgrammes.Any(p => p.ChannelId == c.Id && p.End > now), ct)
+            : status.MoreHaveRunOut(await MissingAsync(now, ct), now);
     }
 
     /// <summary>With an admin key saved, has Dispatcharr download its guides, for the refresh that follows to read.</summary>
@@ -515,14 +546,14 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
 
         await transaction.CommitAsync(ct);
         Written[key] = (read, bytes, cutAhead, now);
-        status.GuideRead(await MissingAsync(now, ct));
+        status.GuideRead(await MissingAsync(now, ct), now);
         return fresh.Count;
     }
 
     private async Task<int> SameGuideAsync(DateTime from, DateTime now, CancellationToken ct)
     {
         await db.LiveProgrammes.Where(p => p.End < from).ExecuteDeleteAsync(ct);
-        status.GuideRead(await MissingAsync(now, ct));
+        status.GuideRead(await MissingAsync(now, ct), now);
         return await db.LiveProgrammes.CountAsync(ct);
     }
 
