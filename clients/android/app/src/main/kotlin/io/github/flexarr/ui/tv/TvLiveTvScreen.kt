@@ -248,7 +248,7 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
     val scope = rememberCoroutineScope()
     var channels by remember { mutableStateOf<List<LiveChannel>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    // What went wrong refreshing the guide.
+    // How refreshing the guide went: one that worked says so in its button for a while, a problem stays until the next.
     var refreshNote by remember { mutableStateOf<LiveTvRefreshOutcome?>(null) }
     // The guide on screen, with what it was asked for and its ETag.
     var kept by remember { mutableStateOf<KeptGuide?>(null) }
@@ -329,13 +329,14 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
     LaunchedEffect(model.isRefreshingLiveTv) { if (model.isRefreshingLiveTv) refreshNote = null }
     LaunchedEffect(model.liveTvRefreshesEnded) {
         val ended = model.takeLiveTvRefreshEnd()
-        ended?.let { refreshNote = it }
+        // Taking a while says itself, for as long as it does.
+        ended?.takeUnless { it.isTakingAWhile }?.let { refreshNote = it }
         if (model.liveTvRefreshesEnded != refreshesSeen) {
             refreshesSeen = model.liveTvRefreshesEnded
             load()
             loadGuide(true)
         }
-        if (ended?.isProblem == false) {
+        if (ended?.worked == true) {
             delay(6_000)
             refreshNote = null
         }
@@ -360,6 +361,21 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
         }
     }
 
+    // What's under the refresh button: its rows only appear and go when something lasting does.
+    val refreshLines = if (!model.canRefreshLiveTv) emptyList() else buildList {
+        refreshNote?.takeIf { it.isProblem }?.let { note ->
+            add(note.words to Flexarr.danger)
+            note.sourcesNote?.let { add(it to Flexarr.usher) }
+        }
+        if (model.isLiveTvRefreshTakingAWhile) add(t(Words.guideTakingAWhile) to Flexarr.usher)
+        val missing = model.liveTvStatus?.channelsWithoutListings ?: 0
+        if (missing > 0) add(t("{count, plural, one {# channel has no listings} other {# channels have no listings}}", "count" to missing) to Flexarr.usher)
+    }
+    val refreshWords = when {
+        model.isRefreshingLiveTv -> t(Words.refreshingGuide)
+        refreshNote?.worked == true -> t(Words.guideRefreshed)
+        else -> t(Words.refreshGuide)
+    }
     LaunchedEffect(takeFocus, channels != null) {
         if (!takeFocus || channels == null) return@LaunchedEffect
         delay(50)
@@ -384,13 +400,13 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                 Text(t("No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user."), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
                 if (model.canRefreshLiveTv) {
                     TvActionButton(
-                        if (model.isRefreshingLiveTv) t(Words.refreshingGuide) else t(Words.refreshGuide),
+                        refreshWords,
                         onClick = model::refreshLiveTv,
                         prominent = true,
                         // Only while it's here: leaving the screen as the channels arrive isn't focus moving away.
                         modifier = Modifier.onFocusChanged { if (channels?.isEmpty() == true) refreshHasFocus = it.hasFocus },
                     )
-                    refreshNote?.let { Text(it.words, fontSize = 13.sp, color = if (it.isProblem) Flexarr.danger else Flexarr.usher) }
+                    refreshLines.forEach { (words, colour) -> Text(words, fontSize = 13.sp, color = colour) }
                 }
             }
             else -> Row(Modifier.fillMaxSize().padding(start = TvLayout.Edge, top = 15.dp), horizontalArrangement = Arrangement.spacedBy(25.dp)) {
@@ -423,7 +439,7 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                     if (model.canRefreshLiveTv) {
                         item(key = "refresh") {
                             CategoryButton(
-                                if (model.isRefreshingLiveTv) t(Words.refreshingGuide) else t(Words.refreshGuide),
+                                refreshWords,
                                 selected = false,
                                 icon = FlexarrIcons.refresh,
                                 count = null,
@@ -432,14 +448,8 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                                 modifier = Modifier,
                             )
                         }
-                        val missing = model.liveTvStatus?.channelsWithoutListings ?: 0
-                        refreshNote?.let { note ->
-                            item(key = "refresh-note") { Text(note.words, fontSize = 12.sp, color = if (note.isProblem) Flexarr.danger else Flexarr.usher, modifier = Modifier.padding(horizontal = 11.dp)) }
-                        }
-                        if (missing > 0) {
-                            item(key = "refresh-missing") {
-                                Text(t("{count, plural, one {# channel has no listings} other {# channels have no listings}}", "count" to missing), fontSize = 12.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 11.dp))
-                            }
+                        items(refreshLines) { (words, colour) ->
+                            Text(words, fontSize = 12.sp, color = colour, modifier = Modifier.padding(horizontal = 11.dp))
                         }
                     }
                     items(groupEntries, key = { it.second + it.first::class.simpleName }) { categoryRow(it) }
