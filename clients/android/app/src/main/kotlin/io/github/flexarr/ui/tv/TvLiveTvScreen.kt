@@ -319,17 +319,19 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
             if (asking == currentAsk || kept?.covers(currentAsk, currentIds) != true) kept = it
         }
     }
-    // How a refresh went, once each, and the guide fetched again: the note goes a while after one that worked.
+    // How a refresh went, once each, and the guide fetched again: the note goes a while after one that worked. Back on
+    // this screen after one ended elsewhere, it's said now, and the first load has it anyway.
     var refreshesSeen by remember { mutableIntStateOf(model.liveTvRefreshesEnded) }
     LaunchedEffect(model.isRefreshingLiveTv) { if (model.isRefreshingLiveTv) refreshNote = null }
     LaunchedEffect(model.liveTvRefreshesEnded) {
-        if (model.liveTvRefreshesEnded == refreshesSeen) return@LaunchedEffect
-        refreshesSeen = model.liveTvRefreshesEnded
-        val problem = model.liveTvRefreshProblem
-        refreshNote = problem ?: if (model.liveTvRefreshTakingAWhile) t(Words.guideTakingAWhile) else t(Words.guideRefreshed)
-        load()
-        loadGuide(true)
-        if (problem == null) {
+        val ended = model.takeLiveTvRefreshEnd()
+        ended?.let { refreshNote = it.words }
+        if (model.liveTvRefreshesEnded != refreshesSeen) {
+            refreshesSeen = model.liveTvRefreshesEnded
+            load()
+            loadGuide(true)
+        }
+        if (ended?.isProblem == false) {
             delay(6_000)
             refreshNote = null
         }

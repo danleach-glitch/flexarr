@@ -276,14 +276,16 @@ fun LiveTvScreen(model: AppModel) {
             }
         }
     }
-    // How a refresh went, once each. Back on this screen after one ended elsewhere, the first load has it anyway.
+    // How a refresh went, once each. Back on this screen after one ended elsewhere, it's said now, and the first load has it anyway.
     var refreshesSeen by remember { mutableIntStateOf(model.liveTvRefreshesEnded) }
     LaunchedEffect(model.liveTvRefreshesEnded) {
-        if (model.liveTvRefreshesEnded == refreshesSeen) return@LaunchedEffect
-        refreshesSeen = model.liveTvRefreshesEnded
-        load()
-        refreshed++
-        navigator.notices.showSnackbar(model.liveTvRefreshProblem ?: if (model.liveTvRefreshTakingAWhile) t(Words.guideTakingAWhile) else t(Words.guideRefreshed))
+        val ended = model.takeLiveTvRefreshEnd()
+        if (model.liveTvRefreshesEnded != refreshesSeen) {
+            refreshesSeen = model.liveTvRefreshesEnded
+            load()
+            refreshed++
+        }
+        ended?.let { navigator.notices.showSnackbar(it.words) }
     }
     notice?.let { message ->
         AlertDialog(
