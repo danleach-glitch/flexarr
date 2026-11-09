@@ -85,4 +85,10 @@ class TvLogicTest {
         // Something working on the decoded sound is the reason, whatever's connected.
         assertTrue(losslessSurroundHelp(on.copy(nightMode = io.github.flexarr.data.SoundSettings.NightMode.On), emptySet()).startsWith("While dialogue boost"))
     }
+
+    @Test
+    fun `a report row reads its value and help aloud`() {
+        assertEquals("Surround out, Dolby Digital Plus, Formats it takes.", reportRowDescription("Surround out", "Dolby Digital Plus", "Formats it takes."))
+        assertEquals("HDR, HDR10", reportRowDescription("HDR", "HDR10", null))
+    }
 }

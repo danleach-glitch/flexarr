@@ -3,6 +3,7 @@ package io.github.flexarr.ui.tv
 import io.github.flexarr.core.i18n.Localization
 import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
+import androidx.compose.material.icons.filled._4k
 import androidx.compose.material.icons.filled.Language
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -689,13 +690,20 @@ internal fun TvDiagnosticsSettings(model: AppModel) {
             TvSettingsRow(
                 t("HDR"), onClick = {}, icon = Icons.Filled.HdrOn, reportOnly = true,
                 value = DeviceCapabilities.hdrNames(facts.hdrTypes).joinToString().ifEmpty { t("None") },
-                help = if (profile.maxHeight >= 2160) t("This TV plays 4K files.") else t("This TV doesn’t play 4K files, so your server sends them at 1080p."),
+            )
+        }
+        item {
+            TvSettingsRow(
+                t("4K"), onClick = {}, icon = Icons.Filled._4k, reportOnly = true,
+                value = if (profile.maxHeight >= 2160) t("Yes") else t("No"),
+                help = if (profile.maxHeight >= 2160) t("This TV plays 4K files.") else t("This TV doesn’t play 4K files, so your server sends them at {height}p.", "height" to profile.maxHeight),
             )
         }
         item {
             TvSettingsRow(
                 t("Surround out"), onClick = {}, icon = Icons.Filled.SurroundSound, reportOnly = true,
                 value = DeviceCapabilities.surroundShortNames(facts.passthrough).joinToString().ifEmpty { t("None") },
+                spokenValue = DeviceCapabilities.surroundNames(facts.passthrough).joinToString().ifEmpty { t("None") },
                 help = t("Formats your receiver or soundbar takes as they are."),
             )
         }
