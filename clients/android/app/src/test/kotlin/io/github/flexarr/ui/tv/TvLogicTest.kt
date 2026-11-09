@@ -77,7 +77,7 @@ class TvLogicTest {
     fun `Lossless surround says so when what's connected takes nothing`() {
         val on = io.github.flexarr.data.SoundSettings()
         val nothing = losslessSurroundHelp(on, emptySet())
-        assertTrue(nothing, nothing.startsWith("What’s connected takes none"))
+        assertTrue(nothing, nothing.startsWith("What’s connected takes no surround format as it is"))
         val soundbar = losslessSurroundHelp(on, setOf("eac3"))
         assertTrue(soundbar, soundbar.contains("your receiver or soundbar"))
         // Off, what it would do is what's worth saying.

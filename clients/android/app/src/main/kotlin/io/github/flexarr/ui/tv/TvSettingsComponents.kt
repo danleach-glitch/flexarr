@@ -174,7 +174,14 @@ internal fun TvSettingsRow(
     Surface(
         onClick = onClick,
         modifier = modifier.fillMaxWidth().heightIn(min = 39.dp).onFocusChanged { focused = it.isFocused }
-            .then(if (reportOnly) Modifier.clearAndSetSemantics { contentDescription = reportRowDescription(title, spokenValue ?: value, help) } else Modifier),
+            .then(
+                when {
+                    reportOnly -> Modifier.clearAndSetSemantics { contentDescription = reportRowDescription(title, spokenValue ?: value, help) }
+                    // The help panel beside the page can't be reached, so a screen reader hears the help with its row.
+                    help != null -> Modifier.semantics { contentDescription = reportRowDescription(title, spokenValue ?: value, help) }
+                    else -> Modifier
+                },
+            ),
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(Tokens.radiusControl)),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Flexarr.screen.copy(alpha = 0.07f),
@@ -304,5 +311,5 @@ internal fun TakeFocus(requester: FocusRequester, key: Any? = Unit, ready: Boole
 /** A profile's picture on a row: a little larger than an icon, still within the row's height. */
 private const val SETTINGS_AVATAR = 26
 
-/** What a screen reader says for a row that only shows something: all of it, since nothing else on it can be reached. */
+/** What a screen reader says for a row with help: all of it, since the help panel can't be reached. */
 internal fun reportRowDescription(title: String, value: String?, help: String?): String = listOfNotNull(title, value, help).joinToString(", ")
