@@ -1,5 +1,6 @@
 import { useId, useState } from 'react'
 import { getPodcastCountries, getSettings, saveSettings } from '../../api/client'
+import { AsyncButton } from '../../components/AsyncButton'
 import { useApi } from '../../hooks/useApi'
 import { useSession } from '../../hooks/sessionContext'
 import { ratingSteps } from '../../lib/ratings'
@@ -36,8 +37,9 @@ function useCountry() {
     }
   }
 
-  const select = (describedBy?: string, invalid?: boolean) => (
+  const select = (describedBy?: string, invalid?: boolean, name?: string) => (
     <select
+      aria-label={name}
       aria-describedby={describedBy}
       aria-invalid={invalid || undefined}
       value={chosen}
@@ -60,33 +62,53 @@ function useCountry() {
     : undefined
   const help = names ? t('For age limits ({names}), ratings, podcast charts and Audible.', { names }) : t('For age limits, ratings, podcast charts and Audible.')
   const loadError = settings.error ?? countries.error
-  return { select, help, error: saveError ?? (loadError && errorText(loadError)), locked: settings.error !== undefined }
+  const retry = () => {
+    if (settings.error) settings.reload()
+    if (countries.error) countries.reload()
+  }
+  const tryAgain = loadError && (
+    <AsyncButton className="button quiet small" busy={settings.loading || countries.loading} onClick={retry}>
+      {t('Try again')}
+    </AsyncButton>
+  )
+  return {
+    select,
+    help,
+    error: saveError ?? (loadError && t('Couldn’t load the countries: {message}', { message: errorText(loadError) })),
+    tryAgain,
+    locked: settings.error !== undefined,
+  }
 }
 
 /** Country, in Settings. */
 export function CountryRow() {
-  const { select, help, error } = useCountry()
+  const { select, help, error, tryAgain } = useCountry()
   return (
     <SettingRow
+      // A row with a button in it can't be a label, whose control would be the button.
+      as={tryAgain ? 'div' : 'label'}
       label={t('Country')}
       help={
         error ? (
-          <span className="error" role="alert">
-            {error}
-          </span>
+          <>
+            <span className="error" role="alert">
+              {error}
+            </span>
+            {tryAgain}
+          </>
         ) : (
           help
         )
       }
     >
-      {select(undefined, error !== undefined)}
+      {select(undefined, error !== undefined, tryAgain ? t('Country') : undefined)}
     </SettingRow>
   )
 }
 
 /** Country, in the setup guide, which doesn't have Settings' styles. Left out for anyone who can't change it. */
 export function CountryField() {
-  const { select, help, error, locked } = useCountry()
+  const { select, help, error, tryAgain, locked } = useCountry()
   const helpId = useId()
   if (locked) return null
   return (
@@ -101,6 +123,7 @@ export function CountryField() {
           {error}
         </p>
       )}
+      {tryAgain}
     </div>
   )
 }

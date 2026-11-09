@@ -103,16 +103,25 @@ describe('Country', () => {
     expect(select.value).toBe('')
   })
 
-  it('says so when it can’t load', async () => {
+  it('offers Try again when it can’t load, and works once it can', async () => {
+    let down = true
     mockApi({
       '/profiles': [],
-      '/podcasts/countries': () => new Response('', { status: 500 }),
+      '/podcasts/countries': () => (down ? new Response('', { status: 500 }) : countries),
       '/settings': { podcasts: { country: null, resolvedCountry: 'gb', detectedCountry: 'gb' } },
       '/me': me,
     })
     renderRow()
 
-    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t load the countries')
     expect(screen.getByRole('combobox', { name: /Country/ })).toBeDisabled()
+
+    down = false
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+
+    await screen.findByRole('option', { name: 'United States' })
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
+    expect(screen.getByRole('combobox', { name: /Country/ })).toBeEnabled()
   })
 })
