@@ -85,6 +85,38 @@ public sealed class TitleLinkerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ManyCopiesLinkedInBatches_AllLink_AndShareTheirWatchState()
+    {
+        var pairs = Enumerable.Range(0, 600).Select(n =>
+            (Hd: Add(_hd, MediaKind.Movie, $"Film {n}", tmdb: $"{n}"), Uhd: Add(_uhd, MediaKind.Movie, $"Film {n}", tmdb: $"{n}"))).ToList();
+        _db.PlaybackStates.Add(new PlaybackState { UserId = "me", MediaItemId = pairs[^1].Hd.Id, Watched = true, PlayCount = 1, LastPlayedAt = DateTime.UtcNow });
+        var last = pairs[^1].Uhd.Id;
+        await LinkAsync();
+
+        var linked = await _db.MediaItems.IgnoreQueryFilters().AsNoTracking().CountAsync(i => i.LinkGroupId != null);
+        Assert.Equal(1200, linked);
+        Assert.True(await _db.PlaybackStates.AsNoTracking().Where(p => p.MediaItemId == last).Select(p => p.Watched).FirstAsync());
+        Assert.Empty(_db.ChangeTracker.Entries<PlaybackState>());
+    }
+
+    [Fact]
+    public async Task SeasonsOfAShowNoLongerLinked_Unlink()
+    {
+        var hd = Add(_hd, MediaKind.Series, "Show", tvdb: "1");
+        var uhd = Add(_uhd, MediaKind.Series, "Show", tvdb: "1");
+        var one = Add(_hd, MediaKind.Season, "1", parent: hd, season: 1);
+        var other = Add(_uhd, MediaKind.Season, "1", parent: uhd, season: 1);
+        await LinkAsync();
+        Assert.NotNull(await GroupOf(one));
+
+        (await _db.MediaItems.IgnoreQueryFilters().FirstAsync(i => i.Id == uhd.Id)).TvdbId = "2";
+        await LinkAsync();
+
+        Assert.Null(await GroupOf(one));
+        Assert.Null(await GroupOf(other));
+    }
+
+    [Fact]
     public async Task AnIdSharedThroughAThirdCopy_LinksAllThree()
     {
         var a = Add(_hd, MediaKind.Movie, "A", tmdb: "1");

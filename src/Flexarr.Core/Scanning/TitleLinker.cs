@@ -14,6 +14,13 @@ public static class TitleLinker
     /// <summary>More titles than this with one id means a bad id, not that many copies. It links nothing.</summary>
     private const int MostCopies = 6;
 
+    private const int IdsPerStatement = 500;
+
+    private const int ItemsPerBatch = 200;
+
+    private static readonly System.Linq.Expressions.Expression<Func<MediaItem, Row>> AsRow = i =>
+        new Row(i.Id, i.ParentId, i.Kind, i.TmdbId, i.TvdbId, i.TvMazeId, i.ImdbId, i.SeasonNumber, i.EpisodeNumber, i.EpisodeNumberEnd, i.AirDate, i.LinkGroupId);
+
     private static readonly SemaphoreSlim OneAtATime = new(1, 1);
 
     /// <summary>Returns how many items' links changed.</summary>
@@ -24,10 +31,7 @@ public static class TitleLinker
         await OneAtATime.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            var rows = await db.MediaItems.IgnoreQueryFilters().AsNoTracking()
-                .Where(i => i.MissingSince == null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series || i.Kind == MediaKind.Season || i.Kind == MediaKind.Episode))
-                .Select(i => new Row(i.Id, i.ParentId, i.Kind, i.TmdbId, i.TvdbId, i.TvMazeId, i.ImdbId, i.SeasonNumber, i.EpisodeNumber, i.EpisodeNumberEnd, i.AirDate, i.LinkGroupId))
-                .ToListAsync(ct).ConfigureAwait(false);
+            var rows = await RowsAsync(db, ct).ConfigureAwait(false);
             var missing = await db.MediaItems.IgnoreQueryFilters().AsNoTracking()
                 .Where(i => i.MissingSince != null && i.LinkGroupId != null).Select(i => i.Id).ToListAsync(ct).ConfigureAwait(false);
 
@@ -38,36 +42,47 @@ public static class TitleLinker
                 return 0;
             }
 
-            await using var transaction = await db.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
             var known = await db.TitleGroups.Select(g => g.Id).ToListAsync(ct).ConfigureAwait(false);
-            db.TitleGroups.AddRange(wanted.Values.Distinct().Except(known).Select(id => new TitleGroup { Id = id }));
+            var added = wanted.Values.Distinct().Except(known).Select(id => new TitleGroup { Id = id }).ToList();
+            db.TitleGroups.AddRange(added);
             await db.SaveChangesAsync(ct).ConfigureAwait(false);
-            foreach (var chunk in missing.Chunk(500))
+            foreach (var group in added)
+            {
+                db.Entry(group).State = EntityState.Detached;
+            }
+
+            foreach (var chunk in missing.Chunk(IdsPerStatement))
             {
                 await db.MediaItems.IgnoreQueryFilters().Where(i => chunk.Contains(i.Id))
                     .ExecuteUpdateAsync(u => u.SetProperty(i => i.LinkGroupId, (Guid?)null), ct).ConfigureAwait(false);
             }
 
-            foreach (var change in changes.GroupBy(c => wanted.TryGetValue(c.Id, out var group) ? group : (Guid?)null))
+            // A few groups at a time, each with its shared watch state, so nothing else waits long to write. If this stops
+            // part way, the next run carries on: what's done stays done, and a group's link and state always go together.
+            foreach (var batch in Batches(changes, wanted))
             {
-                var linkTo = change.Key;
-                foreach (var chunk in change.Select(c => c.Id).Chunk(500))
+                await using var transaction = await db.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
+                foreach (var change in batch)
                 {
-                    await db.MediaItems.IgnoreQueryFilters().Where(i => chunk.Contains(i.Id))
-                        .ExecuteUpdateAsync(u => u.SetProperty(i => i.LinkGroupId, linkTo), ct).ConfigureAwait(false);
+                    foreach (var chunk in change.Select(c => c.Id).Chunk(IdsPerStatement))
+                    {
+                        await db.MediaItems.IgnoreQueryFilters().Where(i => chunk.Contains(i.Id))
+                            .ExecuteUpdateAsync(u => u.SetProperty(i => i.LinkGroupId, change.Key), ct).ConfigureAwait(false);
+                    }
                 }
+
+                var joined = batch.SelectMany(c => c).Where(c => c.Kind is MediaKind.Movie or MediaKind.Episode && wanted.ContainsKey(c.Id)).Select(c => wanted[c.Id]).ToHashSet();
+                var members = rows.Where(r => wanted.TryGetValue(r.Id, out var group) && joined.Contains(group)).ToLookup(r => wanted[r.Id], r => r.Id);
+                await ShareWatchStateAsync(db, members, ct).ConfigureAwait(false);
+                await transaction.CommitAsync(ct).ConfigureAwait(false);
             }
 
             var used = wanted.Values.ToHashSet();
-            foreach (var chunk in known.Where(id => !used.Contains(id)).Chunk(500))
+            foreach (var chunk in known.Where(id => !used.Contains(id)).Chunk(IdsPerStatement))
             {
                 await db.TitleGroups.Where(g => chunk.Contains(g.Id)).ExecuteDeleteAsync(ct).ConfigureAwait(false);
             }
 
-            var joined = changes.Where(c => c.Kind is MediaKind.Movie or MediaKind.Episode && wanted.ContainsKey(c.Id)).Select(c => wanted[c.Id]).ToHashSet();
-            var members = rows.Where(r => wanted.TryGetValue(r.Id, out var group) && joined.Contains(group)).ToLookup(r => wanted[r.Id], r => r.Id);
-            await ShareWatchStateAsync(db, members, ct).ConfigureAwait(false);
-            await transaction.CommitAsync(ct).ConfigureAwait(false);
             CatalogVersion.Bump();
             DataVersion.Bump();
             return changes.Count + missing.Count;
@@ -75,6 +90,59 @@ public static class TitleLinker
         finally
         {
             OneAtATime.Release();
+        }
+    }
+
+    /// <summary>
+    /// Every film and show, and only the seasons and episodes that could have copies or already have a link: a library
+    /// with no second copies never reads its episodes.
+    /// </summary>
+    private static async Task<List<Row>> RowsAsync(FlexarrDbContext db, CancellationToken ct)
+    {
+        var items = db.MediaItems.IgnoreQueryFilters().AsNoTracking().Where(i => i.MissingSince == null);
+        var rows = await items.Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series).Select(AsRow).ToListAsync(ct).ConfigureAwait(false);
+
+        var shows = Groups(rows).Keys.Intersect(rows.Where(r => r.Kind == MediaKind.Series).Select(r => r.Id)).ToList();
+        rows.AddRange(await ChildrenAsync(items, MediaKind.Season, shows, ct).ConfigureAwait(false));
+        var seasons = Groups(rows).Keys.Intersect(rows.Where(r => r.Kind == MediaKind.Season).Select(r => r.Id)).ToList();
+        rows.AddRange(await ChildrenAsync(items, MediaKind.Episode, seasons, ct).ConfigureAwait(false));
+
+        // Whatever else is linked now, which may need unlinking.
+        rows.AddRange(await items.Where(i => i.LinkGroupId != null && (i.Kind == MediaKind.Season || i.Kind == MediaKind.Episode)).Select(AsRow).ToListAsync(ct).ConfigureAwait(false));
+        return rows.DistinctBy(r => r.Id).ToList();
+    }
+
+    private static async Task<List<Row>> ChildrenAsync(IQueryable<MediaItem> items, MediaKind kind, List<Guid> parents, CancellationToken ct)
+    {
+        var rows = new List<Row>();
+        foreach (var chunk in parents.Chunk(IdsPerStatement))
+        {
+            rows.AddRange(await items.Where(i => i.Kind == kind && i.ParentId != null && chunk.Contains(i.ParentId.Value)).Select(AsRow).ToListAsync(ct).ConfigureAwait(false));
+        }
+
+        return rows;
+    }
+
+    /// <summary>The changes by the group they link to (null to unlink), in batches of about <see cref="ItemsPerBatch"/>. A group is never split.</summary>
+    private static IEnumerable<List<IGrouping<Guid?, Row>>> Batches(List<Row> changes, Dictionary<Guid, Guid> wanted)
+    {
+        var batch = new List<IGrouping<Guid?, Row>>();
+        var size = 0;
+        foreach (var change in changes.GroupBy(c => wanted.TryGetValue(c.Id, out var group) ? group : (Guid?)null))
+        {
+            batch.Add(change);
+            size += change.Count();
+            if (size >= ItemsPerBatch)
+            {
+                yield return batch;
+                batch = [];
+                size = 0;
+            }
+        }
+
+        if (batch.Count > 0)
+        {
+            yield return batch;
         }
     }
 
@@ -155,7 +223,7 @@ public static class TitleLinker
     /// </summary>
     private static async Task ShareWatchStateAsync(FlexarrDbContext db, ILookup<Guid, Guid> members, CancellationToken ct)
     {
-        var ids = members.SelectMany(m => m).ToList();
+        var ids = members.SelectMany(m => m).ToHashSet();
         var states = new List<PlaybackState>();
         foreach (var chunk in ids.Chunk(500))
         {
@@ -195,6 +263,11 @@ public static class TitleLinker
         finally
         {
             db.LeaveWatchStateAlone = false;
+        }
+
+        foreach (var entry in db.ChangeTracker.Entries<PlaybackState>().Where(e => ids.Contains(e.Entity.MediaItemId)).ToList())
+        {
+            entry.State = EntityState.Detached;
         }
     }
 
