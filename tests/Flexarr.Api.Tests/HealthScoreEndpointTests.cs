@@ -145,6 +145,70 @@ public sealed class HealthScoreEndpointTests : IDisposable
     }
 
     [Fact]
+    public async Task TheSameFileInTwoLibraries_IsListedOnce_AsOneTitleInTheScore()
+    {
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var (one, two) = (new Library { Name = "Films", Type = LibraryType.Movies }, new Library { Name = "More films", Type = LibraryType.Movies });
+            MediaItem Copy(Library library, string path) => new()
+            {
+                LibraryId = library.Id, Kind = MediaKind.Movie, Title = "Film", SortTitle = "film", TmdbId = "603",
+                Files = [new MediaFile { Path = path, Size = 1000, Width = 1920, Height = 1080, Bitrate = 10, DurationSeconds = 5000 }],
+            };
+            db.AddRange(one, two, Copy(one, "/films/Film.mkv"), Copy(two, "/more/Film.mkv"));
+            await db.SaveChangesAsync();
+            await Flexarr.Core.Scanning.TitleLinker.LinkAsync(db, default);
+        }
+
+        var health = await Client().GetFromJsonAsync<JsonElement>(new Uri("/api/v1/library-health", UriKind.Relative));
+        Assert.Empty(health.GetProperty("duplicates").EnumerateArray());
+        var row = Assert.Single(health.GetProperty("versions").EnumerateArray());
+        Assert.Equal(2, row.GetProperty("files").GetArrayLength());
+        Assert.Equal(5000, row.GetProperty("files")[0].GetProperty("durationSeconds").GetDouble());
+        Assert.Equal(2000, row.GetProperty("bytes").GetInt64());
+        Assert.Single(health.GetProperty("missingArtwork").EnumerateArray()); // Neither copy has artwork: one row.
+        Assert.Equal(1, health.GetProperty("score").GetProperty("titles").GetInt32());
+    }
+
+    [Fact]
+    public async Task AShowInTwoLibraries_IsOneRowOfVersions()
+    {
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var (hd, uhd) = (new Library { Name = "Shows", Type = LibraryType.TvShows }, new Library { Name = "Shows 4K", Type = LibraryType.TvShows });
+            void Show(Library library, int width, int height)
+            {
+                var show = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Series, Title = "Show", SortTitle = "show", TvdbId = "81189", PosterUrl = "p.jpg" };
+                var season = new MediaItem { LibraryId = library.Id, ParentId = show.Id, Kind = MediaKind.Season, Title = "Season 1", SortTitle = "001", SeasonNumber = 1 };
+                db.AddRange(show, season);
+                foreach (var number in new[] { 1, 2, 3 })
+                {
+                    db.Add(new MediaItem
+                    {
+                        LibraryId = library.Id, ParentId = season.Id, Kind = MediaKind.Episode, Title = $"E{number}", SortTitle = $"{number:D3}", SeasonNumber = 1, EpisodeNumber = number,
+                        Files = [new MediaFile { Path = $"/{library.Name}/e{number}.mkv", Size = height, Width = width, Height = height, DurationSeconds = 1300 }],
+                    });
+                }
+            }
+
+            db.AddRange(hd, uhd);
+            Show(hd, 1920, 1080);
+            Show(uhd, 3840, 2160);
+            await db.SaveChangesAsync();
+            await Flexarr.Core.Scanning.TitleLinker.LinkAsync(db, default);
+        }
+
+        var health = await Client().GetFromJsonAsync<JsonElement>(new Uri("/api/v1/library-health", UriKind.Relative));
+        Assert.Equal(1, health.GetProperty("versionsTotal").GetInt32());
+        var row = Assert.Single(health.GetProperty("versions").EnumerateArray());
+        Assert.Equal("Series", row.GetProperty("item").GetProperty("kind").GetString());
+        var files = row.GetProperty("files").EnumerateArray().Select(f => (f.GetProperty("label").GetString(), f.GetProperty("fileCount").GetInt32())).ToList();
+        Assert.Equal([("4K", 3), ("1080p", 3)], files);
+    }
+
+    [Fact]
     public async Task ATrueDuplicate_IsASpare_BesideAVersion()
     {
         using (var scope = _factory.Services.CreateScope())

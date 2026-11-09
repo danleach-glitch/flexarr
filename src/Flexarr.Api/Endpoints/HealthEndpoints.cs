@@ -16,7 +16,12 @@ namespace Flexarr.Api.Endpoints;
 
 /// <param name="Label">The version's name ("4K HDR10"). Absent from servers before 0.64.</param>
 /// <param name="Edition">The version's cut ("Director's Cut"), if its file name says. Absent from servers before 0.64.</param>
-public sealed record HealthFileDto(Guid Id, string Path, long Size, string? Resolution, string? VideoCodec, long? Bitrate, bool Keep, string? Label = null, string? Edition = null);
+/// <param name="DurationSeconds">How long it runs. Absent from servers before 0.64.</param>
+/// <param name="FileCount">
+/// For a whole show's version: how many episodes' files this row stands for, with no <paramref name="Path"/> of its own. Absent from servers before 0.64.
+/// </param>
+public sealed record HealthFileDto(Guid Id, string Path, long Size, string? Resolution, string? VideoCodec, long? Bitrate, bool Keep, string? Label = null, string? Edition = null,
+    double? DurationSeconds = null, int? FileCount = null);
 
 /// <summary>A title kept in several versions on purpose: nothing wrong with it, shown for the space it takes.</summary>
 public sealed record VersionsDto(ItemSummaryDto Item, string? SeriesTitle, IReadOnlyList<HealthFileDto> Files, long Bytes);
@@ -111,19 +116,39 @@ public static partial class HealthEndpoints
             var ids = spared.Select(s => s.Item).ToList();
 
             var links = await db.MediaItems.Where(i => i.LinkGroupId != null).Select(i => new { i.Id, Group = i.LinkGroupId!.Value }).ToDictionaryAsync(i => i.Id, i => i.Group, ct);
-            var versioned = files.GroupBy(f => links.TryGetValue(f.MediaItemId, out var group) ? group : f.MediaItemId)
-                .Select(g => (Files: g.ToList(), Kept: VersionRules.Sort(Rank(g, null)).Kept))
-                .Where(t => t.Kept.Count > 1)
+            Guid TitleOf(Guid item) => links.TryGetValue(item, out var group) ? group : item;
+
+            // A title's versions are what's left once a copy's own spares are set aside. The same file in two libraries is
+            // listed too: it can't be removed as a spare, since deleting takes every copy, but it's space to know about.
+            // A show's episodes make one row, so a long show doesn't fill the list.
+            var spareIds = sorted.SelectMany(s => s.Sorted.Spares).Select(f => f.Id).ToHashSet();
+            var shows = await db.MediaItems.Where(i => i.Kind == MediaKind.Episode && i.Parent != null && i.Parent.ParentId != null && (i.LinkGroupId != null || i.Files.Count > 1))
+                .Select(i => new { i.Id, Show = i.Parent!.ParentId!.Value, Group = i.Parent.Parent!.LinkGroupId }).ToDictionaryAsync(i => i.Id, ct);
+            var titlesWithVersions = files.GroupBy(f => TitleOf(f.MediaItemId))
+                .Select(g => Rank(g.Where(f => !spareIds.Contains(f.Id)), null))
+                .Where(listed => listed.Count > 1)
+                .ToList();
+            var versioned = titlesWithVersions
+                .GroupBy(listed => shows.TryGetValue(listed[0].MediaItemId, out var show) ? show.Group ?? show.Show : TitleOf(listed[0].MediaItemId))
+                .Select(g => (Item: shows.TryGetValue(g.First()[0].MediaItemId, out var show) ? show.Show : g.First()[0].MediaItemId, IsShow: shows.ContainsKey(g.First()[0].MediaItemId), Files: g.SelectMany(l => l).ToList()))
                 .OrderByDescending(t => t.Files.Sum(f => f.Size))
                 .ToList();
             var shownVersions = versioned.Take(100).ToList();
-            var versionItems = shownVersions.Select(t => t.Files[0].MediaItemId).ToList();
+            var versionItems = shownVersions.Select(t => t.Item).ToList();
 
             var wantedItems = ids.Concat(versionItems).Distinct().ToList();
             var items = await db.MediaItems.Where(i => wantedItems.Contains(i.Id)).Summaries(profile.Id).ToDictionaryAsync(i => i.Id, ct);
 
             static HealthFileDto FileRow(MediaFile f, bool keep) =>
-                new(f.Id, f.Path, f.Size, Resolution.Label(f.Width, f.Height), f.VideoCodec, f.Bitrate, keep, VersionRules.Label(f), VersionRules.Edition(f));
+                new(f.Id, f.Path, f.Size, Resolution.Label(f.Width, f.Height), f.VideoCodec, f.Bitrate, keep, VersionRules.Label(f), VersionRules.Edition(f), f.DurationSeconds);
+
+            // A show's version, across its episodes: "1080p, 40 files".
+            static List<HealthFileDto> ShowRows(List<MediaFile> episodes) => episodes
+                .GroupBy(f => (Label: VersionRules.Label(f), Edition: VersionRules.Edition(f)))
+                .OrderByDescending(g => g.Sum(f => f.Size))
+                .Select(g => new HealthFileDto(g.First().Id, "", g.Sum(f => f.Size), Resolution.Label(g.First().Width, g.First().Height), g.First().VideoCodec, null, true, g.Key.Label, g.Key.Edition,
+                    null, g.Count()))
+                .ToList();
 
             var duplicates = spared.Select(s =>
                 {
@@ -134,17 +159,17 @@ public static partial class HealthEndpoints
                 })
                 .OrderByDescending(d => d.ReclaimableBytes)
                 .ToList();
-            var versions = shownVersions.Where(t => items.ContainsKey(t.Files[0].MediaItemId)).Select(t =>
+            var versions = shownVersions.Where(t => items.ContainsKey(t.Item)).Select(t =>
                 {
-                    var item = items[t.Files[0].MediaItemId];
-                    return new VersionsDto(item, item.SeriesTitle, t.Kept.Select(f => FileRow(f, true)).ToList(), t.Files.Sum(f => f.Size));
+                    var item = items[t.Item];
+                    return new VersionsDto(item, item.SeriesTitle, t.IsShow ? ShowRows(t.Files) : t.Files.Select(f => FileRow(f, true)).ToList(), t.Files.Sum(f => f.Size));
                 }).ToList();
 
             var unreadable = await db.MediaFiles.AsNoTracking().Where(f => f.ProbeError != null)
                 .Select(f => new { f.Id, f.Path, f.ProbeError, f.MediaItemId }).ToListAsync(ct);
             var unreadableItems = await db.MediaItems.Where(i => unreadable.Select(u => u.MediaItemId).Contains(i.Id)).Summaries(profile.Id).ToDictionaryAsync(i => i.Id, ct);
 
-            var missing = await db.MediaItems.Where(i => i.ParentId == null && i.PosterUrl == null).OrderBy(i => i.SortTitle).Take(100).Summaries(profile.Id).ToListAsync(ct);
+            var missing = await db.MediaItems.OnePerMatch(i => i.ParentId == null && i.PosterUrl == null).OrderBy(i => i.SortTitle).Take(100).Summaries(profile.Id).ToListAsync(ct);
             var music = await MusicAsync(db, profile.Id, ct);
 
             // Films and shows Sonarr and Radarr don't manage, so their details came from searching for the folder's
@@ -159,7 +184,7 @@ public static partial class HealthEndpoints
             // Films and shows whose best copy is standard definition: candidates for an upgrade search.
             var sd = db.MediaItems.Where(i => i.Kind == MediaKind.Movie && i.Files.Any() && i.Files.Max(f => f.Height) < 700 && i.Files.Max(f => f.Width) < 1200);
             // The score counts each film or episode once, however many problems it has.
-            var titles = await db.MediaItems.CountAsync(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Episode || i.Kind == MediaKind.Album, ct);
+            var titles = await db.MediaItems.Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Episode || i.Kind == MediaKind.Album).OnePerTitle().CountAsync(ct);
             var sdIds = await sd.Select(i => i.Id).ToListAsync(ct);
             // Film artwork comes from Radarr or TMDB (with a key): with neither, it isn't something to fix here. Show
             // artwork can always come from TVmaze. (The score is of films and episodes, so artists without a photo
@@ -168,12 +193,14 @@ public static partial class HealthEndpoints
             var artlessVideo = await db.MediaItems.Where(i => i.ParentId == null && i.PosterUrl == null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series))
                 .Select(i => new { i.Id, i.Kind }).ToListAsync(ct);
             var artless = artlessVideo.Where(i => i.Kind == MediaKind.Series || findsFilms).Select(i => i.Id).ToList();
+            var artlessTitles = artless.Select(TitleOf).Distinct().Count();
             var fileProblems = check.Status.Problems.Select(p => p.ItemId).Distinct().ToList();
-            var troubled = new HashSet<Guid>([.. ids, .. unreadable.Select(u => u.MediaItemId), .. sdIds, .. artless, .. fileProblems, .. music.Troubled]);
+            // A title in two libraries is one title, whichever copy has the problem.
+            var troubled = ids.Concat(unreadable.Select(u => u.MediaItemId)).Concat(sdIds).Concat(artless).Concat(fileProblems).Concat(music.Troubled).Select(TitleOf).ToHashSet();
             var score = new HealthScoreDto(
                 titles == 0 ? 100 : (int)Math.Floor(100.0 * Math.Max(0, titles - troubled.Count) / titles),
-                titles, troubled.Count, ids.Count, unreadable.Select(u => u.MediaItemId).Distinct().Count(), sdIds.Count, artless.Count, fileProblems.Count,
-                artlessVideo.Count - artless.Count, music.CoverlessCount, music.Duplicates.Count, music.Repeated.Count, music.Split.Count);
+                titles, troubled.Count, ids.Select(TitleOf).Distinct().Count(), unreadable.Select(u => TitleOf(u.MediaItemId)).Distinct().Count(), sdIds.Select(TitleOf).Distinct().Count(), artlessTitles,
+                fileProblems.Select(TitleOf).Distinct().Count(), artlessVideo.Select(i => TitleOf(i.Id)).Distinct().Count() - artlessTitles, music.CoverlessCount, music.Duplicates.Count, music.Repeated.Count, music.Split.Count);
 
             // Titles Sonarr or Radarr are already downloading, so the page offers no second search for them.
             var queue = await UpcomingEndpoints.QueueAsync(options.CurrentValue, arr, ct);

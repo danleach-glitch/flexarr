@@ -13,11 +13,11 @@ Open it in the web app from **Settings › Libraries › Library health**, as th
 
 At the top is a score out of 100: the share of your movies, episodes and albums with nothing wrong. Next to it is a breakdown of what's affecting the rest, such as spare copies, unreadable files or missing artwork.
 
-Groups with nothing in them are left out, and a line underneath says what's all clear ("every title has a single copy", "every movie has an HD copy").
+Groups with nothing in them are left out, and a line underneath says what's all clear ("no spare copies", "every movie has an HD copy").
 
 ## Spare copies
 
-Sometimes a movie or episode ends up with more than one file alike: an upgrade that didn't replace the old one, or the same file in two folders. Only files with the same resolution, HDR type and length count as spares. A 4K and a 1080p copy are [versions](versions.md), and they have their own list below. **Spare copies** lists each one, how many copies it has and how much space the spares use. The total you'd free is in the group's description.
+Sometimes a movie or episode ends up with more than one file alike: an upgrade that didn't replace the old one, or the same file in two folders. Only files with the same resolution, HDR type and length count as spares. A 4K and a 1080p copy are [versions](versions.md), and they have their own list at the end, with a whole show as one row. **Spare copies** lists each one, how many copies it has and how much space the spares use. The total you'd free is in the group's description.
 
 - **Remove spares** on a title deletes its extra files.
 - **Remove all spare copies** does the whole list, after asking first, with a progress bar.

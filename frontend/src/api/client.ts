@@ -1419,7 +1419,7 @@ export interface LibraryHealth {
   versions?: {
     item: import('./types').ItemSummary
     seriesTitle: string | null
-    files: { id: string; path: string; size: number; label?: string | null; edition?: string | null }[]
+    files: { id: string; path: string; size: number; label?: string | null; edition?: string | null; durationSeconds?: number | null; fileCount?: number | null }[]
     bytes: number
   }[]
   versionsTotal?: number
