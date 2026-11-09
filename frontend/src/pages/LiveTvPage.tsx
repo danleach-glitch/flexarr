@@ -264,7 +264,9 @@ const OnNow = memo(function OnNow({ refreshed }: { refreshed: number }) {
   const [chosen, setGroup] = useState<string>()
   const groups = useMemo(() => [...new Set((data ?? []).map((c) => c.group).filter((g): g is string => !!g))], [data])
   const favourites = (data ?? []).filter(isFavourite)
-  const group = chosen ?? (favourites.length > 0 ? FAVOURITES : '')
+  // A group a refresh took away counts as unchosen.
+  const stillThere = chosen === undefined || chosen === '' || chosen === FAVOURITES || groups.includes(chosen)
+  const group = (stillThere ? chosen : undefined) ?? (favourites.length > 0 ? FAVOURITES : '')
   const shown = (data ?? []).filter((c) => (group === FAVOURITES ? isFavourite(c) : !group || c.group === group))
   const row = (c: LiveChannel) => (
     <li key={c.id}>

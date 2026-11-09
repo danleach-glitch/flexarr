@@ -688,6 +688,56 @@ describe('On now', () => {
     }
   })
 
+  it.each([
+    { starred: false, opensOn: 'All', shows: ['Channel One', 'Channel Two'] },
+    { starred: true, opensOn: 'Favourites', shows: ['Channel Two'] },
+  ])('goes back to $opensOn when a refresh takes away the group chosen', async ({ starred, opensOn, shows }) => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const sport = { ...row, group: 'Sport' }
+      const news = { ...row, id: 'c2', number: 2, name: 'Channel Two', group: 'News', isFavourite: starred }
+      let list = [sport, news]
+      mockApi({ '/livetv/status': status, '/livetv/channels': () => list })
+      open()
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Sport' }))
+      expect(screen.getByRole('button', { name: 'Sport' })).toHaveClass('active')
+      await screen.findByText('Channel One')
+      expect(screen.queryByText('Channel Two')).toBeNull()
+
+      // Gone from Sport, not from the list: the channel stays, under a group of its own.
+      list = [{ ...sport, group: 'Football' }, news]
+      await act(() => vi.advanceTimersByTimeAsync(60_000))
+
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Sport' })).toBeNull())
+      expect(screen.getByRole('button', { name: new RegExp(opensOn) })).toHaveClass('active')
+      for (const name of shows) expect(screen.getByText(name)).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps All, Favourites and a group that’s still there through a look at the channels', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const list = [
+        { ...row, group: 'Sport' },
+        { ...row, id: 'c2', number: 2, name: 'Channel Two', group: 'News', isFavourite: true },
+      ]
+      mockApi({ '/livetv/status': status, '/livetv/channels': () => list })
+      open()
+      await screen.findByRole('button', { name: 'Sport' })
+
+      for (const name of ['All', 'Sport', /Favourites/]) {
+        fireEvent.click(screen.getByRole('button', { name }))
+        await act(() => vi.advanceTimersByTimeAsync(60_000))
+        expect(screen.getByRole('button', { name })).toHaveClass('active')
+      }
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('offers Try again when nothing has loaded yet', async () => {
     let down = true
     mockApi({ '/livetv/status': status, '/livetv/channels': () => (down ? new Response('', { status: 500 }) : [row]) })
