@@ -609,7 +609,11 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
         Assert.Equal(371980, Assert.Single(LibraryScanWorker.Coalesce(requests)).TvdbId);
     }
 
-    /// <summary>Fails for what's <see cref="Under"/> a folder, the first <paramref name="times"/> times; the worker's startup scan also reads what other tests left.</summary>
+    /// <summary>
+    /// Fails for what's <see cref="Under"/> a folder, the first <paramref name="times"/> times, the way ffprobe does: with a
+    /// <see cref="MediaProbeException"/>, which the scanner records against the file and carries on past. The worker's
+    /// startup scan also reads what other tests left.
+    /// </summary>
     private sealed class FailingProbe(int times) : IMediaProbe
     {
         private int _calls;
@@ -620,7 +624,7 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
 
         public Task<ProbeResult> ProbeAsync(string path, CancellationToken cancellationToken) =>
             path.StartsWith(Under ?? "?", StringComparison.Ordinal) && Interlocked.Increment(ref _calls) <= times
-                ? throw new InvalidOperationException("The disk went away")
+                ? throw new MediaProbeException("ffprobe timed out after 60s")
                 : new FixedProbe().ProbeAsync(path, cancellationToken);
     }
 
@@ -640,29 +644,40 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
         return (host, library, title);
     }
 
+    private static LibraryScanWorker RetryingWorker(WebApplicationFactory<Program> host, ILibraryScanQueue queue, TimeSpan after) =>
+        new(queue, host.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance,
+            host.Services.GetRequiredService<LibraryWorkGate>()) { RetryWatchedAfter = after };
+
+    private static async Task<T> ReadAsync<T>(WebApplicationFactory<Program> host, Func<FlexarrDbContext, Task<T>> read)
+    {
+        using var scope = host.Services.CreateScope();
+        return await read(scope.ServiceProvider.GetRequiredService<FlexarrDbContext>());
+    }
+
     [Fact]
-    public async Task AWatchedScanThatFails_IsTriedAgain_AndFindsTheFilm()
+    public async Task AWatchedScanWhoseProbeFails_IsTriedAgain_AndReadsTheFilmProperly()
     {
         var probe = new FailingProbe(times: 1);
         var (host, library, title) = await FilmToScanAsync(probe);
         using (host)
         {
             var queue = new LibraryScanQueue();
-            await queue.EnqueueAsync(new LibraryScanRequest(title, FolderWatcher.Reason));
-            using var worker = new LibraryScanWorker(queue, host.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance,
-                host.Services.GetRequiredService<LibraryWorkGate>()) { RetryWatchedAfter = TimeSpan.FromMilliseconds(50) };
+            // As the watcher sends it: its last-change time is before the first try started, so a first try that counted
+            // as having looked would make the second one skip.
+            await queue.EnqueueAsync(new LibraryScanRequest(title, FolderWatcher.Reason, LastChange: DateTimeOffset.UtcNow.AddSeconds(-1)));
+            using var worker = RetryingWorker(host, queue, TimeSpan.FromMilliseconds(50));
             await worker.StartAsync(default);
 
-            var scanned = false;
-            for (var i = 0; i < 200 && !scanned; i++)
+            string? error = "not scanned";
+            for (var i = 0; i < 200 && error is not null; i++)
             {
                 await Task.Delay(100);
-                using var scope = host.Services.CreateScope();
-                scanned = await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaItems.AnyAsync(m => m.LibraryId == library.Id);
+                var file = await ReadAsync(host, db => db.MediaFiles.AsNoTracking().FirstOrDefaultAsync(f => f.MediaItem!.LibraryId == library.Id));
+                error = file is null ? "not scanned" : file.ProbeError;
             }
 
             await worker.StopAsync(default);
-            Assert.True(scanned, "the second try should find the film");
+            Assert.Null(error);
             Assert.True(probe.Calls >= 2);
         }
     }
@@ -676,8 +691,7 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
         {
             var queue = new LibraryScanQueue();
             await queue.EnqueueAsync(new LibraryScanRequest(title, FolderWatcher.Reason));
-            using var worker = new LibraryScanWorker(queue, host.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance,
-                host.Services.GetRequiredService<LibraryWorkGate>()) { RetryWatchedAfter = TimeSpan.FromMilliseconds(50) };
+            using var worker = RetryingWorker(host, queue, TimeSpan.FromMilliseconds(50));
             await worker.StartAsync(default);
 
             var tries = 1 + LibraryScanWorker.MaxWatchedRetries;
@@ -686,16 +700,215 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
                 await Task.Delay(100);
             }
 
+            await Task.Delay(TimeSpan.FromSeconds(3)); // a fourth try would come round well within this: the debounce is 2 seconds
             Assert.Equal(tries, probe.Calls);
+
+            // A new file, so there's something for a webhook's scan to read.
+            File.WriteAllText(Path.Combine(title, "Dune (2021) Director's Cut.mkv"), "x");
             await queue.EnqueueAsync(new LibraryScanRequest(title, "Sonarr Download"));
             for (var i = 0; i < 100 && probe.Calls == tries; i++)
             {
                 await Task.Delay(100);
             }
 
-            await Task.Delay(TimeSpan.FromSeconds(3)); // a retry would come round well within this: the debounce is 2 seconds
+            await Task.Delay(TimeSpan.FromSeconds(3));
             await worker.StopAsync(default);
             Assert.Equal(tries + 1, probe.Calls); // a webhook's was asked for by Sonarr's next event
+        }
+    }
+
+    /// <summary>What real trouble looks like to the database: SQLite busy, once, the first time the armed statement runs.</summary>
+    private sealed class BusyOnce(string statement) : Microsoft.EntityFrameworkCore.Diagnostics.DbCommandInterceptor
+    {
+        private int _armed;
+
+        public void Arm() => Volatile.Write(ref _armed, 1);
+
+        public bool Fired => Volatile.Read(ref _armed) == 2;
+
+        public override ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader>> ReaderExecutingAsync(
+            System.Data.Common.DbCommand command, Microsoft.EntityFrameworkCore.Diagnostics.CommandEventData eventData,
+            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.Contains(statement, StringComparison.Ordinal) && Interlocked.CompareExchange(ref _armed, 2, 1) == 1)
+            {
+                throw new Microsoft.Data.Sqlite.SqliteException("database is locked", 5);
+            }
+
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task AWatchedScanTheDatabaseInterrupts_IsTriedAgain()
+    {
+        var busy = new BusyOnce("\"MediaFiles\"");
+        var probe = new FailingProbe(times: 0);
+        var (first, library, title) = await FilmToScanAsync(probe);
+        first.Dispose();
+        using var host = factory.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.ConfigureDbContext<FlexarrDbContext>(o => o.AddInterceptors(busy))));
+        var queue = new LibraryScanQueue();
+        busy.Arm();
+        await queue.EnqueueAsync(new LibraryScanRequest(title, FolderWatcher.Reason));
+        using var worker = RetryingWorker(host, queue, TimeSpan.FromMilliseconds(50));
+        await worker.StartAsync(default);
+
+        var found = false;
+        for (var i = 0; i < 200 && !found; i++)
+        {
+            await Task.Delay(100);
+            found = busy.Fired && await ReadAsync(host, db => db.MediaItems.AnyAsync(m => m.LibraryId == library.Id));
+        }
+
+        await worker.StopAsync(default);
+        Assert.True(found, "the try after the database's refusal should find the film");
+    }
+
+    /// <summary>Takes note of what's queued.</summary>
+    private sealed class CountingQueue : ILibraryScanQueue
+    {
+        private readonly LibraryScanQueue _inner = new();
+        private int _retries;
+
+        public int Retries => Volatile.Read(ref _retries);
+
+        public ValueTask EnqueueAsync(LibraryScanRequest request, CancellationToken cancellationToken = default)
+        {
+            if (request.Retries > 0)
+            {
+                Interlocked.Increment(ref _retries);
+            }
+
+            return _inner.EnqueueAsync(request, cancellationToken);
+        }
+
+        public bool TryDequeue(out LibraryScanRequest request) => _inner.TryDequeue(out request);
+
+        public IAsyncEnumerable<LibraryScanRequest> ReadAllAsync(CancellationToken cancellationToken) => _inner.ReadAllAsync(cancellationToken);
+    }
+
+    [Fact]
+    public async Task ALibraryFolderThatsGone_IsTriedAgainABoundedNumberOfTimes_AndLosesNothing()
+    {
+        var probe = new FailingProbe(times: 0);
+        var (host, library, title) = await FilmToScanAsync(probe);
+        using (host)
+        {
+            var queue = new CountingQueue();
+            using var worker = RetryingWorker(host, queue, TimeSpan.FromMilliseconds(50));
+            await worker.StartAsync(default);
+            await queue.EnqueueAsync(new LibraryScanRequest(title, "Radarr Download"));
+            // Until the scan has quite finished: it's the one that would purge what's made overdue below.
+            for (var i = 0; i < 100 && await ReadAsync(host, db => db.Libraries.AsNoTracking().Where(l => l.Id == library.Id).Select(l => l.LastScannedAt).SingleAsync()) is null; i++)
+            {
+                await Task.Delay(100);
+            }
+
+            // Its grace long past, so only the scan's holding off keeps it.
+            await ReadAsync(host, db => db.MediaFiles.Where(f => f.MediaItem!.LibraryId == library.Id).ExecuteUpdateAsync(u => u.SetProperty(f => f.MissingSince, DateTime.UtcNow.AddDays(-30))));
+            var root = Path.GetDirectoryName(title)!;
+            var parked = root + "-unmounted";
+            Directory.Move(root, parked);
+            var stampedBefore = await ReadAsync(host, db => db.LibraryFolders.AsNoTracking().Where(f => f.LibraryId == library.Id).Select(f => f.FullScanAt).SingleAsync());
+            try
+            {
+                await queue.EnqueueAsync(new LibraryScanRequest(root, FolderWatcher.Reason));
+                for (var i = 0; i < 150 && queue.Retries < LibraryScanWorker.MaxWatchedRetries; i++)
+                {
+                    await Task.Delay(100);
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(4)); // room for one too many
+                await worker.StopAsync(default);
+                Assert.Equal(LibraryScanWorker.MaxWatchedRetries, queue.Retries);
+                Assert.Equal(1, await ReadAsync(host, db => db.MediaFiles.IgnoreQueryFilters().CountAsync(f => f.MediaItem!.LibraryId == library.Id)));
+                Assert.Equal(stampedBefore, await ReadAsync(host, db => db.LibraryFolders.AsNoTracking().Where(f => f.LibraryId == library.Id).Select(f => f.FullScanAt).SingleAsync()));
+            }
+            finally
+            {
+                Directory.Move(parked, root);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task AnUnreadableTitle_IsTriedAgain_AndItsFilesAreKept()
+    {
+        if (OperatingSystem.IsWindows() || Environment.UserName == "root")
+        {
+            return; // Nothing's unreadable to these.
+        }
+
+        var probe = new FailingProbe(times: 0);
+        var (host, library, title) = await FilmToScanAsync(probe);
+        using (host)
+        {
+            var queue = new CountingQueue();
+            using var worker = RetryingWorker(host, queue, TimeSpan.FromMilliseconds(50));
+            await worker.StartAsync(default);
+            await queue.EnqueueAsync(new LibraryScanRequest(title, "Radarr Download"));
+            // Until the scan has quite finished: it's the one that would purge what's made overdue below.
+            for (var i = 0; i < 100 && await ReadAsync(host, db => db.Libraries.AsNoTracking().Where(l => l.Id == library.Id).Select(l => l.LastScannedAt).SingleAsync()) is null; i++)
+            {
+                await Task.Delay(100);
+            }
+
+            await ReadAsync(host, db => db.MediaFiles.Where(f => f.MediaItem!.LibraryId == library.Id).ExecuteUpdateAsync(u => u.SetProperty(f => f.MissingSince, DateTime.UtcNow.AddDays(-30))));
+            var mode = File.GetUnixFileMode(title);
+            File.SetUnixFileMode(title, UnixFileMode.None);
+            try
+            {
+                await queue.EnqueueAsync(new LibraryScanRequest(title, FolderWatcher.Reason));
+                for (var i = 0; i < 150 && queue.Retries < LibraryScanWorker.MaxWatchedRetries; i++)
+                {
+                    await Task.Delay(100);
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(4));
+                await worker.StopAsync(default);
+                Assert.Equal(LibraryScanWorker.MaxWatchedRetries, queue.Retries);
+                Assert.Equal(1, await ReadAsync(host, db => db.MediaFiles.IgnoreQueryFilters().CountAsync(f => f.MediaItem!.LibraryId == library.Id)));
+            }
+            finally
+            {
+                File.SetUnixFileMode(title, mode);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task FailuresWhileARetryWaits_JoinIt_RatherThanStackUp()
+    {
+        var probe = new FailingProbe(times: int.MaxValue);
+        var (host, _, title) = await FilmToScanAsync(probe);
+        using (host)
+        {
+            var queue = new CountingQueue();
+            using var worker = RetryingWorker(host, queue, TimeSpan.FromSeconds(8));
+            await worker.StartAsync(default);
+            var dir = title;
+            await queue.EnqueueAsync(new LibraryScanRequest(dir, FolderWatcher.Reason));
+            for (var i = 0; i < 100 && probe.Calls < 1; i++)
+            {
+                await Task.Delay(50);
+            }
+
+            // Another change while it waits, which fails too: a new file, so there's something to fail on.
+            File.WriteAllText(Path.Combine(title, "Second.mkv"), "x");
+            await queue.EnqueueAsync(new LibraryScanRequest(dir, FolderWatcher.Reason));
+            for (var i = 0; i < 100 && probe.Calls < 2; i++)
+            {
+                await Task.Delay(50);
+            }
+
+            for (var i = 0; i < 200 && queue.Retries < 1; i++)
+            {
+                await Task.Delay(50);
+            }
+
+            await Task.Delay(TimeSpan.FromSeconds(1));
+            await worker.StopAsync(default);
+            Assert.Equal(1, queue.Retries);
         }
     }
 

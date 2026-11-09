@@ -13,7 +13,15 @@ namespace Flexarr.Core.Scanning;
 
 /// <param name="Removed">Files removed for good, having been missing for longer than the grace period.</param>
 /// <param name="Missing">Files found gone this scan: hidden, but kept (with their items' watch state) for now.</param>
-public sealed record ScanResult(int Added, int Updated, int Removed, int Unchanged, int Unmatched, int ProbeFailures, int Missing = 0);
+/// <param name="Added">Files new to the library.</param>
+/// <param name="Updated">Files read again.</param>
+/// <param name="Removed">Files gone for good.</param>
+/// <param name="Unchanged">Files as they were.</param>
+/// <param name="Unmatched">Files that belong to no title.</param>
+/// <param name="ProbeFailures">Files ffprobe couldn't read.</param>
+/// <param name="Missing">Files newly missing.</param>
+/// <param name="Incomplete">Part of what was asked for couldn't be looked at (a folder missing, looking unmounted, or unreadable).</param>
+public sealed record ScanResult(int Added, int Updated, int Removed, int Unchanged, int Unmatched, int ProbeFailures, int Missing = 0, bool Incomplete = false);
 
 /// <summary>
 /// Reconciles the database with what is on disk for a library, or a folder within it:
@@ -85,6 +93,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         var state = await ItemIndex.LoadAsync(db, library, scope is null ? null : targets, cancellationToken).ConfigureAwait(false);
         int added = 0, updated = 0, removed = 0, unchanged = 0, unmatched = 0, failures = 0, missing = 0;
         var held = false; // A folder looked unmounted: remove nothing this time.
+        var incomplete = false;
 
         foreach (var (root, target) in targets)
         {
@@ -96,6 +105,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 // An unmounted drive must not look like "everything was deleted".
                 LogRootMissing(root);
                 held = true;
+                incomplete = true;
                 if (full && folder is not null && folder.Hold != FolderHold.FolderMissing)
                 {
                     Hold(folder, FolderHold.FolderMissing, 0, 0, DateTime.UtcNow);
@@ -129,6 +139,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 {
                     LogRootEmpty(root, existing.Count);
                     held = true;
+                    incomplete = true;
                     await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
                     continue;
                 }
@@ -299,6 +310,15 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             {
                 LogUnreadable(root, unreadable.Count, PathComparison.Printable(unreadable[0]));
             }
+
+            // A root-only lost+found is on every drive's top level, and never was the library's: anything else may be
+            // hiding files whose grace has run out, which are no more gone than the rest.
+            if (unreadable.Any(d => !Path.GetFileName(d).Equals("lost+found", StringComparison.Ordinal)))
+            {
+                held = true;
+                incomplete = true;
+            }
+
             var holding = false;
             if (!released && full && existing.Count >= MassRemovalMinimum && gone.Count * 2 > existing.Count)
             {
@@ -362,7 +382,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         library.LastScannedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-        return new ScanResult(added, updated, removed, unchanged, unmatched, failures, missing);
+        return new ScanResult(added, updated, removed, unchanged, unmatched, failures, missing, incomplete);
     }
 
     /// <summary>

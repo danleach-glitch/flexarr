@@ -62,6 +62,9 @@ public sealed partial class LibraryScanWorker(
     /// <summary>How long a watched scan that failed waits before its next try: the watcher won't hear of those files again.</summary>
     internal TimeSpan RetryWatchedAfter { get; set; } = TimeSpan.FromMinutes(5);
 
+    /// <summary>Scans waiting for <see cref="RetryWatchedAfter"/>, by path.</summary>
+    private readonly Dictionary<string, LibraryScanRequest> _retrying = new(StringComparer.Ordinal);
+
     /// <summary>The tries after the first. Then it's the weekly scan's: a folder that goes on failing shouldn't go on being scanned.</summary>
     internal const int MaxWatchedRetries = 2;
 
@@ -105,30 +108,61 @@ public sealed partial class LibraryScanWorker(
                 try
                 {
                     using var entered = await gate.EnterAsync(stoppingToken);
-                    await ScanAsync(request, stoppingToken);
+                    if (await ScanAsync(request, stoppingToken))
+                    {
+                        // It finished, so nothing about it needs doing twice but looking again.
+                        RetryLater(request with { ForceMetadata = false }, stoppingToken);
+                    }
                 }
                 // Anything but shutdown, including an HTTP timeout (a TaskCanceledException), is one failed scan.
                 catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
                 {
                     LogScanFailed(ex, PathComparison.Printable(request.Path));
-                    _ = RetryLaterAsync(request, stoppingToken);
+                    RetryLater(request, stoppingToken);
                 }
             }
         }
     }
 
-    /// <summary>Queues a failed watched scan again, in a while: a NAS's hiccup or a busy database shouldn't hide a new film for a week.</summary>
-    private async Task RetryLaterAsync(LibraryScanRequest request, CancellationToken ct)
+    /// <summary>
+    /// Queues a watched scan that failed or couldn't see everything again, in a while: a NAS's hiccup or a busy database
+    /// shouldn't hide a new film for a week. One wait per path: failures while it waits join it rather than stack up.
+    /// </summary>
+    private void RetryLater(LibraryScanRequest request, CancellationToken ct)
     {
         if (request.Reason != FolderWatcher.Reason || request.Retries >= MaxWatchedRetries)
         {
             return;
         }
 
+        var key = PathComparison.Key(request.Path);
+        var next = request with { Retries = request.Retries + 1 };
+        lock (_retrying)
+        {
+            if (_retrying.TryGetValue(key, out var waiting))
+            {
+                _retrying[key] = Coalesce([waiting, next]).Single();
+                return;
+            }
+
+            _retrying[key] = next;
+        }
+
+        _ = QueueRetryAsync(key, ct);
+    }
+
+    private async Task QueueRetryAsync(string key, CancellationToken ct)
+    {
         try
         {
             await Task.Delay(RetryWatchedAfter, ct);
-            await queue.EnqueueAsync(request with { Retries = request.Retries + 1 }, ct);
+            LibraryScanRequest request;
+            lock (_retrying)
+            {
+                _retrying.Remove(key, out request!);
+            }
+
+            await queue.EnqueueAsync(request, ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -255,12 +289,13 @@ public sealed partial class LibraryScanWorker(
         _scanStartedAt[path] = started;
     }
 
-    private async Task ScanAsync(LibraryScanRequest request, CancellationToken ct)
+    /// <summary>Runs one request. True if it finished without seeing everything, or without being able to read a file it found.</summary>
+    private async Task<bool> ScanAsync(LibraryScanRequest request, CancellationToken ct)
     {
         if (AlreadyScanned(request))
         {
             LogAlreadyScanned(PathComparison.Printable(request.Path));
-            return;
+            return false;
         }
 
         var scanStarted = DateTime.UtcNow;
@@ -289,16 +324,21 @@ public sealed partial class LibraryScanWorker(
         if (targets.Count == 0)
         {
             LogNoLibrary(PathComparison.Printable(request.Path), PathComparison.Printable(request.Reason));
-            return;
+            return false;
         }
 
+        var incomplete = false;
+        var unread = false;
         foreach (var (library, target) in targets)
         {
             LogScanStarted(library.Name, PathComparison.Printable(target), PathComparison.Printable(request.Reason));
             var started = TimeProvider.System.GetTimestamp();
-            // A metadata refresh also retries files ffprobe couldn't read.
-            var result = await scanner.ScanAsync(library, target, request.ForceMetadata, request.Deleted, ct);
-            foreach (var folder in library.Folders.Where(f => PathComparison.IsUnder(f.Path, target)))
+            // A metadata refresh also retries files ffprobe couldn't read, and so does another try at them.
+            var result = await scanner.ScanAsync(library, target, request.ForceMetadata || request.Retries > 0, request.Deleted, ct);
+            incomplete |= result.Incomplete;
+            unread |= result.ProbeFailures > 0;
+            // What it couldn't look at it hasn't scanned: the schedule shouldn't wait a week on it, nor a restart skip it.
+            foreach (var folder in result.Incomplete ? [] : library.Folders.Where(f => PathComparison.IsUnder(f.Path, target)))
             {
                 // A scan of the whole folder: the schedule's next one is 12 hours (a week, if watched) from now, restart or not.
                 var finished = DateTime.UtcNow;
@@ -352,11 +392,19 @@ public sealed partial class LibraryScanWorker(
         await WatchHistoryCarryOver.CarryOverAsync(db, ct);
         await TraktHolds.ApplyAsync(db, ct);
 
-        NoteScanned(request.Path, scanStarted);
+        // Not when there's more to see: the next try at it isn't to be taken for a scan that's already been.
+        var again = incomplete || unread;
+        if (!again)
+        {
+            NoteScanned(request.Path, scanStarted);
+        }
+
         if (events is not null)
         {
             await AnnounceAddedAsync(db, targets.Select(t => t.Library.Id).Distinct().ToList(), scanStarted, ct);
         }
+
+        return again;
     }
 
     /// <summary>
