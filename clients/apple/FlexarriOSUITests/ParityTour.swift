@@ -75,6 +75,20 @@ final class ParityTour: XCTestCase {
         if let movie {
             open("flexarr://item/\(movie.id)", wait: 6)
             shot("03-movie")
+            // A title with more than one version: the list in ⋯.
+            let more = app.buttons["More actions"].firstMatch
+            if more.waitForExistence(timeout: 2) {
+                more.tap()
+                pause(1)
+                let version = app.buttons["Version"].firstMatch
+                if version.exists {
+                    version.tap()
+                    pause(1)
+                    shot("10-version")
+                }
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.05)).tap()
+                pause(1)
+            }
         }
         if let show {
             open("flexarr://item/\(show.id)", wait: 6)

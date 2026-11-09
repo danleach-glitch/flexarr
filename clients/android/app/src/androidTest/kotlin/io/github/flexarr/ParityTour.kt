@@ -107,6 +107,15 @@ class ParityTour {
         shot("02-library")
         openFirstTitle()
         shot("03-movie")
+        // A title with more than one version: the list in ⋯.
+        if (tap("More")) {
+            settle(1_000)
+            if (tap("Version")) {
+                settle(1_000)
+                shot("10-version")
+            }
+            shell("input keyevent BACK"); settle(1_000)
+        }
 
         shell("input keyevent BACK"); settle(1_500)
         shell("input keyevent BACK"); settle(1_500)
@@ -179,6 +188,17 @@ class ParityTour {
             if (tvOpenTitle()) {
                 settle(5_000)
                 shot("03-movie")
+                // A title with more than one version: the list in ⋯. Only ever pressed on ⋯, whose name shows while it has focus.
+                var onMore = false
+                repeat(6) { if (!onMore) { key("DPAD_RIGHT"); settle(500); onMore = find("More") != null } }
+                if (onMore) {
+                    key("DPAD_CENTER"); settle(1_500)
+                    if (find("Version") != null) {
+                        key("DPAD_CENTER"); settle(1_500)
+                        shot("10-version")
+                    }
+                    key("BACK"); settle(1_000)
+                }
             }
             key("BACK"); settle(2_000)
         }

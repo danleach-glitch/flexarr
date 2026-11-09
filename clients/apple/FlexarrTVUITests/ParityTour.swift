@@ -67,6 +67,19 @@ final class ParityTour: XCTestCase {
         if let movie {
             open("flexarr://item/\(movie.id)", wait: 6)
             shot("03-movie")
+            // A title with more than one version: the list in ⋯, which is always last in the row (only there, so no other
+            // round button gets pressed).
+            if app.images["More"].firstMatch.exists {
+                press(.right, times: 5, wait: 1)
+                press(.select, wait: 2)
+                if app.buttons["Version"].firstMatch.exists {
+                    press(.select, wait: 2)
+                    shot("10-version")
+                    press(.menu, wait: 2)
+                } else {
+                    press(.menu, wait: 2)
+                }
+            }
         }
         if let show {
             open("flexarr://item/\(show.id)", wait: 6)
