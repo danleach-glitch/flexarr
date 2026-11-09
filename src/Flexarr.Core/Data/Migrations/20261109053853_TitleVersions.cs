@@ -11,12 +11,6 @@ namespace Flexarr.Core.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<Guid>(
-                name: "LinkGroupId",
-                table: "MediaItems",
-                type: "TEXT",
-                nullable: true);
-
             migrationBuilder.CreateTable(
                 name: "TitleGroups",
                 columns: table => new
@@ -27,6 +21,10 @@ namespace Flexarr.Core.Data.Migrations
                 {
                     table.PrimaryKey("PK_TitleGroups", x => x.Id);
                 });
+
+            // Added with its reference in one go: AddForeignKey would make SQLite copy the whole table, every file's title,
+            // on everyone's first start, and lose its columns' defaults.
+            migrationBuilder.Sql("""ALTER TABLE "MediaItems" ADD COLUMN "LinkGroupId" TEXT NULL REFERENCES "TitleGroups" ("Id") ON DELETE SET NULL;""");
 
             migrationBuilder.CreateTable(
                 name: "VersionChoices",
@@ -66,13 +64,6 @@ namespace Flexarr.Core.Data.Migrations
                 table: "VersionChoices",
                 column: "MediaItemId");
 
-            migrationBuilder.AddForeignKey(
-                name: "FK_MediaItems_TitleGroups_LinkGroupId",
-                table: "MediaItems",
-                column: "LinkGroupId",
-                principalTable: "TitleGroups",
-                principalColumn: "Id",
-                onDelete: ReferentialAction.SetNull);
         
             // Episodes' other versions were marked as scanned without being looked at. Now they're looked at.
             migrationBuilder.Sql("""
