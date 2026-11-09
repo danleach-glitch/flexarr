@@ -397,6 +397,43 @@ public sealed class TitleVersionsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ATwoPartFileAndItsSplitEpisodes_ShareWhetherTheyreWatched()
+    {
+        Guid two, three, whole, show;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            MediaItem Show(Guid library) => new() { LibraryId = library, Kind = MediaKind.Series, Title = "Parts", SortTitle = "parts", TvdbId = "555" };
+            MediaItem Season(Guid library, MediaItem parent) => new() { LibraryId = library, ParentId = parent.Id, Kind = MediaKind.Season, Title = "Season 1", SortTitle = "001", SeasonNumber = 1 };
+            MediaItem Episode(Guid library, MediaItem season, int number, int? end = null) =>
+                new() { LibraryId = library, ParentId = season.Id, Kind = MediaKind.Episode, Title = $"E{number}", SortTitle = $"001{number:D3}", SeasonNumber = 1, EpisodeNumber = number, EpisodeNumberEnd = end };
+            var (hdShow, uhdShow) = (Show(_hdLibrary), Show(_uhdLibrary));
+            var (hdSeason, uhdSeason) = (Season(_hdLibrary, hdShow), Season(_uhdLibrary, uhdShow));
+            var (e2And3, e2, e3) = (Episode(_hdLibrary, hdSeason, 2, 3), Episode(_uhdLibrary, uhdSeason, 2), Episode(_uhdLibrary, uhdSeason, 3));
+            db.AddRange(hdShow, uhdShow, hdSeason, uhdSeason, e2And3, e2, e3);
+            await db.SaveChangesAsync();
+            await TitleLinker.LinkAsync(db, default);
+            (two, three, whole, show) = (e2.Id, e3.Id, e2And3.Id, hdShow.Id);
+        }
+
+        var client = Client();
+        async Task<bool> Watched(Guid id) => (await client.GetFromJsonAsync<JsonElement>(Api($"/items/{id}"))).GetProperty("item").GetProperty("userData").GetProperty("watched").GetBoolean();
+        async Task Mark(Guid id, bool watched) => (await client.PostAsJsonAsync(Api($"/items/{id}/watched"), new { watched })).EnsureSuccessStatusCode();
+
+        await Mark(whole, true);
+        Assert.True(await Watched(two));
+        Assert.True(await Watched(three));
+        Assert.True(await Watched(show));
+
+        await Mark(three, false);
+        Assert.False(await Watched(whole));
+        Assert.True(await Watched(two));
+
+        await Mark(three, true);
+        Assert.True(await Watched(whole));
+    }
+
+    [Fact]
     public async Task AHiddenCopy_AddsNothingToAShow()
     {
         var (hd, _, _) = await SeedShowAsync();

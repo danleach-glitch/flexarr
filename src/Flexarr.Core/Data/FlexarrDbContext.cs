@@ -532,6 +532,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
             return;
         }
 
+        saving.AddRange(await ShareWithSplitEpisodesAsync(ct));
         var items = saving.Select(s => s.MediaItemId).Distinct().ToList();
         var groups = await MediaItems.IgnoreQueryFilters().AsNoTracking()
             .Where(i => items.Contains(i.Id) && i.LinkGroupId != null).Select(i => new { i.Id, i.LinkGroupId }).ToListAsync(ct);
@@ -568,6 +569,78 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
         }
 
         ChangeTracker.DetectChanges();
+    }
+
+    /// <summary>
+    /// A two-part file in one library and its split episodes in another aren't copies of each other, but watching one is
+    /// watching the other: the parts when the whole is watched, the whole when all its parts are, and both ways back
+    /// when marked unwatched. Only looked into when something's watched state changes. The states it changes, to go to their copies too.
+    /// </summary>
+    private async Task<List<PlaybackState>> ShareWithSplitEpisodesAsync(CancellationToken ct)
+    {
+        var changed = ChangeTracker.Entries<PlaybackState>()
+            .Where(e => e.State == EntityState.Added ? e.Entity.Watched : e.State == EntityState.Modified && e.Property(s => s.Watched).IsModified)
+            .Select(e => e.Entity).ToList();
+        if (changed.Count == 0)
+        {
+            return [];
+        }
+
+        var ids = changed.Select(s => s.MediaItemId).Distinct().ToList();
+        var seasons = await MediaItems.IgnoreQueryFilters().AsNoTracking()
+            .Where(e => ids.Contains(e.Id) && e.Kind == MediaKind.Episode && e.EpisodeNumber != null && e.Parent!.LinkGroupId != null)
+            .Select(e => e.Parent!.LinkGroupId!.Value).Distinct().ToListAsync(ct);
+        if (seasons.Count == 0)
+        {
+            return [];
+        }
+
+        var parts = await MediaItems.IgnoreQueryFilters().AsNoTracking()
+            .Where(e => e.Kind == MediaKind.Episode && e.EpisodeNumber != null && e.Parent!.LinkGroupId != null && seasons.Contains(e.Parent.LinkGroupId.Value))
+            .Select(e => new { e.Id, Season = e.Parent!.LinkGroupId!.Value, First = e.EpisodeNumber!.Value, Last = e.EpisodeNumberEnd ?? e.EpisodeNumber!.Value, e.LinkGroupId })
+            .ToListAsync(ct);
+        if (!parts.Exists(p => p.Last > p.First))
+        {
+            return [];
+        }
+
+        var partIds = parts.Select(p => p.Id).ToList();
+        var profiles = changed.Select(s => s.UserId).Distinct().ToList();
+        var states = (await PlaybackStates.IgnoreQueryFilters().Where(p => profiles.Contains(p.UserId) && partIds.Contains(p.MediaItemId)).ToListAsync(ct))
+            .ToDictionary(p => (p.UserId, p.MediaItemId));
+        var moved = new List<PlaybackState>();
+        foreach (var state in changed)
+        {
+            if (parts.Find(p => p.Id == state.MediaItemId) is not { } me)
+            {
+                continue;
+            }
+
+            bool Watched(Guid id) => states.TryGetValue((state.UserId, id), out var s) && s.Watched;
+            var others = parts.Where(o => o.Season == me.Season && o.Id != me.Id && (o.LinkGroupId == null || o.LinkGroupId != me.LinkGroupId) && o.Last >= me.First && o.First <= me.Last).ToList();
+            var inside = others.Where(o => o.First >= me.First && o.Last <= me.Last);
+            var around = others.Where(o => o.First <= me.First && o.Last >= me.Last && o.Last > o.First && (o.First, o.Last) != (me.First, me.Last)
+                && Enumerable.Range(o.First, o.Last - o.First + 1).All(n => n >= me.First && n <= me.Last
+                    || parts.Exists(p => p.Season == me.Season && p.First <= n && p.Last >= n && p.Id != o.Id && p.Last - p.First < o.Last - o.First && Watched(p.Id))));
+            foreach (var other in state.Watched ? inside.Concat(around) : others)
+            {
+                if (!states.TryGetValue((state.UserId, other.Id), out var row))
+                {
+                    row = new PlaybackState { UserId = state.UserId, MediaItemId = other.Id };
+                    states[(state.UserId, other.Id)] = row;
+                    PlaybackStates.Add(row);
+                }
+
+                if (row.Watched != state.Watched)
+                {
+                    row.CopyWatchStateFrom(state);
+                    moved.Add(row);
+                }
+            }
+        }
+
+        ChangeTracker.DetectChanges();
+        return moved;
     }
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess) =>
