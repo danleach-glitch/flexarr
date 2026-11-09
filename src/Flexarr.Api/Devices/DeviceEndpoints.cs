@@ -546,7 +546,7 @@ public static class DeviceEndpoints
             case MediaKind.Series:
                 return await playback.NextUpAsync(item.Id, profileId, ct);
             case MediaKind.Season:
-                var episodes = db.MediaItems.AsNoTracking().Where(e => e.ParentId == item.Id && e.Kind == MediaKind.Episode).OrderBy(e => e.SortTitle);
+                var episodes = db.MediaItems.AsNoTracking().ChildrenOf(item.Id, item.LinkGroupId).Where(e => e.Kind == MediaKind.Episode).OrderBy(e => e.SortTitle);
                 return await episodes.FirstOrDefaultAsync(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched), ct)
                     ?? await episodes.FirstOrDefaultAsync(ct);
             case MediaKind.Album:

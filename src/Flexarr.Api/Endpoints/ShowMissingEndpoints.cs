@@ -173,9 +173,11 @@ public static class ShowMissingEndpoints
 
     private static async Task<Have> HaveAsync(FlexarrDbContext db, Guid showId, CancellationToken ct)
     {
-        // Missing files are filtered out by the context; an age limit can't hide part of a show it can see.
+        // Missing files are filtered out by the context; an age limit can't hide part of a show it can see. An episode
+        // in another copy of the show counts as had.
+        var group = await db.MediaItems.AsNoTracking().IgnoreQueryFilters().Where(i => i.Id == showId).Select(i => i.LinkGroupId).FirstOrDefaultAsync(ct);
         var rows = await db.MediaItems.AsNoTracking().IgnoreQueryFilters()
-            .Where(i => i.Kind == MediaKind.Episode && i.MissingSince == null && i.Parent!.ParentId == showId && i.SeasonNumber != null && i.EpisodeNumber != null)
+            .Where(i => i.Kind == MediaKind.Episode && i.MissingSince == null && (i.Parent!.ParentId == showId || (group != null && i.Parent!.Parent!.LinkGroupId == group)) && i.SeasonNumber != null && i.EpisodeNumber != null)
             .Select(i => new { Season = i.SeasonNumber!.Value, First = i.EpisodeNumber!.Value, Last = i.EpisodeNumberEnd }).ToListAsync(ct);
         var episodes = new HashSet<(int, int)>();
         foreach (var r in rows)
@@ -187,7 +189,7 @@ public static class ShowMissingEndpoints
         }
 
         var seasons = await db.MediaItems.AsNoTracking().IgnoreQueryFilters()
-            .Where(i => i.Kind == MediaKind.Season && i.MissingSince == null && i.ParentId == showId && i.SeasonNumber != null)
+            .Where(i => i.Kind == MediaKind.Season && i.MissingSince == null && (i.ParentId == showId || (group != null && i.Parent!.LinkGroupId == group)) && i.SeasonNumber != null)
             .Select(i => i.SeasonNumber!.Value).ToListAsync(ct);
         return new Have(episodes, seasons.Concat(rows.Select(r => r.Season)).ToHashSet());
     }

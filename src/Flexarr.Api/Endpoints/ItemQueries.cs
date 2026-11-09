@@ -14,6 +14,13 @@ public static class ItemQueries
     public static IQueryable<MediaItem> OnePerTitle(this IQueryable<MediaItem> query) =>
         query.Where(i => i.LinkGroupId == null || !i.LinkGroup!.Items.Any(o => o.Id.CompareTo(i.Id) < 0));
 
+    /// <summary>
+    /// What's under a parent. For a linked show or season that's what's under all the copies this profile can see, each
+    /// title once, so a page shows the seasons and episodes of both libraries.
+    /// </summary>
+    public static IQueryable<MediaItem> ChildrenOf(this IQueryable<MediaItem> items, Guid parentId, Guid? linkGroupId) =>
+        linkGroupId is null ? items.Where(i => i.ParentId == parentId) : items.Where(i => i.Parent!.LinkGroupId == linkGroupId).OnePerTitle();
+
     /// <summary>These ids with later copies of a linked title left out, in their order: for lists already ranked in memory.</summary>
     public static async Task<List<Guid>> OnePerTitleAsync(FlexarrDbContext db, IReadOnlyList<Guid> ids, CancellationToken ct)
     {
@@ -33,7 +40,9 @@ public static class ItemQueries
         query.Select(i => new
             {
                 Item = i,
-                ChildCount = i.Children.Count,
+                // A linked title counts across its copies, each child once.
+                ChildCount = i.LinkGroupId == null ? i.Children.Count
+                    : i.LinkGroup!.Items.SelectMany(c => c.Children).Count(c => c.LinkGroupId == null || !c.LinkGroup!.Items.Any(o => o.Id.CompareTo(c.Id) < 0)),
                 Best = i.Files.OrderByDescending(f => f.Height).Select(f => new { f.DurationSeconds, f.Width, f.Height }).FirstOrDefault(),
                 Poster = i.PosterUrl != null || (i.Parent != null && (i.Parent.PosterUrl != null || (i.Parent.Parent != null && i.Parent.Parent.PosterUrl != null))),
                 Backdrop = i.BackdropUrl != null || (i.Parent != null && (i.Parent.BackdropUrl != null || (i.Parent.Parent != null && i.Parent.Parent.BackdropUrl != null))),
@@ -69,10 +78,17 @@ public static class ItemQueries
                     : (i.Kind == MediaKind.Season || i.Kind == MediaKind.Episode) && i.Path != null,
                 State = i.PlaybackStates.Where(p => p.UserId == profileId)
                     .Select(p => new { p.PositionSeconds, p.Watched, p.PlayCount, p.LastPlayedAt }).FirstOrDefault(),
+                // Linked shows and seasons across their copies, each episode once. Unlinked ones, nearly all, don't go there.
                 Unwatched = i.Kind == MediaKind.Series
-                    ? i.Children.SelectMany(s => s.Children).Count(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched))
+                    ? i.LinkGroupId == null
+                        ? i.Children.SelectMany(s => s.Children).Count(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched))
+                        : i.LinkGroup!.Items.SelectMany(c => c.Children).SelectMany(s => s.Children)
+                            .Count(e => (e.LinkGroupId == null || !e.LinkGroup!.Items.Any(o => o.Id.CompareTo(e.Id) < 0)) && !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched))
                     : i.Kind == MediaKind.Season
-                        ? i.Children.Count(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched))
+                        ? i.LinkGroupId == null
+                            ? i.Children.Count(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched))
+                            : i.LinkGroup!.Items.SelectMany(c => c.Children)
+                                .Count(e => (e.LinkGroupId == null || !e.LinkGroup!.Items.Any(o => o.Id.CompareTo(e.Id) < 0)) && !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched))
                         : (int?)null,
             })
             .Select(x => new ItemSummaryDto(

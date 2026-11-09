@@ -220,9 +220,10 @@ public static partial class PlaybackEndpoints
 
             var seasons = item.Kind switch
             {
-                MediaKind.Series => await db.MediaItems.Where(s => s.ParentId == id).Select(s => s.Id).ToListAsync(ct),
-                MediaKind.Season => [id],
-                MediaKind.Episode when item.ParentId is { } season => [season],
+                // Every version's episodes: a linked show's seasons in each library.
+                MediaKind.Series => await db.MediaItems.Where(s => s.ParentId == id || (item.LinkGroupId != null && s.Parent!.LinkGroupId == item.LinkGroupId)).Select(s => s.Id).ToListAsync(ct),
+                MediaKind.Season => await TitleVersions.CopiesAsync(db, item, ct),
+                MediaKind.Episode when item.ParentId is { } season => await TitleVersions.CopiesAsync(db, season, ct),
                 _ => [],
             };
             await db.MediaFiles.Where(f => f.MediaItem!.ParentId != null && seasons.Contains(f.MediaItem.ParentId.Value))

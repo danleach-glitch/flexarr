@@ -615,8 +615,10 @@ public sealed class PlaybackService(
 
         var targets = item.Kind switch
         {
+            // Each episode once, across the show's copies: saving writes it to the other copies, and history gets one entry.
+            MediaKind.Series when item.LinkGroupId is { } show => await db.MediaItems.Where(e => e.Parent!.Parent!.LinkGroupId == show).OnePerTitle().Select(e => e.Id).ToListAsync(ct),
             MediaKind.Series => await db.MediaItems.Where(e => e.Parent!.ParentId == itemId).Select(e => e.Id).ToListAsync(ct),
-            MediaKind.Season or MediaKind.Podcast => await db.MediaItems.Where(e => e.ParentId == itemId).Select(e => e.Id).ToListAsync(ct),
+            MediaKind.Season or MediaKind.Podcast => await db.MediaItems.ChildrenOf(itemId, item.LinkGroupId).Select(e => e.Id).ToListAsync(ct),
             _ => [itemId],
         };
 
@@ -735,8 +737,10 @@ public sealed class PlaybackService(
     /// <summary>As <see cref="NextUpAsync(Guid, CancellationToken)"/>, for another profile: what a device would play, when telling it to.</summary>
     public async Task<MediaItem?> NextUpAsync(Guid seriesId, string profileId, CancellationToken ct)
     {
-        var episodes = db.MediaItems.AsNoTracking().Where(e => e.Kind == MediaKind.Episode && e.Parent!.ParentId == seriesId);
-        var mine = db.PlaybackStates.AsNoTracking().Where(p => p.UserId == profileId && p.MediaItem!.Parent!.ParentId == seriesId);
+        // Across the show's copies, each episode once. Watch state is on every copy, so any copy's will do.
+        var copies = await TitleVersions.CopiesAsync(db, seriesId, ct);
+        var episodes = db.MediaItems.AsNoTracking().Where(e => e.Kind == MediaKind.Episode && e.Parent!.ParentId != null && copies.Contains(e.Parent.ParentId.Value)).OnePerTitle();
+        var mine = db.PlaybackStates.AsNoTracking().Where(p => p.UserId == profileId && p.MediaItem!.Parent!.ParentId != null && copies.Contains(p.MediaItem.Parent.ParentId.Value));
 
         var inProgress = await mine.Where(p => !p.Watched && p.PositionSeconds > 0).OrderByDescending(p => p.LastPlayedAt)
             .Select(p => p.MediaItem).FirstOrDefaultAsync(ct);
@@ -765,7 +769,7 @@ public sealed class PlaybackService(
         }
 
         var episodes = await EpisodesAsync(db, profile.Id, [seriesId], ct);
-        return episodes.FirstOrDefault(e => e.Id == episode.Id) is { } current && NextAfter(episodes, current) is { } next
+        return Current(episodes, episode) is { } current && NextAfter(episodes, current) is { } next
             ? await db.MediaItems.AsNoTracking().FirstAsync(e => e.Id == next.Id, ct)
             : null;
     }
@@ -780,7 +784,7 @@ public sealed class PlaybackService(
         }
 
         var episodes = await EpisodesAsync(db, profile.Id, [seriesId], ct);
-        return episodes.FirstOrDefault(e => e.Id == episode.Id) is { } current && PreviousBefore(episodes, current) is { } previous
+        return Current(episodes, episode) is { } current && PreviousBefore(episodes, current) is { } previous
             ? await db.MediaItems.AsNoTracking().FirstAsync(e => e.Id == previous.Id, ct)
             : null;
     }
@@ -797,25 +801,34 @@ public sealed class PlaybackService(
         }
 
         var episodes = await EpisodesAsync(db, profile.Id, [trail[1]], ct);
-        return episodes.FirstOrDefault(e => e.Id == episode.Id) is { } current
+        return Current(episodes, episode) is { } current
             ? (NextAfter(episodes, current)?.Id, PreviousBefore(episodes, current)?.Id)
             : (null, null);
     }
 
+    /// <summary>This episode among a show's, which may list it by another copy.</summary>
+    private static EpisodeRef? Current(List<EpisodeRef> episodes, MediaItem episode) =>
+        episodes.FirstOrDefault(e => e.Id == episode.Id || (episode.LinkGroupId != null && e.LinkGroupId == episode.LinkGroupId));
+
     /// <summary>On shuffle, a random other episode of the show this one is from.</summary>
     private async Task<MediaItem?> ShuffleNextAsync(MediaItem episode, CancellationToken ct) =>
         episode.ParentId is { } seasonId && await db.MediaItems.Where(s => s.Id == seasonId).Select(s => s.ParentId).FirstOrDefaultAsync(ct) is { } seriesId
-            ? await ShuffleAsync(seriesId, episode.Id, ct)
+            ? await ShuffleAsync(seriesId, episode, ct)
             : null;
 
     /// <summary>A random episode of the show that can be played (one with a readable file), other than <paramref name="current"/>.</summary>
-    private async Task<MediaItem?> ShuffleAsync(Guid seriesId, Guid? current, CancellationToken ct)
+    private async Task<MediaItem?> ShuffleAsync(Guid seriesId, MediaItem? current, CancellationToken ct)
     {
-        var playable = (await db.MediaFiles.AsNoTracking()
-            .Where(f => f.ProbeError == null && f.MediaItem!.Parent!.ParentId == seriesId)
-            .Select(f => f.MediaItemId).ToListAsync(ct)).ToHashSet();
-        var episodes = (await EpisodesAsync(db, profile.Id, [seriesId], ct)).Where(e => playable.Contains(e.Id)).ToList();
-        return PickShuffled(episodes, current, Random.Shared, DateTime.UtcNow) is { } pick
+        var copies = await TitleVersions.CopiesAsync(db, seriesId, ct);
+        var playable = await db.MediaFiles.AsNoTracking()
+            .Where(f => f.ProbeError == null && f.MediaItem!.Parent!.ParentId != null && copies.Contains(f.MediaItem.Parent.ParentId.Value))
+            .Select(f => new { f.MediaItemId, f.MediaItem!.LinkGroupId }).ToListAsync(ct);
+        var ids = playable.Select(f => f.MediaItemId).ToHashSet();
+        var groups = playable.Select(f => f.LinkGroupId).OfType<Guid>().ToHashSet();
+        var all = await EpisodesAsync(db, profile.Id, [seriesId], ct);
+        var episodes = all.Where(e => ids.Contains(e.Id) || (e.LinkGroupId is { } group && groups.Contains(group))).ToList();
+        Guid? now = current is null ? null : Current(all, current)?.Id ?? current.Id;
+        return PickShuffled(episodes, now, Random.Shared, DateTime.UtcNow) is { } pick
             ? await db.MediaItems.AsNoTracking().FirstAsync(e => e.Id == pick.Id, ct)
             : null;
     }
@@ -835,15 +848,37 @@ public sealed class PlaybackService(
 
     /// <summary>What Up Next needs to know about an episode, and when this profile finished it (null if it hasn't).</summary>
     internal sealed record EpisodeRef(
-        Guid Id, Guid SeriesId, Guid SeasonId, int? SeasonNumber, int? EpisodeNumber, int? EpisodeNumberEnd, DateOnly? AirDate, string SortTitle, DateTime? WatchedAt);
+        Guid Id, Guid SeriesId, Guid SeasonId, int? SeasonNumber, int? EpisodeNumber, int? EpisodeNumberEnd, DateOnly? AirDate, string SortTitle, DateTime? WatchedAt, Guid? LinkGroupId = null);
 
-    /// <summary>Every episode of these shows, in one query.</summary>
-    internal static Task<List<EpisodeRef>> EpisodesAsync(FlexarrDbContext db, string profileId, IReadOnlyList<Guid> seriesIds, CancellationToken ct) =>
-        db.MediaItems.AsNoTracking()
-            .Where(e => e.Kind == MediaKind.Episode && e.Parent!.ParentId != null && seriesIds.Contains(e.Parent.ParentId.Value))
-            .Select(e => new EpisodeRef(e.Id, e.Parent!.ParentId!.Value, e.ParentId!.Value, e.Parent.SeasonNumber, e.EpisodeNumber, e.EpisodeNumberEnd, e.AirDate, e.SortTitle,
-                e.PlaybackStates.Where(p => p.UserId == profileId && p.Watched).Select(p => (DateTime?)p.LastPlayedAt).FirstOrDefault()))
+    /// <summary>
+    /// Every episode of these shows, in one query. A linked show's come from all the copies this profile can see, each
+    /// episode once, under the show id asked for and with a season's copies counting as one season.
+    /// </summary>
+    internal static async Task<List<EpisodeRef>> EpisodesAsync(FlexarrDbContext db, string profileId, IReadOnlyList<Guid> seriesIds, CancellationToken ct)
+    {
+        var linked = await db.MediaItems.Where(s => seriesIds.Contains(s.Id) && s.LinkGroupId != null)
+            .Select(s => new { s.Id, Group = s.LinkGroupId!.Value }).ToListAsync(ct);
+        var asked = new Dictionary<Guid, Guid>();
+        if (linked.Count > 0)
+        {
+            var groups = linked.Select(s => s.Group).ToList();
+            var copies = await db.MediaItems.Where(s => s.LinkGroupId != null && groups.Contains(s.LinkGroupId.Value))
+                .Select(s => new { s.Id, Group = s.LinkGroupId!.Value }).ToListAsync(ct);
+            foreach (var copy in copies)
+            {
+                asked[copy.Id] = linked.First(s => s.Group == copy.Group).Id;
+            }
+        }
+
+        var shows = seriesIds.Concat(asked.Keys).Distinct().ToList();
+        var episodes = await db.MediaItems.AsNoTracking()
+            .Where(e => e.Kind == MediaKind.Episode && e.Parent!.ParentId != null && shows.Contains(e.Parent.ParentId.Value))
+            .OnePerTitle()
+            .Select(e => new EpisodeRef(e.Id, e.Parent!.ParentId!.Value, e.Parent.LinkGroupId ?? e.ParentId!.Value, e.Parent.SeasonNumber, e.EpisodeNumber, e.EpisodeNumberEnd, e.AirDate, e.SortTitle,
+                e.PlaybackStates.Where(p => p.UserId == profileId && p.Watched).Select(p => (DateTime?)p.LastPlayedAt).FirstOrDefault(), e.LinkGroupId))
             .ToListAsync(ct);
+        return asked.Count == 0 ? episodes : [.. episodes.Select(e => asked.TryGetValue(e.SeriesId, out var show) ? e with { SeriesId = show } : e)];
+    }
 
     /// <summary>
     /// The unwatched episode after the last one watched, from one show's episodes. A special watched in the middle

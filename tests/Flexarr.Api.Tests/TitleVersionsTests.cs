@@ -237,4 +237,87 @@ public sealed class TitleVersionsTests : IAsyncLifetime
         var search = await Client().GetFromJsonAsync<JsonElement>(Api("/search?q=Film"));
         Assert.Equal(hidden == _uhdLibrary ? _hdItem : _uhdItem, search.GetProperty("titles").EnumerateArray().Single().GetProperty("id").GetGuid());
     }
+
+    /// <summary>A show in the HD library with seasons 1 and 2, and in the 4K library with season 1 and one more episode.</summary>
+    private async Task<(Guid Hd, Guid Uhd, Guid S1E1)> SeedShowAsync()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var hd = await db.Libraries.SingleAsync(l => l.Id == _hdLibrary);
+        var uhd = await db.Libraries.SingleAsync(l => l.Id == _uhdLibrary);
+
+        MediaItem Show(Library library) => new() { LibraryId = library.Id, Kind = MediaKind.Series, Title = "Show", SortTitle = "show", TvdbId = "81189" };
+        MediaItem Season(Library library, MediaItem show, int number) =>
+            new() { LibraryId = library.Id, ParentId = show.Id, Kind = MediaKind.Season, Title = $"Season {number}", SortTitle = $"{number:D3}", SeasonNumber = number };
+        MediaItem Episode(Library library, MediaItem season, int number) =>
+            new() { LibraryId = library.Id, ParentId = season.Id, Kind = MediaKind.Episode, Title = $"Episode {number}", SortTitle = $"{season.SeasonNumber:D3}{number:D3}", SeasonNumber = season.SeasonNumber, EpisodeNumber = number };
+
+        var hdShow = Show(hd);
+        var uhdShow = Show(uhd);
+        var hdOne = Season(hd, hdShow, 1);
+        var hdTwo = Season(hd, hdShow, 2);
+        var uhdOne = Season(uhd, uhdShow, 1);
+        var e1 = Episode(hd, hdOne, 1);
+        var episodes = new[] { e1, Episode(hd, hdOne, 2), Episode(hd, hdTwo, 1), Episode(uhd, uhdOne, 1), Episode(uhd, uhdOne, 3) };
+        db.AddRange(hdShow, uhdShow, hdOne, hdTwo, uhdOne);
+        db.AddRange(episodes);
+        db.AddRange(episodes.Select(e => File(e, $"{e.LibraryId}-{e.SortTitle}.mkv", 1920, 1080)));
+        await db.SaveChangesAsync();
+        await TitleLinker.LinkAsync(db, default);
+        return (hdShow.Id, uhdShow.Id, e1.Id);
+    }
+
+    [Fact]
+    public async Task AShowPage_CombinesItsCopies_FromEither()
+    {
+        var (hd, uhd, _) = await SeedShowAsync();
+        var client = Client();
+        foreach (var show in new[] { hd, uhd })
+        {
+            var detail = await client.GetFromJsonAsync<JsonElement>(Api($"/items/{show}?includeSeason=true&season=1"));
+            Assert.Equal([1, 2], detail.GetProperty("children").EnumerateArray().Select(s => s.GetProperty("seasonNumber").GetInt32()).Order());
+            Assert.Equal(2, detail.GetProperty("item").GetProperty("childCount").GetInt32());
+            // Season 1 has episodes 1 and 2 in HD, 1 and 3 in 4K: three in all.
+            Assert.Equal([1, 2, 3], detail.GetProperty("season").GetProperty("children").EnumerateArray().Select(e => e.GetProperty("episodeNumber").GetInt32()).Order());
+            Assert.Equal(4, detail.GetProperty("item").GetProperty("userData").GetProperty("unwatchedCount").GetInt32());
+        }
+    }
+
+    [Fact]
+    public async Task MarkingAShowWatched_CoversEveryCopy_AndCountsOnce()
+    {
+        var (hd, uhd, _) = await SeedShowAsync();
+        var client = Client();
+        (await client.PostAsJsonAsync(Api($"/items/{uhd}/watched"), new { watched = true })).EnsureSuccessStatusCode();
+        foreach (var show in new[] { hd, uhd })
+        {
+            var detail = await client.GetFromJsonAsync<JsonElement>(Api($"/items/{show}"));
+            Assert.True(detail.GetProperty("item").GetProperty("userData").GetProperty("watched").GetBoolean());
+            Assert.Equal(0, detail.GetProperty("item").GetProperty("userData").GetProperty("unwatchedCount").GetInt32());
+        }
+    }
+
+    [Fact]
+    public async Task NextUp_RunsAcrossCopies()
+    {
+        var (_, uhd, e1) = await SeedShowAsync();
+        var client = Client();
+        (await client.PostAsJsonAsync(Api($"/items/{e1}/watched"), new { watched = true })).EnsureSuccessStatusCode();
+        var next = await client.GetFromJsonAsync<JsonElement>(Api($"/items/{uhd}?includeSeason=true"));
+        Assert.Equal(2, next.GetProperty("nextUp").GetProperty("episodeNumber").GetInt32());
+
+        // Continue Watching holds the show once, with that episode.
+        var home = await client.GetFromJsonAsync<JsonElement>(Api("/home"));
+        var carryOn = home.GetProperty("rows").EnumerateArray().Single(r => r.GetProperty("id").GetString() == "continue").GetProperty("items").EnumerateArray().ToList();
+        Assert.Equal(2, Assert.Single(carryOn).GetProperty("episodeNumber").GetInt32());
+    }
+
+    [Fact]
+    public async Task AHiddenCopy_AddsNothingToAShow()
+    {
+        var (hd, _, _) = await SeedShowAsync();
+        await HideFourKAsync();
+        var detail = await Client().GetFromJsonAsync<JsonElement>(Api($"/items/{hd}?includeSeason=true&season=1"));
+        Assert.Equal([1, 2], detail.GetProperty("season").GetProperty("children").EnumerateArray().Select(e => e.GetProperty("episodeNumber").GetInt32()).Order());
+    }
 }

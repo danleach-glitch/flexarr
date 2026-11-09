@@ -354,7 +354,7 @@ public static class ItemEndpoints
         }
 
         // An artist's albums read newest first; everything else in its natural order.
-        var childQuery = db.MediaItems.Where(i => i.ParentId == id);
+        var childQuery = db.MediaItems.ChildrenOf(id, entity.LinkGroupId);
         var children = await (entity.Kind == MediaKind.Artist
                 ? childQuery.OrderByDescending(i => i.Year).ThenBy(i => i.SortTitle)
                 : childQuery.OrderBy(i => i.SortTitle))
@@ -374,7 +374,7 @@ public static class ItemEndpoints
 
         // A season's episode list shows overviews; send them with it rather than one request per episode.
         var childOverviews = entity.Kind == MediaKind.Season
-            ? await db.MediaItems.Where(i => i.ParentId == id).Select(i => new { i.Id, i.Overview }).ToDictionaryAsync(i => i.Id, i => i.Overview, ct)
+            ? await childQuery.Select(i => new { i.Id, i.Overview }).ToDictionaryAsync(i => i.Id, i => i.Overview, ct)
             : new Dictionary<Guid, string?>();
 
         // Where things are on the server's disk is the main profile's to know: the fields stay (apps read them), empty.
