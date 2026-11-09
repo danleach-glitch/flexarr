@@ -961,7 +961,8 @@ public sealed class LiveTvTests : IDisposable
         var client = Client();
         await ConnectAsync(client);
         var folder = Directory.CreateDirectory(Path.Combine(_factory.DataDirectory, "languages")).FullName;
-        // A code of its own: what's loaded is shared across a test run, and LanguageEndpointTests has en-XA.
+        // A code of its own: what's loaded is shared across a test run, and the newest version of a code wins. en-XA is
+        // LanguageEndpointTests', en-XC NotificationTests'.
         File.WriteAllText(Path.Combine(folder, "en-XB.json"), """
             {"format":1,"code":"en-XB","name":"Pseudo (test)","direction":"ltr","version":7,"coverage":{"web":1},"messages":{
             "Flexarr can’t reach the Live TV source: {reason}":"⟦reach {reason}⟧",
