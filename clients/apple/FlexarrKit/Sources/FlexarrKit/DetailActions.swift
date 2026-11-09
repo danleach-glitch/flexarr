@@ -36,6 +36,8 @@ public struct DetailActions: Equatable, Sendable {
         /// A button that didn't fit on a phone's row: Shuffle, Trailer, Watched (Mark as watched or unwatched) or
         /// Watchlist (Add to or Remove from watchlist). Start over and Download never move.
         case button(Button)
+        /// Choose a version, with more than one to choose from.
+        case version
         /// Search for subtitles.
         case subtitles
         /// An episode's show.
@@ -51,8 +53,9 @@ public struct DetailActions: Equatable, Sendable {
     ///   - canDownload: whether this title can be downloaded to this device (phones).
     ///   - canSearchSubtitles: whether the server can find subtitles for it.
     ///   - canWatchlist: whether this title can go on a watchlist here (films and shows, on servers that have one).
+    ///   - canChooseVersion: whether it has more than one version.
     public init(kind: Kind, hasProgress: Bool, watched: Bool, hasTrailer: Bool, isKids: Bool, platform: Platform,
-                canPlayTrailers: Bool, canDownload: Bool, canSearchSubtitles: Bool = false, canWatchlist: Bool = true) {
+                canPlayTrailers: Bool, canDownload: Bool, canSearchSubtitles: Bool = false, canWatchlist: Bool = true, canChooseVersion: Bool = false) {
         var row: [Button] = []
         if hasProgress { row.append(.startOver) }
         if kind == .show { row.append(.shuffle) }
@@ -73,6 +76,7 @@ public struct DetailActions: Equatable, Sendable {
         }
 
         var menu = moved
+        if canChooseVersion { menu.append(.version) }
         if !isKids && canSearchSubtitles { menu.append(.subtitles) }
         if kind == .episode { menu.append(.goToShow) }
 

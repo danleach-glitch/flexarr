@@ -91,7 +91,8 @@ extension ItemSummary {
 
     /// The facts, leaving out the plain score when `scores` is false (for a kids profile, where it means nothing) or
     /// when the title has an IMDb score to show beside its mark instead (the plain one is usually IMDb's).
-    public func facts(scores: Bool) -> [String] {
+    /// - Parameter versions: the title's versions, shown side by side in place of its one resolution.
+    public func facts(scores: Bool, versions: [TitleVersion]? = nil) -> [String] {
         var facts: [String] = []
         if let releaseYear { facts.append(String(releaseYear)) }
         switch kind {
@@ -118,7 +119,12 @@ extension ItemSummary {
         }
         if let contentRating, !contentRating.isEmpty { facts.append(contentRating) }
         if scores, self.scores.imdb == nil, let communityRating, communityRating > 0 { facts.append(communityRating.formatted(.number.precision(.fractionLength(1)).locale(Localization.locale))) }
-        if let resolution, !resolution.isEmpty { facts.append(resolution) }
+        if let versions, versions.count > 1 {
+            var seen = Set<String>()
+            facts += versions.map(\.label).filter { !$0.isEmpty && seen.insert($0).inserted }
+        } else if let resolution, !resolution.isEmpty {
+            facts.append(resolution)
+        }
         return facts
     }
 }

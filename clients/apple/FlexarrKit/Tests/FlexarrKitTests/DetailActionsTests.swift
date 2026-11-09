@@ -9,6 +9,15 @@ struct DetailActionsTests {
                       canPlayTrailers: trailers, canDownload: download, canSearchSubtitles: subtitles, canWatchlist: watchlist)
     }
 
+    @Test func versionsComeBeforeSubtitles_AndOnlyWithSomethingToChoose() {
+        let one = actions(subtitles: true)
+        #expect(!one.has(.version))
+        let many = DetailActions(kind: .movie, hasProgress: false, watched: false, hasTrailer: false, isKids: true, platform: .tv,
+                                 canPlayTrailers: false, canDownload: false, canSearchSubtitles: false, canChooseVersion: true)
+        #expect(many.menu == [.version])
+        #expect(many.has(.more))
+    }
+
     @Test func aFreshMovie() {
         let a = actions()
         #expect(a.buttons == [.play, .trailer, .watched, .watchlist])
