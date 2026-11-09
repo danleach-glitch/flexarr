@@ -258,6 +258,9 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
     var focusedCategory by remember { mutableStateOf<Category?>(null) }
     var guideHours by remember { mutableIntStateOf(TvGuideCache.FIRST_HOURS) }
     val firstCategory = remember { FocusRequester() }
+    val allChannels = remember { FocusRequester() }
+    // Focus is on the empty screen's Refresh, which goes when the first channels come.
+    var refreshHasFocus by remember { mutableStateOf(false) }
 
     suspend fun load() {
         try {
@@ -363,6 +366,14 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
         runCatching { firstCategory.requestFocus() }
         onFocusTaken()
     }
+    // Its button gone, focus would land anywhere, Favourites and its "No favourites yet" among them.
+    val hasChannels = channels?.isNotEmpty() == true
+    LaunchedEffect(hasChannels) {
+        if (!hasChannels || !refreshHasFocus) return@LaunchedEffect
+        refreshHasFocus = false
+        delay(50)
+        runCatching { allChannels.requestFocus() }
+    }
 
     RoomBackground(ambient = null) {
         val loaded = channels
@@ -372,7 +383,13 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
             loaded.isEmpty() -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(t("No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user."), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
                 if (model.canRefreshLiveTv) {
-                    TvActionButton(if (model.isRefreshingLiveTv) t(Words.refreshingGuide) else t(Words.refreshGuide), onClick = model::refreshLiveTv, prominent = true)
+                    TvActionButton(
+                        if (model.isRefreshingLiveTv) t(Words.refreshingGuide) else t(Words.refreshGuide),
+                        onClick = model::refreshLiveTv,
+                        prominent = true,
+                        // Only while it's here: leaving the screen as the channels arrive isn't focus moving away.
+                        modifier = Modifier.onFocusChanged { if (channels?.isEmpty() == true) refreshHasFocus = it.hasFocus },
+                    )
                     refreshNote?.let { Text(it.words, fontSize = 13.sp, color = if (it.isProblem) Flexarr.danger else Flexarr.usher) }
                 }
             }
@@ -394,7 +411,11 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                             count = if (value == Category.Recordings) upcoming else channelsIn(value).size,
                             onFocus = { focusedCategory = value },
                             onClick = { focusedCategory = value; chosen = value },
-                            modifier = if (value == Category.Favourites) Modifier.focusRequester(firstCategory) else Modifier,
+                            modifier = when (value) {
+                                Category.Favourites -> Modifier.focusRequester(firstCategory)
+                                Category.All -> Modifier.focusRequester(allChannels)
+                                else -> Modifier
+                            },
                         )
                     }
                     items(entries, key = { it.second + it.first::class.simpleName }) { categoryRow(it) }
