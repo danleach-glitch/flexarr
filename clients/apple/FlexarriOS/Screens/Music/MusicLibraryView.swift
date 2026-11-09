@@ -80,13 +80,13 @@ struct MusicLibraryView<Header: View>: View {
         .task {
             // Music played since (from the hero, say) may have moved Resume on.
             let played = browse.playingWhenLoaded != model.music.current?.id
-            if browse.loadedAt != nil, !Freshness.isStale(browse.loadedAt), !played { return }
+            if browse.completedAt != nil, !Freshness.isStale(browse.completedAt), !played { return }
             await load()
         }
         .onAppear { isVisible = true }
         .onDisappear { isVisible = false }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active, isVisible, Freshness.isStale(browse.loadedAt) { Task { await load() } }
+            if phase == .active, isVisible, Freshness.isStale(browse.completedAt) { Task { await load() } }
         }
     }
 
