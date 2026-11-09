@@ -823,7 +823,7 @@ function DispatcharrRow({
                 type="password"
                 autoComplete="new-password"
                 value={password}
-                placeholder={liveTv?.hasPassword ? (sameAddress ? t('Saved; type to replace') : t('Type it again for this address')) : t('The user’s XC password in Dispatcharr')}
+                placeholder={liveTv?.hasPassword ? (sameAddress ? t('Saved; type to replace') : t('Retype for this address')) : t('The user’s XC password in Dispatcharr')}
                 onChange={(e) => setPassword(e.target.value)}
               />
             </label>
@@ -835,7 +835,7 @@ function DispatcharrRow({
                 type="password"
                 autoComplete="new-password"
                 value={adminKey}
-                placeholder={liveTv?.hasAdminApiKey ? (sameAddress ? t('Saved; type to replace') : t('Type it again for this address')) : t('A Dispatcharr admin’s API key')}
+                placeholder={liveTv?.hasAdminApiKey ? (sameAddress ? t('Saved; type to replace') : t('Retype for this address')) : t('A Dispatcharr admin’s API key')}
                 onChange={(e) => setAdminKey(e.target.value)}
               />
             </label>

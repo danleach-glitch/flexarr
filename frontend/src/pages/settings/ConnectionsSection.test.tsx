@@ -88,8 +88,8 @@ describe('Dispatcharr’s admin API key', () => {
     expect(key).toHaveAttribute('placeholder', 'Saved; type to replace')
 
     fireEvent.change(within(form).getByLabelText('Address'), { target: { value: 'http://elsewhere:9191' } })
-    expect(password).toHaveAttribute('placeholder', 'Type it again for this address')
-    expect(key).toHaveAttribute('placeholder', 'Type it again for this address')
+    expect(password).toHaveAttribute('placeholder', 'Retype for this address')
+    expect(key).toHaveAttribute('placeholder', 'Retype for this address')
 
     fireEvent.change(within(form).getByLabelText('Address'), { target: { value: 'http://dispatcharr:9191/' } })
     expect(key).toHaveAttribute('placeholder', 'Saved; type to replace')
