@@ -32,7 +32,7 @@ const open = () =>
     </MemoryRouter>,
   )
 const problem = (status: number, title: string) => new Response(JSON.stringify({ title }), { status })
-const named = { name: 'Try again: City Lounge' }
+const named = { name: 'Try again City Lounge' }
 
 describe('Try again, against the server', () => {
   it.each([
