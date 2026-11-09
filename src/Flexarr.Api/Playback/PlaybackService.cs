@@ -692,7 +692,12 @@ public sealed class PlaybackService(
         }
 
         var now = DateTime.UtcNow;
-        await db.PlaybackStates.Where(p => p.UserId == profile.Id && p.MediaItemId == itemId && !p.Watched)
+        // Every copy, those this profile can't see too, or the title would stay in the row through another. This
+        // statement goes straight to the database, past what writes watch state to the other copies on saving.
+        var copies = item.LinkGroupId is { } group
+            ? await db.MediaItems.IgnoreQueryFilters().Where(i => i.LinkGroupId == group).Select(i => i.Id).ToListAsync(ct)
+            : [itemId];
+        await db.PlaybackStates.Where(p => p.UserId == profile.Id && copies.Contains(p.MediaItemId) && !p.Watched)
             .ExecuteUpdateAsync(u => u.SetProperty(p => p.PositionSeconds, 0).SetProperty(p => p.LastPlayedAt, now), ct);
         await DismissShowAsync(item, ct);
         await db.SaveChangesAsync(ct);

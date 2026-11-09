@@ -401,4 +401,25 @@ public sealed class TitleVersionsTests : IAsyncLifetime
         var says = await db.MediaItems.IgnoreQueryFilters().Where(i => i.Id == _hdItem || i.Id == _uhdItem).Select(i => i.KidsOverride).ToListAsync();
         Assert.All(says, s => Assert.Equal(Enum.Parse<KidsOverride>(say), s));
     }
+
+    [Fact]
+    public async Task RemovingFromContinueWatching_ForgetsThePlaceOnEveryCopy()
+    {
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            db.PlaybackStates.Add(new PlaybackState { MediaItemId = _hdItem, PositionSeconds = 600, LastPlayedAt = DateTime.UtcNow });
+            await db.SaveChangesAsync();
+        }
+
+        var client = Client();
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync(Api($"/home/continue/{_hdItem}"))).StatusCode);
+
+        var home = await client.GetFromJsonAsync<JsonElement>(Api("/home"));
+        Assert.DoesNotContain(home.GetProperty("rows").EnumerateArray(), r => r.GetProperty("id").GetString() == "continue" && r.GetProperty("items").GetArrayLength() > 0);
+        using var check = _factory.Services.CreateScope();
+        var states = await check.ServiceProvider.GetRequiredService<FlexarrDbContext>().PlaybackStates.AsNoTracking().ToListAsync();
+        Assert.Equal(2, states.Count);
+        Assert.All(states, state => Assert.Equal(0, state.PositionSeconds));
+    }
 }
