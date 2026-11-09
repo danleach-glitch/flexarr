@@ -434,6 +434,29 @@ public sealed class TitleVersionsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task MissingEpisodes_DontGiveAwayAHiddenCopy_ButASearchKnowsIt()
+    {
+        var (hd, _, _) = await SeedShowAsync();
+        await HideFourKAsync();
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        await Flexarr.Api.Profiles.LibraryVisibility.ApplyAsync(db, PlaybackState.DefaultUser, default);
+
+        Assert.False((await Flexarr.Api.Endpoints.ShowMissingEndpoints.HaveAsync(db, hd, everyCopy: false, default)).Has(1, 3)); // Only the 4K copy has it.
+        Assert.True((await Flexarr.Api.Endpoints.ShowMissingEndpoints.HaveAsync(db, hd, everyCopy: true, default)).Has(1, 3));
+    }
+
+    [Fact]
+    public async Task PlayOnADevice_SendsACopyThatDevicesProfileCanOpen()
+    {
+        await HideFourKAsync();
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var uhd = await db.MediaItems.IgnoreQueryFilters().AsNoTracking().SingleAsync(i => i.Id == _uhdItem);
+        Assert.Equal(_hdItem, (await Flexarr.Api.Devices.DeviceEndpoints.CopyTheProfileSeesAsync(uhd, PlaybackState.DefaultUser, db, default)).Id);
+    }
+
+    [Fact]
     public async Task AHiddenCopy_AddsNothingToAShow()
     {
         var (hd, _, _) = await SeedShowAsync();
