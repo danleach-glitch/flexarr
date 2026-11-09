@@ -267,8 +267,12 @@ object WatchNext {
     private fun key(owner: String, id: String) = "$owner/$id"
 
 
+    /**
+     * A card as a row. Position, length and art are always set, to 0 or null when there's none: an update leaves alone
+     * any column it isn't given, so an episode that's gone back to Next would keep its progress bar.
+     */
     @SuppressLint("RestrictedApi")
-    private fun program(context: Context, card: Card, key: String): WatchNextProgram = WatchNextProgram.Builder()
+    internal fun program(context: Context, card: Card, key: String): WatchNextProgram = WatchNextProgram.Builder()
         .setWatchNextType(card.watchNextType)
         .setType(card.programType)
         .setTitle(card.title)
@@ -276,11 +280,12 @@ object WatchNext {
         .apply {
             card.season?.let { setSeasonNumber(it) }
             card.episode?.let { setEpisodeNumber(it) }
-            card.durationMillis?.let { setDurationMillis(it) }
-            card.positionMillis?.let { setLastPlaybackPositionMillis(it) }
             card.author?.let { setAuthor(it) }
-            card.image?.let { setPosterArtUri(Uri.parse(it.url)); setPosterArtAspectRatio(it.aspect) }
+            card.image?.let { setPosterArtAspectRatio(it.aspect) }
         }
+        .setDurationMillis(card.durationMillis ?: 0)
+        .setLastPlaybackPositionMillis(card.positionMillis ?: 0)
+        .setPosterArtUri(card.image?.let { Uri.parse(it.url) })
         .setLastEngagementTimeUtcMillis(card.lastEngagement)
         .setInternalProviderId(key)
         .setIntent(card.link.launcherIntent(context))
