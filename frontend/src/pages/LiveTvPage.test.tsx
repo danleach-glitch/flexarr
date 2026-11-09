@@ -1,10 +1,11 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mockApi } from '../test/mockApi'
 import * as livetv from '../lib/livetv'
+import { forgetLiveTvRefresh } from '../lib/liveTvRefresh'
 import { SessionContext } from '../hooks/sessionContext'
-import type { Me } from '../api/client'
+import { clearApiCache, type Me } from '../api/client'
 import LiveTvPage from './LiveTvPage'
 
 vi.mock('../lib/livetv', async (original) => {
@@ -12,7 +13,11 @@ vi.mock('../lib/livetv', async (original) => {
   return { ...actual, programmeTime: vi.fn(actual.programmeTime) }
 })
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  clearApiCache()
+  forgetLiveTvRefresh()
+})
 
 const hour = 60 * 60_000
 const start = Date.now() - (Date.now() % (30 * 60_000))
@@ -231,6 +236,315 @@ describe('refreshing the Live TV guide', () => {
     await screen.findByText('Guide refreshed', undefined, { timeout: 5000 })
     expect(button).toHaveAccessibleName('Refresh guide')
   }, 15000)
+
+  // The whole of a refresh, against what the server really does: answers, stops answering, answers again.
+  describe('when the server stops answering, or the page is left', () => {
+    const word = 'Flexarr didn’t answer. Try again.'
+    const server = () => {
+      const state = { down: false, refreshing: false, finished: 4, refreshedAt: '2026-11-08T06:00:00Z' as string | null, error: null as string | null, downloadError: null as string | null, channelFetches: 0, posts: 0, postAnswer: undefined as (() => unknown) | undefined }
+      mockApi({
+        '/livetv/status': () => {
+          // What a browser gets from a server that's gone.
+          if (state.down) throw new TypeError('Failed to fetch')
+          return { configured: true, channels: 20, refreshing: state.refreshing, refreshedAt: state.refreshedAt, error: state.error, downloadError: state.downloadError, rewindMinutes: 0, refreshesFinished: state.finished }
+        },
+        '/livetv/channels': () => {
+          state.channelFetches++
+          return []
+        },
+        '/livetv/refresh': () => {
+          state.posts++
+          if (state.postAnswer) return state.postAnswer()
+          state.refreshing = true
+          return {}
+        },
+      })
+      return state
+    }
+    const end = (state: ReturnType<typeof server>) => {
+      state.refreshing = false
+      state.finished++
+      state.refreshedAt = new Date().toISOString()
+    }
+    const fake = (run: () => Promise<void>) => async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      try {
+        await run()
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+    const press = async () => {
+      const button = await screen.findByRole('button', { name: 'Refresh guide' })
+      fireEvent.click(button)
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Refreshing…' })).toBeInTheDocument())
+    }
+    // In steps: React applies what each look found only when act ends, and the next look depends on it.
+    const passes = async (ms: number) => {
+      const step = Math.max(500, ms / 100)
+      for (let gone = 0; gone < ms; gone += step) await act(() => vi.advanceTimersByTimeAsync(step))
+    }
+
+    it(
+      'says so with the button free, then carries on watching and reports the end once it’s back',
+      fake(async () => {
+        const state = server()
+        openPage(true)
+        await press()
+
+        state.down = true
+        await passes(7000)
+        expect(screen.getByRole('alert')).toHaveTextContent(word)
+        expect(screen.getByRole('button', { name: 'Refresh guide' })).toBeInTheDocument()
+
+        // Back, the refresh still running: the line goes, and the wait goes on.
+        state.down = false
+        await passes(10_500)
+        await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+        expect(screen.getByRole('button', { name: 'Refreshing…' })).toBeInTheDocument()
+
+        const before = state.channelFetches
+        end(state)
+        await passes(2500)
+        expect(await screen.findByText('Guide refreshed')).toBeInTheDocument()
+        expect(state.channelFetches).toBe(before + 1)
+        expect(screen.getByRole('button', { name: 'Refresh guide' })).toBeInTheDocument()
+      }),
+      20000,
+    )
+
+    it(
+      'reports an end that came while it wasn’t answering, and shows the real failure',
+      fake(async () => {
+        const state = server()
+        openPage(true)
+        await press()
+        state.down = true
+        await passes(7000)
+        expect(screen.getByRole('alert')).toHaveTextContent(word)
+
+        end(state)
+        state.downloadError = 'A source failed'
+        state.down = false
+        await passes(10_500)
+
+        await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('A source failed'))
+        expect(screen.queryByText(word)).toBeNull()
+        expect(screen.queryByText('Guide refreshed')).toBeNull()
+        expect(screen.getByRole('button', { name: 'Refresh guide' })).toBeInTheDocument()
+      }),
+      20000,
+    )
+
+    it(
+      'can be pressed again while it isn’t answering, and says so again if that fails too',
+      fake(async () => {
+        const state = server()
+        openPage(true)
+        await press()
+        state.down = true
+        await passes(7000)
+        const posts = state.posts
+
+        fireEvent.click(screen.getByRole('button', { name: 'Refresh guide' }))
+        await passes(100)
+
+        await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(word))
+        expect(state.posts).toBe(posts)
+      }),
+      20000,
+    )
+
+    it(
+      'clears a press that couldn’t even look, on the next look that can',
+      fake(async () => {
+        const state = server()
+        openPage(true)
+        const button = await screen.findByRole('button', { name: 'Refresh guide' })
+        state.down = true
+        fireEvent.click(button)
+        await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(word))
+        expect(state.posts).toBe(0)
+
+        state.down = false
+        await passes(10_500)
+        await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+      }),
+      20000,
+    )
+
+    it('keeps the server’s words when it refuses the press', async () => {
+      const state = server()
+      state.postAnswer = () => new Response(JSON.stringify({ title: 'Not now' }), { status: 400 })
+      openPage(true)
+      fireEvent.click(await screen.findByRole('button', { name: 'Refresh guide' }))
+      await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Not now'))
+      expect(screen.getByRole('button', { name: 'Refresh guide' })).toBeInTheDocument()
+    })
+
+    it(
+      'press, leave, come back: the wait goes on, and the end refetches and says so',
+      fake(async () => {
+        const state = server()
+        const first = openPage(true)
+        await press()
+        first.unmount()
+        await passes(30_000)
+
+        openPage(true)
+        expect(await screen.findByRole('button', { name: 'Refreshing…' })).toBeInTheDocument()
+        await waitFor(() => expect(state.channelFetches).toBeGreaterThan(0))
+
+        const before = state.channelFetches
+        end(state)
+        await passes(2500)
+        expect(await screen.findByText('Guide refreshed')).toBeInTheDocument()
+        expect(state.channelFetches).toBe(before + 1)
+      }),
+      20000,
+    )
+
+    it(
+      'press, leave, come back just after it ended: says so',
+      fake(async () => {
+        const state = server()
+        const first = openPage(true)
+        await press()
+        first.unmount()
+        await passes(5 * 60_000)
+        end(state)
+        await passes(30_000)
+
+        openPage(true)
+        expect(await screen.findByText('Guide refreshed')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Refresh guide' })).toBeInTheDocument()
+      }),
+      20000,
+    )
+
+    it(
+      'press, leave, come back the next day: says nothing, shows what’s new, and isn’t still waiting',
+      fake(async () => {
+        const state = server()
+        const first = openPage(true)
+        await press()
+        first.unmount()
+        await passes(60_000)
+        end(state)
+        await passes(24 * 60 * 60_000)
+        const before = state.channelFetches
+
+        openPage(true)
+        await screen.findByRole('button', { name: 'Refresh guide' })
+        await passes(3000)
+
+        expect(screen.queryByText('Guide refreshed')).toBeNull()
+        expect(screen.queryByText(/taking a while/)).toBeNull()
+        expect(state.channelFetches).toBeGreaterThan(before)
+      }),
+      20000,
+    )
+
+    it(
+      'press, leave before the server has answered, come back: still watching it',
+      fake(async () => {
+        const state = server()
+        let answer: (value: unknown) => void = () => {}
+        state.postAnswer = () => new Promise((resolve) => (answer = resolve))
+        const first = openPage(true)
+        fireEvent.click(await screen.findByRole('button', { name: 'Refresh guide' }))
+        await waitFor(() => expect(state.posts).toBe(1))
+        first.unmount()
+        state.refreshing = true
+        answer({})
+        await passes(100)
+
+        openPage(true)
+        await screen.findByRole('button', { name: 'Refreshing…' })
+        end(state)
+        await passes(2500)
+        expect(await screen.findByText('Guide refreshed')).toBeInTheDocument()
+      }),
+      20000,
+    )
+
+    it(
+      'press, leave, come back to a server not answering, then answering',
+      fake(async () => {
+        const state = server()
+        const first = openPage(true)
+        await press()
+        first.unmount()
+        state.down = true
+        await passes(31_000)
+
+        openPage(true)
+        await passes(7000)
+        await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(word))
+
+        end(state)
+        state.down = false
+        await passes(10_500)
+        expect(await screen.findByText('Guide refreshed')).toBeInTheDocument()
+        expect(screen.queryByRole('alert')).toBeNull()
+      }),
+      20000,
+    )
+
+    it(
+      'a scheduled refresh ending fetches the lists again, saying nothing, with nobody having pressed',
+      fake(async () => {
+        const state = server()
+        openPage(true)
+        await screen.findByRole('button', { name: 'Refresh guide' })
+        await waitFor(() => expect(state.channelFetches).toBe(1))
+
+        end(state)
+        // The status is looked at every minute, and so are the channels: one fetch for the end, not one for each.
+        await passes(59_000)
+        expect(state.channelFetches).toBe(1)
+        await passes(1500)
+
+        await waitFor(() => expect(state.channelFetches).toBeGreaterThan(1))
+        expect(screen.queryByText('Guide refreshed')).toBeNull()
+        expect(screen.getByRole('button', { name: 'Refresh guide' })).toBeInTheDocument()
+      }),
+      20000,
+    )
+
+    it(
+      'the Guide tab catches up with a scheduled refresh too',
+      fake(async () => {
+        const state = server()
+        let guideAsks = 0
+        const fetchMock = vi.mocked(fetch)
+        const answer = fetchMock.getMockImplementation()!
+        fetchMock.mockImplementation((input, init) => {
+          if (String(input).includes('/livetv/guide')) {
+            guideAsks++
+            return Promise.resolve(new Response(JSON.stringify({ from: new Date().toISOString(), until: new Date().toISOString(), channels: [] })))
+          }
+          return answer(input, init)
+        })
+        render(
+          <SessionContext.Provider value={{ me: { profileId: 'p', method: 'api-key', isAdmin: true } as Me, profiles: undefined }}>
+            <MemoryRouter initialEntries={['/livetv?view=guide']}>
+              <LiveTvPage />
+            </MemoryRouter>
+          </SessionContext.Provider>,
+        )
+        await waitFor(() => expect(guideAsks).toBeGreaterThan(0))
+        await passes(100)
+        const before = guideAsks
+
+        end(state)
+        await passes(60_500)
+
+        await waitFor(() => expect(guideAsks).toBeGreaterThan(before))
+      }),
+      20000,
+    )
+  })
 
   it('isn’t offered to other profiles', async () => {
     mockApi({

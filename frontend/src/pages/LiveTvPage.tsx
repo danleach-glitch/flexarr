@@ -13,6 +13,7 @@ import { useAgeLimits, useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
 import { usePolling } from '../hooks/usePolling'
 import { clock, programmeTime, programmeTitle, progress, tidyGroup } from '../lib/livetv'
+import { liveTvRefresh, type AskedRefresh } from '../lib/liveTvRefresh'
 import { locale, t, Words } from '../i18n'
 import '../styles/livetv.lazy.css'
 
@@ -26,6 +27,12 @@ const GUIDE_HOURS = 6
 const REFRESH_GIVES_UP_MS = 6 * 60_000
 /** On a server that can't say a refresh finished: one not seen under way by then has come and gone. */
 const OLD_SERVER_STARTS_WITHIN_MS = 15_000
+/** A refresh that ended longer ago than this is nobody's news: the apps drop its result too. */
+const RESULT_KEPT_MS = 2 * 60_000
+/** Back on the page after the wait is over: long enough for a look to say how it ended. */
+const FIRST_LOOK_MS = 5000
+/** How often to look for a server that has stopped answering. */
+const NO_ANSWER_LOOK_MS = 10_000
 
 /** The guide starts on the half hour before now, a little in the past, so what's just started is in view. */
 function guideStart(now = new Date()) {
@@ -42,16 +49,18 @@ export default function LiveTvPage() {
   const status = useApi(getLiveTvStatus, [])
   const { me } = useSession()
   const mainProfile = !!me?.isAdmin || !!me?.canUnlock
-  // A refresh asked for: how the status looked just before, the look on screen then (older than that, so it says nothing
-  // about this refresh), and whether it has been seen under way since.
-  const [refresh, setRefresh] = useState<{ before: LiveTvStatus; stale?: LiveTvStatus; seen: boolean; at: number }>()
+  const [refresh, setAsked] = useState(() => liveTvRefresh.asked)
+  const setRefresh = useCallback((asked: AskedRefresh | undefined) => {
+    liveTvRefresh.asked = asked
+    setAsked(asked)
+  }, [])
   const onScreen = useRef<LiveTvStatus>(undefined)
   /** Bumped when a refresh finishes, so what's shown is fetched again. */
   const [refreshed, setRefreshed] = useState(0)
   const [refreshFailed, setRefreshFailed] = useState<string>()
   const [refreshWorked, setRefreshWorked] = useState(false)
-  // Waited as long as the server should need, and it's still going: how many had finished when this one was asked for.
-  const [takingAWhile, setTakingAWhile] = useState<{ finished: number | null | undefined }>()
+  // Until the next look that gets an answer.
+  const [noAnswer, setNoAnswer] = useState(false)
   const badLooks = useRef(0)
   const { reload: reloadStatus, loading: statusLoading } = status
   // A look still on its way isn't cut off by the next, or a slow connection would never get an answer.
@@ -59,22 +68,27 @@ export default function LiveTvPage() {
     if (!statusLoading) reloadStatus()
   }, [reloadStatus, statusLoading])
   const configured = status.data?.configured !== false
-  usePolling(lookAgain, !configured ? null : refresh || status.data?.refreshing ? 2000 : mainProfile ? 60_000 : null)
+  const waiting = !!refresh && !refresh.gaveUp
+  usePolling(lookAgain, !configured ? null : noAnswer ? NO_ANSWER_LOOK_MS : waiting || status.data?.refreshing ? 2000 : mainProfile ? 60_000 : null)
 
-  const finishRefresh = useCallback((failed?: string) => {
-    setRefresh(undefined)
-    setRefreshed((n) => n + 1)
-    setRefreshFailed(failed)
-  }, [])
   useEffect(() => {
     onScreen.current = status.data
   }, [status.data])
+  // Any look that gets an answer: the server's back, and a refresh that has finished, whoever asked for it, changes what's listed.
+  useEffect(() => {
+    if (!status.data) return
+    badLooks.current = 0
+    setNoAnswer(false)
+    const listed = status.data.refreshesFinished ?? status.data.refreshedAt
+    if (liveTvRefresh.listed !== undefined && liveTvRefresh.listed !== listed) setRefreshed((n) => n + 1)
+    liveTvRefresh.listed = listed
+  }, [status.data])
   useEffect(() => {
     if (!refresh || !status.data || status.data === refresh.stale) return
-    badLooks.current = 0
     const { refreshing, refreshedAt, error, downloadError, refreshesFinished } = status.data
     const { before, seen, at } = refresh
     if (refreshing) {
+      liveTvRefresh.going = Date.now()
       if (!seen) setRefresh({ ...refresh, seen: true })
       return
     }
@@ -83,35 +97,34 @@ export default function LiveTvPage() {
       refreshesFinished != null
         ? refreshesFinished !== before.refreshesFinished
         : seen || refreshedAt !== before.refreshedAt || error !== before.error || downloadError !== before.downloadError || Date.now() - at > OLD_SERVER_STARTS_WITHIN_MS
-    if (finished) {
-      finishRefresh()
-      setRefreshWorked(!error && !downloadError)
+    if (!finished) {
+      liveTvRefresh.going = Date.now()
+      return
     }
-  }, [refresh, status.data, finishRefresh])
+    setRefresh(undefined)
+    setRefreshed((n) => n + 1)
+    setRefreshFailed(undefined)
+    // Worth saying only if it's news. A failure needs no saying: the status shows it for as long as it's so.
+    const recent = (time: number) => Date.now() - time < RESULT_KEPT_MS
+    const justEnded = recent(liveTvRefresh.going ?? at) || (!!refreshedAt && refreshedAt !== before.refreshedAt && recent(Date.parse(refreshedAt)))
+    setRefreshWorked(justEnded && !error && !downloadError)
+  }, [refresh, status.data, setRefresh])
   useEffect(() => {
     if (!refresh || !status.error) return
     badLooks.current++
-    if (badLooks.current >= 3) finishRefresh(t(Words.serverDidntAnswer))
-  }, [refresh, status.error, finishRefresh])
+    if (badLooks.current >= 3) setNoAnswer(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one count per failed look, whatever else changes about the refresh
+  }, [!!refresh, status.error])
+  const asked = refresh?.at
+  const gaveUp = refresh?.gaveUp
   useEffect(() => {
-    if (!refresh) return
-    const { refreshesFinished } = refresh.before
+    if (asked === undefined || gaveUp) return
     const giveUp = setTimeout(() => {
-      finishRefresh()
-      setTakingAWhile({ finished: refreshesFinished })
-    }, REFRESH_GIVES_UP_MS)
+      if (liveTvRefresh.asked) setRefresh({ ...liveTvRefresh.asked, gaveUp: true })
+    }, Math.max(asked + REFRESH_GIVES_UP_MS - Date.now(), FIRST_LOOK_MS))
     return () => clearTimeout(giveUp)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one wait per refresh, however often it's seen
-  }, [!!refresh])
-  // It ends in its own time, and then what's shown catches up, as the words promise.
-  useEffect(() => {
-    if (!takingAWhile || !status.data) return
-    const { refreshing, refreshesFinished, error, downloadError } = status.data
-    if (refreshesFinished != null ? refreshesFinished === takingAWhile.finished : refreshing) return
-    setTakingAWhile(undefined)
-    setRefreshed((n) => n + 1)
-    setRefreshWorked(!error && !downloadError)
-  }, [takingAWhile, status.data])
+  }, [asked])
   useEffect(() => {
     if (!refreshWorked) return
     const hide = setTimeout(() => setRefreshWorked(false), 6000)
@@ -121,11 +134,18 @@ export default function LiveTvPage() {
   async function startRefresh() {
     setRefreshFailed(undefined)
     setRefreshWorked(false)
-    setTakingAWhile(undefined)
+    setNoAnswer(false)
     badLooks.current = 0
+    let before: LiveTvStatus
     try {
-      const before = await freshly(() => getLiveTvStatus())
+      before = await freshly(() => getLiveTvStatus())
+    } catch {
+      setNoAnswer(true)
+      return
+    }
+    try {
       await refreshLiveTv()
+      liveTvRefresh.going = Date.now()
       setRefresh({ before, stale: onScreen.current, seen: false, at: Date.now() })
       // Also drops any look still on its way from before the press.
       reloadStatus()
@@ -134,7 +154,9 @@ export default function LiveTvPage() {
     }
   }
 
-  const refreshing = !!refresh || !!status.data?.refreshing
+  // With no answer it may be over or not: Try again means the button works.
+  const refreshing = !noAnswer && (waiting || !!status.data?.refreshing)
+  const problem = noAnswer ? t(Words.serverDidntAnswer) : (refreshFailed ?? status.data?.downloadError)
 
   if (status.data && !status.data.configured) {
     return (
@@ -189,16 +211,16 @@ export default function LiveTvPage() {
           {status.data.error}
         </p>
       )}
-      {mainProfile && (refreshFailed || status.data?.downloadError) && (
+      {mainProfile && problem && (
         <p className="error livetv-error" role="alert">
-          {refreshFailed ?? status.data?.downloadError}
+          {problem}
         </p>
       )}
       {mainProfile && (
         <div role="status">
           {refreshing && <span className="visually-hidden">{t(Words.refreshingGuide)}</span>}
           {refreshWorked && <p className="muted livetv-missing">{t(Words.guideRefreshed)}</p>}
-          {takingAWhile && <p className="muted livetv-missing">{t(Words.guideTakingAWhile)}</p>}
+          {refresh?.gaveUp && !noAnswer && <p className="muted livetv-missing">{t(Words.guideTakingAWhile)}</p>}
           {!!status.data?.channelsWithoutListings && (
             <p className="muted livetv-missing">
               {t('{count, plural, one {# channel has no listings} other {# channels have no listings}}', { count: status.data.channelsWithoutListings })}{' '}
