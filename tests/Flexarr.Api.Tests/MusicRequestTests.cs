@@ -794,6 +794,30 @@ public sealed class MusicRequestTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task An_album_Lidarr_never_marks_as_searched_is_not_searched_for_every_sweep()
+    {
+        _lidarr.Responses[$"GET /api/v1/album?foreignAlbumId={Moisturizer}"] = $$$"""
+            [{"id":9,"artistId":3,"title":"moisturizer","foreignAlbumId":"{{{Moisturizer}}}","monitored":true,"statistics":{"trackFileCount":0,"trackCount":9}}]
+            """;
+        _lidarr.Responses["GET /api/v1/queue?page=1&pageSize=200&includeArtist=true&includeAlbum=true"] = """{"page":1,"pageSize":200,"totalRecords":0,"records":[]}""";
+        await InDbAsync(async db =>
+        {
+            db.MediaRequests.Add(new Core.Notifications.MediaRequest { ProfileId = "owner", Kind = MediaKind.Album, MusicBrainzId = Moisturizer, Title = "moisturizer", ArtistName = "Wet Leg" });
+            return await db.SaveChangesAsync();
+        });
+        var retry = _server.Services.GetRequiredService<Endpoints.MusicRequests.MusicImportRetry>();
+
+        await retry.SweepAsync(CancellationToken.None);
+        await retry.SweepAsync(CancellationToken.None);
+        Assert.Single(_sent, s => s.Request == "POST /api/v1/command");
+
+        // Hours later it's worth another go.
+        retry.SearchAgainAfter = TimeSpan.Zero;
+        await retry.SweepAsync(CancellationToken.None);
+        Assert.Equal(2, _sent.Count(s => s.Request == "POST /api/v1/command"));
+    }
+
+    [Fact]
     public async Task An_album_the_artist_sweep_just_searched_for_is_not_searched_for_twice()
     {
         var artist = """{"id":3,"artistName":"Wet Leg","foreignArtistId":"artist-added","monitored":false}""";

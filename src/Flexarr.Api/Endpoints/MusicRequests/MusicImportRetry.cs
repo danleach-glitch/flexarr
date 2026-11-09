@@ -35,6 +35,15 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
     /// <summary>Kept in memory: a restart only starts the count afresh, and each try still rules out a release for good.</summary>
     private readonly ConcurrentDictionary<string, int> _retries = new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// When an album was last searched for from here. Lidarr's own last search time is the lasting guard, but stays unset
+    /// if the search never ran (no indexers, a stalled queue), and every sweep repeating it risks an indexer's limits.
+    /// </summary>
+    private readonly ConcurrentDictionary<string, DateTime> _searchedAt = new(StringComparer.Ordinal);
+
+    /// <summary>How long an album Lidarr still says it has never searched for waits before it's asked again.</summary>
+    internal TimeSpan SearchAgainAfter { get; set; } = TimeSpan.FromHours(6);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var timer = new PeriodicTimer(Every);
@@ -97,10 +106,30 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
 
     private sealed record AlbumAsked(string Album, string? ArtistItAdded);
 
+    private static string Key(ArrInstance lidarr, int albumId) => $"{lidarr.BaseUrl}|{albumId}";
+
+    private void NoteSearched(ArrInstance lidarr, IEnumerable<int> albumIds)
+    {
+        var now = DateTime.UtcNow;
+        foreach (var old in _searchedAt.Where(s => now - s.Value >= SearchAgainAfter).Select(s => s.Key).ToList())
+        {
+            _searchedAt.TryRemove(old, out _);
+        }
+
+        foreach (var id in albumIds)
+        {
+            _searchedAt[Key(lidarr, id)] = now;
+        }
+    }
+
+    private bool SearchedLately(ArrInstance lidarr, int albumId) =>
+        _searchedAt.TryGetValue(Key(lidarr, albumId), out var at) && DateTime.UtcNow - at < SearchAgainAfter;
+
     private async Task SweepAsync(MusicRequestContext c, ArrInstance lidarr, List<AlbumAsked> requests, CancellationToken ct)
     {
         var queue = await c.Client.GetQueueAsync(lidarr, ct);
         var searched = await KeepLookingAsync(c, lidarr, requests, queue, ct);
+        NoteSearched(lidarr, searched);
         var asked = requests.Select(r => r.Album).ToHashSet(StringComparer.Ordinal);
         foreach (var item in queue)
         {
@@ -115,7 +144,7 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
                 continue;
             }
 
-            var key = $"{lidarr.BaseUrl}|{albumId}";
+            var key = Key(lidarr, albumId);
             if (_retries.GetValueOrDefault(key) >= MaxRetries)
             {
                 continue; // stays as "couldn't import"
@@ -137,19 +166,20 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
     }
 
     /// <summary>Searches for the requested albums Lidarr has never looked for. Once it has, finding them is up to its RSS sync.</summary>
-    private static async Task SearchFirstTimeAsync(MusicRequestContext c, ArrInstance lidarr, HashSet<string> asked, IReadOnlyList<ArrQueueItem> queue, HashSet<int> searched, CancellationToken ct)
+    private async Task SearchFirstTimeAsync(MusicRequestContext c, ArrInstance lidarr, HashSet<string> asked, IReadOnlyList<ArrQueueItem> queue, HashSet<int> searched, CancellationToken ct)
     {
         var search = new List<int>();
         foreach (var id in asked)
         {
             search.AddRange((await c.Client.GetAlbumsByForeignIdAsync(lidarr, id, ct))
-                .Where(a => AwaitsFirstSearch(a, DateTime.UtcNow) && !searched.Contains(a.Id) && !queue.Any(q => q.AlbumId == a.Id))
+                .Where(a => AwaitsFirstSearch(a, DateTime.UtcNow) && !searched.Contains(a.Id) && !SearchedLately(lidarr, a.Id) && !queue.Any(q => q.AlbumId == a.Id))
                 .Select(a => a.Id));
         }
 
         if (search.Count > 0)
         {
             await c.Client.SearchAlbumsAsync(lidarr, search, ct);
+            NoteSearched(lidarr, search);
             MusicRequested.Forget(c.Cache);
         }
     }
