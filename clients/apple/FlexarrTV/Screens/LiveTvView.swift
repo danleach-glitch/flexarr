@@ -27,6 +27,8 @@ struct LiveTvView: View {
     @State private var upcoming: Int?
     /// What went wrong refreshing the guide.
     @State private var refreshNote: String?
+    /// Up on screen, rather than gone behind a player or another tab.
+    @State private var isVisible = false
 
     enum Category: Hashable {
         case favourites
@@ -97,6 +99,30 @@ struct LiveTvView: View {
         .onChange(of: focusedCategory) { _, category in
             if let category { chosen = category }
         }
+        // How a refresh went is said here once the screen's up, however long after: it can finish while it's gone.
+        .onAppear {
+            isVisible = true
+            sayRefreshResult()
+        }
+        .onDisappear { isVisible = false }
+        .onChange(of: model.liveTvRefreshResult) { sayRefreshResult() }
+    }
+
+    private func sayRefreshResult() {
+        guard isVisible, let result = model.takeLiveTvRefreshResult() else { return }
+        switch result {
+        case .worked: refreshNote = t(Words.guideRefreshed)
+        case .failed(let problem): refreshNote = problem
+        case .stillGoing: break // Said by `isLiveTvRefreshTakingAWhile`.
+        }
+        Task {
+            await load()
+            await loadGuide(force: true)
+            if result == .worked {
+                try? await Task.sleep(for: .seconds(6))
+                if refreshNote == t(Words.guideRefreshed) { refreshNote = nil }
+            }
+        }
     }
 
     // MARK: Categories
@@ -158,21 +184,8 @@ struct LiveTvView: View {
             Button {
                 // Stays focusable while it runs: disabled, focus would fall onto a category and show it.
                 guard !model.isRefreshingLiveTv else { return }
-                Task {
-                    refreshNote = nil
-                    guard let result = await model.refreshLiveTv() else { return }
-                    switch result {
-                    case .worked: refreshNote = t(Words.guideRefreshed)
-                    case .failed(let problem): refreshNote = problem
-                    case .stillGoing: break // Said by `isLiveTvRefreshTakingAWhile`.
-                    }
-                    await load()
-                    await loadGuide(force: true)
-                    if case .worked = result {
-                        try? await Task.sleep(for: .seconds(6))
-                        if refreshNote == t(Words.guideRefreshed) { refreshNote = nil }
-                    }
-                }
+                refreshNote = nil
+                Task { await model.refreshLiveTv() }
             } label: {
                 HStack(spacing: 14) {
                     // A spinner can't be seen on the focused button's light background, so it's the icon that turns.

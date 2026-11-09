@@ -13,6 +13,8 @@ struct LiveTvView: View {
     @State private var notice: String?
     @State private var refreshNotice: String?
     @State private var refreshProblem: String?
+    /// Up on screen, rather than gone behind a pushed page or another tab.
+    @State private var isVisible = false
     /// Unchosen, the view is Favourites when there are some, otherwise All.
     @State private var chosen: Filter?
     /// The list or the guide, remembered on this device.
@@ -116,6 +118,13 @@ struct LiveTvView: View {
             }
         }
         .refreshable { await load() }
+        // How a refresh went is said here once the screen's up, however long after: it can finish while it's gone.
+        .onAppear {
+            isVisible = true
+            sayRefreshResult()
+        }
+        .onDisappear { isVisible = false }
+        .onChange(of: model.liveTvRefreshResult) { sayRefreshResult() }
         .banner($notice, systemImage: "record.circle")
         .banner($refreshNotice, systemImage: refreshProblem == nil ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
     }
@@ -124,19 +133,8 @@ struct LiveTvView: View {
     @ViewBuilder private var refreshButton: some View {
         if model.canRefreshLiveTv {
             Button {
-                Task {
-                    refreshProblem = nil
-                    guard let result = await model.refreshLiveTv() else { return }
-                    switch result {
-                    case .worked: refreshNotice = t(Words.guideRefreshed)
-                    case .failed(let problem):
-                        refreshProblem = problem
-                        refreshNotice = problem
-                    case .stillGoing: break // Said by `isLiveTvRefreshTakingAWhile`.
-                    }
-                    await load()
-                    refreshed += 1
-                }
+                refreshProblem = nil
+                Task { await model.refreshLiveTv() }
             } label: {
                 // The same size either way, or the Mac's labelled button jumps.
                 Label {
@@ -151,6 +149,23 @@ struct LiveTvView: View {
             }
             .disabled(model.isRefreshingLiveTv)
             .accessibilityLabel(model.isRefreshingLiveTv ? t(Words.refreshingGuide) : t(Words.refreshGuide))
+        }
+    }
+
+    private func sayRefreshResult() {
+        guard isVisible, let result = model.takeLiveTvRefreshResult() else { return }
+        switch result {
+        case .worked:
+            refreshProblem = nil
+            refreshNotice = t(Words.guideRefreshed)
+        case .failed(let problem):
+            refreshProblem = problem
+            refreshNotice = problem
+        case .stillGoing: break // Said by `isLiveTvRefreshTakingAWhile`.
+        }
+        Task {
+            await load()
+            refreshed += 1
         }
     }
 
