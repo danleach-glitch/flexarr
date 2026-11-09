@@ -28,6 +28,9 @@ public sealed class DispatcharrGuidesTests
         /// <summary>What the source does after it's asked: its download's state, one per look.</summary>
         public Queue<(string Status, string UpdatedAt)> Next { get; } = new();
 
+        /// <summary>What it says of the key, in place of its level.</summary>
+        public string? Me { get; init; }
+
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             KeySeen = request.Headers.GetValues("X-API-Key").Single();
@@ -46,7 +49,7 @@ public sealed class DispatcharrGuidesTests
 
             if (path == "/api/accounts/users/me/")
             {
-                return Json($$"""{"user_level":{{UserLevel}}}""");
+                return Json(Me ?? $$"""{"user_level":{{UserLevel}}}""");
             }
 
             if (Asked.Count > 0 && BadLooks > 0)
@@ -172,5 +175,15 @@ public sealed class DispatcharrGuidesTests
     {
         using var api = new FakeAdminApi { UserLevel = level };
         Assert.Equal(expected, await Guides(api).CheckKeyAsync(Root, Key, CancellationToken.None));
+    }
+
+    [Theory]
+    [InlineData("""{"role":"admin"}""")]
+    [InlineData("""{"user_level":"admin"}""")]
+    [InlineData("[]")]
+    public async Task An_answer_that_doesnt_give_a_level_doesnt_refuse_the_key(string me)
+    {
+        using var api = new FakeAdminApi { Me = me };
+        Assert.Equal(GuideDownloadProblem.None, await Guides(api).CheckKeyAsync(Root, Key, CancellationToken.None));
     }
 }
