@@ -117,7 +117,7 @@
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Your *arrs</p>
         <h1>Requests</h1>
         <p class="lede">Find movies, shows and music you don&#39;t have yet, request them from any of the apps, and choose which library they go to.</p>
-        <p class="meta">9 min read</p>
+        <p class="meta">10 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
@@ -280,7 +280,7 @@
 <li><strong>Like artists you play</strong>: artists like the ones you listen to most.</li>
 <li><strong>Albums you might like</strong>: the best-known album by each of those artists.</li>
 <li><strong>New from your artists</strong>: this year&#39;s releases by artists you have, that you don&#39;t have yet.</li>
-<li><strong>Top albums</strong>: the albums behind the tracks people are playing most on Deezer now, in your server&#39;s country.</li>
+<li><strong>Top albums</strong>: the albums behind the tracks people are playing most on Deezer now, worldwide.</li>
 </ul>
 <p>Below them are genres. Each one opens its best-known artists.</p>
 <p>There are two kinds of music request:</p>
@@ -296,6 +296,8 @@
 <p>The same profiles can request music as can request movies and shows. Kids profiles, profiles with an age limit and profiles that can&#39;t see a music library can&#39;t. Requests only go to music libraries the profile can see. With two or more of them that Lidarr adds to, <strong>New music goes to</strong> in the profile&#39;s settings picks which one gets the profile&#39;s requests.</p>
 <h3 id="on-its-way"><a class="anchor" href="#on-its-way" aria-hidden="true" tabindex="-1">#</a>On its way</h3>
 <p>On the web, a music library&#39;s <strong>Requested</strong> view lists every album Lidarr is waiting for with that library&#39;s artists: albums anyone asked for, and new releases by artists you follow, with when they&#39;re out. Each says <strong>Searching</strong>, <strong>Downloading</strong> with how far it&#39;s got, <strong>Importing</strong>, or <strong>Out</strong> and its date. <strong>Unrequest</strong> takes one back.</p>
+<h3 id="couldn-t-import"><a class="anchor" href="#couldn-t-import" aria-hidden="true" tabindex="-1">#</a>Couldn&#39;t import</h3>
+<p>An album that says <strong>Couldn&#39;t import</strong> downloaded, but Lidarr wouldn&#39;t add it to your library. If tracks were missing, Flexarr rejects that copy and looks for another, up to three times. If the copy was complete but scored too low for your Lidarr&#39;s quality settings, it stays in Lidarr&#39;s <strong>Activity › Queue</strong> for you to import by hand. <strong>Try again</strong> starts the search over; <strong>Unrequest</strong> takes it back.</p>
 <p>Without Lidarr, there&#39;s no Discover › Music, Follow, Request or Requested. If Lidarr is connected but isn&#39;t answering, the buttons are greyed with <strong>Lidarr isn&#39;t answering</strong> until it&#39;s back.</p>
 <h2 id="if-requests-don-t-work"><a class="anchor" href="#if-requests-don-t-work" aria-hidden="true" tabindex="-1">#</a>If requests don&#39;t work</h2>
 <ul>
