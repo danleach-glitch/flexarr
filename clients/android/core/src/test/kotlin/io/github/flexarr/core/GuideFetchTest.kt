@@ -129,4 +129,29 @@ class GuideFetchTest {
         answers(status(false, 5), MockResponse.Builder().code(202).build(), status(false, 6, error = "No sources"))
         assertEquals("No sources", client.refreshLiveTv().problem)
     }
+
+    @Test
+    fun `a server that stops answering once asked is said to have stopped answering`() = runTest {
+        val client = FlexarrClient(server.url("/"), apiKey = "key")
+        answers(status(false, 4), MockResponse.Builder().code(202).build())
+        repeat(3) { answers(MockResponse.Builder().code(502).build()) }
+        val end = client.refreshLiveTv()
+        assertTrue(end.noAnswer)
+        assertFalse(end.stillGoing)
+    }
+
+    @Test
+    fun `a look or two that fail don't end the wait`() = runTest {
+        val client = FlexarrClient(server.url("/"), apiKey = "key")
+        answers(status(false, 4), MockResponse.Builder().code(202).build())
+        repeat(2) { answers(MockResponse.Builder().code(502).build()) }
+        answers(status(false, 5))
+        assertFalse(client.refreshLiveTv().noAnswer)
+    }
+
+    @Test
+    fun `a refresh that didn't ask the sources says so, and older servers don't`() {
+        assertTrue(FlexarrClient.json.decodeFromString(LiveTvStatus.serializer(), """{"configured":true,"channels":1,"downloadSkipped":true}""").downloadSkipped)
+        assertFalse(FlexarrClient.json.decodeFromString(LiveTvStatus.serializer(), """{"configured":true,"channels":1}""").downloadSkipped)
+    }
 }

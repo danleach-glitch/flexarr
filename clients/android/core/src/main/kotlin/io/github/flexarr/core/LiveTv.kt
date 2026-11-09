@@ -56,6 +56,8 @@ data class LiveTvStatus(
     val downloadError: String? = null,
     /** Goes up as each refresh finishes, however it went. Absent from servers before the release after 0.63. */
     val refreshesFinished: Int? = null,
+    /** The last refresh didn't ask the sources: they were asked too recently, so [downloadError] is from then. Absent from servers before 0.64. */
+    val downloadSkipped: Boolean = false,
 ) {
     /**
      * Whether a refresh asked for when the status was [before] has finished, [looks] looks later. Older servers don't count
@@ -288,9 +290,10 @@ suspend fun FlexarrClient.liveTvStatus(): LiveTvStatus? =
 
 /**
  * How a refresh ended. [status]: as it last stood. [stillGoing]: it hadn't finished when the wait ran out, which isn't a
- * failure (the server carries on), so its last result isn't this refresh's [problem].
+ * failure (the server carries on), so its last result isn't this refresh's [problem]. [noAnswer]: asked, then the server
+ * stopped answering as it was looked in on.
  */
-data class LiveTvRefreshEnd(val status: LiveTvStatus?, val stillGoing: Boolean = false) {
+data class LiveTvRefreshEnd(val status: LiveTvStatus?, val stillGoing: Boolean = false, val noAnswer: Boolean = false) {
     val problem: String? get() = if (stillGoing) null else status?.error ?: status?.downloadError
 }
 
@@ -311,7 +314,7 @@ suspend fun FlexarrClient.refreshLiveTv(): LiveTvRefreshEnd {
             throw e
         } catch (e: Exception) {
             // The server carries on without us: a phone changing network doesn't make the refresh a failure.
-            if (++badLooks >= 3) throw e
+            if (++badLooks >= 3) return LiveTvRefreshEnd(null, noAnswer = true)
             return@repeat
         }
         sawRefreshing = sawRefreshing || status.refreshing

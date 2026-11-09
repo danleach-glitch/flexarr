@@ -28,6 +28,8 @@ import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.LiveTvStatus
+import android.os.SystemClock
+import io.github.flexarr.core.LiveTvRefreshEnd
 import io.github.flexarr.core.refreshLiveTv
 import io.github.flexarr.core.liveTvStatus
 import io.github.flexarr.core.offersAlbums
@@ -1574,11 +1576,19 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** Goes up as each refresh ends, for the screens to look: [takeLiveTvRefreshEnd] has how it went. */
     var liveTvRefreshesEnded by mutableIntStateOf(0)
         private set
-    private val liveTvRefreshEnd = UnseenEnd<ServerCredentials, LiveTvRefreshOutcome>()
+    private val liveTvRefreshEnd = UnseenEnd<ServerCredentials, LiveTvRefreshOutcome>(LIVE_TV_RESULT_KEPT_MS)
+
+    /** Given up on as taking a while, for this sign-in: the server carries on, and the next look at its status says how it went. */
+    val isLiveTvRefreshTakingAWhile: Boolean get() = liveTvRefreshGivenUpFor != null && liveTvRefreshGivenUpFor == credentials
+    private var liveTvRefreshGivenUpFor by mutableStateOf<ServerCredentials?>(null)
+
+    /** When one given up on was last known to be running: it ended some time after this. */
+    private var liveTvRefreshLastRunning = 0L
 
     /**
      * How the last refresh went, once: kept until a Live TV screen is there to say it, so one that ends while you're in
-     * Recordings or Settings isn't lost. Only for whoever asked for it.
+     * Recordings or Settings isn't lost. Only for whoever asked for it, and not long: come back tomorrow and it's nothing
+     * anyone just asked about.
      */
     fun takeLiveTvRefreshEnd(): LiveTvRefreshOutcome? = credentials?.let(liveTvRefreshEnd::take)
 
@@ -1591,14 +1601,18 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         val client = client ?: return
         if (isRefreshingLiveTv) return
         liveTvRefreshFor = credentials
+        liveTvRefreshGivenUpFor = null
         scope.launch {
             val outcome = try {
                 val end = client.refreshLiveTv()
                 // Someone else may have been chosen meanwhile, whose status this isn't.
                 if (this@AppModel.credentials != credentials) return@launch
                 end.status?.let { liveTvStatus = it }
-                end.problem?.let { LiveTvRefreshOutcome(it, isProblem = true) }
-                    ?: LiveTvRefreshOutcome(if (end.stillGoing) t(Words.guideTakingAWhile) else t(Words.guideRefreshed))
+                if (end.stillGoing) {
+                    liveTvRefreshGivenUpFor = credentials
+                    liveTvRefreshLastRunning = SystemClock.elapsedRealtime()
+                }
+                liveTvRefreshOutcome(end)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -1619,7 +1633,18 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         if (isKids) return
         try {
             val status = client.liveTvStatus() ?: return
-            if (this.credentials == credentials) liveTvStatus = status
+            if (this.credentials != credentials) return
+            liveTvStatus = status
+            if (isLiveTvRefreshTakingAWhile) {
+                if (status.refreshing) {
+                    liveTvRefreshLastRunning = SystemClock.elapsedRealtime()
+                } else {
+                    // One given up on has now finished: say how, as nobody's still waiting to.
+                    liveTvRefreshGivenUpFor = null
+                    liveTvRefreshEnd.ended(credentials, liveTvRefreshOutcome(LiveTvRefreshEnd(status)), at = liveTvRefreshLastRunning)
+                    liveTvRefreshesEnded++
+                }
+            }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -2006,6 +2031,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     private val inFront: Boolean get() = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
 
     companion object {
+        /** How long a Live TV refresh's result waits for someone to come back to it. */
+        const val LIVE_TV_RESULT_KEPT_MS = 120_000L
+
         /** How long [refreshWatchlistSoon] waits for changes to stop coming. */
         private const val WATCHLIST_SETTLE_MS = 750L
 
@@ -2092,23 +2120,45 @@ internal data class MusicMarks(val asked: Set<String>, val undone: Set<String>) 
     )
 }
 
-/** What to say about a Live TV refresh that ended. */
-data class LiveTvRefreshOutcome(val words: String, val isProblem: Boolean = false)
+/**
+ * What to say about a Live TV refresh that ended. [isTakingAWhile]: given up on, not over. [sourcesNote]: said beside a
+ * source's failure that wasn't asked about again this time.
+ */
+data class LiveTvRefreshOutcome(val words: String, val isProblem: Boolean = false, val isTakingAWhile: Boolean = false, val sourcesNote: String? = null) {
+    val worked: Boolean get() = !isProblem && !isTakingAWhile
 
-/** The last thing that ended and who for, until it's been seen: by someone else, it's dropped. */
-internal class UnseenEnd<Who, End : Any> {
-    private var held: Pair<Who, End>? = null
+    /** All of it, where there's one place to say it. */
+    val allWords: String get() = listOfNotNull(words, sourcesNote).joinToString(" ")
+}
 
-    fun ended(who: Who, end: End) {
-        held = who to end
+internal fun liveTvRefreshOutcome(end: LiveTvRefreshEnd): LiveTvRefreshOutcome {
+    if (end.noAnswer) return LiveTvRefreshOutcome(t(Words.serverDidntAnswer), isProblem = true)
+    val status = end.status
+    return when {
+        end.problem != null -> LiveTvRefreshOutcome(
+            end.problem!!,
+            isProblem = true,
+            sourcesNote = t(Words.guideSourcesAskedRecently).takeIf { status?.error == null && status?.downloadSkipped == true },
+        )
+        end.stillGoing -> LiveTvRefreshOutcome(t(Words.guideTakingAWhile), isTakingAWhile = true)
+        else -> LiveTvRefreshOutcome(t(Words.guideRefreshed))
+    }
+}
+
+/** The last thing that ended and who for, until it's been seen: by someone else, or [keptMs] on, it's dropped. */
+internal class UnseenEnd<Who, End : Any>(private val keptMs: Long, private val now: () -> Long = SystemClock::elapsedRealtime) {
+    private var held: Triple<Who, End, Long>? = null
+
+    fun ended(who: Who, end: End, at: Long = now()) {
+        held = Triple(who, end, at)
     }
 
-    fun take(who: Who): End? = held?.also { held = null }?.takeIf { it.first == who }?.second
+    fun take(who: Who): End? = held?.also { held = null }?.takeIf { it.first == who && now() - it.third <= keptMs }?.second
 }
 
 /** Why a Live TV refresh failed: the server's own words when it answered (a lapsed admin unlock, say). */
 internal fun refreshFailure(error: Exception): String =
-    (error as? FlexarrException)?.message ?: t("Couldn’t reach the server.")
+    (error as? FlexarrException)?.message ?: t(Words.serverDidntAnswer)
 
 /**
  * Why this device can't sign out, or null when it can: child lock is on ([AppModel.kidsLock], remembered offline too),

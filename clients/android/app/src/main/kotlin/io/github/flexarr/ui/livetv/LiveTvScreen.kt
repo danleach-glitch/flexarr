@@ -47,6 +47,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -155,8 +156,8 @@ fun LiveTvScreen(model: AppModel) {
     }
     // What's on moves on: fetched again each minute while the list is up. Under the guide, which has every programme
     // itself, the list is only the channels and their stars: fetched every five minutes, and at once on going back to
-    // the list.
-    RepeatWhileShowing(if (showsGuide) GUIDE_REFRESH_MS else 60_000, model.credentials, showsGuide) {
+    // the list. A refresh given up on as taking a while is looked in on each minute, so how it ended is said.
+    RepeatWhileShowing(if (showsGuide && !model.isLiveTvRefreshTakingAWhile) GUIDE_REFRESH_MS else 60_000, model.credentials, showsGuide, model.isLiveTvRefreshTakingAWhile) {
         load()
         if (model.isMainProfile) model.reloadLiveTvStatus()
         // No channels yet (the server couldn't be reached): tried again each minute, as it was, not left five.
@@ -285,7 +286,7 @@ fun LiveTvScreen(model: AppModel) {
             load()
             refreshed++
         }
-        ended?.let { navigator.notices.showSnackbar(it.words) }
+        ended?.let { navigator.notices.showSnackbar(it.allWords, duration = if (it.sourcesNote != null) SnackbarDuration.Long else SnackbarDuration.Short) }
     }
     notice?.let { message ->
         AlertDialog(

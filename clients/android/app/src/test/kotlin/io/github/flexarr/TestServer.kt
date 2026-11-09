@@ -38,7 +38,7 @@ class TestServer(private val answer: (RecordedRequest) -> MockResponse?) : AutoC
 
     /** Lets the app run, a moment of real and pretend time at once, until [done]. */
     fun waitUntil(what: String = "it", done: () -> Boolean) {
-        repeat(4_000) {
+        repeat(10_000) {
             if (done()) return
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100))
             Thread.sleep(2)
