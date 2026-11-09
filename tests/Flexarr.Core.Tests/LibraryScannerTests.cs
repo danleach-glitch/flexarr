@@ -1078,6 +1078,43 @@ public sealed class LibraryScannerTests : IAsyncLifetime
 
     private LibraryScanner Scanner() => new(_db, _probe, new ScanProgress(), NullLogger<LibraryScanner>.Instance);
 
+    [Fact]
+    public async Task AScanOfOneFilm_TracksOnlyThatFilm()
+    {
+        var root = Touch("movies/Heat (1995)/Heat (1995).mkv", "movies/Alien (1979)/Alien (1979).mkv");
+        var library = await AddLibrary(LibraryType.Movies, Path.Combine(root, "movies"));
+        await Scanner().ScanAsync(library, null, default);
+        _db.ChangeTracker.Clear();
+
+        Touch("movies/Heat (1995)/Heat (1995) [Remux].mkv");
+        await Scanner().ScanAsync(library, Path.Combine(root, "movies", "Heat (1995)"), default);
+
+        var tracked = _db.ChangeTracker.Entries<MediaItem>().Where(e => e.Entity.Kind == MediaKind.Movie).Select(e => e.Entity.Title).ToList();
+        Assert.Equal(["Heat"], tracked);
+        Assert.Equal(2, await _db.MediaItems.CountAsync(i => i.Kind == MediaKind.Movie));
+    }
+
+    [Fact]
+    public async Task AScanOfOneArtistFolder_FindsAnAlbumKeptElsewhere_RatherThanMakingItAgain()
+    {
+        var root = Touch("music/Radiohead/OK Computer/01 - Airbag.flac", "music/Other/Radiohead Bits/09 - Lucky.flac");
+        _probe.Tags["01 - Airbag.flac"] = new() { ["artist"] = "Radiohead", ["album"] = "OK Computer", ["title"] = "Airbag", ["track"] = "1" };
+        _probe.Tags["09 - Lucky.flac"] = new() { ["artist"] = "Blur", ["album"] = "Parklife", ["title"] = "Lucky", ["track"] = "9" };
+        var library = await AddLibrary(LibraryType.Music, Path.Combine(root, "music"));
+        await Scanner().ScanAsync(library, null, default);
+        _db.ChangeTracker.Clear();
+
+        // A track of the same album, in a folder of its own somewhere else.
+        Touch("music/Spare/Karma/02 - Karma Police.flac");
+        _probe.Tags["02 - Karma Police.flac"] = new() { ["artist"] = "Radiohead", ["album"] = "OK Computer", ["title"] = "Karma Police", ["track"] = "2" };
+        await Scanner().ScanAsync(library, Path.Combine(root, "music", "Spare"), default);
+
+        Assert.Equal(1, await _db.MediaItems.CountAsync(i => i.Kind == MediaKind.Album && i.Title == "OK Computer"));
+        Assert.Equal(1, await _db.MediaItems.CountAsync(i => i.Kind == MediaKind.Artist && i.Title == "Radiohead"));
+        Assert.Equal(2, await _db.MediaItems.CountAsync(i => i.Kind == MediaKind.Track && i.Parent!.Title == "OK Computer"));
+        Assert.DoesNotContain(_db.ChangeTracker.Entries<MediaItem>(), e => e.Entity.Kind == MediaKind.Album && e.Entity.Title == "Parklife");
+    }
+
     private async Task<Library> AddLibrary(LibraryType type, string folder)
     {
         var library = new Library { Name = type.ToString(), Type = type, Folders = [new LibraryFolder { Path = folder }] };

@@ -245,6 +245,11 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                     await db.MediaStreams.Where(s => changedIds.Contains(s.MediaFileId)).LoadAsync(cancellationToken).ConfigureAwait(false);
                 }
 
+                if (music)
+                {
+                    await state.LoadAlbumsOfAsync(library.Id, root, batch.Where(w => w.Existing is null).Select(w => (w.File.FullName, probes[w.File.FullName].Result)), cancellationToken).ConfigureAwait(false);
+                }
+
                 foreach (var (file, match) in batch)
                 {
                     var (result, bookProbe, error) = probes[file.FullName];
@@ -798,9 +803,28 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             // Missing items too: a file that reappears goes back to its old item, with its watch history.
             // Tracks are never looked up, and a scan of one series only needs that series' seasons and episodes.
             var items = db.MediaItems.IgnoreQueryFilters().Where(i => i.LibraryId == library.Id);
-            var parents = await items
-                .Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series || i.Kind == MediaKind.Artist || i.Kind == MediaKind.Album || i.Kind == MediaKind.Audiobook)
-                .ToListAsync(ct).ConfigureAwait(false);
+            var folders = scoped?.Select(t => SeriesFolder(t.Root, t.Scope)).ToList();
+            var aliases = library.Type == LibraryType.Music
+                ? await db.MusicAliases.AsNoTracking().Where(a => a.LibraryId == library.Id).ToListAsync(ct).ConfigureAwait(false)
+                : [];
+
+            // A scan of one title only needs that title's parents: not every film, or every album, tracked for it. Told
+            // apart here in C#, by the paths alone, since paths compare by PathComparison's rules, not SQLite's.
+            var parentItems = items.Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series || i.Kind == MediaKind.Artist || i.Kind == MediaKind.Album || i.Kind == MediaKind.Audiobook);
+            if (scoped is not null && folders is not null && folders.All(f => f is not null))
+            {
+                var roots = scoped.Select(t => PathComparison.Key(t.Root)).ToHashSet(StringComparer.Ordinal);
+                var merged = aliases.Select(a => a.ItemId).ToHashSet();
+                var wanted = (await parentItems.AsNoTracking().Select(i => new { i.Id, i.Kind, i.Path }).ToListAsync(ct).ConfigureAwait(false))
+                    // Any artist: the tags of a file here can name one from anywhere (see LoadAlbumsOfAsync for their albums).
+                    .Where(i => i.Kind == MediaKind.Artist || merged.Contains(i.Id)
+                        || (i.Path is not null && (roots.Contains(PathComparison.Key(i.Path)) || folders.Any(f => PathComparison.IsUnder(i.Path, f!)))))
+                    .Select(i => i.Id).ToList();
+                parentItems = parentItems.Where(i => wanted.Contains(i.Id));
+                index._albumsLoadedFor = [];
+            }
+
+            var parents = await parentItems.ToListAsync(ct).ConfigureAwait(false);
             parents.ForEach(index.Track);
             if (library.Type == LibraryType.Music)
             {
@@ -809,7 +833,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 // Artists and albums merged into others (in Library health): tracks the merged one would have had go to
                 // the one kept. Real names and folders come first.
                 var byId = parents.ToDictionary(p => p.Id);
-                foreach (var alias in await db.MusicAliases.AsNoTracking().Where(a => a.LibraryId == library.Id).ToListAsync(ct).ConfigureAwait(false))
+                foreach (var alias in aliases)
                 {
                     if (byId.TryGetValue(alias.ItemId, out var target))
                     {
@@ -834,7 +858,6 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             // episode of a big library held them all, twice over, for the whole scan.
             var seasons = items.AsNoTracking().Where(i => i.Kind == MediaKind.Season);
             var episodes = items.AsNoTracking().Where(i => i.Kind == MediaKind.Episode);
-            var folders = scoped?.Select(t => SeriesFolder(t.Root, t.Scope)).ToList();
             if (folders is not null && folders.All(f => f is not null))
             {
                 var seriesIds = parents.Where(i => i.Kind == MediaKind.Series && i.Path is not null && folders.Contains(PathComparison.Key(i.Path)))
@@ -846,6 +869,38 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             (await seasons.ToListAsync(ct).ConfigureAwait(false)).ForEach(index.Track);
             (await episodes.ToListAsync(ct).ConfigureAwait(false)).ForEach(index.Track);
             return index;
+        }
+
+        /// <summary>Artists whose albums have been loaded, in a scan of part of the library; null when they all were.</summary>
+        private HashSet<Guid>? _albumsLoadedFor;
+
+        /// <summary>
+        /// In a scan of part of a music library, the albums of the artists these new files' tags name: an album can be in
+        /// a folder elsewhere, and must not be made again.
+        /// </summary>
+        public async Task LoadAlbumsOfAsync(Guid libraryId, string root, IEnumerable<(string Path, ProbeResult? Probe)> files, CancellationToken ct)
+        {
+            if (_albumsLoadedFor is null)
+            {
+                return;
+            }
+
+            var artists = new List<Guid>();
+            foreach (var (path, probe) in files)
+            {
+                var artist = MusicTags.Read(probe?.Tags ?? new Dictionary<string, string>(), root, path).Artist;
+                if (_byKey.TryGetValue($"artist:{Fold(artist)}", out var known) && _albumsLoadedFor.Add(known.Id))
+                {
+                    artists.Add(known.Id);
+                }
+            }
+
+            if (artists.Count > 0)
+            {
+                (await db.MediaItems.IgnoreQueryFilters()
+                    .Where(i => i.LibraryId == libraryId && i.Kind == MediaKind.Album && i.ParentId != null && artists.Contains(i.ParentId.Value))
+                    .ToListAsync(ct).ConfigureAwait(false)).ForEach(Track);
+            }
         }
 
         /// <summary>The series folder (first level under the root) a scope is in, or null when it's the whole root.</summary>

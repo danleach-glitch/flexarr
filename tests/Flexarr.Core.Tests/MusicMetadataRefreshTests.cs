@@ -190,6 +190,26 @@ public sealed class MusicMetadataRefreshTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ScansOfOneFolder_ShareLidarrsArtistList_UntilItDoesntKnowAnArtist()
+    {
+        var list = new LidarrArtistList(TimeProvider.System);
+
+        await Refresher(list).RefreshScannedAsync(_library, false, [MakingMoviesFolder], null, null, default);
+        await Refresher(list).RefreshScannedAsync(_library, false, [MakingMoviesFolder], null, null, default);
+        Assert.Single(_lidarr.Paths, p => p == "/api/v1/artist");
+
+        // Someone new, added to Lidarr since: the import that started this scan.
+        _db.MediaItems.Add(new MediaItem { LibraryId = _library.Id, Kind = MediaKind.Artist, Title = "New Name", SortTitle = "new name" });
+        await _db.SaveChangesAsync();
+        await Refresher(list).RefreshScannedAsync(_library, false, [MakingMoviesFolder], null, null, default);
+        Assert.Equal(2, _lidarr.Paths.Count(p => p == "/api/v1/artist"));
+
+        // A refresh asked for, or of the whole library, asks afresh.
+        await Refresher(list).RefreshScannedAsync(_library, true, [MakingMoviesFolder], null, null, default);
+        Assert.Equal(3, _lidarr.Paths.Count(p => p == "/api/v1/artist"));
+    }
+
+    [Fact]
     public async Task WithoutLidarr_TagsStand_AndOnlyColoursAreAdded()
     {
         var result = await Refresher(lidarr: false).RefreshLibraryAsync(_library, force: false, default);
@@ -357,12 +377,14 @@ public sealed class MusicMetadataRefreshTests : IAsyncLifetime
         PosterUrl = poster,
     };
 
-    private MetadataRefresher Refresher(bool lidarr = true)
+    private MetadataRefresher Refresher(bool lidarr = true) => Refresher(null, lidarr);
+
+    private MetadataRefresher Refresher(LidarrArtistList? list, bool lidarr = true)
     {
         var settings = new Settings(_dir, lidarr);
         var http = new HttpClient(_lidarr);
         return new MetadataRefresher(_db, new ArrClient(http), new TvMazeClient(http),
-            new ImageCache(http, settings, NullLogger<ImageCache>.Instance), settings, NullLogger<MetadataRefresher>.Instance);
+            new ImageCache(http, settings, NullLogger<ImageCache>.Instance), settings, NullLogger<MetadataRefresher>.Instance, artistList: list);
     }
 
     private sealed class Settings(string cache, bool lidarr) : IMetadataSettings

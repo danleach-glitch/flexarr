@@ -30,7 +30,8 @@ public sealed partial class MetadataRefresher(
     ILogger<MetadataRefresher> logger,
     TmdbClient? tmdb = null,
     Books.BookProviders? bookProviders = null,
-    SeerrClient? seerr = null)
+    SeerrClient? seerr = null,
+    LidarrArtistList? artistList = null)
 {
     private static readonly TimeSpan StaleAfter = TimeSpan.FromDays(7);
     private static readonly TimeSpan RetryUnmatchedAfter = TimeSpan.FromDays(1);
@@ -459,23 +460,34 @@ public sealed partial class MetadataRefresher(
         }
 
         // Lidarr's whole artist list once (it's a few KB an artist, and there are rarely thousands), rather than a
-        // search per artist; albums and files are asked for per matched artist.
+        // search per artist; albums and files are asked for per matched artist. For a scan of one folder, the list from
+        // a few minutes ago if there is one, until it turns out not to know an artist.
         var known = new List<(ArrInstance Instance, LidarrArtist Artist)>();
         var answered = false;
         var allAnswered = true;
-        foreach (var lidarr in lidarrs)
+        async Task ReadArtistsAsync(bool fresh)
         {
-            try
+            known.Clear();
+            answered = false;
+            allAnswered = true;
+            foreach (var lidarr in lidarrs)
             {
-                known.AddRange((await arr.GetArtistsAsync(lidarr, ct).ConfigureAwait(false)).Select(a => (lidarr, a)));
-                answered = true;
-            }
-            catch (Exception ex) when (IsNetworkFailure(ex, ct))
-            {
-                LogArrUnavailable(lidarr.Name, ex.Message);
-                allAnswered = false;
+                try
+                {
+                    var listed = artistList is null ? await arr.GetArtistsAsync(lidarr, ct).ConfigureAwait(false) : await artistList.GetAsync(arr, lidarr, fresh, ct).ConfigureAwait(false);
+                    known.AddRange(listed.Select(a => (lidarr, a)));
+                    answered = true;
+                }
+                catch (Exception ex) when (IsNetworkFailure(ex, ct))
+                {
+                    LogArrUnavailable(lidarr.Name, ex.Message);
+                    allAnswered = false;
+                }
             }
         }
+
+        var maybeOld = artistList is not null && within.Count > 0 && _scannedOnly && !force;
+        await ReadArtistsAsync(fresh: !maybeOld);
 
         int fromArr = 0, fromTags = 0, unmatched = 0;
         foreach (var artist in artists)
@@ -485,11 +497,20 @@ public sealed partial class MetadataRefresher(
             try
             {
                 // An artist matched by hand is the Lidarr artist chosen (or, matched on Deezer, none), never another.
-                var hit = artist.MatchLocked
+                (ArrInstance Instance, LidarrArtist? Artist) Hit() => artist.MatchLocked
                     ? known.Where(k => k.Instance.Name == artist.MetadataSource && k.Artist.Id == artist.ArrId).Select(k => (k.Instance, Artist: (LidarrArtist?)k.Artist)).FirstOrDefault()
                     : lidarrs
                         .Select(l => (Instance: l, Artist: LidarrMatcher.MatchArtist(artist, albums.Select(a => a.Path), known.Where(k => k.Instance == l).Select(k => k.Artist).ToList(), settings.PathMappings)))
                         .FirstOrDefault(h => h.Artist is not null);
+                var hit = Hit();
+                if (hit.Artist is null && maybeOld)
+                {
+                    // Added to Lidarr since, perhaps: that's what the import behind this scan does.
+                    maybeOld = false;
+                    await ReadArtistsAsync(fresh: true);
+                    hit = Hit();
+                }
+
                 // A followed artist still waiting for their first album, whom Lidarr no longer has or follows (changed in
                 // Lidarr itself): nothing is coming, so they leave the library.
                 // Every Lidarr is asked: any that follows a match keeps them.
