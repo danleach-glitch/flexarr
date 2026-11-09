@@ -11,12 +11,66 @@ import { errorText } from './useSettings'
 /** How long a pick waits to be saved: on a closed select, arrow keys and typing a name change it at every step. */
 const SAVE_PAUSE_MS = 600
 
-/** The server's country (saved as the podcast charts', where it began) and everything that hangs off it. */
-function useCountry() {
+/** The server's country (saved as the podcast charts', where it began): the choices, and what hangs off it. */
+function useCountryChoices() {
   const settings = useApi((signal) => getSettings(signal), [])
   const countries = useApi((signal) => getPodcastCountries(signal), [])
-  const { me, reloadMe } = useSession()
-  // What's been chosen here, shown from the moment it's picked; the select stays usable, and only the latest pick is saved.
+  const { me } = useSession()
+  const saved = settings.data?.podcasts?.country ?? ''
+  const detected = settings.data?.podcasts?.detectedCountry
+  const regionName = countries.data?.find((c) => c.code === detected)?.name
+
+  const select = ({ chosen, onPick, busy, describedBy, invalid, name }: { chosen: string; onPick: (country: string) => void; busy?: boolean; describedBy?: string; invalid?: boolean; name?: string }) => (
+    <select
+      aria-label={name}
+      aria-describedby={describedBy}
+      aria-invalid={invalid || undefined}
+      aria-busy={busy || undefined}
+      value={chosen}
+      onChange={(e) => onPick(e.target.value)}
+      disabled={!settings.data || !countries.data}
+    >
+      <option value="">{settings.data && !detected ? t('Not set') : !chosen && regionName ? t('Automatic ({region})', { region: regionName }) : t('Automatic')}</option>
+      {countries.data?.map((c) => (
+        <option key={c.code} value={c.code}>
+          {c.name}
+        </option>
+      ))}
+    </select>
+  )
+  // Named because the row sets them, and a server with no region of its own has one fallback for names and another for charts.
+  const names = me
+    ? ratingSteps(me.ratingSystem)
+        .map((s) => s.label)
+        .join(', ')
+    : undefined
+  /** With the names of age limits, unless a pick not yet saved is about to change them. */
+  const help = (unsaved = false) => (names && !unsaved ? t('For age limits ({names}), ratings, podcast charts and Audible.', { names }) : t('For age limits, ratings, podcast charts and Audible.'))
+  const loadError = settings.error ?? countries.error
+  const retry = () => {
+    if (settings.error) settings.reload()
+    if (countries.error) countries.reload()
+  }
+  const tryAgain = loadError && (
+    <AsyncButton className="button quiet small" busy={settings.loading || countries.loading} onClick={retry}>
+      {t('Try again')}
+    </AsyncButton>
+  )
+  return {
+    saved,
+    select,
+    help,
+    loadError: loadError && t('Couldn’t load the countries: {message}', { message: errorText(loadError) }),
+    tryAgain,
+    locked: settings.error !== undefined,
+  }
+}
+
+/** Country, in Settings, which saves as it changes: only the latest pick, once it has come to rest. */
+export function CountryRow() {
+  const { saved, select, help, loadError, tryAgain } = useCountryChoices()
+  const { reloadMe } = useSession()
+  // Shown from the moment it's picked; the select stays usable.
   const [picked, setPicked] = useState<string>()
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string>()
@@ -33,17 +87,14 @@ function useCountry() {
     },
     [],
   )
-  const chosen = picked ?? settings.data?.podcasts?.country ?? ''
-  const detected = settings.data?.podcasts?.detectedCountry
-  const regionName = countries.data?.find((c) => c.code === detected)?.name
 
   async function send(country: string, ask: number) {
     waiting.current = undefined
     // One at a time, so they can't arrive in the wrong order.
-    const saved = saves.current.catch(() => undefined).then(() => saveSettings({ podcasts: { country } }))
-    saves.current = saved
+    const done = saves.current.catch(() => undefined).then(() => saveSettings({ podcasts: { country } }))
+    saves.current = done
     try {
-      await saved
+      await done
       lastSaved.current = country
       if (ask !== latest.current) return
       setSaving(false)
@@ -65,53 +116,7 @@ function useCountry() {
     waiting.current = { timer: setTimeout(() => void send(country, ask), SAVE_PAUSE_MS), send: () => void send(country, ask) }
   }
 
-  const select = (describedBy?: string, invalid?: boolean, name?: string) => (
-    <select
-      aria-label={name}
-      aria-describedby={describedBy}
-      aria-invalid={invalid || undefined}
-      value={chosen}
-      aria-busy={saving || undefined}
-      onChange={(e) => choose(e.target.value)}
-      disabled={!settings.data || !countries.data}
-    >
-      <option value="">{settings.data && !detected ? t('Not set') : !chosen && regionName ? t('Automatic ({region})', { region: regionName }) : t('Automatic')}</option>
-      {countries.data?.map((c) => (
-        <option key={c.code} value={c.code}>
-          {c.name}
-        </option>
-      ))}
-    </select>
-  )
-  // Named because the row sets them, and a server with no region of its own has one fallback for names and another for charts.
-  const names = me
-    ? ratingSteps(me.ratingSystem)
-        .map((s) => s.label)
-        .join(', ')
-    : undefined
-  const help = names ? t('For age limits ({names}), ratings, podcast charts and Audible.', { names }) : t('For age limits, ratings, podcast charts and Audible.')
-  const loadError = settings.error ?? countries.error
-  const retry = () => {
-    if (settings.error) settings.reload()
-    if (countries.error) countries.reload()
-  }
-  const tryAgain = loadError && (
-    <AsyncButton className="button quiet small" busy={settings.loading || countries.loading} onClick={retry}>
-      {t('Try again')}
-    </AsyncButton>
-  )
-  return {
-    select,
-    help,
-    error: saveError ?? (loadError && t('Couldn’t load the countries: {message}', { message: errorText(loadError) })),
-    tryAgain,
-    locked: settings.error !== undefined,
-  }
-}
-
-/** Country, in Settings. */
-export function CountryRow() {
-  const { select, help, error, tryAgain } = useCountry()
+  const error = saveError ?? loadError
   return (
     <SettingRow
       // A row with a button in it can't be a label, whose control would be the button.
@@ -126,30 +131,33 @@ export function CountryRow() {
             {tryAgain}
           </>
         ) : (
-          help
+          help()
         )
       }
     >
-      {select(undefined, error !== undefined, tryAgain ? t('Country') : undefined)}
+      {select({ chosen: picked ?? saved, onPick: choose, busy: saving, invalid: error !== undefined, name: tryAgain ? t('Country') : undefined })}
     </SettingRow>
   )
 }
 
-/** Country, in the setup guide, which doesn't have Settings' styles. Left out for anyone who can't change it. */
-export function CountryField() {
-  const { select, help, error, tryAgain, locked } = useCountry()
+/**
+ * Country, in the setup guide, which doesn't have Settings' styles. The step saves it on Continue, with the rest of its
+ * card, so `onPick` only holds it. Left out for anyone who can't change it.
+ */
+export function CountryField({ picked, onPick }: { picked?: string; onPick: (country: string) => void }) {
+  const { saved, select, help, loadError, tryAgain, locked } = useCountryChoices()
   const helpId = useId()
   if (locked) return null
   return (
     <div className="onboard-country">
       <label>
         <span>{t('Country')}</span>
-        {select(helpId, error !== undefined)}
+        {select({ chosen: picked ?? saved, onPick, describedBy: helpId, invalid: loadError !== undefined })}
       </label>
-      <p id={helpId}>{help}</p>
-      {error && (
+      <p id={helpId}>{help(picked !== undefined && picked !== saved)}</p>
+      {loadError && (
         <p className="onboard-error" role="alert">
-          {error}
+          {loadError}
         </p>
       )}
       {tryAgain}
