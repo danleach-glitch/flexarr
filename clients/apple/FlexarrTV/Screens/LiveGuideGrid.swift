@@ -70,6 +70,8 @@ struct LiveGuideGrid: View {
                             .overlay(alignment: .topLeading) { nowLine(perSecond: perSecond) }
                         }
                         .scrollClipDisabled()
+                        // All of it, so Right finds the guide from a sidebar row lower down than its channels go.
+                        .focusSection()
                         .task(id: guide?.from) { await startFocus(proxy) }
                     }
                 }

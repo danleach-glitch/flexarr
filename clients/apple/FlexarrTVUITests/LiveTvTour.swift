@@ -31,8 +31,8 @@ final class LiveTvTour: XCTestCase {
     func testLiveTv() async throws {
         guard try await client.liveTvStatus()?.configured == true else { throw XCTSkip("no Live TV source") }
         shot("49-home")
-        // Opened from the sidebar, focus is on the first category; then down past Recordings to All channels, across
-        // to the channels, and down a few.
+        // Opened from the sidebar, focus is on the category shown (Favourites, or All channels with none); then down
+        // past Recordings to All channels, across to the channels, and down a few.
         app.openSidebarRow("Live TV")
         shot("50-live-tv")
         shot("51-live-tv-categories")
@@ -60,7 +60,7 @@ final class LiveTvTour: XCTestCase {
     /// The guide: across from the categories, then around the grid, and a programme that's on now plays.
     func testGuide() async throws {
         guard try await client.liveTvStatus()?.configured == true else { throw XCTSkip("no Live TV source") }
-        // Opened from the sidebar, focus is on the first category; across into the guide, what's on now on the first
+        // Opened from the sidebar, focus is on the category shown; across into the guide, what's on now on the first
         // channel plays.
         app.openSidebarRow("Live TV")
         logFocus("categories")
@@ -102,9 +102,8 @@ final class LiveTvTour: XCTestCase {
     func testRecordings() async throws {
         guard try await client.liveTvStatus()?.configured == true else { throw XCTSkip("no Live TV source") }
         app.openSidebarRow("Live TV")
-        for _ in 0..<6 where !focused(prefix: "Recordings") {
-            press(.down, wait: 0.6)
-        }
+        // Just above All channels, where it opens with no favourites; just below Favourites otherwise.
+        press(focused(prefix: "All channels") ? .up : .down, wait: 0.6)
         logFocus("recordings")
         pause(3)
         shot("70-recordings")

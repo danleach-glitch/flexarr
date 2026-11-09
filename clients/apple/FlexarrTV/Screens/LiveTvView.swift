@@ -26,9 +26,9 @@ struct LiveTvView: View {
     /// How many recordings are coming up, for the sidebar.
     @State private var upcoming: Int?
     /// What went wrong refreshing the guide.
-    @State private var refreshNote: String?
-    /// The note is why it failed, rather than that it worked.
-    @State private var refreshFailed = false
+    @State private var refreshProblem: String?
+    /// It worked, a moment ago: the button says so itself, so nothing in the sidebar moves when it stops saying it.
+    @State private var justRefreshed = false
     /// Up on screen, rather than gone behind a player or another tab.
     @State private var isVisible = false
 
@@ -113,20 +113,17 @@ struct LiveTvView: View {
     private func sayRefreshResult() {
         guard isVisible, let result = model.takeLiveTvRefreshResult() else { return }
         switch result {
-        case .worked:
-            refreshNote = t(Words.guideRefreshed)
-            refreshFailed = false
-        case .failed(let problem):
-            refreshNote = problem
-            refreshFailed = true
+        case .worked: refreshProblem = nil
+        case .failed(let problem): refreshProblem = problem
         case .stillGoing: break // Said by `isLiveTvRefreshTakingAWhile`.
         }
         Task {
             await load()
             await loadGuide(force: true)
             if result == .worked {
+                justRefreshed = true
                 try? await Task.sleep(for: .seconds(6))
-                if refreshNote == t(Words.guideRefreshed) { refreshNote = nil }
+                justRefreshed = false
             }
         }
     }
@@ -160,28 +157,41 @@ struct LiveTvView: View {
     /// The order channel up and down go through: the list being looked at.
     private var order: [LiveChannel] { channels(in: category) }
 
+    /// Scrolls, as a source's groups can be more than fit, and the refresh button's notes take room too. The margins
+    /// inside it leave room for a focused row to grow, which the scroll view would clip.
     private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if showsTitle {
-                Text(t(Words.liveTv))
-                    .font(.marquee(56, weight: .black))
-                    .foregroundStyle(Color.screen)
-                    .padding(.bottom, 24)
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 10) {
+                if showsTitle {
+                    Text(t(Words.liveTv))
+                        .font(.marquee(56, weight: .black))
+                        .foregroundStyle(Color.screen)
+                        .padding(.bottom, 24)
+                }
+                categoryButton(.favourites, t("Favourites"), systemImage: "star.fill")
+                // A recording is for everyone, so a profile with an age limit has none to see or set.
+                if !model.hasAgeLimit {
+                    categoryButton(.recordings, t("Recordings"), systemImage: "record.circle")
+                }
+                categoryButton(.all, t("All channels"), systemImage: "square.grid.3x3.fill")
+                refreshButton
+                if groups.count > 1 {
+                    ForEach(groups, id: \.self) { categoryButton(.group($0), $0, systemImage: nil) }
+                }
             }
-            categoryButton(.favourites, t("Favourites"), systemImage: "star.fill")
-            // A recording is for everyone, so a profile with an age limit has none to see or set.
-            if !model.hasAgeLimit {
-                categoryButton(.recordings, t("Recordings"), systemImage: "record.circle")
-            }
-            categoryButton(.all, t("All channels"), systemImage: "square.grid.3x3.fill")
-            refreshButton
-            if groups.count > 1 {
-                ForEach(groups, id: \.self) { categoryButton(.group($0), $0, systemImage: nil) }
-            }
+            .frame(width: 400, alignment: .leading)
+            .padding(Self.sidebarMargin)
         }
-        .frame(width: 400, alignment: .leading)
+        .scrollIndicators(.hidden)
+        .frame(width: 400 + Self.sidebarMargin * 2)
+        .padding(-Self.sidebarMargin)
         .focusSection()
+        // Back from the guide: to the category it's showing, not whichever row is level with the channel (moving onto
+        // which would show that one instead).
+        .defaultFocus($focusedCategory, category, priority: .userInitiated)
     }
+
+    private static let sidebarMargin: CGFloat = 12
 
     /// For the main profile: refreshes the guide (and has Dispatcharr download it, with an admin key), and says how many
     /// channels still have no listings. Above the groups, of which there can be more than fit.
@@ -190,7 +200,8 @@ struct LiveTvView: View {
             Button {
                 // Stays focusable while it runs: disabled, focus would fall onto a category and show it.
                 guard !model.isRefreshingLiveTv else { return }
-                refreshNote = nil
+                refreshProblem = nil
+                justRefreshed = false
                 Task { await model.refreshLiveTv() }
             } label: {
                 HStack(spacing: 14) {
@@ -199,14 +210,14 @@ struct LiveTvView: View {
                         .symbolEffect(.rotate, options: .repeat(.continuous), isActive: model.isRefreshingLiveTv)
                         .foregroundStyle(Color.usher)
                         .frame(width: 32)
-                    Text(model.isRefreshingLiveTv ? t(Words.refreshingGuide) : t(Words.refreshGuide)).lineLimit(1)
+                    Text(model.isRefreshingLiveTv ? t(Words.refreshingGuide) : justRefreshed ? t(Words.guideRefreshed) : t(Words.refreshGuide)).lineLimit(1)
                     Spacer(minLength: 8)
                 }
             }
             .buttonStyle(CategoryButtonStyle(selected: false))
             Group {
-                if let refreshNote {
-                    Text(refreshNote).lineLimit(3).foregroundStyle(refreshFailed ? Color.danger : Color.usher)
+                if let refreshProblem {
+                    Text(refreshProblem).lineLimit(3).foregroundStyle(Color.danger)
                 }
                 if model.isLiveTvRefreshTakingAWhile {
                     Text(t(Words.guideTakingAWhile)).lineLimit(3)
