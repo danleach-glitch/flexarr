@@ -52,6 +52,24 @@ public enum LiveTvRefreshEnd: Sendable, Hashable {
     public static let seenFor: TimeInterval = 30
 }
 
+/// The server turned a refresh down: a 401 or 403 answering the press, or the status check just before it, whatever its
+/// body (a policy's refusal has none). No refresh ran. Anything else that goes wrong is thrown as it was.
+public struct LiveTvRefreshRefused: Error, Equatable {
+    /// The server's own words when it had some.
+    public let message: String
+
+    init?(_ error: Error) {
+        switch error as? FlexarrClientError {
+        case .unauthorized, .parentPinNeeded, .ownPinWrong, .kidsLocked, .guestRemoved:
+            message = (error as? FlexarrClientError)?.errorDescription ?? t("Not allowed")
+        case .http(let status, let message) where status == 401 || status == 403:
+            self.message = message ?? t("Not allowed")
+        default:
+            return nil
+        }
+    }
+}
+
 /// A programme in the guide.
 public struct LiveProgramme: Codable, Sendable, Hashable, Identifiable {
     public let id: Int64
@@ -344,12 +362,17 @@ extension FlexarrClient {
     /// Refreshes the channels and guide (the main profile only), and waits for it, for `looks` looks at the status (six
     /// minutes): how it finished, or that it's still going, which says nothing yet about how it'll go. With an admin key
     /// saved, the server has Dispatcharr download its guides first, which takes minutes at worst. Servers before the
-    /// release after 0.63 refuse a locked main profile. An app suspended part-way only gets to look again when it's back,
-    /// which may be tomorrow: then it's `unwatched`, whatever it finds.
+    /// release after 0.63 refuse a locked main profile (`LiveTvRefreshRefused`). An app suspended part-way only gets to
+    /// look again when it's back, which may be tomorrow: then it's `unwatched`, whatever it finds.
     public func refreshLiveTv(looks: Int = 180, every interval: Duration = .seconds(2),
                               now: @Sendable () -> Date = { Date() }) async throws -> LiveTvRefreshEnd {
-        let before = try await liveTvStatus()
-        _ = try await send("POST", "livetv/refresh")
+        let before: LiveTvStatus?
+        do {
+            before = try await liveTvStatus()
+            _ = try await send("POST", "livetv/refresh")
+        } catch {
+            throw LiveTvRefreshRefused(error) ?? error
+        }
         var sawRefreshing = false
         var badLooks = 0
         var lastLook = now()

@@ -16,8 +16,8 @@ private let log = FlexarrLog("signin")
 enum LiveTvRefreshResult: Equatable {
     case worked
     case failed(String)
-    /// The server turned it down, in its own words (a lapsed admin unlock, say): no refresh ran, so its status has
-    /// nothing to say about it.
+    /// The server turned the press down (`LiveTvRefreshRefused`): no refresh ran, so its status has nothing to say about
+    /// it.
     case refused(String)
     /// The wait gave up with the refresh still running on the server: neither a success nor a failure yet.
     case stillGoing
@@ -1290,18 +1290,17 @@ final class AppModel {
         (status?.error ?? status?.downloadError).map(LiveTvRefreshResult.failed) ?? .worked
     }
 
-    /// Why a refresh's wait failed: what's wrong with the connection when it's that, the server's own words when it had
-    /// some (a lapsed admin unlock, say), otherwise the words every client uses.
+    /// Why a refresh's wait failed: refused only when the press was. Otherwise what's wrong with the connection when it's
+    /// that, the server's own words when it had some, or the words every client uses.
     private static func refreshFailure(_ error: Error) -> LiveTvRefreshResult {
+        if let refused = error as? LiveTvRefreshRefused { return .refused(refused.message) }
         if let error = error as? URLError {
             return .failed(error.code == .cancelled ? t(Words.serverDidntAnswer) : ConnectionError(error).message)
         }
-        guard let error = error as? FlexarrClientError else { return .failed(t(Words.serverDidntAnswer)) }
-        switch error {
-        case .http(let status, let message?): return status < 500 ? .refused(message) : .failed(message)
-        case .http, .unexpectedResponse, .invalidResponse: return .failed(t(Words.serverDidntAnswer))
+        switch error as? FlexarrClientError {
+        case .http(_, let message?): return .failed(message)
         case .unreachable, .invalidAddress: return .failed(ConnectionError(error).message)
-        default: return .refused(ConnectionError(error).message)
+        default: return .failed(t(Words.serverDidntAnswer))
         }
     }
 
