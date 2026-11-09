@@ -49,6 +49,9 @@ public sealed class MediaFile
     /// </summary>
     public bool? ClosedCaptions { get; set; }
 
+    /// <summary>The edition <see cref="VersionRules.Edition"/> read from the file's name. Not stored.</summary>
+    internal ParsedEdition? ParsedEdition { get; set; }
+
     /// <summary>A book file's place in its book, from 0: the files play back to back in this order. Null for anything else.</summary>
     public int? BookOrder { get; set; }
 
@@ -86,6 +89,8 @@ public sealed class MediaFile
     public List<MediaStream> Streams { get; set; } = [];
     public List<MediaMarker> Markers { get; set; } = [];
 }
+
+internal sealed record ParsedEdition(string Path, string? Edition);
 
 public sealed class MediaStream
 {

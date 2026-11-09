@@ -45,7 +45,15 @@ public static class VersionRules
     public static string? Edition(MediaFile file)
     {
         ArgumentNullException.ThrowIfNull(file);
-        return EditionParser.Parse(file.Path);
+
+        // Sorting a library's files asks again and again, and reading it from the name is the slow part.
+        if (file.ParsedEdition is not { } parsed || parsed.Path != file.Path)
+        {
+            parsed = new ParsedEdition(file.Path, EditionParser.Parse(file.Path));
+            file.ParsedEdition = parsed;
+        }
+
+        return parsed.Edition;
     }
 
     /// <summary>

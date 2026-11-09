@@ -100,6 +100,11 @@ public static partial class HealthEndpoints
             // differ are versions: kept on purpose, so not a problem, and listed for the space they take. See VersionRules.
             var files = await db.MediaFiles.AsNoTracking()
                 .Where(f => (f.MediaItem!.Kind == MediaKind.Movie || f.MediaItem.Kind == MediaKind.Episode) && (f.MediaItem.LinkGroupId != null || f.MediaItem.Files.Count > 1))
+                .Select(f => new MediaFile
+                {
+                    Id = f.Id, MediaItemId = f.MediaItemId, Path = f.Path, Size = f.Size, Width = f.Width, Height = f.Height, VideoCodec = f.VideoCodec, Bitrate = f.Bitrate,
+                    VideoRange = f.VideoRange, Hdr10Plus = f.Hdr10Plus, DurationSeconds = f.DurationSeconds,
+                })
                 .ToListAsync(ct);
             var sorted = files.GroupBy(f => f.MediaItemId).Select(g => (Item: g.Key, Sorted: VersionRules.Sort(Rank(g, null)))).ToList();
             var spared = sorted.Where(s => s.Sorted.Spares.Count > 0).ToList();
