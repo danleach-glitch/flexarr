@@ -556,26 +556,47 @@ public sealed partial class MetadataRefresher(
         return new MetadataRefreshResult(fromArr, fromTags, unmatched);
     }
 
-    /// <summary>No Lidarr: the tags stand, and the artwork the scanner found gets its ambient colour.</summary>
+    /// <summary>
+    /// No Lidarr: the tags stand, and the artwork the scanner found gets its ambient colour. A cover may have none
+    /// (greyscale, near-black), so being handed to the tags with a time set is what says it was tried: it isn't read
+    /// again every scan, and its time, which is in its artwork's address, only moves when the colour does.
+    /// </summary>
     private async Task<MetadataRefreshResult> RefreshMusicFromTagsAsync(Guid libraryId, bool force, IReadOnlyCollection<string> within, CancellationToken ct)
     {
-        // Forced for the folders just scanned: those albums and their artists, not every colour in the library.
-        List<Guid> forced = [];
-        if (_forcedWithin)
+        // The folders just scanned: those albums and their artists, not every colour in the library.
+        List<Guid>? scanned = null;
+        if (within.Count > 0)
         {
             var albums = await WithinAsync(libraryId, MediaKind.Album, within, ct).ConfigureAwait(false);
-            forced = [.. albums, .. await WithinAsync(libraryId, MediaKind.Artist, within, ct).ConfigureAwait(false)];
+            scanned = [.. albums, .. await WithinAsync(libraryId, MediaKind.Artist, within, ct).ConfigureAwait(false)];
         }
 
         var everything = force && !_forcedWithin;
+        List<Guid> forced = _forcedWithin ? scanned ?? [] : [];
         var items = await db.MediaItems
             .Where(i => i.LibraryId == libraryId && (i.Kind == MediaKind.Album || i.Kind == MediaKind.Artist) && i.PosterUrl != null
-                && (everything || forced.Contains(i.Id) || i.AccentColor == null))
+                && (everything || forced.Contains(i.Id)
+                    || (i.AccentColor == null && (i.MetadataUpdatedAt == null || (i.MetadataSource != Tags && !i.MatchLocked))
+                        && (scanned == null || scanned.Contains(i.Id)))))
             .ToListAsync(ct).ConfigureAwait(false);
         foreach (var item in items)
         {
-            item.AccentColor = await images.AccentColorAsync(item.PosterUrl!, ct).ConfigureAwait(false);
-            item.MetadataUpdatedAt = DateTime.UtcNow;
+            string? accent;
+            try
+            {
+                accent = await images.ReadAccentColorAsync(item.PosterUrl!, ct).ConfigureAwait(false);
+            }
+            catch (ImageCacheBusyException)
+            {
+                continue; // not looked at: the next refresh tries again
+            }
+
+            if (accent != item.AccentColor || item.MetadataUpdatedAt is null)
+            {
+                item.MetadataUpdatedAt = DateTime.UtcNow;
+            }
+
+            item.AccentColor = accent;
             item.MetadataSource = item.MatchLocked ? item.MetadataSource : Tags; // Matched by hand: still what was chosen.
         }
 

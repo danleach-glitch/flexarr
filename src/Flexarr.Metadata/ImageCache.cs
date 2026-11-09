@@ -469,16 +469,20 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
     /// <summary>Ambient colour for an image (see <see cref="AccentColor"/>), sampled from a tiny resize.</summary>
     public async Task<string?> AccentColorAsync(string remoteUrl, CancellationToken ct)
     {
-        string? path;
         try
         {
-            path = await GetAsync(remoteUrl, 92, ct).ConfigureAwait(false);
+            return await ReadAccentColorAsync(remoteUrl, ct).ConfigureAwait(false);
         }
         catch (ImageCacheBusyException)
         {
             return null; // left unset, so the next refresh tries again
         }
+    }
 
+    /// <summary>As <see cref="AccentColorAsync"/>, throwing <see cref="ImageCacheBusyException"/> when the image wasn't looked at, for a caller that remembers having tried.</summary>
+    public async Task<string?> ReadAccentColorAsync(string remoteUrl, CancellationToken ct)
+    {
+        var path = await GetAsync(remoteUrl, 92, ct).ConfigureAwait(false);
         if (path is null)
         {
             return null;

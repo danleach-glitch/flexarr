@@ -200,6 +200,38 @@ public sealed class MusicMetadataRefreshTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task WithoutLidarr_ACoverWithNoColour_IsOnlyTriedOnce_AndKeepsItsTime()
+    {
+        var first = await Refresher(lidarr: false).RefreshLibraryAsync(_library, force: false, default);
+        Assert.Equal(2, first.FromLookup); // the artist's and Love Over Gold's: the only artwork here, and no colour to find
+
+        var times = await _db.MediaItems.AsNoTracking().Where(i => i.PosterUrl != null).Select(i => i.MetadataUpdatedAt).ToListAsync();
+        Assert.All(times, t => Assert.NotNull(t));
+
+        var again = await Refresher(lidarr: false).RefreshLibraryAsync(_library, force: false, default);
+        Assert.Equal(0, again.FromLookup);
+
+        // Asked to, it looks again, and the time still says nothing changed (it's in the artwork's address).
+        var forced = await Refresher(lidarr: false).RefreshLibraryAsync(_library, force: true, default);
+        Assert.Equal(2, forced.FromLookup);
+        Assert.Equal(times, await _db.MediaItems.AsNoTracking().Where(i => i.PosterUrl != null).Select(i => i.MetadataUpdatedAt).ToListAsync());
+    }
+
+    [Fact]
+    public async Task WithoutLidarr_AScanOfOneFolder_OnlyLooksAtColoursInThatFolder()
+    {
+        var other = await _db.MediaItems.SingleAsync(i => i.Path == MakingMoviesFolder);
+        other.PosterUrl = $"file://{MakingMoviesFolder}/cover.jpg";
+        await _db.SaveChangesAsync();
+
+        var result = await Refresher(lidarr: false).RefreshScannedAsync(_library, force: false, [MakingMoviesFolder], null, null, default);
+
+        Assert.Equal(1, result.FromLookup);
+        Assert.Equal(MetadataRefresher.Tags, (await _db.MediaItems.AsNoTracking().SingleAsync(i => i.Path == MakingMoviesFolder)).MetadataSource);
+        Assert.Null((await _db.MediaItems.AsNoTracking().SingleAsync(i => i.Path == $"{Root}/Dire Straits/Love Over Gold (1982)")).MetadataSource);
+    }
+
+    [Fact]
     public async Task AlbumsThatCouldntBeChecked_KeepWhatTheyHad()
     {
         await Refresher().RefreshLibraryAsync(_library, force: false, default);
