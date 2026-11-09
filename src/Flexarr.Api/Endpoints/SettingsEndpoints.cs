@@ -636,7 +636,6 @@ public static class SettingsEndpoints
     private static Uri? WebAddress(string? text) =>
         Uri.TryCreate(text?.Trim(), UriKind.Absolute, out var url) && (url.Scheme == Uri.UriSchemeHttp || url.Scheme == Uri.UriSchemeHttps) ? url : null;
 
-    /// <summary>Same scheme, host and port: where a saved key may be sent.</summary>
     private static async Task<LiveTv.GuideDownloadProblem> TriedKeyAsync(LiveTv.DispatcharrGuides guides, Uri dispatcharr, string key, CancellationToken ct)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -651,9 +650,14 @@ public static class SettingsEndpoints
         }
     }
 
+    /// <summary>
+    /// Same scheme, host, port and path, give or take a slash at the end: where a saved key may be sent. Several apps can
+    /// share one address behind a reverse proxy, each at a path of its own.
+    /// </summary>
     internal static bool SameServer(string? saved, string? given) =>
         WebAddress(saved) is { } a && WebAddress(given) is { } b
-        && a.Scheme == b.Scheme && string.Equals(a.Host, b.Host, StringComparison.OrdinalIgnoreCase) && a.Port == b.Port;
+        && a.Scheme == b.Scheme && string.Equals(a.Host, b.Host, StringComparison.OrdinalIgnoreCase) && a.Port == b.Port
+        && a.AbsolutePath.TrimEnd('/') == b.AbsolutePath.TrimEnd('/');
 
     private static string? SavedKey(ArrInstance? saved, string? baseUrl) =>
         saved is not null && SameServer(saved.BaseUrl.ToString(), baseUrl) ? saved.ApiKey : null;

@@ -1034,6 +1034,16 @@ public sealed class LiveTvTests : IDisposable
         (await client.PutAsJsonAsync(Api("settings"), new { liveTv = new { baseUrl = FakeDispatcharr.Root, username = FakeDispatcharr.User, rewindMinutes = 30 } })).EnsureSuccessStatusCode();
         Assert.True((await LiveTvSettingsAsync(client, l => l.GetProperty("rewindMinutes").GetInt32() == 30)).GetProperty("hasAdminApiKey").GetBoolean());
 
+        // A slash at the end is the same server.
+        (await client.PutAsJsonAsync(Api("settings"), new { liveTv = new { baseUrl = FakeDispatcharr.Root + "/", username = FakeDispatcharr.User, rewindMinutes = 45 } })).EnsureSuccessStatusCode();
+        Assert.True((await LiveTvSettingsAsync(client, l => l.GetProperty("rewindMinutes").GetInt32() == 45)).GetProperty("hasAdminApiKey").GetBoolean());
+
+        // Another path at that address is another app, behind a reverse proxy: not carried over.
+        (await client.PutAsJsonAsync(Api("settings"), new { liveTv = new { baseUrl = FakeDispatcharr.Root + "/other", username = FakeDispatcharr.User, password = "other" } })).EnsureSuccessStatusCode();
+        Assert.False((await LiveTvSettingsAsync(client, l => l.GetProperty("baseUrl").GetString()!.EndsWith("/other", StringComparison.Ordinal))).GetProperty("hasAdminApiKey").GetBoolean());
+        (await client.PutAsJsonAsync(Api("settings"), new { liveTv = new { baseUrl = FakeDispatcharr.Root, username = FakeDispatcharr.User, password = FakeDispatcharr.Password, adminApiKey = "admin-k3y" } })).EnsureSuccessStatusCode();
+        await LiveTvSettingsAsync(client, l => l.GetProperty("hasAdminApiKey").GetBoolean());
+
         // Another server: not carried over.
         (await client.PutAsJsonAsync(Api("settings"), new { liveTv = new { baseUrl = "http://elsewhere:9191", username = FakeDispatcharr.User, password = "other" } })).EnsureSuccessStatusCode();
         Assert.False((await LiveTvSettingsAsync(client, l => l.GetProperty("baseUrl").GetString() == "http://elsewhere:9191")).GetProperty("hasAdminApiKey").GetBoolean());
