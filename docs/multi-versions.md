@@ -9,7 +9,7 @@ Someone can have the same film or episode more than once: a 4K and a 1080p copy,
 
 ## Linking
 
-`MediaItem.LinkGroupId` groups copies of one title. It's set by `TitleLinker`, never by hand, and null for a title with one copy. No rows or files move, so unlinking only ever means clearing the column.
+`MediaItem.LinkGroupId` groups copies of one title, and points at a row in `TitleGroups`. That table has no filter of its own, so `i.LinkGroup.Items` sees only the copies a profile can, which is how list queries keep one copy per title. It's set by `TitleLinker`, never by hand, and null for a title with one copy. No rows or files move, so unlinking only ever means clearing the column.
 
 - Films link to films, and shows to shows, when they share a TMDB, TVDB, TVmaze or IMDb ID, directly or through a third copy.
 - An ID shared by more than six titles is taken to be wrong and links nothing.
@@ -46,8 +46,9 @@ The server remembers the choice, so apps only call the endpoint that sets it, an
 
 ## API
 
-- `GET /items/{id}` gains optional `versions` (with two or more only): each has `fileId`, `label`, `edition`, `durationSeconds` and `chosen`, in the order they're offered. `files` keeps its meaning: this item's own files, best first.
+- `GET /items/{id}` gains optional `versions` (with two or more only): each has `fileId`, `label`, `edition`, `durationSeconds`, `size` and `chosen`, in the order they're offered. Spare copies are left out. `files` keeps its meaning: this item's own files, best first.
 - `PUT /items/{id}/version` with `{fileId}` sets the profile's choice, and `{fileId: null}` goes back to automatic.
+- `GET /items/{id}/deletion` gains optional `copies` (`itemId`, `library`, `managedBy`, `files`) with more than one copy. `files` can now also list a managed episode's untracked files beside `managedBy`.
 - `GET /library-health` gains optional `versions` (biggest first, at most 100), `versionsTotal` and `versionsBytes`; `duplicates` now means only true spares.
 
 Older apps on a newer server get the automatic pick and linked titles but no picker. Newer apps on an older server get no `versions`, so no picker.
