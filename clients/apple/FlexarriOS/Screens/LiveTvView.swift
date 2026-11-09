@@ -182,9 +182,12 @@ struct LiveTvView: View {
                 // Footnote-sized words, but a finger-sized place to tap them.
                 let why = Link(destination: URL(string: "https://flexarr.io/guide/live-tv#channels-with-no-listings")!) {
                     Text(t("Why?"))
+                        .foregroundStyle(.tint)
                         .frame(minWidth: 44, minHeight: 44, alignment: .leading)
                         .contentShape(Rectangle())
                 }
+                // A list would otherwise make its whole row the link, and draw it in the text's colour.
+                .buttonStyle(.plain)
                 // Beside each other when they fit; at the largest text sizes, one under the other.
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 6) { text; why }
