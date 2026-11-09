@@ -12,6 +12,24 @@ public class SubtitleTracksTests
         new() { Index = index, Type = type, Codec = codec, Language = language };
 
     [Fact]
+    public void SubtitleFilesBesideTheFile_AreOnlyLookedForWhenAsked()
+    {
+        var folder = Directory.CreateTempSubdirectory();
+        try
+        {
+            System.IO.File.WriteAllText(Path.Combine(folder.FullName, "Film.en.srt"), "1");
+            var file = new MediaFile { Path = Path.Combine(folder.FullName, "Film.mkv") };
+
+            Assert.Single(Subtitles.For(file));
+            Assert.Empty(Subtitles.For(file, sidecars: false));
+        }
+        finally
+        {
+            folder.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public void CaptionsInTheVideo_AreATextTrack_InTheProgrammesLanguage()
     {
         var tracks = Subtitles.For(File(true, Stream(0, StreamType.Video, "h264"), Stream(1, StreamType.Audio, "ac3", "eng")));

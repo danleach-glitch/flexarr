@@ -71,10 +71,24 @@ public sealed class PlaybackService(
         var teletext = FfmpegFilters.HasDecoder(PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue).FfmpegPath, "libzvbi_teletextdec");
         var remote = http?.HttpContext is { } context && AwayFromHome.IsRemote(context);
 
-        // What playing a given file would take. Versions differ, so it's asked for each before choosing one.
+        // What playing a given file would take. Versions differ, so it's asked for each before choosing one. Subtitle files
+        // beside a file only change that when one would be shown, and looking for them can wake a sleeping drive holding a
+        // version that isn't even chosen, so otherwise only the file chosen is looked beside.
+        var sidecarsMatter = request.SubtitleKey is not "off" && (request.SubtitleKey is not null || preferences.Subtitle is not null);
+        var plans = new Dictionary<Guid, Plan>();
         Plan PlanFor(MediaFile candidate)
         {
-            IReadOnlyList<SubtitleTrack> tracks = Subtitles.For(candidate, teletext);
+            if (!plans.TryGetValue(candidate.Id, out var plan))
+            {
+                plans[candidate.Id] = plan = MakePlan(candidate, sidecars: true);
+            }
+
+            return plan;
+        }
+
+        Plan MakePlan(MediaFile candidate, bool sidecars)
+        {
+            IReadOnlyList<SubtitleTrack> tracks = Subtitles.For(candidate, teletext, sidecars);
             if (!request.Profile.SelectsTracksItself)
             {
                 // Teletext this server can't read can't be converted or burned in either; only a player that decodes it can show it.
@@ -109,7 +123,7 @@ public sealed class PlaybackService(
             var choice = files.Count > 1 ? await TitleVersions.ChoiceAsync(db, item, profile.Id, ct) : null;
             file = VersionPicker.Pick(files, choice, Math.Min(request.Profile.MaxHeight, request.MaxHeight ?? int.MaxValue), candidate =>
             {
-                var plan = PlanFor(candidate);
+                var plan = sidecarsMatter ? PlanFor(candidate) : MakePlan(candidate, sidecars: false);
                 return PlaybackDecider.TierOf(plan.Decision, candidate, request.Profile, plan.Options);
             })!;
         }
