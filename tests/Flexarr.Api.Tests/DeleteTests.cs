@@ -511,6 +511,51 @@ public class DeleteTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
     }
 
     [Fact]
+    public async Task ADailyShowsEpisode_GoesThroughTheSonarrHoldingIt_FoundByItsDate()
+    {
+        var root = Directory.CreateTempSubdirectory("flexarr-daily-").FullName;
+        var showFolder = Directory.CreateDirectory(Path.Combine(root, "Show")).FullName;
+        var video = Path.Combine(showFolder, "Show 2026-03-04.mkv");
+        File.WriteAllText(video, "video");
+        var arr = new FakeArr();
+        arr.Responses["GET //sonarr.test/api/v3/series"] = "[]";
+        arr.Responses["GET //sonarr2.test/api/v3/series"] = System.Text.Json.JsonSerializer.Serialize(new[] { new { id = 2, title = "Show", path = showFolder } });
+        arr.Responses["GET //sonarr2.test/api/v3/episode?seriesId=2&includeImages=true"] = """[{"id":6,"seriesId":2,"seasonNumber":2026,"episodeNumber":40,"airDate":"2026-03-03"},{"id":5,"seriesId":2,"seasonNumber":2026,"episodeNumber":41,"airDate":"2026-03-04"}]""";
+        arr.Responses["GET //sonarr2.test/api/v3/episode/5"] = """{"id":5,"seriesId":2,"seasonNumber":2026,"episodeNumber":41,"episodeFileId":8}""";
+        arr.Responses["PUT //sonarr2.test/api/v3/episode/monitor"] = "[]";
+        arr.Responses["DELETE //sonarr2.test/api/v3/episodefile/8"] = "{}";
+        using var app = arr.Serve(factory).WithWebHostBuilder(b =>
+        {
+            b.UseSetting("Flexarr:Arr:2:Name", "Sonarr 2");
+            b.UseSetting("Flexarr:Arr:2:Kind", "Sonarr");
+            b.UseSetting("Flexarr:Arr:2:BaseUrl", "http://sonarr2.test");
+            b.UseSetting("Flexarr:Arr:2:ApiKey", "key");
+        });
+        Guid episodeId;
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var library = new Library { Name = $"TV {Guid.NewGuid():N}", Type = LibraryType.TvShows };
+            var show = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Series, Title = "Show", SortTitle = "show" };
+            var season = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Season, Title = "2026", SortTitle = "2026", SeasonNumber = 2026, Parent = show };
+            var episode = new MediaItem
+            {
+                LibraryId = library.Id, Kind = MediaKind.Episode, Title = "4 March", SortTitle = "1", SeasonNumber = 2026, AirDate = new DateOnly(2026, 3, 4), Parent = season,
+                Files = [new MediaFile { Path = video, Height = 1080 }],
+            };
+            db.AddRange(library, show, season, episode, new LibraryFolder { LibraryId = library.Id, Path = root });
+            await db.SaveChangesAsync();
+            episodeId = episode.Id;
+        }
+
+        var response = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{episodeId}", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Contains("DELETE /api/v3/episodefile/8", arr.Requests);
+        Directory.Delete(root, recursive: true);
+    }
+
+    [Fact]
     public async Task AManagedEpisode_LosesItsUntrackedFilesToo()
     {
         var root = Directory.CreateTempSubdirectory("flexarr-episode-").FullName;

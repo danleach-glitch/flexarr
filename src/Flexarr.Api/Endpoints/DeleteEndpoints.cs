@@ -96,6 +96,7 @@ public static partial class DeleteEndpoints
         }
 
         var libraries = await db.Libraries.AsNoTracking().IgnoreQueryFilters().ToDictionaryAsync(l => l.Id, l => l.Name, ct);
+        var lists = new ArrLists(arr);
         var failures = new List<string>();
         var status = StatusCodes.Status502BadGateway;
         var done = 0;
@@ -111,7 +112,7 @@ public static partial class DeleteEndpoints
             var library = libraries.GetValueOrDefault(copy.LibraryId, "");
             try
             {
-                var owner = await OwnerAsync(db, copy, options.CurrentValue, arr, ct);
+                var owner = await OwnerAsync(db, copy, options.CurrentValue, arr, lists, ct);
                 if (await DeleteOneAsync(db, copy, owner, options, arr, logs, converter, cache, ct) is Microsoft.AspNetCore.Http.HttpResults.ProblemHttpResult problem)
                 {
                     if (copies.Count == 1)
@@ -151,6 +152,7 @@ public static partial class DeleteEndpoints
         var libraries = await db.Libraries.AsNoTracking().IgnoreQueryFilters().ToDictionaryAsync(l => l.Id, l => l.Name, ct);
         var plans = new List<DeletionCopyDto>();
         var own = new DeletionDto(null, []);
+        var lists = new ArrLists(arr);
         var copies = await CopiesAsync(db, item, ct);
         // Named only once unlocked: the main profile's PIN is what lifts the profile's own hidden libraries.
         var unnamed = profile.IsAdmin ? [] : await HiddenAsync(db, copies, ct);
@@ -166,7 +168,7 @@ public static partial class DeleteEndpoints
             int? arrId;
             try
             {
-                (instance, arrId) = await OwnerAsync(db, copy, options, arr, ct);
+                (instance, arrId) = await OwnerAsync(db, copy, options, arr, lists, ct);
             }
             catch (HttpRequestException)
             {
@@ -210,11 +212,11 @@ public static partial class DeleteEndpoints
     /// The Radarr or Sonarr that really holds a copy's files, found by where they are. A copy's own record can name the
     /// wrong one: metadata falls back on the TMDB id, which both instances of a 4K and an HD setup have.
     /// </summary>
-    private static async Task<(ArrInstance? Instance, int? ArrId)> OwnerAsync(FlexarrDbContext db, MediaItem copy, FlexarrOptions options, ArrClient arr, CancellationToken ct)
+    private static async Task<(ArrInstance? Instance, int? ArrId)> OwnerAsync(FlexarrDbContext db, MediaItem copy, FlexarrOptions options, ArrClient arr, ArrLists lists, CancellationToken ct)
     {
-        var path = (await db.MediaFiles.AsNoTracking().IgnoreQueryFilters()
-            .Where(f => f.MediaItemId == copy.Id || f.MediaItem!.ParentId == copy.Id || f.MediaItem.Parent!.ParentId == copy.Id)
-            .Select(f => f.Path).FirstOrDefaultAsync(ct)) ?? copy.Path;
+        var files = db.MediaFiles.AsNoTracking().IgnoreQueryFilters();
+        var path = await (copy.Kind == MediaKind.Series ? files.Where(f => f.MediaItem!.Parent!.ParentId == copy.Id) : files.Where(f => f.MediaItemId == copy.Id))
+            .Select(f => f.Path).FirstOrDefaultAsync(ct) ?? copy.Path;
         if (path is null)
         {
             return Manager(copy, options);
@@ -225,7 +227,7 @@ public static partial class DeleteEndpoints
         {
             foreach (var radarr in options.Arr.Where(a => a.Kind == ArrKind.Radarr))
             {
-                if ((await arr.GetMoviesAsync(radarr, ct)).FirstOrDefault(m => Holds(m.Path)) is { } movie)
+                if ((await lists.MoviesAsync(radarr, ct)).FirstOrDefault(m => Holds(m.Path)) is { } movie)
                 {
                     return (radarr, movie.Id);
                 }
@@ -236,7 +238,7 @@ public static partial class DeleteEndpoints
 
         foreach (var sonarr in options.Arr.Where(a => a.Kind == ArrKind.Sonarr))
         {
-            if ((await arr.GetSeriesAsync(sonarr, ct)).FirstOrDefault(s => Holds(s.Path)) is not { } series)
+            if ((await lists.SeriesAsync(sonarr, ct)).FirstOrDefault(s => Holds(s.Path)) is not { } series)
             {
                 continue;
             }
@@ -246,11 +248,27 @@ public static partial class DeleteEndpoints
                 return (sonarr, series.Id);
             }
 
-            var episode = (await arr.GetEpisodesAsync(sonarr, series.Id, ct)).FirstOrDefault(e => e.SeasonNumber == copy.SeasonNumber && e.EpisodeNumber == copy.EpisodeNumber);
+            var airDate = copy.AirDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+            var episode = (await arr.GetEpisodesAsync(sonarr, series.Id, ct)).FirstOrDefault(e => copy.EpisodeNumber is null
+                ? airDate is not null && e.AirDate == airDate // A daily show's file is named by its date.
+                : e.SeasonNumber == copy.SeasonNumber && e.EpisodeNumber == copy.EpisodeNumber);
             return episode is null ? (null, null) : (sonarr, episode.Id);
         }
 
         return (null, null);
+    }
+
+    /// <summary>Each Radarr's and Sonarr's whole list, fetched once for all the copies a request looks through.</summary>
+    private sealed class ArrLists(ArrClient arr)
+    {
+        private readonly Dictionary<string, IReadOnlyList<RadarrMovie>> _movies = [];
+        private readonly Dictionary<string, IReadOnlyList<SonarrSeries>> _series = [];
+
+        public async Task<IReadOnlyList<RadarrMovie>> MoviesAsync(ArrInstance radarr, CancellationToken ct) =>
+            _movies.TryGetValue(radarr.Name, out var known) ? known : _movies[radarr.Name] = await arr.GetMoviesAsync(radarr, ct);
+
+        public async Task<IReadOnlyList<SonarrSeries>> SeriesAsync(ArrInstance sonarr, CancellationToken ct) =>
+            _series.TryGetValue(sonarr.Name, out var known) ? known : _series[sonarr.Name] = await arr.GetSeriesAsync(sonarr, ct);
     }
 
     /// <summary>The files of a managed episode its Sonarr doesn't track, for the dialog to list: Flexarr deletes those itself.</summary>
