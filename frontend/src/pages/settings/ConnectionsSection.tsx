@@ -843,7 +843,15 @@ function DispatcharrRow({
           <p className="muted field-hint">{t('Lets Refresh have Dispatcharr download its guides first. Gives Flexarr admin rights there.')}</p>
           {liveTv?.hasAdminApiKey && (
             <p>
-              <AsyncButton type="button" className="button quiet small" onClick={() => onSave({ baseUrl: liveTv.baseUrl, username: liveTv.username, adminApiKey: '' }, t('Admin API key removed'))}>
+              <AsyncButton
+                type="button"
+                className="button danger small"
+                onClick={() =>
+                  confirm(t('Remove the admin API key? Refresh will stop having Dispatcharr download its guides first.'))
+                    ? onSave({ baseUrl: liveTv.baseUrl, username: liveTv.username, adminApiKey: '' }, t('Admin API key removed'))
+                    : undefined
+                }
+              >
                 {t('Remove admin API key')}
               </AsyncButton>
             </p>

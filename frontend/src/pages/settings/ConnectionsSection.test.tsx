@@ -61,10 +61,21 @@ describe('Dispatcharr’s admin API key', () => {
     expect(sent[1].liveTv?.adminApiKey).toBeUndefined()
   })
 
-  it('removes a saved key with an empty one', async () => {
+  it('asks before removing a saved key, then removes it with an empty one', async () => {
+    const asked = vi.fn(() => false)
+    vi.stubGlobal('confirm', asked)
     const sent = setUp()
     const form = await openForm()
-    fireEvent.click(within(form).getByRole('button', { name: 'Remove admin API key' }))
+    const remove = within(form).getByRole('button', { name: 'Remove admin API key' })
+    expect(remove).toHaveClass('danger')
+
+    fireEvent.click(remove)
+    expect(asked).toHaveBeenCalledOnce()
+    expect(sent).toHaveLength(0)
+    expect(screen.getByRole('form', { name: 'Edit Dispatcharr' })).toBeInTheDocument()
+
+    asked.mockReturnValue(true)
+    fireEvent.click(remove)
     await waitFor(() => expect(sent.at(-1)?.liveTv?.adminApiKey).toBe(''))
   })
 
