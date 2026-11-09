@@ -97,6 +97,22 @@ describe('Setup guide', () => {
     expect(sent(api, 'PUT', '/settings')).toBeUndefined()
   })
 
+  it('asks for the server’s country on the way, saving it', async () => {
+    const api = mockApi({
+      '/profiles': [main],
+      '/podcasts/countries': [{ code: 'us', name: 'United States' }],
+      '/settings': { arr: [], pathMappings: [], podcasts: { country: null, resolvedCountry: 'us' } },
+      'PUT /settings': { arr: [], pathMappings: [], podcasts: { country: 'us', resolvedCountry: 'us' } },
+      'PUT /setup-guide': undefined,
+    })
+    renderAt('profiles')
+
+    await screen.findByRole('option', { name: 'United States' })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Country' }), { target: { value: 'us' } })
+
+    await vi.waitFor(() => expect(sent(api, 'PUT', '/settings')).toEqual({ podcasts: { country: 'us' } }))
+  })
+
   it('keeps an app’s API key hidden as it’s typed', async () => {
     mockApi({ '/profiles': [main], '/settings': { arr: [], pathMappings: [] }, '/arr/discover': [], 'PUT /setup-guide': undefined })
     renderAt('apps')

@@ -36,6 +36,7 @@ import { libraryTypeLabel } from '../lib/format'
 import { freeColour, profileColours } from '../lib/profileColours'
 import { SERVER_NAME_MAX, setServerTitle } from '../lib/serverTitle'
 import { tooBroad } from '../lib/setupGuide'
+import { CountryField } from './settings/CountryRow'
 import { errorText } from './settings/useSettings'
 import '../styles/onboarding.css'
 import { locale, t, tk, Words } from '../i18n'
@@ -685,6 +686,7 @@ function ProfilesStep({ nav }: { nav: StepNav }) {
           {error}
         </p>
       )}
+      <CountryField />
       <StepFooter
         nav={nav}
         skipLabel={more ? null : t('Skip')}
