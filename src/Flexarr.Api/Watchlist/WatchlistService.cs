@@ -133,7 +133,16 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
 
         await LinkAsync(profileId, entries, ct);
         await SaveLinksAsync(ct);
-        var order = entries.Where(e => e.MediaItemId is not null).Select((e, i) => (Id: e.MediaItemId!.Value, i)).ToDictionary(e => e.Id, e => e.i);
+        var copies = await VisibleCopiesAsync(entries.Where(e => e.MediaItemId is not null).Select(e => e.MediaItemId!.Value).ToList(), ct);
+        var order = new Dictionary<Guid, int>();
+        foreach (var (entry, i) in entries.Select((e, i) => (e, i)))
+        {
+            if (entry.MediaItemId is { } held && copies.TryGetValue(held, out var copy))
+            {
+                order.TryAdd(copy, i);
+            }
+        }
+
         var linked = order.Keys.ToList();
         // Which can be played (and seen by this profile) first, cheaply; then the full card for only the ones shown.
         var playable = await db.MediaItems.Where(i => linked.Contains(i.Id) && (i.Kind == MediaKind.Movie || i.Children.Any(s => s.Children.Count > 0)))
@@ -164,8 +173,9 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
         await PruneAsync(profileId, ct);
         var entries = await Live(profileId).Select(w => new { w.Kind, w.TmdbId, w.MediaItemId }).ToListAsync(ct);
         var linked = entries.Where(e => e.MediaItemId is not null).Select(e => e.MediaItemId!.Value).ToList();
-        // Only titles this profile can still see (a library hidden from it since stays out).
-        var ids = (await db.MediaItems.Where(i => linked.Contains(i.Id)).Select(i => i.Id).ToListAsync(ct)).ToHashSet();
+        // Only titles this profile can still see (a library hidden from it since stays out), by any copy of them.
+        var groups = await db.MediaItems.IgnoreQueryFilters().Where(i => linked.Contains(i.Id) && i.LinkGroupId != null).Select(i => i.LinkGroupId!.Value).ToListAsync(ct);
+        var ids = (await db.MediaItems.Where(i => linked.Contains(i.Id) || (i.LinkGroupId != null && groups.Contains(i.LinkGroupId.Value))).Select(i => i.Id).ToListAsync(ct)).ToHashSet();
         var unlinked = entries.Where(e => e.MediaItemId is null && e.TmdbId is not null).ToList();
         if (unlinked.Count > 0)
         {
@@ -522,13 +532,42 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
     /// whole list) answer from what each entry stores, Flexarr's own requests and what Seerr said lately, and ask Seerr
     /// about the rest in the background, so the list doesn't wait on a round trip for every title.
     /// </param>
+    /// <summary>For each title, the copy this profile can see: itself if it can, another if that one's hidden, none if all are.</summary>
+    private async Task<Dictionary<Guid, Guid>> VisibleCopiesAsync(List<Guid> ids, CancellationToken ct)
+    {
+        var groups = await db.MediaItems.IgnoreQueryFilters().Where(i => ids.Contains(i.Id) && i.LinkGroupId != null)
+            .Select(i => new { i.Id, Group = i.LinkGroupId!.Value }).ToDictionaryAsync(i => i.Id, i => i.Group, ct);
+        var wanted = groups.Values.Distinct().ToList();
+        var seen = await db.MediaItems.Where(i => ids.Contains(i.Id) || (i.LinkGroupId != null && wanted.Contains(i.LinkGroupId.Value)))
+            .OrderBy(i => i.Id).Select(i => new { i.Id, i.LinkGroupId }).ToListAsync(ct);
+        var own = seen.Select(i => i.Id).ToHashSet();
+        var map = new Dictionary<Guid, Guid>();
+        foreach (var id in ids.Distinct())
+        {
+            if (own.Contains(id))
+            {
+                map[id] = id;
+            }
+            else if (groups.TryGetValue(id, out var group) && seen.FirstOrDefault(i => i.LinkGroupId == group) is { } other)
+            {
+                map[id] = other.Id;
+            }
+        }
+
+        return map;
+    }
+
     private async Task<List<WatchlistEntryDto>> ToDtosAsync(string profileId, List<WatchlistEntry> entries, CancellationToken ct, bool waitForSeerr = true)
     {
         await LinkAsync(profileId, entries, ct);
-        var ids = entries.Where(e => e.MediaItemId is not null).Select(e => e.MediaItemId!.Value).ToList();
+        var held = entries.Where(e => e.MediaItemId is not null).Select(e => e.MediaItemId!.Value).ToList();
+        var copies = await VisibleCopiesAsync(held, ct);
+        var ids = copies.Values.Distinct().ToList();
         // Only what this profile can see (the query filter), and a show only once it has an episode to play.
-        var items = (await db.MediaItems.Where(i => ids.Contains(i.Id) && (i.Kind == MediaKind.Movie || i.Children.Any(s => s.Children.Count > 0)))
+        var visible = (await db.MediaItems.Where(i => ids.Contains(i.Id) && (i.Kind == MediaKind.Movie || i.Children.Any(s => s.Children.Count > 0)))
             .Summaries(profileId).ToListAsync(ct)).ToDictionary(i => i.Id);
+        // By the id each entry holds, which may be a copy this profile can't see.
+        var items = copies.Where(c => visible.ContainsKey(c.Value)).ToDictionary(c => c.Key, c => visible[c.Value]);
         // A profile with an age limit sees only what's in the library within it: a title outside has no age to check,
         // and one above the limit (put on before it was set) isn't shown at all.
         if (db.IsLimited())
@@ -852,7 +891,11 @@ public sealed class WatchlistService(FlexarrDbContext db, SeerrClient seerr, IOp
         if (await LibraryTitleAsync(key, ct) is { } item)
         {
             var tmdb = int.TryParse(item.TmdbId, NumberStyles.None, CultureInfo.InvariantCulture, out var t) ? t : (int?)null;
-            return await mine.FirstOrDefaultAsync(w => w.MediaItemId == item.Id || (tmdb != null && w.Kind == item.Kind && w.TmdbId == tmdb), ct);
+            // An entry may hold another copy of the title, even one this profile can't see now.
+            List<Guid> copies = item.LinkGroupId is { } group
+                ? await db.MediaItems.IgnoreQueryFilters().Where(i => i.LinkGroupId == group).Select(i => i.Id).ToListAsync(ct)
+                : [item.Id];
+            return await mine.FirstOrDefaultAsync(w => (w.MediaItemId != null && copies.Contains(w.MediaItemId.Value)) || (tmdb != null && w.Kind == item.Kind && w.TmdbId == tmdb), ct);
         }
 
         if (key.MediaType is not ("movie" or "tv") || key.TmdbId is not { } tmdbId)

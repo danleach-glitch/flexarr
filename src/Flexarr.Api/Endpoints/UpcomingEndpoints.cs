@@ -205,7 +205,11 @@ public static class UpcomingEndpoints
 
         // Something in no library yet is shown unless the profile can't see any library of its kind.
         var hidden = await LibraryVisibility.HiddenTypesAsync(db, ct);
-        return results.Where(r => r.Upcoming.LibraryItemId is not null || !hidden.Hides(r.Upcoming.Kind)).OrderBy(r => r.Upcoming.Date).ToList();
+        // Two Sonarrs or Radarrs with the same title give one line, by the copy already in if either is.
+        return results.Where(r => r.Upcoming.LibraryItemId is not null || !hidden.Hides(r.Upcoming.Kind))
+            .GroupBy(r => (r.Upcoming.Kind, r.Upcoming.TmdbId, r.Upcoming.TmdbId is null ? r.Upcoming.SeriesTitle ?? r.Upcoming.Title : null, r.Upcoming.SeasonNumber, r.Upcoming.EpisodeNumber))
+            .Select(g => g.OrderByDescending(r => r.Upcoming.Available).First())
+            .OrderBy(r => r.Upcoming.Date).ToList();
     }
 
     public static async Task<List<DownloadDto>> DownloadsAsync(FlexarrOptions options, ArrClient arr, IMemoryCache? cache, FlexarrDbContext db, string? host, CancellationToken ct)

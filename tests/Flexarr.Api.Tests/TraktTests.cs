@@ -372,6 +372,36 @@ public sealed class TraktTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ALinkedTitle_IsOnePlayToTrakt()
+    {
+        var hd = Film("Dune", "438631");
+        var library = new Library { Name = "4K", Type = LibraryType.Movies };
+        var uhd = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Movie, Title = "Dune", SortTitle = "dune", Year = 2021, TmdbId = "438631" };
+        await SeedAsync(db => { db.Libraries.AddRange(Films, library); db.MediaItems.AddRange(hd, uhd); });
+        await InDbAsync(async db => { await TitleLinker.LinkAsync(db, default); return true; });
+        await ConnectAsync();
+
+        await Client().PostAsJsonAsync(Api($"/items/{uhd.Id}/watched"), new { watched = true });
+
+        // Watched on both copies, by the save.
+        Assert.Equal(2, await InDbAsync(db => db.PlaybackStates.CountAsync(p => p.UserId == Owner && p.Watched)));
+        var sent = JsonDocument.Parse(Assert.Single(await OutboxAsync()).Payload).RootElement;
+        Assert.Single(sent.GetProperty("movies").EnumerateArray());
+
+        // And if both copies are named at once, as an import's list does.
+        var at = DateTime.UtcNow;
+        await InDbAsync(async db =>
+        {
+            await TraktOutbox.QueueHistoryAsync(db, Owner, [(hd.Id, at), (uhd.Id, at)], default);
+            await db.SaveChangesAsync();
+            return true;
+        });
+        var queued = await OutboxAsync();
+        Assert.Equal(2, queued.Count);
+        Assert.Single(JsonDocument.Parse(queued[1].Payload).RootElement.GetProperty("movies").EnumerateArray());
+    }
+
+    [Fact]
     public async Task MarkingWatched_GoesToTraktsHistory_MarkingUnwatchedDoesnt()
     {
         var film = Film("Dune", "438631");

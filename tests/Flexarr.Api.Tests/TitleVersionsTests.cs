@@ -320,4 +320,18 @@ public sealed class TitleVersionsTests : IAsyncLifetime
         var detail = await Client().GetFromJsonAsync<JsonElement>(Api($"/items/{hd}?includeSeason=true&season=1"));
         Assert.Equal([1, 2], detail.GetProperty("season").GetProperty("children").EnumerateArray().Select(e => e.GetProperty("episodeNumber").GetInt32()).Order());
     }
+
+    [Fact]
+    public async Task TheWatchlist_KnowsATitleByAnyCopy_AndShowsOneThisProfileCanSee()
+    {
+        var client = Client();
+        (await client.PostAsJsonAsync(Api("/watchlist"), new { libraryItemId = _uhdItem })).EnsureSuccessStatusCode();
+        var detail = await client.GetFromJsonAsync<JsonElement>(Api($"/items/{_hdItem}"));
+        Assert.True(detail.GetProperty("onWatchlist").GetBoolean());
+
+        await HideFourKAsync();
+        var list = await client.GetFromJsonAsync<JsonElement>(Api("/watchlist"));
+        var entry = list.EnumerateArray().Single();
+        Assert.Equal(_hdItem, entry.GetProperty("item").GetProperty("id").GetGuid());
+    }
 }

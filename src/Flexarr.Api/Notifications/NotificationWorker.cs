@@ -193,7 +193,7 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
             .Where(i => !skipped.Contains(i.LibraryId) && created.TryGetValue(i.LibraryId, out var at) && i.AddedAt - at > FirstScan)
             .ToList();
         var shows = await ShowsAsync(db, fresh, ct);
-        fresh = await WithoutReplacementsAsync(db, fresh, shows, ct);
+        (fresh, var knownIn) = await WithoutReplacementsAsync(db, fresh, shows, ct);
 
         var answered = await RequestsAsync(db, languages, from, to, now, ct);
         answered.AddRange(await WatchlistArrivalsAsync(db, languages, answered, to, now, ct));
@@ -218,7 +218,9 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
             // Requests and the watchlist name titles Flexarr can't check the age of: not news for a profile with an age limit.
             var theirs = sees?.MaxRatingAge is null ? answered.Where(a => a.ProfileId == profile.Key).ToList() : [];
             var told = theirs.SelectMany(a => a.Items).ToHashSet();
-            var unseen = fresh.Where(i => !hidden.Contains(i.LibraryId) && LibraryVisibility.AgeAllows(sees?.MaxRatingAge, kidsLibraries, i.LibraryId, i.RatingAge, i.KidsOverride)
+            // An old copy in a library this profile can't see doesn't make the title old news to it.
+            var unseen = fresh.Where(i => !(knownIn.TryGetValue(i.Id, out var older) && older.Any(l => !hidden.Contains(l))))
+                .Where(i => !hidden.Contains(i.LibraryId) && LibraryVisibility.AgeAllows(sees?.MaxRatingAge, kidsLibraries, i.LibraryId, i.RatingAge, i.KidsOverride)
                 && !watched.Contains(i.Id)).ToList();
 
             // Phones of one profile can still want different things.
@@ -283,15 +285,31 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
     /// remembered (in another folder or library, missing while its replacement settles, or buried as a watch-history
     /// tombstone). A plain upgrade keeps its item, so it never shows up as new at all.
     /// </summary>
-    private static async Task<List<Fresh>> WithoutReplacementsAsync(FlexarrDbContext db, List<Fresh> fresh, Dictionary<Guid, Show> shows, CancellationToken ct)
+    /// <returns>What's left, and for those whose old copy still exists, the libraries it's in: not new to whoever sees one of them.</returns>
+    private static async Task<(List<Fresh> Fresh, Dictionary<Guid, HashSet<Guid>> KnownIn)> WithoutReplacementsAsync(FlexarrDbContext db, List<Fresh> fresh, Dictionary<Guid, Show> shows, CancellationToken ct)
     {
         if (fresh.Count == 0)
         {
-            return fresh;
+            return (fresh, []);
         }
 
         var freshIds = fresh.Select(i => i.Id).ToList();
+        // Remembered by everyone: a tombstone has no library.
         var known = new HashSet<string>(StringComparer.Ordinal);
+        // In a library, known to those who can see it.
+        var knownIn = new Dictionary<string, HashSet<Guid>>(StringComparer.Ordinal);
+        void In(IEnumerable<string> keys, Guid library)
+        {
+            foreach (var key in keys)
+            {
+                if (!knownIn.TryGetValue(key, out var libraries))
+                {
+                    knownIn[key] = libraries = [];
+                }
+
+                libraries.Add(library);
+            }
+        }
 
         var movies = fresh.Where(i => i.Kind == MediaKind.Movie).ToList();
         var movieTmdb = movies.Where(m => m.TmdbId is not null).Select(m => m.TmdbId!).ToList();
@@ -301,11 +319,16 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
             var older = await db.MediaItems.IgnoreQueryFilters().AsNoTracking()
                 .Where(o => o.Kind == MediaKind.Movie && !freshIds.Contains(o.Id)
                     && ((o.TmdbId != null && movieTmdb.Contains(o.TmdbId)) || (o.ImdbId != null && movieImdb.Contains(o.ImdbId))))
-                .Select(o => new { o.TmdbId, o.ImdbId }).ToListAsync(ct);
+                .Select(o => new { o.TmdbId, o.ImdbId, o.LibraryId }).ToListAsync(ct);
             var buried = await db.WatchTombstones.AsNoTracking()
                 .Where(t => t.Kind == MediaKind.Movie && ((t.TmdbId != null && movieTmdb.Contains(t.TmdbId)) || (t.ImdbId != null && movieImdb.Contains(t.ImdbId))))
                 .Select(t => new { t.TmdbId, t.ImdbId }).ToListAsync(ct);
-            foreach (var o in older.Concat(buried))
+            foreach (var o in older)
+            {
+                In(MovieKeys(o.TmdbId, o.ImdbId), o.LibraryId);
+            }
+
+            foreach (var o in buried)
             {
                 known.UnionWith(MovieKeys(o.TmdbId, o.ImdbId));
             }
@@ -320,7 +343,7 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
             var twins = await db.MediaItems.IgnoreQueryFilters().AsNoTracking()
                 .Where(s => s.Kind == MediaKind.Series && !showIds.Contains(s.Id)
                     && ((s.TvdbId != null && tvdb.Contains(s.TvdbId)) || (s.TmdbId != null && tmdb.Contains(s.TmdbId))))
-                .Select(s => new { s.Id, s.TvdbId, s.TmdbId }).ToListAsync(ct);
+                .Select(s => new { s.Id, s.TvdbId, s.TmdbId, s.LibraryId }).ToListAsync(ct);
             var twinIds = twins.Select(t => t.Id).ToList();
             var twinById = twins.ToDictionary(t => t.Id);
             foreach (var e in await db.MediaItems.IgnoreQueryFilters().AsNoTracking()
@@ -328,7 +351,7 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
                          .Select(e => new { SeriesId = e.Parent!.ParentId!.Value, e.SeasonNumber, e.EpisodeNumber, e.AirDate }).ToListAsync(ct))
             {
                 var twin = twinById[e.SeriesId];
-                known.UnionWith(EpisodeKeys(twin.TvdbId, twin.TmdbId, e.SeasonNumber, e.EpisodeNumber, e.AirDate));
+                In(EpisodeKeys(twin.TvdbId, twin.TmdbId, e.SeasonNumber, e.EpisodeNumber, e.AirDate), twin.LibraryId);
             }
 
             foreach (var t in await db.WatchTombstones.AsNoTracking()
@@ -339,15 +362,20 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
             }
         }
 
-        if (known.Count == 0)
+        IEnumerable<string> KeysOf(Fresh i) => i.Kind == MediaKind.Movie ? MovieKeys(i.TmdbId, i.ImdbId)
+            : i.SeriesId is { } s && shows.TryGetValue(s, out var show) ? EpisodeKeys(show.TvdbId, show.TmdbId, i.Season, i.Episode, i.AirDate) : [];
+
+        var copies = new Dictionary<Guid, HashSet<Guid>>();
+        foreach (var item in fresh)
         {
-            return fresh;
+            var libraries = KeysOf(item).Where(knownIn.ContainsKey).SelectMany(key => knownIn[key]).ToHashSet();
+            if (libraries.Count > 0)
+            {
+                copies[item.Id] = libraries;
+            }
         }
 
-        return fresh.Where(i => i.Kind == MediaKind.Movie
-                ? !MovieKeys(i.TmdbId, i.ImdbId).Any(known.Contains)
-                : !(i.SeriesId is { } s && shows.TryGetValue(s, out var show) && EpisodeKeys(show.TvdbId, show.TmdbId, i.Season, i.Episode, i.AirDate).Any(known.Contains)))
-            .ToList();
+        return ([.. fresh.Where(i => !KeysOf(i).Any(known.Contains))], copies);
     }
 
     private static IEnumerable<string> MovieKeys(string? tmdb, string? imdb)
