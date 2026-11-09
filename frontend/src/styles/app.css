@@ -3413,6 +3413,7 @@ a.download-attention {
 .requested-card .external-card-actions {
   flex-wrap: wrap;
   justify-content: flex-start;
+  row-gap: 0;
 }
 
 .requested-error {

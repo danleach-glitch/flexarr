@@ -255,6 +255,11 @@ function RequestedCard({ row, square, offline, service, onGone, onRetried }: { r
       {row.state === 'downloading' && row.progress != null && (
         <progress className="requested-progress" value={row.progress} max={1} aria-label={t('{title} downloading', { title: row.title })} />
       )}
+      {retryError && (
+        <p className="error requested-error" role="alert">
+          {retryError}
+        </p>
+      )}
       <div className="external-card-actions">
         {canTryAgain && (
           <AsyncButton className="button small" aria-label={t('Try again: {title}', { title: row.title })} keepFocus onClick={retry} disabled={offline} title={offline ? t('{service} isn’t answering.', { service }) : undefined}>
@@ -265,11 +270,6 @@ function RequestedCard({ row, square, offline, service, onGone, onRetried }: { r
           {t(Words.unrequest)}
         </AsyncButton>
       </div>
-      {retryError && (
-        <p className="error requested-error" role="alert">
-          {retryError}
-        </p>
-      )}
       {asking && (
         <ConfirmDialog
           title={t('Unrequest {name}?', { name: row.title })}

@@ -62,6 +62,8 @@ describe('Try again, against the server', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(words)
     expect(screen.getByRole('button', named)).toBeEnabled()
+    // Above the buttons, so every card's Unrequest stays on one line.
+    expect(screen.getByRole('alert').compareDocumentPosition(screen.getByRole('button', named)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('keeps asking for a few minutes after, though nothing is moving yet, so the download shows', async () => {
