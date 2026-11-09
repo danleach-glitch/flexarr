@@ -241,6 +241,22 @@ private enum MusicSending: Equatable {
     }
 }
 
+/// Whether a request's button is still up when its answer comes. The button changes at once, so people often leave
+/// straight away: a failure then goes to the app's alert, as nobody's looking beside the button any more. A class, as a
+/// button that has gone keeps no state of its own to ask.
+@MainActor
+private final class ButtonPresence {
+    var isShown = false
+
+    /// What the button says after this answer: nothing when it went through; why not, beside it, while it's up.
+    func settled(_ failure: String?, model: AppModel) -> MusicSending {
+        guard let failure else { return .idle }
+        if isShown { return .failed(failure) }
+        model.requestError = failure
+        return .idle
+    }
+}
+
 /// Why a request didn't go through, beside its button.
 private struct RequestFailure: View {
     let message: String?
@@ -271,8 +287,15 @@ struct MusicAlbumRequestButton: View {
     var focus: FocusState<MusicActions.Button?>.Binding? = nil
     @State private var sending = MusicSending.idle
     @State private var confirming = false
+    @State private var presence = ButtonPresence()
 
     var body: some View {
+        content
+            .onAppear { presence.isShown = true }
+            .onDisappear { presence.isShown = false }
+    }
+
+    @ViewBuilder private var content: some View {
         let state = model.albumState(album)
         if case .none = state {
             EmptyView()
@@ -314,15 +337,19 @@ struct MusicAlbumRequestButton: View {
         guard let target = MusicRequestTarget.album(album) else { return }
         sending = .sending
         Task {
-            if let failure = await model.sendMusicRequest(target) { sending = .failed(failure) } else { sending = .idle }
+            settle(await model.sendMusicRequest(target))
         }
     }
 
     private func unrequest() {
         sending = .sending
         Task {
-            if let failure = await model.unrequestAlbum(album) { sending = .failed(failure) } else { sending = .idle }
+            settle(await model.unrequestAlbum(album))
         }
+    }
+
+    private func settle(_ failure: String?) {
+        sending = presence.settled(failure, model: model)
     }
 }
 
@@ -348,6 +375,7 @@ struct FollowArtistButton: View {
     var unfollowed: () -> Void = {}
     @State private var sending = MusicSending.idle
     @State private var confirming = false
+    @State private var presence = ButtonPresence()
 
     var body: some View {
         HStack(spacing: 30) {
@@ -367,12 +395,18 @@ struct FollowArtistButton: View {
                               undo: MusicWords.stopFollowingAction) { unfollow() }
             RequestFailure(message: sending.failure)
         }
+        .onAppear { presence.isShown = true }
+        .onDisappear { presence.isShown = false }
+    }
+
+    private func settle(_ failure: String?) {
+        sending = presence.settled(failure, model: model)
     }
 
     private func follow() {
         sending = .sending
         Task {
-            if let failure = await model.followArtist(libraryId: libraryId, deezerId: deezerId) { sending = .failed(failure) } else { sending = .idle }
+            settle(await model.followArtist(libraryId: libraryId, deezerId: deezerId))
         }
     }
 
@@ -380,9 +414,9 @@ struct FollowArtistButton: View {
         sending = .sending
         Task {
             if let failure = await model.unfollowArtist(libraryId: libraryId, deezerId: deezerId) {
-                sending = .failed(failure)
+                settle(failure)
             } else {
-                sending = .idle
+                settle(nil)
                 unfollowed()
             }
         }
