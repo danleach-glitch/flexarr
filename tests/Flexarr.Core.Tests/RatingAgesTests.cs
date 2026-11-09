@@ -78,4 +78,32 @@ public class RatingAgesTests
     [Fact]
     public void Labels_AreTheUkNames() =>
         Assert.Equal(["U", "PG", "12", "15", "18"], RatingAges.Steps.Select(RatingAges.Label));
+
+    [Fact]
+    public void Labels_InTheUs_NameTheSameFiveSteps()
+    {
+        Assert.Equal([0, 8, 12, 15, 18], RatingAges.Steps);
+        Assert.Equal(["G", "PG", "PG-13", "TV-14", "R"], RatingAges.Steps.Select(age => RatingAges.Label(age, RatingSystem.Us)));
+    }
+
+    [Theory]
+    [InlineData("us", RatingSystem.Us)]
+    [InlineData("US", RatingSystem.Us)]
+    [InlineData("gb", RatingSystem.Uk)]
+    [InlineData("de", RatingSystem.Uk)]
+    [InlineData(null, RatingSystem.Uk)]
+    public void ACountry_PicksItsNames(string? country, RatingSystem system) =>
+        Assert.Equal(system, RatingAges.SystemFor(country));
+
+    [Theory]
+    [InlineData("G", 0)]
+    [InlineData("PG", 8)]
+    [InlineData("PG-13", 12)]
+    [InlineData("TV-14", 15)]
+    [InlineData("R", 18)]
+    public void AUsStepsName_IsTheAgeOfThatRating(string rating, int age)
+    {
+        Assert.Equal(age, RatingAges.Of(rating));
+        Assert.Equal(rating, RatingAges.Label(age, RatingSystem.Us));
+    }
 }

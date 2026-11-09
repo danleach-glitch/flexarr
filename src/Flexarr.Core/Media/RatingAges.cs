@@ -14,6 +14,13 @@ public enum KidsOverride
     Block,
 }
 
+/// <summary>Whose names the age limits go by. The steps underneath are the same for both, so changing it only renames them.</summary>
+public enum RatingSystem
+{
+    Uk,
+    Us,
+}
+
 /// <summary>
 /// Turns a content rating from any country into the age it's suitable from, on the UK's steps (U, PG, 12, 15, 18), so
 /// one age limit works across a library whose ratings came from the US, the UK, Germany or Australia. A rating means
@@ -32,12 +39,27 @@ public static class RatingAges
     public static IReadOnlyList<int> Steps { get; } = [Universal, ParentalGuidance, Twelve, Fifteen, Eighteen];
 
     /// <summary>A step's name, as the UK writes it.</summary>
-    public static string Label(int age) => age switch
+    public static string Label(int age) => Label(age, RatingSystem.Uk);
+
+    /// <summary>
+    /// A step's name in <paramref name="system"/>. The US's five are its nearest ratings, film and TV together: its
+    /// TV-14 sits above PG-13, as here, and its R covers NC-17 as the UK's 18 does R18.
+    /// </summary>
+    public static string Label(int age, RatingSystem system) => (system, age) switch
     {
-        Universal => "U",
-        ParentalGuidance => "PG",
+        (RatingSystem.Uk, Universal) => "U",
+        (RatingSystem.Uk, ParentalGuidance) => "PG",
+        (RatingSystem.Us, Universal) => "G",
+        (RatingSystem.Us, ParentalGuidance) => "PG",
+        (RatingSystem.Us, Twelve) => "PG-13",
+        (RatingSystem.Us, Fifteen) => "TV-14",
+        (RatingSystem.Us, Eighteen) => "R",
         _ => age.ToString(CultureInfo.InvariantCulture),
     };
+
+    /// <summary>The names a country's age limits go by: the US's in the US, the UK's everywhere else and when it's not known.</summary>
+    public static RatingSystem SystemFor(string? country) =>
+        string.Equals(country?.Trim(), "US", StringComparison.OrdinalIgnoreCase) ? RatingSystem.Us : RatingSystem.Uk;
 
     /// <summary>
     /// The age an item of <paramref name="kind"/> rated <paramref name="rating"/> is suitable from; null when it has no
