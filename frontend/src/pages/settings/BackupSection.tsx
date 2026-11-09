@@ -41,9 +41,9 @@ const kindLabel: Record<BackupKind, string> = {
 
 /** The parts of a settings file, in the order they're offered. Server keys and this machine's paths start unticked. */
 const sections: { id: string; label: string; help: string; off?: boolean }[] = [
-  { id: 'libraries', label: Words.libraries, help: tk('Added if there’s none of that name here, then scanned.') },
+  { id: 'libraries', label: Words.libraries, help: tk('Added if there’s none of that name here, then scanned. Notice new files comes too.') },
   { id: 'connections', label: tk('Connections'), help: tk('Sonarr, Radarr, Lidarr, Seerr and path mappings, with their keys.') },
-  { id: 'liveTv', label: Words.liveTv, help: tk('The Dispatcharr source and the DVR’s settings.') },
+  { id: 'liveTv', label: Words.liveTv, help: tk('The Dispatcharr source and the DVR’s settings, but not its admin API key.') },
   { id: 'streaming', label: tk('Streaming'), help: tk('Hardware acceleration and limits.') },
   { id: 'layout', label: tk('Home & browse'), help: tk('The rows for profiles that haven’t chosen their own.') },
   { id: 'podcasts', label: tk('Country'), help: tk('The names of age limits, podcast charts and the Audible store.') },
