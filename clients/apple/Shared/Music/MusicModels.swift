@@ -58,7 +58,9 @@ final class MusicBrowseModel {
             error = nil
             loadedAt = Date()
             let loaded = try? await browse
-            guard mine == generation else { return }
+            // A cancelled load (a refresh SwiftUI gave up on, or leaving the page) says nothing about the server, so
+            // what's showing stays. Taking it as a failure would clear the rows and the hero, leaving only the artists.
+            guard mine == generation, !Task.isCancelled else { return }
             rows = (loaded?.rows ?? []).filter(\.hasContent)
             hero = loaded
             featured = loaded?.featured ?? []
@@ -71,11 +73,11 @@ final class MusicBrowseModel {
             async let lists = client.playlists()
             let fallbackLists = (try? await lists) ?? []
             let fallbackAlbums = await Self.newestAlbums(of: (try? await newest)?.items ?? [], client: client)
-            guard mine == generation else { return }
+            guard mine == generation, !Task.isCancelled else { return }
             playlists = fallbackLists
             recentAlbums = fallbackAlbums
         } catch {
-            if mine == generation { self.error = ConnectionError(error).message }
+            if mine == generation, !Task.isCancelled { self.error = ConnectionError(error).message }
         }
     }
 
