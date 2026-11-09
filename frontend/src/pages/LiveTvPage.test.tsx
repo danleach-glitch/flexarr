@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mockApi } from '../test/mockApi'
@@ -239,6 +239,69 @@ describe('the Live TV guide', () => {
     expect(await screen.findByRole('button', { name: /Show 1\.1/ })).toBeInTheDocument()
     expect(document.querySelectorAll('.livetv-guide-row')).toHaveLength(2)
     expect(screen.getByRole('button', { name: /Favourites/ })).toHaveClass('active')
+  })
+
+  it('offers Try again when the guide can’t load, and shows it once it can', async () => {
+    let down = true
+    mockApi({
+      '/livetv/status': status,
+      '/livetv/channels': [],
+      '/livetv/guide': () => (down ? new Response('', { status: 500 }) : answer(starred)),
+    })
+    open()
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Couldn’t load the guide')
+    down = false
+    fireEvent.click(within(alert).getByRole('button', { name: 'Try again' }))
+
+    expect(await screen.findByRole('button', { name: /Show 1\.1/ })).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('clears a failed load when a later refresh brings the guide', async () => {
+    let finished = 1
+    let down = true
+    mockApi({
+      '/livetv/status': () => ({ ...status, refreshesFinished: finished }),
+      '/livetv/channels': [],
+      '/livetv/guide': () => (down ? new Response('', { status: 500 }) : answer(starred)),
+      '/livetv/refresh': () => {
+        down = false
+        finished++
+        return {}
+      },
+    })
+    render(
+      <SessionContext.Provider value={{ me: { profileId: 'p', method: 'api-key', isAdmin: true } as Me, profiles: undefined }}>
+        <MemoryRouter initialEntries={['/livetv?view=guide']}>
+          <LiveTvPage />
+        </MemoryRouter>
+      </SessionContext.Provider>,
+    )
+    await screen.findByText(/Couldn’t load the guide/)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Refresh guide' }))
+
+    expect(await screen.findByRole('button', { name: /Show 1\.1/ }, { timeout: 5000 })).toBeInTheDocument()
+    expect(screen.queryByText(/Couldn’t load the guide/)).toBeNull()
+  }, 15000)
+
+  it('keeps the guide on screen when a later load fails', async () => {
+    let down = false
+    mockApi({
+      '/livetv/status': status,
+      '/livetv/channels': [],
+      '/livetv/guide': () => (down ? new Response('', { status: 500 }) : answer(starred)),
+    })
+    open()
+    await screen.findByRole('button', { name: /Show 1\.1/ })
+
+    down = true
+    fireEvent.click(screen.getByRole('button', { name: 'Show later' }))
+
+    expect(await screen.findByText(/Couldn’t load the guide/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Show 1\.1/ })).toBeInTheDocument()
   })
 
   it('fetches a programme’s description when its details open', async () => {

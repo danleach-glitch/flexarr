@@ -1,5 +1,5 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { PageLoading } from '../components/PageStatus'
+import { PageError, PageLoading } from '../components/PageStatus'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { freshly, getLiveChannels, getLiveGuide, getLiveProgramme, getLiveTvStatus, refreshLiveTv, type LiveChannel, type LiveGuide, type LiveProgramme, type LiveTvStatus } from '../api/client'
 import { IconButton } from '../components/AsyncButton'
@@ -378,7 +378,7 @@ const Guide = memo(function Guide({ refreshed }: { refreshed: number }) {
   /** The guide, and whether it was asked for the favourite channels only. */
   const [loaded, setLoaded] = useState<{ guide: LiveGuide; favourites: boolean }>()
   const guide = loaded?.guide
-  const [failed, setFailed] = useState<string>()
+  const [failed, setFailed] = useState<Error>()
   const [selected, setSelected] = useState<{ channel: LiveGuide['channels'][number]; programme: LiveProgramme }>()
   const [now, setNow] = useState(() => Date.now())
   /** Bumped when a recording changes, so the guide's marks are fetched again. */
@@ -412,6 +412,8 @@ const Guide = memo(function Guide({ refreshed }: { refreshed: number }) {
 
   useEffect(() => {
     const controller = new AbortController()
+    // Each ask starts clean: a blip mid-refresh isn't still showing once a later one has worked.
+    setFailed(undefined)
     getLiveGuide(from, hours, controller.signal, { favourites: favouritesOnly }).then(
       (loaded) => {
         setLoaded({ guide: loaded, favourites: favouritesOnly })
@@ -424,7 +426,7 @@ const Guide = memo(function Guide({ refreshed }: { refreshed: number }) {
         })
       },
       (e: unknown) => {
-        if (!controller.signal.aborted) setFailed(e instanceof Error ? e.message : String(e))
+        if (!controller.signal.aborted) setFailed(e instanceof Error ? e : new Error(String(e)))
       },
     )
     return () => controller.abort()
@@ -435,7 +437,9 @@ const Guide = memo(function Guide({ refreshed }: { refreshed: number }) {
   const width = hours * 60 * PX_PER_MINUTE
   const slots = Array.from({ length: hours * 2 }, (_, i) => new Date(from.getTime() + i * 30 * 60_000))
 
-  if (failed) return <p className="error">{t('Couldn’t load the guide: {error}', { error: failed })}</p>
+  const failure = failed && <PageError error={failed} message={t('Couldn’t load the guide: {error}', { error: failed.message })} onRetry={() => setVersion((v) => v + 1)} />
+  // A guide already on screen stays there, with the failure above it.
+  if (failure && !guide) return failure
   // No favourites after all: on to every channel, still loading.
   if (!guide || (!favouritesOnly && !hasAll && favouritesChosen === undefined)) return <PageLoading label={t('Loading the guide')} />
   const description = selected && (selected.programme.description ?? descriptions[selected.programme.id])
@@ -443,6 +447,7 @@ const Guide = memo(function Guide({ refreshed }: { refreshed: number }) {
 
   return (
     <>
+      {failure}
       <div className="chips livetv-groups" role="toolbar" aria-label={t('Channels')}>
         <button className={favouritesOnly ? 'chip active' : 'chip'} onClick={() => setFavouritesOnly(true)}>
           <Star filled className="chip-star" /> {t('Favourites')}
