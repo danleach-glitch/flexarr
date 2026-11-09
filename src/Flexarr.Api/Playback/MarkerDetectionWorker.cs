@@ -236,7 +236,7 @@ public sealed partial class MarkerDetectionWorker(
         for (var round = 0; rest.Any(left => left.Count > round); round++)
         {
             var these = rest.Where(left => left.Count > round).Select(left => left[round]).ToList();
-            var marks = await detector.DetectSeasonAsync(these, ct,
+            var marks = await detector.DetectSeasonAsync(WithPartner(these, files), ct,
                 giveWay: wait => GiveWayAsync(() => transcodes.ActiveCount > 0, () => Watched, asked, Pause, MostPauses, wait));
             foreach (var file in these)
             {
@@ -250,6 +250,13 @@ public sealed partial class MarkerDetectionWorker(
         LogSeason(title, files.Count, found.Values.Count(m => m.Any(x => x.Type == MarkerType.Intro)),
             found.Values.Count(m => m.Any(x => x.Type == MarkerType.Credits)), TimeProvider.System.GetElapsedTime(started).TotalSeconds);
     }
+
+    /// <summary>
+    /// What to compare a round of versions with. Comparing takes two, so one on its own (a season's only extended
+    /// episode) is compared with another episode's analysed file; only its own marks are kept.
+    /// </summary>
+    internal static IReadOnlyList<MediaFile> WithPartner(List<MediaFile> round, IReadOnlyList<MediaFile> analysed) =>
+        round.Count == 1 && analysed.FirstOrDefault(f => f.MediaItemId != round[0].MediaItemId) is { } partner ? [round[0], partner] : round;
 
     /// <summary>
     /// Chapter-title credits found before <see cref="MarkerDetector.FromChapters"/> learnt to leave out ones well before

@@ -62,6 +62,19 @@ public class MarkerDetectionWorkerTests
     }
 
     [Fact]
+    public void A_lone_version_is_compared_with_another_episode()
+    {
+        MediaFile Episode(Guid item) => new() { MediaItemId = item, Path = "/x.mkv" };
+        var (one, two) = (Guid.NewGuid(), Guid.NewGuid());
+        var (first, second) = (Episode(one), Episode(two));
+        var extended = Episode(two);
+
+        Assert.Equal([extended, first], MarkerDetectionWorker.WithPartner([extended], [first, second]));
+        Assert.Equal([extended], MarkerDetectionWorker.WithPartner([extended], [second]));
+        Assert.Equal([extended, first], MarkerDetectionWorker.WithPartner([extended, first], [second]));
+    }
+
+    [Fact]
     public void A_season_asked_for_again_while_it_waits_is_queued_once()
     {
         var queue = new MarkerQueue();
