@@ -30,6 +30,10 @@ struct LiveTvView: View {
     @State private var upcoming: Int?
     /// What went wrong refreshing the guide.
     @State private var refreshProblem: String?
+    /// The red line is the server turning the press down: it stays until the next press.
+    @State private var refreshRefused = false
+    /// How the refresh ended was too late to say and may not have been heard (`tooLate`): the next status says it.
+    @State private var saysNextStatus = false
     /// When a failed refresh was said.
     @State private var refreshFailedAt = Date.distantPast
     /// It worked, a moment ago: the button says so itself, so nothing in the sidebar moves when it stops saying it.
@@ -130,7 +134,8 @@ struct LiveTvView: View {
     /// The red line lasts as long as the problem: once the server has more to say (a scheduled refresh has been through
     /// since, say), the line says that, or goes.
     private func followStatus() {
-        guard refreshProblem != nil, let status = model.liveTvStatus, !status.refreshing else { return }
+        guard !refreshRefused, refreshProblem != nil || saysNextStatus, let status = model.liveTvStatus, !status.refreshing else { return }
+        saysNextStatus = false
         refreshProblem = status.error ?? status.downloadError
     }
 
@@ -145,11 +150,16 @@ struct LiveTvView: View {
     private func sayRefreshResult() {
         // Not in the background or behind a channel's player: the button's few seconds of saying so would go unseen.
         guard isVisible, scenePhase == .active, !model.liveTv.isWatching, let result = model.takeLiveTvRefreshResult() else { return }
+        refreshRefused = false
+        saysNextStatus = result == .tooLate
         switch result {
         case .worked: refreshProblem = nil
         case .failed(let problem):
             refreshProblem = problem
             refreshFailedAt = Date()
+        case .refused(let problem):
+            refreshProblem = problem
+            refreshRefused = true
         case .stillGoing: break // Said by `isLiveTvRefreshTakingAWhile`.
         // Not news any more, but still true: what's wrong now, quietly.
         case .tooLate: refreshProblem = model.liveTvStatus?.error ?? model.liveTvStatus?.downloadError
@@ -242,6 +252,8 @@ struct LiveTvView: View {
                 // Stays focusable while it runs: disabled, focus would fall onto a category and show it.
                 guard !model.isRefreshingLiveTv else { return }
                 refreshProblem = nil
+                refreshRefused = false
+                saysNextStatus = false
                 justRefreshed = false
                 Task { await model.refreshLiveTv() }
             } label: {

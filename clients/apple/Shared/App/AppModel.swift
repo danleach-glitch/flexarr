@@ -16,6 +16,9 @@ private let log = FlexarrLog("signin")
 enum LiveTvRefreshResult: Equatable {
     case worked
     case failed(String)
+    /// The server turned it down, in its own words (a lapsed admin unlock, say): no refresh ran, so its status has
+    /// nothing to say about it.
+    case refused(String)
     /// The wait gave up with the refresh still running on the server: neither a success nor a failure yet.
     case stillGoing
     /// It ended too long ago to be news: nothing to say, but what's on screen is fetched again.
@@ -1289,15 +1292,16 @@ final class AppModel {
 
     /// Why a refresh's wait failed: what's wrong with the connection when it's that, the server's own words when it had
     /// some (a lapsed admin unlock, say), otherwise the words every client uses.
-    private static func refreshFailure(_ error: Error) -> String {
+    private static func refreshFailure(_ error: Error) -> LiveTvRefreshResult {
         if let error = error as? URLError {
-            return error.code == .cancelled ? t(Words.serverDidntAnswer) : ConnectionError(error).message
+            return .failed(error.code == .cancelled ? t(Words.serverDidntAnswer) : ConnectionError(error).message)
         }
-        guard let error = error as? FlexarrClientError else { return t(Words.serverDidntAnswer) }
+        guard let error = error as? FlexarrClientError else { return .failed(t(Words.serverDidntAnswer)) }
         switch error {
-        case .http(_, let message?): return message
-        case .http, .unexpectedResponse, .invalidResponse: return t(Words.serverDidntAnswer)
-        default: return ConnectionError(error).message
+        case .http(let status, let message?): return status < 500 ? .refused(message) : .failed(message)
+        case .http, .unexpectedResponse, .invalidResponse: return .failed(t(Words.serverDidntAnswer))
+        case .unreachable, .invalidAddress: return .failed(ConnectionError(error).message)
+        default: return .refused(ConnectionError(error).message)
         }
     }
 
@@ -1346,7 +1350,7 @@ final class AppModel {
             }
         } catch {
             liveTvRefreshLastKnown = Date()
-            if !wait.isCancelled { liveTvRefreshResult = .failed(Self.refreshFailure(error)) }
+            if !wait.isCancelled { liveTvRefreshResult = Self.refreshFailure(error) }
         }
     }
 
