@@ -380,20 +380,22 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
     /** Back from the Chromecast: the same sitting carries on here, still belonging to the page Play was pressed on. */
     fun carryOn(itemId: String, startAt: Double?) {
-        play(itemId, startAt = startAt)
+        // The same version, if the Chromecast was still on this title.
+        play(itemId, startAt = startAt, fileId = info?.takeIf { it.item.id == itemId }?.fileId)
     }
 
     /**
      * [start] within this sitting: the next episode, or the one before. [subtitlesOff]: the viewer turned subtitles off
      * in the last episode, which carries on into this one.
      */
-    private fun play(itemId: String, fromBeginning: Boolean = false, shuffle: Boolean = false, startAt: Double? = null, subtitlesOff: Boolean = false) {
+    private fun play(itemId: String, fromBeginning: Boolean = false, shuffle: Boolean = false, startAt: Double? = null, subtitlesOff: Boolean = false, fileId: String? = null) {
         isOffline = false
         newTitle(subtitlesOff)
         open { profile ->
             PlaybackRequest(
                 itemId = itemId,
                 profile = profile,
+                fileId = fileId,
                 startPositionSeconds = startAt ?: if (fromBeginning) 0.0 else null,
                 replacesSessionId = info?.sessionId,
                 shuffle = if (shuffle) true else null,
