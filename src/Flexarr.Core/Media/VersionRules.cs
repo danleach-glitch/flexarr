@@ -79,6 +79,24 @@ public static class VersionRules
         return ResolutionLabel(a.Width, a.Height) != ResolutionLabel(b.Width, b.Height) || a.VideoRange != b.VideoRange || !SameCut(a, b);
     }
 
+    /// <summary>
+    /// Sorts a title's files, given best first, into the ones someone would keep on purpose and the spares: a spare is
+    /// alike in resolution, HDR type and cut to a better file.
+    /// </summary>
+    public static (List<MediaFile> Kept, List<MediaFile> Spares) Sort(IEnumerable<MediaFile> bestFirst)
+    {
+        ArgumentNullException.ThrowIfNull(bestFirst);
+
+        var kept = new List<MediaFile>();
+        var spares = new List<MediaFile>();
+        foreach (var file in bestFirst)
+        {
+            (kept.Exists(k => !Distinct(k, file)) ? spares : kept).Add(file);
+        }
+
+        return (kept, spares);
+    }
+
     /// <summary>Best quality first: resolution (an ultrawide 3840×1600 counts as 4K), then bitrate.</summary>
     public static IOrderedEnumerable<MediaFile> BestFirst(IEnumerable<MediaFile> files) =>
         files.OrderByDescending(f => Math.Max(f.Height ?? 0, (f.Width ?? 0) * 9 / 16)).ThenByDescending(f => f.Bitrate ?? 0).ThenBy(f => f.Id);

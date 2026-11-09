@@ -14,7 +14,12 @@ using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Endpoints;
 
-public sealed record HealthFileDto(Guid Id, string Path, long Size, string? Resolution, string? VideoCodec, long? Bitrate, bool Keep);
+/// <param name="Label">The version's name ("4K HDR10"). Absent from servers before 0.64.</param>
+/// <param name="Edition">The version's cut ("Director's Cut"), if its file name says. Absent from servers before 0.64.</param>
+public sealed record HealthFileDto(Guid Id, string Path, long Size, string? Resolution, string? VideoCodec, long? Bitrate, bool Keep, string? Label = null, string? Edition = null);
+
+/// <summary>A title kept in several versions on purpose: nothing wrong with it, shown for the space it takes.</summary>
+public sealed record VersionsDto(ItemSummaryDto Item, string? SeriesTitle, IReadOnlyList<HealthFileDto> Files, long Bytes);
 
 public sealed record DuplicateDto(ItemSummaryDto Item, string? SeriesTitle, IReadOnlyList<HealthFileDto> Files, long ReclaimableBytes);
 
@@ -59,7 +64,12 @@ public sealed record LibraryHealthDto(
     IReadOnlyList<ItemSummaryDto>? AlbumsWithoutCover = null,
     IReadOnlyList<DuplicateAlbumsDto>? DuplicateAlbums = null,
     IReadOnlyList<RepeatedTracksDto>? AlbumsWithRepeatedTracks = null,
-    IReadOnlyList<SplitArtistDto>? SplitArtists = null);
+    IReadOnlyList<SplitArtistDto>? SplitArtists = null,
+    // Titles in several versions, the biggest first and at most 100; how many there are, and the space all their files
+    // take. Absent from servers before 0.64.
+    IReadOnlyList<VersionsDto>? Versions = null,
+    int? VersionsTotal = null,
+    long? VersionsBytes = null);
 
 /// <summary>
 /// A library folder whose scans keep its files rather than hide the ones they can't find, as it looked unmounted or
@@ -86,24 +96,44 @@ public static partial class HealthEndpoints
         var libraryHealth = async (FlexarrDbContext db, CurrentProfile profile, HealthCheck check, IOptionsMonitor<FlexarrOptions> options, ArrClient arr,
             CancellationToken ct) =>
         {
-            // Duplicates: more than one file for one movie or episode. The best copy (resolution, then bitrate) is kept.
+            // Spares: a film's or episode's files alike in resolution, HDR type and cut, the best of them kept. Files that
+            // differ are versions: kept on purpose, so not a problem, and listed for the space they take. See VersionRules.
             var files = await db.MediaFiles.AsNoTracking()
-                .Where(f => f.MediaItem!.Files.Count > 1 && (f.MediaItem.Kind == MediaKind.Movie || f.MediaItem.Kind == MediaKind.Episode))
-                .Select(f => new { f.Id, f.MediaItemId, f.Path, f.Size, f.Width, f.Height, f.VideoCodec, f.Bitrate })
+                .Where(f => (f.MediaItem!.Kind == MediaKind.Movie || f.MediaItem.Kind == MediaKind.Episode) && (f.MediaItem.LinkGroupId != null || f.MediaItem.Files.Count > 1))
                 .ToListAsync(ct);
-            var groups = files.GroupBy(f => f.MediaItemId).ToList();
-            var ids = groups.Select(g => g.Key).ToList();
-            var items = await db.MediaItems.Where(i => ids.Contains(i.Id)).Summaries(profile.Id).ToDictionaryAsync(i => i.Id, ct);
+            var sorted = files.GroupBy(f => f.MediaItemId).Select(g => (Item: g.Key, Sorted: VersionRules.Sort(Rank(g, null)))).ToList();
+            var spared = sorted.Where(s => s.Sorted.Spares.Count > 0).ToList();
+            var ids = spared.Select(s => s.Item).ToList();
 
-            var duplicates = groups.Select(g =>
+            var links = await db.MediaItems.Where(i => i.LinkGroupId != null).Select(i => new { i.Id, Group = i.LinkGroupId!.Value }).ToDictionaryAsync(i => i.Id, i => i.Group, ct);
+            var versioned = files.GroupBy(f => links.TryGetValue(f.MediaItemId, out var group) ? group : f.MediaItemId)
+                .Select(g => (Files: g.ToList(), Kept: VersionRules.Sort(Rank(g, null)).Kept))
+                .Where(t => t.Kept.Count > 1)
+                .OrderByDescending(t => t.Files.Sum(f => f.Size))
+                .ToList();
+            var shownVersions = versioned.Take(100).ToList();
+            var versionItems = shownVersions.Select(t => t.Files[0].MediaItemId).ToList();
+
+            var wantedItems = ids.Concat(versionItems).Distinct().ToList();
+            var items = await db.MediaItems.Where(i => wantedItems.Contains(i.Id)).Summaries(profile.Id).ToDictionaryAsync(i => i.Id, ct);
+
+            static HealthFileDto FileRow(MediaFile f, bool keep) =>
+                new(f.Id, f.Path, f.Size, Resolution.Label(f.Width, f.Height), f.VideoCodec, f.Bitrate, keep, VersionRules.Label(f), VersionRules.Edition(f));
+
+            var duplicates = spared.Select(s =>
                 {
-                    var ranked = g.OrderByDescending(f => Math.Max(f.Height ?? 0, (f.Width ?? 0) * 9 / 16)).ThenByDescending(f => f.Bitrate ?? 0).ThenByDescending(f => f.Size).ToList();
-                    var list = ranked.Select((f, i) => new HealthFileDto(f.Id, f.Path, f.Size, Resolution.Label(f.Width, f.Height), f.VideoCodec, f.Bitrate, i == 0)).ToList();
-                    var item = items[g.Key];
+                    var (kept, spares) = s.Sorted;
+                    var list = kept.Where(k => spares.Exists(f => !VersionRules.Distinct(k, f))).Select(k => FileRow(k, true)).Concat(spares.Select(f => FileRow(f, false))).ToList();
+                    var item = items[s.Item];
                     return new DuplicateDto(item, item.SeriesTitle, list, list.Where(f => !f.Keep).Sum(f => f.Size));
                 })
                 .OrderByDescending(d => d.ReclaimableBytes)
                 .ToList();
+            var versions = shownVersions.Where(t => items.ContainsKey(t.Files[0].MediaItemId)).Select(t =>
+                {
+                    var item = items[t.Files[0].MediaItemId];
+                    return new VersionsDto(item, item.SeriesTitle, t.Kept.Select(f => FileRow(f, true)).ToList(), t.Files.Sum(f => f.Size));
+                }).ToList();
 
             var unreadable = await db.MediaFiles.AsNoTracking().Where(f => f.ProbeError != null)
                 .Select(f => new { f.Id, f.Path, f.ProbeError, f.MediaItemId }).ToListAsync(ct);
@@ -166,7 +196,10 @@ public static partial class HealthEndpoints
                 music.Coverless,
                 music.Duplicates,
                 music.Repeated,
-                music.Split);
+                music.Split,
+                versions,
+                versioned.Count,
+                versioned.Sum(t => t.Files.Sum(f => f.Size)));
         };
         api.MapLibraryHealthEndpoints(libraryHealth);
 
@@ -229,8 +262,8 @@ public static partial class HealthEndpoints
                 status.Problems.Select(p => new FileProblemReportDto(p.Localized(), items.GetValueOrDefault(p.ItemId))).ToList());
         }).WithTags("Library health").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
-        // Removes a film's or episode's spare copies from disk. Kept: the best copy, and whichever file Sonarr or Radarr
-        // track (asked first; if they can't say, nothing is deleted).
+        // Removes a film's or episode's spare copies from disk. Kept: the best of each version, and whichever file Sonarr
+        // or Radarr track (asked first; if they can't say, nothing is deleted).
         api.MapPost("/items/{id:guid}/remove-duplicates", async (Guid id, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, ArrClient arr,
             ILoggerFactory logs, CancellationToken ct) =>
         {
@@ -240,7 +273,8 @@ public static partial class HealthEndpoints
                 return Results.NotFound();
             }
 
-            if (item.Kind is not (MediaKind.Movie or MediaKind.Episode) || item.Files.Count < 2)
+            // Only spares. A version someone keeps on purpose, a different resolution, HDR type or cut, is never one.
+            if (item.Kind is not (MediaKind.Movie or MediaKind.Episode) || VersionRules.Sort(Rank(item.Files, null)).Spares.Count == 0)
             {
                 return Results.Ok(new DuplicateRemovalDto(0, 0, []));
             }
@@ -252,16 +286,12 @@ public static partial class HealthEndpoints
             }
 
             // Copies often tie (the same file twice); then the one Sonarr or Radarr track is the one kept.
-            var keep = new HashSet<string>(StringComparer.Ordinal) { Normalize(Rank(item.Files, trackedPath)[0].Path) };
-            if (trackedPath is not null)
-            {
-                keep.Add(trackedPath);
-            }
+            var spares = VersionRules.Sort(Rank(item.Files, trackedPath)).Spares;
 
             var removed = 0;
             long freed = 0;
             var skipped = new List<SkippedFileDto>();
-            foreach (var file in item.Files.Where(f => !keep.Contains(Normalize(f.Path))).ToList())
+            foreach (var file in spares.Where(f => trackedPath is null || Normalize(f.Path) != trackedPath).ToList())
             {
                 try
                 {

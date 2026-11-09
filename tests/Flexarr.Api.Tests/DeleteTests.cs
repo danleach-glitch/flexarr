@@ -323,7 +323,7 @@ public class DeleteTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
             var movie = new MediaItem
             {
                 LibraryId = library.Id, Kind = MediaKind.Movie, Title = "Film", SortTitle = "film",
-                Files = [new MediaFile { Path = best, Height = 1080, Size = 4 }, new MediaFile { Path = spare, Height = 480, Size = 5 }],
+                Files = [new MediaFile { Path = best, Height = 1080, Size = 4, Bitrate = 2000 }, new MediaFile { Path = spare, Height = 1080, Size = 5, Bitrate = 1000 }],
             };
             db.AddRange(library, movie);
             await db.SaveChangesAsync();
