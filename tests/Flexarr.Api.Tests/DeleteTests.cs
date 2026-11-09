@@ -426,7 +426,7 @@ public class DeleteTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
     }
 
     [Fact]
-    public async Task ACopyThatWontDelete_IsReported_AndStays_WhileTheOtherGoes()
+    public async Task ACopyThatWontDelete_IsReported_AndTheOneAskedAboutStays_SoTryingAgainWorks()
     {
         var arr = new FakeArr();
         using var app = WithSecondRadarr(arr, factory);
@@ -438,17 +438,40 @@ public class DeleteTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         var response = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{hd}?allCopies=true", UriKind.Relative));
 
         Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
-        Assert.Contains("Deleted 1 of 2 copies", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
-        using var check = app.Services.CreateScope();
-        var db = check.ServiceProvider.GetRequiredService<FlexarrDbContext>();
-        Assert.False(await db.MediaItems.AnyAsync(i => i.Id == hd));
-        var left = await db.MediaItems.SingleAsync(i => i.Id == uhd);
-        Assert.Null(left.LinkGroupId);
+        Assert.Contains("Deleted 0 of 2 copies", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        using (var check = app.Services.CreateScope())
+        {
+            var db = check.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            Assert.True(await db.MediaItems.AnyAsync(i => i.Id == hd));
+            Assert.True(await db.MediaItems.AnyAsync(i => i.Id == uhd));
+        }
 
-        // Trying again reaches the Radarr that holds it, though its record names the other.
+        // Trying again, the same way, finishes the job.
         arr.Before = null;
-        var again = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{uhd}", UriKind.Relative));
+        var again = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{hd}?allCopies=true", UriKind.Relative));
         Assert.Equal(HttpStatusCode.NoContent, again.StatusCode);
+        using (var check = app.Services.CreateScope())
+        {
+            var db = check.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            Assert.False(await db.MediaItems.AnyAsync(i => i.Id == hd || i.Id == uhd));
+        }
+
+        Directory.Delete(root, recursive: true);
+    }
+
+    [Fact]
+    public async Task ACopyLeftOverAfterItsOtherWent_StillGoesToTheAppHoldingIt()
+    {
+        var arr = new FakeArr();
+        using var app = WithSecondRadarr(arr, factory);
+        var (hd, uhd, _, _, _, root) = await AddLinkedFilmAsync(app, arr);
+        Assert.Equal(HttpStatusCode.NoContent, (await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{hd}", UriKind.Relative))).StatusCode);
+
+        // Though its record names the other Radarr.
+        var again = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{uhd}", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.NoContent, again.StatusCode);
+        Assert.Contains("DELETE /api/v3/movie/9?deleteFiles=true&addImportExclusion=false", arr.Requests);
         Directory.Delete(root, recursive: true);
     }
 

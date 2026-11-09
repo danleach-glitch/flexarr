@@ -93,8 +93,16 @@ public static partial class DeleteEndpoints
         var libraries = await db.Libraries.AsNoTracking().IgnoreQueryFilters().ToDictionaryAsync(l => l.Id, l => l.Name, ct);
         var failures = new List<string>();
         var status = StatusCodes.Status502BadGateway;
+        var done = 0;
         foreach (var copy in copies)
         {
+            // The one asked about goes last, and only if the rest went: with it still here the page stays good, and
+            // deleting again finishes the job.
+            if (copy.Id == item.Id && failures.Count > 0)
+            {
+                continue;
+            }
+
             var library = libraries.GetValueOrDefault(copy.LibraryId, "");
             try
             {
@@ -108,6 +116,10 @@ public static partial class DeleteEndpoints
 
                     failures.Add($"{library}: {problem.ProblemDetails.Detail}");
                     status = problem.StatusCode;
+                }
+                else
+                {
+                    done++;
                 }
             }
             catch (HttpRequestException ex)
@@ -125,7 +137,7 @@ public static partial class DeleteEndpoints
         // What's left, if anything, has no copies to be linked to now.
         await Flexarr.Core.Scanning.TitleLinker.LinkAsync(db, ct);
         return failures.Count == 0 ? Results.NoContent()
-            : Problems.Of("Deleted {done} of {total} copies. {failures}", new { done = copies.Count - failures.Count, total = copies.Count, failures = string.Join(" ", failures) }, status: status);
+            : Problems.Of("Deleted {done} of {total} copies. {failures}", new { done, total = copies.Count, failures = string.Join(" ", failures) }, status: status);
     }
 
     /// <summary>What deleting a linked title will do, for each copy.</summary>
@@ -159,7 +171,7 @@ public static partial class DeleteEndpoints
         return plans.Count > 1 ? own with { Copies = plans } : own;
     }
 
-    /// <summary>A title's copies, including those in libraries hidden from whoever's asking: the item itself first.</summary>
+    /// <summary>A title's copies, including those in libraries hidden from whoever's asking: the item itself last.</summary>
     private static async Task<List<MediaItem>> CopiesAsync(FlexarrDbContext db, MediaItem item, CancellationToken ct)
     {
         if (item.LinkGroupId is not { } group)
@@ -169,7 +181,7 @@ public static partial class DeleteEndpoints
 
         var copies = await db.MediaItems.AsNoTracking().IgnoreQueryFilters().Include(i => i.Parent).ThenInclude(p => p!.Parent)
             .Where(i => i.LinkGroupId == group).ToListAsync(ct);
-        return [.. copies.OrderBy(c => c.Id != item.Id)];
+        return [.. copies.OrderBy(c => c.Id == item.Id)];
     }
 
     /// <summary>

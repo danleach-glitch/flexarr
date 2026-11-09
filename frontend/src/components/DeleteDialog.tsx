@@ -45,6 +45,7 @@ export function DeleteDialog({ item, onDeleted, onClose }: { item: ItemSummary; 
     } catch (e) {
       setError(e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e))
       setBusy(false)
+      plan.reload() // Some copies may have gone: it lists what's left, and deleting again finishes the job.
     }
   }
 
