@@ -439,6 +439,28 @@ public sealed class RequestUndoTests : IAsyncLifetime
         Assert.Equal(7101, Assert.Single(films.EnumerateArray().ToList()).GetProperty("tmdbId").GetInt32());
     }
 
+    [Theory]
+    [InlineData("downloading", "downloading", 0.75)] // stalled part-way: the download client's warning, and the *arr still waiting on it
+    [InlineData("importPending", "importing", null)]
+    [InlineData("importing", "importing", null)]
+    public async Task Requested_AWarningOnADownload_GoesByWhatTheArrIsDoingWithIt(string tracked, string state, double? progress)
+    {
+        var movies = new Library { Name = "Films", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = "/media/movies" }] };
+        await InDbAsync(async db =>
+        {
+            db.Libraries.Add(movies);
+            return await db.SaveChangesAsync();
+        });
+        SeerrIsWaitingFor("""{"id":1,"status":2,"type":"movie","media":{"id":11,"tmdbId":7101,"status":3}}""");
+        _arr.Responses["GET //radarr.test/api/v3/movie?tmdbId=7101"] = """[{"id":21,"title":"Film","year":2026,"status":"released","path":"/media/movies/Film (2026)"}]""";
+        _arr.Responses[RadarrQueue] = $$"""{"page":1,"pageSize":200,"totalRecords":1,"records":[{"id":5,"movieId":21,"size":100,"sizeleft":25,"status":"warning","trackedDownloadState":"{{tracked}}"}]}""";
+
+        var row = Assert.Single((await Client().GetFromJsonAsync<JsonElement>(Api("/requests/requested"))).EnumerateArray().ToList());
+
+        Assert.Equal(state, row.GetProperty("state").GetString());
+        Assert.Equal(progress, row.TryGetProperty("progress", out var p) && p.ValueKind == JsonValueKind.Number ? p.GetDouble() : null);
+    }
+
     private void SeerrIsWaitingFor(params string[] requests)
     {
         _arr.Responses["GET /api/v1/request?take=100&skip=0&filter=pending&sort=added"] = """{"results":[]}""";

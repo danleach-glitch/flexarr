@@ -220,9 +220,10 @@ public static class MusicRequested
             return ("couldNotImport", null);
         }
 
-        // Finished downloading, whether it's importing or on its way out: the download's done.
+        // Finished downloading, whether it's importing or on its way out: the download's done. A warning on one Lidarr is
+        // still waiting for (a stalled torrent, say) isn't: that's still downloading.
         return queued.TrackedDownloadState is "importPending" or "importing" or "imported" or "failedPending" or "failed"
-            || queued.Status is "completed" or "failed" or "warning"
+            || queued.Status is "completed" or "failed" || (queued.Status == "warning" && queued.TrackedDownloadState != "downloading")
             ? ("importing", null)
             : ("downloading", Math.Clamp(queued.Progress, 0, 1));
     }

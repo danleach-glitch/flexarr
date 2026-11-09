@@ -1137,15 +1137,19 @@ public sealed class MusicRequestTests : IAsyncLifetime
     }
 
     /// <summary>A copy still downloading.</summary>
-    private void LidarrIsDownloadingMoisturizer(string status = "downloading")
+    private void LidarrIsDownloadingMoisturizer(string status = "downloading", string state = "downloading")
     {
         LidarrAwaitsMoisturizer();
         var queue = $$$"""
-            {"id":5,"albumId":9,"artistId":3,"title":"going","downloadId":"going","status":"{{{status}}}","size":100,"sizeleft":50,"trackedDownloadStatus":"ok","trackedDownloadState":"downloading",
+            {"id":5,"albumId":9,"artistId":3,"title":"going","downloadId":"going","status":"{{{status}}}","size":100,"sizeleft":50,"trackedDownloadStatus":"ok","trackedDownloadState":"{{{state}}}",
              "album":{"id":9,"artistId":3,"title":"moisturizer","foreignAlbumId":"{{{Moisturizer}}}","monitored":true} }
             """;
         _lidarr.Responses["GET /api/v1/queue?page=1&pageSize=200&includeArtist=true&includeAlbum=true"] = $$"""{"page":1,"pageSize":200,"totalRecords":1,"records":[{{queue}}]}""";
         _lidarr.Responses["GET /api/v1/queue/details?albumIds=9"] = $"[{queue}]";
+        var today = DateTime.UtcNow.Date;
+        _lidarr.Responses["GET /api/v1/wanted/missing?page=1&pageSize=1000&includeArtist=false&monitored=true&sortKey=releaseDate&sortDirection=descending"] =
+            $$"""{"page":1,"pageSize":200,"totalRecords":1,"records":[{"id":9,"artistId":3,"title":"moisturizer","foreignAlbumId":"{{Moisturizer}}","monitored":true}]}""";
+        _lidarr.Responses[$"GET /api/v1/calendar?start={today:yyyy-MM-dd}&end={today.AddYears(1):yyyy-MM-dd}&unmonitored=false&includeArtist=false"] = "[]";
     }
 
     private bool WroteToLidarr() => _sent.Any(s => s.Request == "POST /api/v1/command" || s.Request == "PUT /api/v1/album/monitor" || s.Request.StartsWith("DELETE", StringComparison.Ordinal));
@@ -1274,6 +1278,30 @@ public sealed class MusicRequestTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.Conflict, (await TryAgainAsync()).StatusCode);
         Assert.False(WroteToLidarr());
+    }
+
+    [Fact]
+    public async Task A_stalled_copy_alone_says_downloading_with_how_far_it_got()
+    {
+        await MusicLibraryAsync();
+        LidarrIsDownloadingMoisturizer(status: "warning");
+        await AskedForMoisturizerAsync(addedArtist: false);
+
+        var row = (await Client().GetFromJsonAsync<JsonElement>(Api("/requests/music/requested"))).EnumerateArray().Single(r => r.GetProperty("title").GetString() == "moisturizer");
+
+        Assert.Equal(("downloading", 0.5), (row.GetProperty("state").GetString(), row.GetProperty("progress").GetDouble()));
+    }
+
+    [Theory]
+    [InlineData("importPending")]
+    [InlineData("importing")]
+    public async Task A_warning_on_a_copy_lidarr_has_taken_on_still_says_importing(string state)
+    {
+        await MusicLibraryAsync();
+        LidarrIsDownloadingMoisturizer(status: "warning", state: state);
+        await AskedForMoisturizerAsync(addedArtist: false);
+
+        Assert.Equal("importing", await RequestedStateAsync());
     }
 
     [Fact]
