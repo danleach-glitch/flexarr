@@ -75,6 +75,16 @@ public class FfprobeMediaProbeTests
     }
 
     [Theory]
+    [InlineData("""{"side_data_list":[{"side_data_type":"DOVI configuration record","dv_profile":5}]}""", 5)]
+    [InlineData("""{"side_data_list":[{"side_data_type":"DOVI configuration record"}]}""", 0)]
+    [InlineData("""{"color_transfer":"smpte2084"}""", null)]
+    public void Parse_KeepsTheDolbyVisionProfile(string extra, int? expected)
+    {
+        var stream = """{"index":0,"codec_type":"video","codec_name":"hevc",""" + extra.TrimStart('{');
+        Assert.Equal(expected, FfprobeMediaProbe.Parse($$"""{"format":{"format_name":"matroska,webm"},"streams":[{{stream}}]}""").DolbyVisionProfile);
+    }
+
+    [Theory]
     [InlineData("""{"frames":[{"side_data_list":[{"side_data_type":"Mastering display metadata"},{"side_data_type":"HDR Dynamic Metadata SMPTE2094-40 (HDR10+)","application_version":1}]}]}""", true)]
     [InlineData("""{"frames":[{"side_data_list":[{"side_data_type":"Mastering display metadata"},{"side_data_type":"Content light level metadata"}]},{}]}""", false)]
     [InlineData("""{"frames":[]}""", false)]

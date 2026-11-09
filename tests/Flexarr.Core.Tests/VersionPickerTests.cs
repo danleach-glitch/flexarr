@@ -167,6 +167,23 @@ public class VersionPickerTests
     }
 
     [Theory]
+    [InlineData(5, false, false)] // No HDR10 picture underneath, so it would be converted.
+    [InlineData(5, true, true)]
+    [InlineData(8, false, true)]
+    [InlineData(7, false, true)]
+    [InlineData(4, true, false)] // Repackaging refuses it.
+    [InlineData(null, false, true)] // Not read again yet.
+    public void Repackaging_KnowsWhichDolbyVisionTheDisplayCanShow(int? dolbyVision, bool display, bool repackaged)
+    {
+        var file = File("Film", 2160, range: VideoRange.DolbyVision);
+        file.DolbyVisionProfile = dolbyVision;
+        var device = new DeviceProfile { Containers = ["mp4"], VideoCodecs = ["hevc"], AudioCodecs = ["aac"], MaxHeight = 2160, Hdr = true, Hdr10 = true, DolbyVision = display, Fmp4 = true };
+        var options = new PlaybackOptions();
+        var tier = PlaybackDecider.TierOf(PlaybackDecider.Decide(file, device, [], options), file, device, options);
+        Assert.Equal(repackaged ? PlaybackTier.Repackaged : PlaybackTier.Converted, tier);
+    }
+
+    [Theory]
     [InlineData(VideoRange.Hdr10, true)]
     [InlineData(VideoRange.Hlg, false)] // This display's Hlg isn't said.
     public void Repackaging_NeedsADisplayShowingTheFilesPicture(VideoRange range, bool repackaged)

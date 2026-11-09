@@ -746,6 +746,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<string>("Container")
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("DolbyVisionProfile")
+                        .HasColumnType("INTEGER");
+
                     b.Property<double?>("DurationSeconds")
                         .HasColumnType("REAL");
 

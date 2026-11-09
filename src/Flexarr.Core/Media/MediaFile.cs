@@ -38,6 +38,12 @@ public sealed class MediaFile
     public bool? Hdr10Plus { get; set; }
 
     /// <summary>
+    /// The Dolby Vision profile: 5 has no HDR10 picture underneath, 7 and 8 do. 0 when the file doesn't say. Null without
+    /// Dolby Vision, and until checked: Dolby Vision files scanned before it was kept get checked again.
+    /// </summary>
+    public int? DolbyVisionProfile { get; set; }
+
+    /// <summary>
     /// Closed captions (CEA-608/708) carried inside the video's own frames rather than as a track of their own. Null
     /// until checked: files scanned before they were looked for get checked again.
     /// </summary>

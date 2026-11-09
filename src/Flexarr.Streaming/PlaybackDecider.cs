@@ -232,7 +232,13 @@ public static class PlaybackDecider
             VideoRange.Sdr => true,
             VideoRange.Hdr10 => profile.Hdr && profile.Hdr10 == true,
             VideoRange.Hlg => profile.Hdr && profile.Hlg == true,
-            VideoRange.DolbyVision => profile.Hdr && (profile.DolbyVision || profile.Hdr10 == true),
+            // Profile 5 has no HDR10 picture underneath, and a profile nobody can repackage gets converted (Repackaged).
+            VideoRange.DolbyVision => file.DolbyVisionProfile switch
+            {
+                5 => profile.Hdr && profile.DolbyVision,
+                null or 0 or 7 or 8 => profile.Hdr && (profile.DolbyVision || profile.Hdr10 == true),
+                _ => false,
+            },
             _ => false,
         };
         var repackaged = profile.Fmp4 && !options.ForceTranscode && decision.Transcode?.BurnSubtitle is null
