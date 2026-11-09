@@ -549,6 +549,8 @@ final class PlaybackController: NSObject {
         let position = lastPosition > 0 ? lastPosition : info.startPositionSeconds
         Task { try? await client.stopPlayback(sessionId: info.sessionId) }
         var request = request(for: info.item.id, startAt: position)
+        // The same version: another engine isn't a reason to change what's playing.
+        request.fileId = info.fileId
         request.subtitleKey = viewerSubtitleKey.map { $0 ?? "off" } ?? info.selectedSubtitleKey
         self.info = nil
         start(request)
