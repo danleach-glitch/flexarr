@@ -11,6 +11,27 @@ import { errorText } from './useSettings'
 /** How long a pick waits to be saved: on a closed select, arrow keys and typing a name change it at every step. */
 const SAVE_PAUSE_MS = 600
 
+interface CountryOptions {
+  ready: boolean
+  /** A server with no region of its own. */
+  unset: boolean
+  regionName?: string
+  countries?: { code: string; name: string }[]
+}
+
+function CountrySelect({ options, chosen, onPick, busy, describedBy, invalid, name }: { options: CountryOptions; chosen: string; onPick: (country: string) => void; busy?: boolean; describedBy?: string; invalid?: boolean; name?: string }) {
+  return (
+    <select aria-label={name} aria-describedby={describedBy} aria-invalid={invalid || undefined} aria-busy={busy || undefined} value={chosen} onChange={(e) => onPick(e.target.value)} disabled={!options.ready}>
+      <option value="">{options.unset ? t('Not set') : !chosen && options.regionName ? t('Automatic ({region})', { region: options.regionName }) : t('Automatic')}</option>
+      {options.countries?.map((c) => (
+        <option key={c.code} value={c.code}>
+          {c.name}
+        </option>
+      ))}
+    </select>
+  )
+}
+
 /** The server's country (saved as the podcast charts', where it began): the choices, and what hangs off it. */
 function useCountryChoices() {
   const settings = useApi((signal) => getSettings(signal), [])
@@ -20,24 +41,7 @@ function useCountryChoices() {
   const detected = settings.data?.podcasts?.detectedCountry
   const regionName = countries.data?.find((c) => c.code === detected)?.name
 
-  const select = ({ chosen, onPick, busy, describedBy, invalid, name }: { chosen: string; onPick: (country: string) => void; busy?: boolean; describedBy?: string; invalid?: boolean; name?: string }) => (
-    <select
-      aria-label={name}
-      aria-describedby={describedBy}
-      aria-invalid={invalid || undefined}
-      aria-busy={busy || undefined}
-      value={chosen}
-      onChange={(e) => onPick(e.target.value)}
-      disabled={!settings.data || !countries.data}
-    >
-      <option value="">{settings.data && !detected ? t('Not set') : !chosen && regionName ? t('Automatic ({region})', { region: regionName }) : t('Automatic')}</option>
-      {countries.data?.map((c) => (
-        <option key={c.code} value={c.code}>
-          {c.name}
-        </option>
-      ))}
-    </select>
-  )
+  const options = { ready: !!settings.data && !!countries.data, unset: !!settings.data && !detected, regionName, countries: countries.data }
   // Named because the row sets them, and a server with no region of its own has one fallback for names and another for charts.
   const names = me
     ? ratingSteps(me.ratingSystem)
@@ -58,7 +62,7 @@ function useCountryChoices() {
   )
   return {
     saved,
-    select,
+    options,
     help,
     loadError: loadError && t('Couldn’t load the countries: {message}', { message: errorText(loadError) }),
     tryAgain,
@@ -68,7 +72,7 @@ function useCountryChoices() {
 
 /** Country, in Settings, which saves as it changes: only the latest pick, once it has come to rest. */
 export function CountryRow() {
-  const { saved, select, help, loadError, tryAgain } = useCountryChoices()
+  const { saved, options, help, loadError, tryAgain } = useCountryChoices()
   const { reloadMe } = useSession()
   // Shown from the moment it's picked; the select stays usable.
   const [picked, setPicked] = useState<string>()
@@ -135,7 +139,7 @@ export function CountryRow() {
         )
       }
     >
-      {select({ chosen: picked ?? saved, onPick: choose, busy: saving, invalid: error !== undefined, name: tryAgain ? t('Country') : undefined })}
+      <CountrySelect options={options} chosen={picked ?? saved} onPick={choose} busy={saving} invalid={error !== undefined} name={tryAgain ? t('Country') : undefined} />
     </SettingRow>
   )
 }
@@ -145,14 +149,14 @@ export function CountryRow() {
  * card, so `onPick` only holds it. Left out for anyone who can't change it.
  */
 export function CountryField({ picked, onPick }: { picked?: string; onPick: (country: string) => void }) {
-  const { saved, select, help, loadError, tryAgain, locked } = useCountryChoices()
+  const { saved, options, help, loadError, tryAgain, locked } = useCountryChoices()
   const helpId = useId()
   if (locked) return null
   return (
     <div className="onboard-country">
       <label>
         <span>{t('Country')}</span>
-        {select({ chosen: picked ?? saved, onPick, describedBy: helpId, invalid: loadError !== undefined })}
+        <CountrySelect options={options} chosen={picked ?? saved} onPick={onPick} describedBy={helpId} invalid={loadError !== undefined} />
       </label>
       <p id={helpId}>{help(picked !== undefined && picked !== saved)}</p>
       {loadError && (
