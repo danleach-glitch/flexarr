@@ -329,14 +329,17 @@ internal fun TvPlaybackSettings(model: AppModel) {
             TvSettingsToggle(
                 t("Lossless surround"), sound.losslessSurround, { SoundSettings.update(context) { it.copy(losslessSurround = !it.losslessSurround) } },
                 icon = Icons.Filled.SurroundSound,
-                help = if (sound.losslessSurround && sound.decodesSurround) {
-                    t("While dialogue boost, night mode or speakers is on, surround is decoded first: Dolby by this TV, DTS and TrueHD by your server.")
-                } else {
-                    t("Dolby Digital, Atmos, DTS and TrueHD go to your receiver or soundbar as they are, when it takes them. Off, this TV decodes Dolby and your server converts DTS and TrueHD.")
-                },
+                help = losslessSurroundHelp(sound, remember(sound) { DeviceCapabilities.passthrough(context) }),
             )
         }
     }
+}
+
+/** What Lossless surround does here: [taken] are the formats the equipment connected takes as they are. */
+internal fun losslessSurroundHelp(sound: SoundSettings, taken: Set<String>): String = when {
+    sound.losslessSurround && sound.decodesSurround -> t("While dialogue boost, night mode or speakers is on, surround is decoded first: Dolby by this TV, DTS and TrueHD by your server.")
+    sound.losslessSurround && taken.isEmpty() -> t("What’s connected takes none of these as they are, so this TV decodes Dolby and your server converts DTS and TrueHD.")
+    else -> t("Dolby Digital, Atmos, DTS and TrueHD go to your receiver or soundbar as they are, when it takes them. Off, this TV decodes Dolby and your server converts DTS and TrueHD.")
 }
 
 private fun nightModeLabel(mode: SoundSettings.NightMode) = when (mode) {

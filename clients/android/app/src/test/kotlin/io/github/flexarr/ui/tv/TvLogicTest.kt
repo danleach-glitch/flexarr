@@ -72,4 +72,17 @@ class TvLogicTest {
         // The only profile there is: Settings is the TV's one way to sign out or change server.
         assertTrue(tvShowsSettings(isKids = true, kidsLock = false, profileCount = 1))
     }
+
+    @Test
+    fun `Lossless surround says so when what's connected takes nothing`() {
+        val on = io.github.flexarr.data.SoundSettings()
+        val nothing = losslessSurroundHelp(on, emptySet())
+        assertTrue(nothing, nothing.startsWith("What’s connected takes none"))
+        val soundbar = losslessSurroundHelp(on, setOf("eac3"))
+        assertTrue(soundbar, soundbar.contains("your receiver or soundbar"))
+        // Off, what it would do is what's worth saying.
+        assertTrue(losslessSurroundHelp(on.copy(losslessSurround = false), emptySet()).contains("your receiver or soundbar"))
+        // Something working on the decoded sound is the reason, whatever's connected.
+        assertTrue(losslessSurroundHelp(on.copy(nightMode = io.github.flexarr.data.SoundSettings.NightMode.On), emptySet()).startsWith("While dialogue boost"))
+    }
 }
