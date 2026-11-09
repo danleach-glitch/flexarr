@@ -13,7 +13,15 @@ namespace Flexarr.Core.Scanning;
 
 /// <param name="Removed">Files removed for good, having been missing for longer than the grace period.</param>
 /// <param name="Missing">Files found gone this scan: hidden, but kept (with their items' watch state) for now.</param>
-public sealed record ScanResult(int Added, int Updated, int Removed, int Unchanged, int Unmatched, int ProbeFailures, int Missing = 0);
+/// <param name="Added">Files new to the library.</param>
+/// <param name="Updated">Files read again.</param>
+/// <param name="Removed">Files gone for good.</param>
+/// <param name="Unchanged">Files as they were.</param>
+/// <param name="Unmatched">Files that belong to no title.</param>
+/// <param name="ProbeFailures">Files ffprobe couldn't read.</param>
+/// <param name="Missing">Files newly missing.</param>
+/// <param name="Incomplete">Part of what was asked for couldn't be looked at (a folder missing, looking unmounted, or unreadable).</param>
+public sealed record ScanResult(int Added, int Updated, int Removed, int Unchanged, int Unmatched, int ProbeFailures, int Missing = 0, bool Incomplete = false);
 
 /// <summary>
 /// Reconciles the database with what is on disk for a library, or a folder within it:
@@ -85,6 +93,8 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         var state = await ItemIndex.LoadAsync(db, library, scope is null ? null : targets, cancellationToken).ConfigureAwait(false);
         int added = 0, updated = 0, removed = 0, unchanged = 0, unmatched = 0, failures = 0, missing = 0;
         var held = false; // A folder looked unmounted: remove nothing this time.
+        var incomplete = false;
+        var unreadableFolders = new List<string>();
 
         foreach (var (root, target) in targets)
         {
@@ -96,6 +106,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 // An unmounted drive must not look like "everything was deleted".
                 LogRootMissing(root);
                 held = true;
+                incomplete = true;
                 if (full && folder is not null && folder.Hold != FolderHold.FolderMissing)
                 {
                     Hold(folder, FolderHold.FolderMissing, 0, 0, DateTime.UtcNow);
@@ -129,6 +140,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 {
                     LogRootEmpty(root, existing.Count);
                     held = true;
+                    incomplete = true;
                     await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
                     continue;
                 }
@@ -247,6 +259,11 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                     await db.MediaStreams.Where(s => changedIds.Contains(s.MediaFileId)).LoadAsync(cancellationToken).ConfigureAwait(false);
                 }
 
+                if (music)
+                {
+                    await state.LoadAlbumsOfAsync(library.Id, root, batch.Where(w => w.Existing is null).Select(w => (w.File.FullName, probes[w.File.FullName].Result)), cancellationToken).ConfigureAwait(false);
+                }
+
                 foreach (var (file, match) in batch)
                 {
                     var (result, bookProbe, error) = probes[file.FullName];
@@ -296,6 +313,17 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             {
                 LogUnreadable(root, unreadable.Count, PathComparison.Printable(unreadable[0]));
             }
+
+            unreadableFolders.AddRange(unreadable);
+
+            // A root-only lost+found or NAS recycle bin is no sign of trouble, and never was the library's: anything else
+            // may be hiding files whose grace has run out, which are no more gone than the rest.
+            if (unreadable.Any(d => !MediaFileEnumerator.IsInNotMedia(root, d)))
+            {
+                held = true;
+                incomplete = true;
+            }
+
             var holding = false;
             if (!released && full && existing.Count >= MassRemovalMinimum && gone.Count * 2 > existing.Count)
             {
@@ -332,7 +360,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
         if (!held)
         {
-            removed = await RemoveExpiredAsync(library.Id, cancellationToken).ConfigureAwait(false);
+            removed = await RemoveExpiredAsync(library.Id, roots, scope is null ? null : targets.Select(t => t.Scope).ToList(), unreadableFolders, cancellationToken).ConfigureAwait(false);
         }
 
         await PruneEmptyItemsAsync(db, library.Id, cancellationToken).ConfigureAwait(false);
@@ -359,7 +387,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         library.LastScannedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-        return new ScanResult(added, updated, removed, unchanged, unmatched, failures, missing);
+        return new ScanResult(added, updated, removed, unchanged, unmatched, failures, missing, incomplete);
     }
 
     /// <summary>
@@ -666,13 +694,37 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         : url.StartsWith("embedded://", StringComparison.Ordinal) ? url["embedded://".Length..]
         : null;
 
-    /// <summary>Removes files missing for longer than <see cref="MissingGracePeriod"/>.</summary>
-    private async Task<int> RemoveExpiredAsync(Guid libraryId, CancellationToken ct)
+    /// <summary>
+    /// Removes files missing for longer than <see cref="MissingGracePeriod"/>, if this scan could have seen them come
+    /// back: not in a folder it couldn't read, or in a part of the library it didn't look at (that part may be unreadable,
+    /// or unmounted, for all it knows; its own scan will see to them). A file under none of the library's folders has no
+    /// scan of its own.
+    /// </summary>
+    /// <param name="libraryId">The library.</param>
+    /// <param name="roots">The library's folders.</param>
+    /// <param name="scanned">What this scan was limited to; null for all of it.</param>
+    /// <param name="unreadable">Folders it couldn't read.</param>
+    /// <param name="ct">Stops it.</param>
+    private async Task<int> RemoveExpiredAsync(Guid libraryId, List<string> roots, List<string>? scanned, List<string> unreadable, CancellationToken ct)
     {
         var cutoff = DateTime.UtcNow - MissingGracePeriod;
-        return await db.MediaFiles.IgnoreQueryFilters()
-            .Where(f => f.MissingSince != null && f.MissingSince < cutoff && f.MediaItem!.LibraryId == libraryId)
-            .ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        var expired = db.MediaFiles.IgnoreQueryFilters().Where(f => f.MissingSince != null && f.MissingSince < cutoff && f.MediaItem!.LibraryId == libraryId);
+        if (scanned is null && unreadable.Count == 0)
+        {
+            return await expired.ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        }
+
+        var ids = (await expired.Select(f => new { f.Id, f.Path }).ToListAsync(ct).ConfigureAwait(false))
+            .Where(f => !unreadable.Any(d => PathComparison.IsUnder(f.Path, d))
+                && (scanned is null || scanned.Any(s => PathComparison.IsUnder(f.Path, s)) || !roots.Any(r => PathComparison.IsUnder(f.Path, r))))
+            .Select(f => f.Id).ToList();
+        var removed = 0;
+        foreach (var chunk in ids.Chunk(500))
+        {
+            removed += await db.MediaFiles.IgnoreQueryFilters().Where(f => chunk.Contains(f.Id)).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        }
+
+        return removed;
     }
 
     /// <summary>
@@ -801,9 +853,28 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             // Missing items too: a file that reappears goes back to its old item, with its watch history.
             // Tracks are never looked up, and a scan of one series only needs that series' seasons and episodes.
             var items = db.MediaItems.IgnoreQueryFilters().Where(i => i.LibraryId == library.Id);
-            var parents = await items
-                .Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series || i.Kind == MediaKind.Artist || i.Kind == MediaKind.Album || i.Kind == MediaKind.Audiobook)
-                .ToListAsync(ct).ConfigureAwait(false);
+            var folders = scoped?.Select(t => SeriesFolder(t.Root, t.Scope)).ToList();
+            var aliases = library.Type == LibraryType.Music
+                ? await db.MusicAliases.AsNoTracking().Where(a => a.LibraryId == library.Id).ToListAsync(ct).ConfigureAwait(false)
+                : [];
+
+            // A scan of one title only needs that title's parents: not every film, or every album, tracked for it. Told
+            // apart here in C#, by the paths alone, since paths compare by PathComparison's rules, not SQLite's.
+            var parentItems = items.Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series || i.Kind == MediaKind.Artist || i.Kind == MediaKind.Album || i.Kind == MediaKind.Audiobook);
+            if (scoped is not null && folders is not null && folders.All(f => f is not null))
+            {
+                var roots = scoped.Select(t => PathComparison.Key(t.Root)).ToHashSet(StringComparer.Ordinal);
+                var merged = aliases.Select(a => a.ItemId).ToHashSet();
+                var wanted = (await parentItems.AsNoTracking().Select(i => new { i.Id, i.Kind, i.Path }).ToListAsync(ct).ConfigureAwait(false))
+                    // Any artist: the tags of a file here can name one from anywhere (see LoadAlbumsOfAsync for their albums).
+                    .Where(i => i.Kind == MediaKind.Artist || merged.Contains(i.Id)
+                        || (i.Path is not null && (roots.Contains(PathComparison.Key(i.Path)) || folders.Any(f => PathComparison.IsUnder(i.Path, f!)))))
+                    .Select(i => i.Id).ToList();
+                parentItems = parentItems.Where(i => wanted.Contains(i.Id));
+                index._albumsLoadedFor = [];
+            }
+
+            var parents = await parentItems.ToListAsync(ct).ConfigureAwait(false);
             parents.ForEach(index.Track);
             if (library.Type == LibraryType.Music)
             {
@@ -812,7 +883,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 // Artists and albums merged into others (in Library health): tracks the merged one would have had go to
                 // the one kept. Real names and folders come first.
                 var byId = parents.ToDictionary(p => p.Id);
-                foreach (var alias in await db.MusicAliases.AsNoTracking().Where(a => a.LibraryId == library.Id).ToListAsync(ct).ConfigureAwait(false))
+                foreach (var alias in aliases)
                 {
                     if (byId.TryGetValue(alias.ItemId, out var target))
                     {
@@ -837,10 +908,11 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             // episode of a big library held them all, twice over, for the whole scan.
             var seasons = items.AsNoTracking().Where(i => i.Kind == MediaKind.Season);
             var episodes = items.AsNoTracking().Where(i => i.Kind == MediaKind.Episode);
-            var folders = scoped?.Select(t => SeriesFolder(t.Root, t.Scope)).ToList();
             if (folders is not null && folders.All(f => f is not null))
             {
-                var seriesIds = parents.Where(i => i.Kind == MediaKind.Series && i.Path is not null && folders.Contains(PathComparison.Key(i.Path)))
+                // A home video straight in the library folder has that folder for its show, whatever the scan's scope.
+                var homes = scoped!.Select(t => PathComparison.Key(t.Root)).ToHashSet(StringComparer.Ordinal);
+                var seriesIds = parents.Where(i => i.Kind == MediaKind.Series && i.Path is not null && (folders.Contains(PathComparison.Key(i.Path)) || homes.Contains(PathComparison.Key(i.Path))))
                     .Select(i => i.Id).ToList();
                 seasons = seasons.Where(i => i.ParentId != null && seriesIds.Contains(i.ParentId.Value));
                 episodes = episodes.Where(i => i.Parent!.ParentId != null && seriesIds.Contains(i.Parent.ParentId.Value));
@@ -849,6 +921,38 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             (await seasons.ToListAsync(ct).ConfigureAwait(false)).ForEach(index.Track);
             (await episodes.ToListAsync(ct).ConfigureAwait(false)).ForEach(index.Track);
             return index;
+        }
+
+        /// <summary>Artists whose albums have been loaded, in a scan of part of the library; null when they all were.</summary>
+        private HashSet<Guid>? _albumsLoadedFor;
+
+        /// <summary>
+        /// In a scan of part of a music library, the albums of the artists these new files' tags name: an album can be in
+        /// a folder elsewhere, and must not be made again.
+        /// </summary>
+        public async Task LoadAlbumsOfAsync(Guid libraryId, string root, IEnumerable<(string Path, ProbeResult? Probe)> files, CancellationToken ct)
+        {
+            if (_albumsLoadedFor is null)
+            {
+                return;
+            }
+
+            var artists = new List<Guid>();
+            foreach (var (path, probe) in files)
+            {
+                var artist = MusicTags.Read(probe?.Tags ?? new Dictionary<string, string>(), root, path).Artist;
+                if (_byKey.TryGetValue($"artist:{Fold(artist)}", out var known) && _albumsLoadedFor.Add(known.Id))
+                {
+                    artists.Add(known.Id);
+                }
+            }
+
+            if (artists.Count > 0)
+            {
+                (await db.MediaItems.IgnoreQueryFilters()
+                    .Where(i => i.LibraryId == libraryId && i.Kind == MediaKind.Album && i.ParentId != null && artists.Contains(i.ParentId.Value))
+                    .ToListAsync(ct).ConfigureAwait(false)).ForEach(Track);
+            }
         }
 
         /// <summary>The series folder (first level under the root) a scope is in, or null when it's the whole root.</summary>

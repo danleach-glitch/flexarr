@@ -72,4 +72,30 @@ class TvLogicTest {
         // The only profile there is: Settings is the TV's one way to sign out or change server.
         assertTrue(tvShowsSettings(isKids = true, kidsLock = false, profileCount = 1))
     }
+
+    @Test
+    fun `Lossless surround says so when what's connected takes nothing`() {
+        val on = io.github.flexarr.data.SoundSettings()
+        val nothing = losslessSurroundHelp(on, emptySet())
+        assertTrue(nothing, nothing.startsWith("What’s connected takes no surround format as it is"))
+        val soundbar = losslessSurroundHelp(on, setOf("eac3"))
+        assertTrue(soundbar, soundbar.contains("your receiver or soundbar"))
+        // Off, what it would do is what's worth saying.
+        assertTrue(losslessSurroundHelp(on.copy(losslessSurround = false), emptySet()).contains("your receiver or soundbar"))
+        // Something working on the decoded sound is the reason, whatever's connected.
+        assertTrue(losslessSurroundHelp(on.copy(nightMode = io.github.flexarr.data.SoundSettings.NightMode.On), emptySet()).startsWith("While dialogue boost"))
+    }
+
+    @Test
+    fun `the 4K help says a height as a height, in every language`() {
+        assertEquals("This TV doesn’t play 4K files, so your server sends them at 1080p.", fourKHelp(1080))
+        assertEquals("This TV doesn’t play 4K files, so your server sends them at 1440p.", fourKHelp(1440))
+        assertEquals("This TV plays 4K files.", fourKHelp(2160))
+    }
+
+    @Test
+    fun `a report row reads its value and help aloud`() {
+        assertEquals("Surround out, Dolby Digital Plus, Formats it takes.", reportRowDescription("Surround out", "Dolby Digital Plus", "Formats it takes."))
+        assertEquals("HDR, HDR10", reportRowDescription("HDR", "HDR10", null))
+    }
 }

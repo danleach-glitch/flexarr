@@ -902,6 +902,8 @@ export interface LiveTvStatus {
   refreshesFinished?: number | null
   /** Why Dispatcharr couldn't be asked to download its guides, last time it was. Absent from servers before the release after 0.63. */
   downloadError?: string | null
+  /** The last refresh didn't ask the sources, having asked within the last 15 minutes. Absent from servers before 0.64. */
+  downloadSkipped?: boolean
 }
 
 export interface LiveProgramme {

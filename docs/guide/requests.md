@@ -130,7 +130,7 @@ Suggestions and charts come from Deezer, which needs no account. Requests use Li
 - **Like artists you play**: artists like the ones you listen to most.
 - **Albums you might like**: the best-known album by each of those artists.
 - **New from your artists**: this year's releases by artists you have, that you don't have yet.
-- **Top albums**: the albums behind the tracks people are playing most on Deezer now, in your server's country.
+- **Top albums**: the albums behind the tracks people are playing most on Deezer now, worldwide.
 
 Below them are genres. Each one opens its best-known artists.
 
@@ -151,11 +151,15 @@ An album someone in the household asked for shows **Requested** to everyone for 
 
 The same profiles can request music as can request movies and shows. Kids profiles, profiles with an age limit and profiles that can't see a music library can't. Requests only go to music libraries the profile can see. With two or more of them that Lidarr adds to, **New music goes to** in the profile's settings picks which one gets the profile's requests.
 
+Without Lidarr, there's no Discover › Music, Follow, Request or Requested. If Lidarr is connected but isn't answering, the buttons are greyed with **Lidarr isn't answering** until it's back.
+
 ### On its way
 
 On the web, a music library's **Requested** view lists every album Lidarr is waiting for with that library's artists: albums anyone asked for, and new releases by artists you follow, with when they're out. Each says **Searching**, **Downloading** with how far it's got, **Importing**, or **Out** and its date. **Unrequest** takes one back.
 
-Without Lidarr, there's no Discover › Music, Follow, Request or Requested. If Lidarr is connected but isn't answering, the buttons are greyed with **Lidarr isn't answering** until it's back.
+### Couldn't import
+
+An album that says **Couldn't import** downloaded, but Lidarr wouldn't add it to your library. If tracks were missing, Flexarr rejects that copy and looks for another, up to three times. If the copy was complete but scored too low for your Lidarr's quality settings, it stays in Lidarr's **Activity › Queue** for you to import by hand. **Try again** searches again, for albums someone asked for: it rejects a copy with missing tracks and leaves a complete one where it is. It counts towards the 30 a day. **Unrequest** takes it back.
 
 ## If requests don't work
 

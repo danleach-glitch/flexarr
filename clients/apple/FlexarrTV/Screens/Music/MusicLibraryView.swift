@@ -72,7 +72,7 @@ struct MusicLibraryView: View {
             // Coming back from an artist or another tab runs this again: keep what's loaded unless it's getting old.
             // Music played since (from the hero, say) may have moved Resume on.
             let played = browse.playingWhenLoaded != model.music.current?.id
-            if browse.loadedAt != nil, !Freshness.isStale(browse.loadedAt), !played { return }
+            if browse.completedAt != nil, !Freshness.isStale(browse.completedAt), !played { return }
             let first = browse.loadedAt == nil
             await load()
             // Opened from the sidebar, the page had nothing to focus until it loaded, so focus went nowhere and the
@@ -88,7 +88,7 @@ struct MusicLibraryView: View {
         .onAppear { isVisible = true }
         .onDisappear { isVisible = false }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active, isVisible, Freshness.isStale(browse.loadedAt) { Task { await load() } }
+            if phase == .active, isVisible, Freshness.isStale(browse.completedAt) { Task { await load() } }
         }
     }
 

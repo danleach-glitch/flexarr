@@ -2,9 +2,15 @@ package io.github.flexarr.player
 
 import android.content.Context
 import android.hardware.display.DisplayManager
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
 import android.media.MediaCodecInfo
 import android.media.MediaCodecList
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.view.Display
 import androidx.annotation.OptIn
 import androidx.media3.common.C
@@ -13,6 +19,7 @@ import androidx.media3.exoplayer.audio.AudioCapabilities
 import io.github.flexarr.core.DeviceProfile
 import io.github.flexarr.core.ServerVersion
 import io.github.flexarr.data.SoundSettings
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
 /**
@@ -25,8 +32,8 @@ object DeviceCapabilities {
     data class Facts(
         /** Decodable types, lower case (`video/hevc`, `audio/ac3`). */
         val decoders: Set<String>,
-        /** Video types with a hardware decoder that takes 3840×2160. */
-        val uhdDecoders: Set<String>,
+        /** The tallest 16:9 picture each video type's hardware decoders take ([tallest]); a type without one isn't here. */
+        val decoderHeights: Map<String, Int>,
         /** `Display.HdrCapabilities.HDR_TYPE_*` the screen takes in any of its modes. */
         val hdrTypes: Set<Int>,
         /** Surround formats the output takes as they are (`ac3`, `eac3`, `eac3-joc`, `dts`, `dts-hd`, `truehd`), by name. */
@@ -44,12 +51,34 @@ object DeviceCapabilities {
      * Android's own software decoders take 3840×2160 too, but can't keep up with it: only a hardware decoder counts, so
      * a box without one gets 1080p from the server.
      */
-    private val uhdDecoders: Set<String> by lazy {
-        codecs.filter(::isHardware).flatMap { info ->
-            info.supportedTypes.filter { it.startsWith("video/") }.filter { type ->
-                runCatching { info.getCapabilitiesForType(type).videoCapabilities?.isSizeSupported(3840, 2160) == true }.getOrDefault(false)
-            }.map { it.lowercase() }
-        }.toSet()
+    private val decoderHeights: Map<String, Int> by lazy {
+        val heights = mutableMapOf<String, Int>()
+        for (info in codecs.filter(::isHardware)) {
+            for (type in info.supportedTypes.filter { it.startsWith("video/") }) {
+                val video = runCatching { info.getCapabilitiesForType(type).videoCapabilities }.getOrNull() ?: continue
+                val height = tallest { width, height -> runCatching { video.isSizeSupported(width, height) }.getOrDefault(false) } ?: continue
+                heights.merge(type.lowercase(), height, ::maxOf)
+            }
+        }
+        heights
+    }
+
+    /** The tallest of the sizes people's files come in that a decoder takes, by the 16:9 picture that fills it. */
+    internal fun tallest(takes: (width: Int, height: Int) -> Boolean): Int? =
+        listOf(3840 to 2160, 2560 to 1440, 1920 to 1080).firstOrNull { (width, height) -> takes(width, height) }?.second
+
+    /**
+     * How tall a picture the server may send as it is. The server takes one height for every codec, so it's the height of
+     * the codec the big files come in that has a hardware decoder here: a 4K H.264 decoder says nothing about a 1080p
+     * HEVC one. HEVC with only a software decoder means 1080p: it's still listed, and a 4K file sent to that decoder plays
+     * as a slideshow with no error to go on, so 4K files in other codecs are converted rather than risk it. Where one height
+     * doesn't suit otherwise (1440p H.264 to a 1080p decoder), an error decoding has the server convert after all
+     * (`DECODER_ERRORS` in [PlaybackController]).
+     */
+    internal fun maxHeight(facts: Facts): Int {
+        if ("video/hevc" in facts.decoders && "video/hevc" !in facts.decoderHeights) return 1080
+        val decides = LARGE_FILE_CODECS.firstOrNull { it in facts.decoderHeights } ?: return 1080
+        return maxOf(facts.decoderHeights.getValue(decides), 1080)
     }
 
     /**
@@ -65,14 +94,36 @@ object DeviceCapabilities {
         val sound = SoundSettings.current(context)
         return Facts(
             decoders = decoders,
-            uhdDecoders = uhdDecoders,
+            decoderHeights = decoderHeights,
             hdrTypes = hdrTypes(context),
             passthrough = passthrough(context),
             passesThrough = !sound.decodesSurround,
         )
     }
 
-    fun profile(context: Context): DeviceProfile = profile(facts(context))
+    fun profile(context: Context): DeviceProfile = profile(facts(context)).also { recent.put(SoundSettings.current(context), it) }
+
+    /**
+     * [profile] as it was a moment ago, for focus warm-ups, which browsing on a slow box would otherwise ask the display
+     * and the HDMI output for at every move. Worked out again after a change of sound settings or audio device. Only a
+     * guess that saves Play's wait, so a miss costs no more than that: Play itself asks [profile].
+     */
+    fun recentProfile(context: Context): DeviceProfile {
+        watchAudioDevices(context)
+        return recent.get(SoundSettings.current(context)) { profile(facts(context)) }
+    }
+
+    private val recent = RecentAnswer<SoundSettings, DeviceProfile>(RECENT_MS)
+    private val watchingAudioDevices = AtomicBoolean(false)
+
+    private fun watchAudioDevices(context: Context) {
+        if (!watchingAudioDevices.compareAndSet(false, true)) return
+        val callback = object : AudioDeviceCallback() {
+            override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) = recent.clear()
+            override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) = recent.clear()
+        }
+        context.applicationContext.getSystemService(AudioManager::class.java).registerAudioDeviceCallback(callback, Handler(Looper.getMainLooper()))
+    }
 
     /**
      * [profile] with only what this device decodes itself, nothing passed through to a receiver: for music (whose
@@ -112,7 +163,7 @@ object DeviceCapabilities {
             audioCodecs = (decoded + passedThrough).distinct(),
             hdr = hdr10 || hlg || dolbyVision,
             // A 1080p screen still takes 4K files when a decoder does: it scales them itself, so the server needn't convert.
-            maxHeight = if (facts.uhdDecoders.any { it in UHD_VIDEO }) 2160 else 1080,
+            maxHeight = maxHeight(facts),
             // Android mixes surround down for headphones and speakers itself.
             maxAudioChannels = 8,
             maxBitrate = 0,
@@ -183,6 +234,7 @@ object DeviceCapabilities {
             screen(context)?.let { "Screen: ${it.width}×${it.height} at ${rate(it.refreshRate)} Hz; switches to ${it.refreshRates.joinToString { r -> rate(r) }} Hz" },
             "HDR: ${hdrNames(facts.hdrTypes).ifEmpty { listOf("none") }.joinToString()}",
             "4K decoding: ${if (profile.maxHeight >= 2160) "yes" else "no"}",
+            "Hardware decoders: ${facts.decoderHeights.entries.sortedBy { it.key }.joinToString { "${it.key.substringAfterLast('/')} ${it.value}p" }.ifEmpty { "none" }}",
             "Surround to the output: ${surroundNames(facts.passthrough).ifEmpty { listOf("none") }.joinToString()}${if (facts.passesThrough) "" else " (decoded here)"}",
             "Sent to the server: video ${profile.videoCodecs.joinToString()}; audio ${profile.audioCodecs.joinToString()}",
         )
@@ -196,12 +248,15 @@ object DeviceCapabilities {
         if (Build.VERSION.SDK_INT >= 29) info.isHardwareAccelerated
         else !info.name.startsWith("OMX.google.") && !info.name.startsWith("c2.android.")
 
+    private const val RECENT_MS = 30_000L
+
     const val HDR10 = 2 // Display.HdrCapabilities.HDR_TYPE_HDR10
     const val HLG = 3 // HDR_TYPE_HLG
     const val HDR10_PLUS = 4 // HDR_TYPE_HDR10_PLUS
     const val DOLBY_VISION = 1 // HDR_TYPE_DOLBY_VISION
 
-    private val UHD_VIDEO = setOf("video/hevc", "video/av01", "video/x-vnd.on2.vp9", "video/avc")
+    /** Most likely first, of what a big file is in. */
+    private val LARGE_FILE_CODECS = listOf("video/hevc", "video/av01", "video/x-vnd.on2.vp9", "video/avc")
 
     @OptIn(UnstableApi::class)
     private val ENCODINGS = listOf(
@@ -217,4 +272,24 @@ object DeviceCapabilities {
     private val PASSTHROUGH_CODECS = mapOf(
         "ac3" to "ac3", "eac3" to "eac3", "eac3-joc" to "eac3", "dts" to "dts", "dts-hd" to "dts", "truehd" to "truehd",
     )
+}
+
+/** The last answer for [K], kept for [freshMs]: another key, or having been told to [clear], asks again. */
+internal class RecentAnswer<K, V>(private val freshMs: Long, private val now: () -> Long = SystemClock::elapsedRealtime) {
+    private var held: Triple<K, Long, V>? = null
+
+    @Synchronized
+    fun put(key: K, value: V) {
+        held = Triple(key, now(), value)
+    }
+
+    @Synchronized
+    fun clear() {
+        held = null
+    }
+
+    fun get(key: K, ask: () -> V): V {
+        synchronized(this) { held?.let { (owner, at, value) -> if (owner == key && now() - at < freshMs) return value } }
+        return ask().also { put(key, it) }
+    }
 }

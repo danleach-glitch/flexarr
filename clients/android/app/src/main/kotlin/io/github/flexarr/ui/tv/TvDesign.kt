@@ -305,7 +305,7 @@ fun TvFactsLine(facts: List<String>, modifier: Modifier = Modifier, scores: Scor
 
 /** Loading, a failure with Try again, or nothing to show, in plain words. */
 @Composable
-fun TvStatusView(message: String? = null, retry: (() -> Unit)? = null, empty: Boolean = false, modifier: Modifier = Modifier) {
+fun TvStatusView(message: String? = null, retry: (() -> Unit)? = null, empty: Boolean = false, modifier: Modifier = Modifier, takesFocus: Boolean = true) {
     Column(
         modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
@@ -321,7 +321,7 @@ fun TvStatusView(message: String? = null, retry: (() -> Unit)? = null, empty: Bo
                     // Nothing else on the screen to focus: Try again takes it, so OK tries.
                     val again = remember { FocusRequester() }
                     TvActionButton(t("Try again"), onClick = retry, prominent = true, modifier = Modifier.focusRequester(again))
-                    LaunchedEffect(message) { repeat(10) { if (runCatching { again.requestFocus() }.getOrDefault(false)) return@LaunchedEffect; delay(50) } }
+                    if (takesFocus) LaunchedEffect(message) { repeat(10) { if (runCatching { again.requestFocus() }.getOrDefault(false)) return@LaunchedEffect; delay(50) } }
                 }
             }
         }

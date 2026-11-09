@@ -25,11 +25,17 @@ public static class MusicRequested
     /// <summary>A request or unrequest changed what Lidarr is waiting for.</summary>
     public static void Forget(IMemoryCache cache) => Interlocked.Exchange(ref _changed, new CancellationTokenSource()).Cancel();
 
+    /// <param name="c">The services.</param>
     /// <param name="libraryFolders">Only artists in these folders (one library's Requested view); null for all.</param>
+    /// <param name="mayRetry">Not a guest: this profile's Try again would be heard.</param>
+    /// <param name="ct">Stops it.</param>
     /// <returns>Null when no Lidarr answered.</returns>
-    public static async Task<List<MusicRequestedDto>?> ListAsync(MusicRequestContext c, IReadOnlyList<string>? libraryFolders, CancellationToken ct)
+    public static async Task<List<MusicRequestedDto>?> ListAsync(MusicRequestContext c, IReadOnlyList<string>? libraryFolders, bool mayRetry, CancellationToken ct)
     {
         var owned = await c.OwnedAsync(ct);
+        // What Try again checks for. Whatever's listed here is in a folder this profile sees, or it wouldn't be.
+        var open = (mayRetry ? await c.Db.MediaRequests.AsNoTracking().Where(r => r.Kind == MediaKind.Album && r.FulfilledAt == null && r.MusicBrainzId != null).Select(r => r.MusicBrainzId!).ToListAsync(ct) : [])
+            .ToHashSet(StringComparer.Ordinal);
         var listed = new List<MusicRequestedDto>();
         // Every album Lidarr knows about, shown or not, so the open-request fallback below never lists it; and the
         // ones shown, so two Lidarrs' copies show once.
@@ -53,9 +59,9 @@ public static class MusicRequested
             var queued = queue.Where(q => q.AlbumId is not null).ToLookup(q => q.AlbumId!.Value);
             foreach (var item in queue)
             {
-                if (item.Album?.ForeignAlbumId is { Length: > 0 } id)
+                if (item.Album?.ForeignAlbumId is { Length: > 0 } id && (!queuedAlbums.TryGetValue(id, out var had) || Telling(item) > Telling(had)))
                 {
-                    queuedAlbums.TryAdd(id, item);
+                    queuedAlbums[id] = item;
                 }
             }
 
@@ -77,9 +83,9 @@ public static class MusicRequested
                     continue;
                 }
 
-                var (state, progress) = State(album, queued[album.Id].FirstOrDefault(), now);
+                var (state, progress) = State(album, queued[album.Id].MaxBy(Telling), now);
                 listed.Add(new MusicRequestedDto(releaseGroup, album.Title, artist.ArtistName, artist.ForeignArtistId, Cover(lidarr, album) ?? Photo(lidarr, artist),
-                    album.ReleaseDate is { } d ? DateOnly.FromDateTime(d) : null, state, progress, owned.ArtistId(artist.ArtistName)));
+                    album.ReleaseDate is { } d ? DateOnly.FromDateTime(d) : null, state, progress, owned.ArtistId(artist.ArtistName), open.Contains(releaseGroup)));
             }
         }
 
@@ -117,9 +123,11 @@ public static class MusicRequested
                 if (placeable && !known.Contains(request.MusicBrainzId!) && shown.Add(request.MusicBrainzId!) && owned.AlbumId(request.ArtistName, request.Title) is null)
                 {
                     // An album Lidarr has unmonitored can still be in its queue, from the search the request started.
-                    var (state, progress) = queuedAlbums.TryGetValue(request.MusicBrainzId!, out var item) ? FromQueue(item) : ("searching", null);
+                    var inQueue = queuedAlbums.TryGetValue(request.MusicBrainzId!, out var item);
+                    var (state, progress) = inQueue ? FromQueue(item!) : ("searching", null);
+                    // Only one in Lidarr's queue is sure to be in Lidarr at all: Try again leaves one that isn't.
                     listed.Add(new MusicRequestedDto(request.MusicBrainzId!, request.Title ?? "", request.ArtistName ?? "", request.ArtistMusicBrainzId, null, null, state, progress,
-                        owned.ArtistId(request.ArtistName)));
+                        owned.ArtistId(request.ArtistName), inQueue && open.Contains(request.MusicBrainzId!)));
                 }
             }
         }
@@ -193,6 +201,17 @@ public static class MusicRequested
         return album.ReleaseDate is { } released && released > now ? ("upcoming", null) : ("searching", null);
     }
 
+    /// <summary>
+    /// A copy on its way in: one Lidarr gave up on stays in its queue, and a search can grab another beside it. A download
+    /// client's warning (stalled, say) may never clear, so it doesn't count unless Lidarr has already taken the copy on.
+    /// </summary>
+    internal static bool IsMoving(ArrQueueItem queued) =>
+        queued.TrackedDownloadState is not ("importBlocked" or "importFailed" or "failedPending" or "failed") && queued.Status != "failed"
+        && (queued.Status != "warning" || queued.TrackedDownloadState is "importPending" or "importing" or "imported");
+
+    /// <summary>Which copy the card goes by: one on its way, then one someone could do something about, then one stalled or on its way out.</summary>
+    private static int Telling(ArrQueueItem queued) => IsMoving(queued) ? 2 : queued.TrackedDownloadState is "importBlocked" or "importFailed" ? 1 : 0;
+
     private static (string State, double? Progress) FromQueue(ArrQueueItem queued)
     {
         // Lidarr tried and gave up: it won't try this download again by itself, so it isn't importing.
@@ -201,9 +220,10 @@ public static class MusicRequested
             return ("couldNotImport", null);
         }
 
-        // Finished downloading, whether it's importing or on its way out: the download's done.
+        // Finished downloading, whether it's importing or on its way out: the download's done. A warning on one Lidarr is
+        // still waiting for (a stalled torrent, say) isn't: that's still downloading.
         return queued.TrackedDownloadState is "importPending" or "importing" or "imported" or "failedPending" or "failed"
-            || queued.Status is "completed" or "failed" or "warning"
+            || queued.Status is "completed" or "failed" || (queued.Status == "warning" && queued.TrackedDownloadState != "downloading")
             ? ("importing", null)
             : ("downloading", Math.Clamp(queued.Progress, 0, 1));
     }

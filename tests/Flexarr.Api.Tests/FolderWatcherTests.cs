@@ -4,6 +4,7 @@ using Flexarr.Api.Configuration;
 using Flexarr.Api.Scanning;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
+using Flexarr.Core.Paths;
 using Flexarr.Core.Scanning;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -188,6 +189,22 @@ public class FolderWatcherTests(FlexarrApiFactory factory) : IClassFixture<Flexa
     }
 
     [Fact]
+    public async Task AFolderMovedIn_IsATitleWithDetailsToFind_ButASubtitleAddedToOneIsnt()
+    {
+        using var setup = await WatchAsync();
+        var moved = Directory.CreateDirectory(Path.Combine(setup.Root, "Dune (2021)")).FullName;
+        var subtitled = Directory.CreateDirectory(Path.Combine(setup.Root, "Heat (1995)")).FullName;
+        setup.Watcher.Changed(setup.Root, "Dune (2021)"); // one event, for the folder itself
+        setup.Watcher.Changed(setup.Root, "Heat (1995)"); // its change time, with the new subtitle
+        setup.Watcher.Changed(setup.Root, "Heat (1995)/Heat (1995).en.srt");
+
+        await WaitForAsync(setup, r => r.Path == moved);
+        await WaitForAsync(setup, r => r.Path == subtitled);
+        Assert.False(setup.Queue.Requests.Single(r => r.Path == moved).OnlySubtitles);
+        Assert.True(setup.Queue.Requests.Single(r => r.Path == subtitled).OnlySubtitles);
+    }
+
+    [Fact]
     public async Task ATitleThatNeverGoesQuiet_IsScannedAnywayInTheEnd()
     {
         using var setup = await WatchAsync();
@@ -217,6 +234,49 @@ public class FolderWatcherTests(FlexarrApiFactory factory) : IClassFixture<Flexa
         var requests = await WaitForAsync(setup, r => r.Path == setup.Root);
         Assert.Equal(setup.Root, Assert.Single(requests).Path);
         Assert.False(requests[0].ForceMetadata);
+    }
+
+    [Fact]
+    public async Task OneTitleDeletedOrRenamed_ScansJustThatTitle()
+    {
+        using var setup = await WatchAsync();
+        Directory.CreateDirectory(Path.Combine(setup.Root, "Still Here (2020)"));
+        var gone = Path.Combine(setup.Root, "Heat (1995)");
+        setup.Watcher.Changed(setup.Root, "Heat (1995)/Heat (1995).mkv");
+
+        var requests = await WaitForAsync(setup, r => r.Path == gone);
+
+        Assert.DoesNotContain(requests, r => r.Path == setup.Root);
+    }
+
+    [Fact]
+    public async Task ALastTitleGone_LooksLikeAnUnmountedDrive_SoTheGuardDecides()
+    {
+        using var setup = await WatchAsync();
+        await File.WriteAllTextAsync(Path.Combine(setup.Root, ".DS_Store"), "x"); // left on a mount point
+        setup.Watcher.Changed(setup.Root, "Heat (1995)/Heat (1995).mkv");
+
+        var requests = await WaitForAsync(setup, r => r.Path == setup.Root);
+
+        Assert.DoesNotContain(requests, r => r.Path == Path.Combine(setup.Root, "Heat (1995)"));
+    }
+
+    [Fact]
+    public async Task TitlesGoingOneAfterAnother_StillReachTheGuard()
+    {
+        using var setup = await WatchAsync();
+        Directory.CreateDirectory(Path.Combine(setup.Root, "Still Here (2020)"));
+        for (var i = 1; i < FolderWatcher.ManyTitlesGone; i++)
+        {
+            var gone = Path.Combine(setup.Root, $"Gone {i}");
+            setup.Watcher.Changed(setup.Root, $"Gone {i}/Gone.mkv");
+            await WaitForAsync(setup, r => r.Path == gone);
+        }
+
+        setup.Watcher.Changed(setup.Root, "Gone Last/Gone.mkv");
+
+        var requests = await WaitForAsync(setup, r => r.Path == setup.Root);
+        Assert.DoesNotContain(requests, r => r.Path == Path.Combine(setup.Root, "Gone Last"));
     }
 
     [Fact]
@@ -342,6 +402,203 @@ public class FolderWatcherTests(FlexarrApiFactory factory) : IClassFixture<Flexa
         await setup.Watcher.SyncAsync(default);
         Assert.Equal(FolderWatchState.Watching, setup.Watcher.StatusOf(added)?.State);
         Assert.DoesNotContain(setup.Queue.Requests, r => r.Path == added);
+    }
+
+    [Fact]
+    public async Task AShare_IsLookedAtLessOften_ButASwappedFolderIsStillNoticed()
+    {
+        using var setup = await WatchAsync(create: false);
+        Directory.CreateDirectory(setup.Root);
+        var started = 0;
+        setup.Watcher.IsShare = _ => true;
+        setup.Watcher.NewWatcher = root =>
+        {
+            if (root == setup.Root)
+            {
+                Interlocked.Increment(ref started);
+            }
+
+            return new FileSystemWatcher(root);
+        };
+        await setup.Watcher.SyncAsync(default);
+        Assert.Equal(FolderWatchState.Share, setup.Watcher.StatusOf(setup.Root)?.State);
+        Assert.Equal(1, started);
+
+        Directory.Delete(setup.Root);
+        Directory.CreateDirectory(setup.Root);
+        await setup.Watcher.SyncAsync(default);
+        Assert.Equal(1, started); // the minute's look leaves it alone
+
+        setup.Watcher.LookAtSharesEvery = TimeSpan.Zero;
+        await setup.Watcher.SyncAsync(default);
+        Assert.Equal(2, started);
+    }
+
+    [Fact]
+    public async Task AFolderThatHangs_DoesntHoldUpTheOthers_NorStartTwice()
+    {
+        using var hung = await WatchAsync(create: false);
+        using var local = await WatchAsync(create: false);
+        using var release = new ManualResetEventSlim();
+        using var entered = new ManualResetEventSlim();
+        var started = 0;
+        hung.Watcher.StartsWaitedFor = TimeSpan.FromMilliseconds(200);
+        hung.Watcher.Enable = watcher =>
+        {
+            if (watcher.Path == hung.Root)
+            {
+                Interlocked.Increment(ref started);
+                entered.Set();
+                release.Wait(TimeSpan.FromSeconds(20));
+            }
+
+            watcher.EnableRaisingEvents = true;
+        };
+        Directory.CreateDirectory(hung.Root);
+        Directory.CreateDirectory(local.Root);
+
+        await hung.Watcher.SyncAsync(default).WaitAsync(TimeSpan.FromSeconds(10)); // both folders are in the database, so this one's watching both
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(10)));
+        Assert.Equal(FolderWatchState.Watching, hung.Watcher.StatusOf(local.Root)?.State);
+        Assert.NotEqual(FolderWatchState.Watching, hung.Watcher.StatusOf(hung.Root)?.State);
+
+        await hung.Watcher.SyncAsync(default).WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(1, started);
+
+        release.Set();
+        await WaitUntilAsync(() => hung.Watcher.StatusOf(hung.Root)?.State == FolderWatchState.Watching);
+    }
+
+    /// <summary>Hangs when it's asked about <paramref name="hung"/>, as a mount that's stopped answering does, until the test lets go.</summary>
+    private sealed class Hang(string hung) : IDisposable
+    {
+        private readonly ManualResetEventSlim _release = new();
+        private int _asked;
+
+        public ManualResetEventSlim Entered { get; } = new();
+        public int Asked => Volatile.Read(ref _asked);
+
+        public void If(string path)
+        {
+            if (path.StartsWith(hung, StringComparison.Ordinal))
+            {
+                Interlocked.Increment(ref _asked);
+                Entered.Set();
+                _release.Wait(TimeSpan.FromSeconds(30));
+            }
+        }
+
+        public void Release() => _release.Set();
+
+        public void Dispose()
+        {
+            _release.Set();
+            _release.Dispose();
+            Entered.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task AFolderThatStopsAnswering_IsAskedOnce_AndHoldsUpNoNewFolder()
+    {
+        using var setup = await WatchAsync();
+        using var hang = new Hang(setup.Root);
+        setup.Watcher.LooksWaitedFor = TimeSpan.FromMilliseconds(100);
+        setup.Watcher.Identify = path =>
+        {
+            hang.If(path);
+            return FolderKind.Identity(path);
+        };
+
+        await Task.Run(() => setup.Watcher.SyncAsync(default)).WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.True(hang.Entered.IsSet);
+
+        using var added = await WatchAsync();
+        for (var i = 0; i < 5; i++)
+        {
+            await Task.Run(() => setup.Watcher.SyncAsync(default)).WaitAsync(TimeSpan.FromSeconds(5)); // not held up by it, or waiting on it again
+        }
+
+        Assert.Equal(1, hang.Asked);
+        Assert.Equal(FolderWatchState.Watching, setup.Watcher.StatusOf(added.Root)?.State);
+        Assert.Equal(FolderWatchState.Watching, setup.Watcher.StatusOf(setup.Root)?.State); // unanswered isn't gone
+
+        // Answering again, it's looked at again; what the hung look says by then has gone out of date.
+        hang.Release();
+        await WaitUntilAsync(() =>
+        {
+            setup.Watcher.SyncAsync(default).GetAwaiter().GetResult();
+            return hang.Asked >= 2;
+        });
+        Assert.Equal(FolderWatchState.Watching, setup.Watcher.StatusOf(setup.Root)?.State);
+    }
+
+    [Fact]
+    public async Task AFolderThatStopsAnswering_DoesntHoldUpTheSwitchInSettings()
+    {
+        using var setup = await WatchAsync();
+        using var hang = new Hang(setup.Root);
+        setup.Watcher.LooksWaitedFor = TimeSpan.FromMilliseconds(100);
+        setup.Watcher.Identify = path =>
+        {
+            hang.If(path);
+            return FolderKind.Identity(path);
+        };
+        await Task.Run(() => setup.Watcher.SyncAsync(default)).WaitAsync(TimeSpan.FromSeconds(10));
+
+        setup.Options.WatchFolders.Enabled = false;
+        await Task.Run(() => setup.Watcher.SyncAsync(default)).WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(FolderWatchState.Off, setup.Watcher.StatusOf(setup.Root)?.State);
+    }
+
+    [Fact]
+    public async Task ALibraryFolderThatStopsAnswering_HoldsUpNoOtherFoldersTitles()
+    {
+        using var setup = await WatchAsync();
+        using var other = await WatchAsync();
+        await setup.Watcher.SyncAsync(default); // watching the two
+        using var hang = new Hang(setup.Root);
+        var read = setup.Watcher.ReadSnapshot;
+        setup.Watcher.FlushesWaitedFor = TimeSpan.FromMilliseconds(100);
+        setup.Watcher.ReadSnapshot = path =>
+        {
+            hang.If(path);
+            return read(path);
+        };
+
+        foreach (var root in new[] { setup.Root, other.Root })
+        {
+            Directory.CreateDirectory(Path.Combine(root, "Film (2020)"));
+            await File.WriteAllTextAsync(Path.Combine(root, "Film (2020)", "Film.mkv"), "film");
+        }
+
+        var theirs = Path.Combine(other.Root, "Film (2020)");
+        var ours = Path.Combine(setup.Root, "Film (2020)");
+        for (var i = 0; i < 100 && !setup.Queue.Requests.Any(r => r.Path == theirs); i++)
+        {
+            await Task.Run(() => setup.Watcher.FlushAsync(default)).WaitAsync(TimeSpan.FromSeconds(5));
+            await Task.Delay(50);
+        }
+
+        Assert.Contains(setup.Queue.Requests, r => r.Path == theirs);
+        Assert.Equal(1, hang.Asked);
+        Assert.DoesNotContain(setup.Queue.Requests, r => r.Path == ours);
+
+        // Once it answers, its titles carry on.
+        hang.Release();
+        var requests = await WaitForAsync(setup, r => r.Path == ours);
+        Assert.Contains(requests, r => r.Path == ours);
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> done)
+    {
+        for (var i = 0; i < 100 && !done(); i++)
+        {
+            await Task.Delay(100);
+        }
+
+        Assert.True(done());
     }
 
     [Fact]

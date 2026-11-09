@@ -41,12 +41,30 @@ public sealed class FakeDispatcharr : HttpMessageHandler
 
     public bool GuideSourceFails { get; set; }
 
+    /// <summary>When set, how every request fails, as the HTTP client fails: thrown, or an answer.</summary>
+    public Func<HttpResponseMessage>? Fails { get; set; }
+
+    /// <summary>Answers who a key belongs to, as Dispatcharr 0.20 does; otherwise a 404, as an older one.</summary>
+    public bool SaysWhoKeysAreFor { get; set; }
+
     private int _guideDownloads;
 
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var url = request.RequestUri!;
         Requests.Enqueue(url);
+        if (Fails is { } fails)
+        {
+            return Task.FromResult(fails());
+        }
+
+        if (SaysWhoKeysAreFor && url.AbsolutePath == "/api/accounts/users/me/")
+        {
+            return Task.FromResult(request.Headers.TryGetValues("X-API-Key", out var key) && key.Single() == AdminKey
+                ? Json("""{"user_level":10}""")
+                : new HttpResponseMessage(HttpStatusCode.Unauthorized));
+        }
+
         if (url.AbsolutePath.StartsWith("/api/epg/", StringComparison.Ordinal))
         {
             if (!request.Headers.TryGetValues("X-API-Key", out var keys) || keys.Single() != AdminKey)
@@ -775,13 +793,171 @@ public sealed class LiveTvTests : IDisposable
         var guide = scope.ServiceProvider.GetRequiredService<LiveTvGuide>();
         await RefreshAsync();
         var start = DateTime.UtcNow;
-        Assert.False(await guide.IsDueAsync(start.AddMinutes(90), CancellationToken.None));
+        // Over the hour, but before BBC One's own listings end, which would be news of its own.
+        Assert.False(await guide.IsDueAsync(start.AddMinutes(65), CancellationToken.None));
         Assert.True(await guide.IsDueAsync(start.AddMinutes(150), CancellationToken.None));
 
-        // A changed guide goes back to looking hourly.
+        // A changed guide that fills nothing in doesn't: Dispatcharr's guide can change with a channel still empty.
         _dispatcharr.Guide = _dispatcharr.Guide.Replace("Doctor Who", "Doctor Who: Specials", StringComparison.Ordinal);
         await RefreshAsync();
+        Assert.False(await guide.IsDueAsync(DateTime.UtcNow.AddMinutes(65), CancellationToken.None));
+        Assert.True(await guide.IsDueAsync(DateTime.UtcNow.AddMinutes(250), CancellationToken.None));
+
+        // One that fills a channel in goes back to looking hourly.
+        var soon = DateTime.UtcNow.AddHours(1).ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+        var later = DateTime.UtcNow.AddHours(2).ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+        _dispatcharr.Guide = _dispatcharr.Guide.Replace("</tv>", $"""<programme start="{soon} +0000" stop="{later} +0000" channel="201"><title>Filled in</title></programme></tv>""", StringComparison.Ordinal);
+        await RefreshAsync();
+        Assert.Equal(0, _server.Services.GetRequiredService<LiveTvStatus>().QuietRefreshes);
+    }
+
+    [Fact]
+    public async Task A_healthy_guide_keeps_its_hourly_look_for_when_a_channels_listings_run_out()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        var soon = DateTime.UtcNow.AddHours(1).ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+        var later = DateTime.UtcNow.AddHours(2).ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+        _dispatcharr.Guide = "<tv>" + string.Concat(new[] { 101, 102, 201 }.Select(c => $"""<programme start="{soon} +0000" stop="{later} +0000" channel="{c}"><title>Filled in</title></programme>""")) + "</tv>";
+        var status = _server.Services.GetRequiredService<LiveTvStatus>();
+        for (var i = 0; i < 5; i++)
+        {
+            await RefreshAsync(); // every channel listed, refresh after refresh
+        }
+
+        await using var scope = _server.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<Flexarr.Core.Data.FlexarrDbContext>();
+        var ended = DateTime.UtcNow.AddMinutes(-1);
+        var channel = await db.LiveChannels.Where(c => c.Name == "Sky News").Select(c => c.Id).SingleAsync();
+        await db.LiveProgrammes.Where(p => p.ChannelId == channel).ExecuteUpdateAsync(u => u.SetProperty(p => p.Start, ended.AddHours(-1)).SetProperty(p => p.End, ended));
+
+        await RefreshAsync(); // finds them run out
+
+        Assert.Equal(0, status.QuietRefreshes);
+        Assert.True(await scope.ServiceProvider.GetRequiredService<LiveTvGuide>().IsDueAsync(DateTime.UtcNow.AddMinutes(90), CancellationToken.None));
+
+        await RefreshAsync(); // and it stays empty: only now does the wait begin to grow
+        Assert.Equal(1, status.QuietRefreshes);
+    }
+
+    [Fact]
+    public async Task Channels_running_out_beside_one_thats_always_empty_get_their_hourly_look_every_six_hours()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        // Sky News (201) never has listings; the others do, for the next few hours.
+        var soon = DateTime.UtcNow.AddMinutes(-5).ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+        var later = DateTime.UtcNow.AddHours(5).ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+        _dispatcharr.Guide = "<tv>" + string.Concat(new[] { 101, 102 }.Select(c => $"""<programme start="{soon} +0000" stop="{later} +0000" channel="{c}"><title>On</title></programme>""")) + "</tv>";
+        var status = _server.Services.GetRequiredService<LiveTvStatus>();
+        await using var scope = _server.Services.CreateAsyncScope();
+        var guide = scope.ServiceProvider.GetRequiredService<LiveTvGuide>();
+        var db = scope.ServiceProvider.GetRequiredService<Flexarr.Core.Data.FlexarrDbContext>();
+        for (var i = 0; i < 5; i++)
+        {
+            await RefreshAsync();
+        }
+
+        Assert.True(status.QuietRefreshes >= 3);
+        Assert.False(await guide.IsDueAsync(DateTime.UtcNow.AddMinutes(90), CancellationToken.None)); // settled
+
+        async Task RunOutAsync(string name)
+        {
+            var ended = DateTime.UtcNow.AddMinutes(-1);
+            var channel = await db.LiveChannels.Where(c => c.Name == name).Select(c => c.Id).SingleAsync();
+            await db.LiveProgrammes.Where(p => p.ChannelId == channel).ExecuteUpdateAsync(u => u.SetProperty(p => p.Start, ended.AddMinutes(-1)).SetProperty(p => p.End, ended));
+        }
+
+        // More run out: the very next look comes within the hour's wait, not at the end of the six.
+        await RunOutAsync("BBC Two");
         Assert.True(await guide.IsDueAsync(DateTime.UtcNow.AddMinutes(90), CancellationToken.None));
+
+        // Asked for, and still empty: the wait starts over from an hour, and grows again as it stays that way.
+        _dispatcharr.Guide = _dispatcharr.Guide.Replace("channel=\"102\"", "channel=\"999\"", StringComparison.Ordinal);
+        await RefreshAsync();
+        Assert.Equal(0, status.QuietRefreshes);
+        Assert.True(await guide.IsDueAsync(DateTime.UtcNow.AddMinutes(90), CancellationToken.None));
+        await RefreshAsync();
+        Assert.Equal(1, status.QuietRefreshes);
+        Assert.False(await guide.IsDueAsync(DateTime.UtcNow.AddMinutes(90), CancellationToken.None));
+
+        // A guide whose channels run out one after another doesn't stay on hourly: the next, within six hours, waits its turn.
+        await RunOutAsync("BBC One");
+        Assert.False(await guide.IsDueAsync(DateTime.UtcNow.AddMinutes(90), CancellationToken.None));
+
+        // Four hours on, with the wait grown past the next refresh due, it still waits until the six are up, then doesn't.
+        var start = DateTime.UtcNow;
+        status.GuideRead(2, start.AddHours(4));
+        status.Finished(start.AddHours(4), error: null);
+        Assert.Equal(2, status.QuietRefreshes);
+        Assert.False(await guide.IsDueAsync(start.AddHours(5).AddMinutes(30), CancellationToken.None));
+        Assert.True(await guide.IsDueAsync(start.AddHours(6).AddMinutes(5), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task A_guide_whose_bytes_differ_with_the_same_programmes_isnt_written_again()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        await RefreshAsync();
+        async Task<List<long>> IdsAsync()
+        {
+            await using var scope = _server.Services.CreateAsyncScope();
+            return await scope.ServiceProvider.GetRequiredService<Flexarr.Core.Data.FlexarrDbContext>().LiveProgrammes.OrderBy(p => p.Id).Select(p => p.Id).ToListAsync();
+        }
+
+        var first = await IdsAsync();
+        Assert.NotEmpty(first);
+        _dispatcharr.Guide = _dispatcharr.Guide.Replace("<tv>", """<tv generator-info-name="Dispatcharr" date="20261109120000">""", StringComparison.Ordinal);
+
+        await RefreshAsync();
+
+        Assert.Equal(first, await IdsAsync());
+    }
+
+    [Fact]
+    public async Task A_guide_is_read_through_once_when_new_and_not_at_all_when_its_the_same_file()
+    {
+        var client = Client();
+        var status = _server.Services.GetRequiredService<LiveTvStatus>();
+        await ConnectAsync(client);
+        Assert.Equal(1, status.GuideParses); // new: once, for both knowing it's new and writing it
+
+        await RefreshAsync();
+        Assert.Equal(1, status.GuideParses); // the same file
+
+        var dated = _dispatcharr.Guide.Replace("<tv>", """<tv date="20261109120000">""", StringComparison.Ordinal);
+        _dispatcharr.Guide = dated;
+        await RefreshAsync();
+        Assert.Equal(2, status.GuideParses); // a new file has to be looked in
+        await RefreshAsync();
+        Assert.Equal(2, status.GuideParses); // and is known from then on
+
+        _dispatcharr.Guide = dated.Replace("Doctor Who", "Doctor Who: Specials", StringComparison.Ordinal);
+        await RefreshAsync();
+        Assert.Equal(3, status.GuideParses);
+        var titles = (await GuideProgrammeTitlesAsync()).Order();
+        Assert.Equal(["Doctor Who: Specials", "The News"], titles);
+    }
+
+    [Fact]
+    public async Task The_same_file_is_read_again_for_a_new_channel_it_already_lists()
+    {
+        var client = Client();
+        _dispatcharr.Guide = _dispatcharr.Guide.Replace("</tv>", $"""<programme start="{Xmltv(DateTime.UtcNow.AddMinutes(-5))}" stop="{Xmltv(DateTime.UtcNow.AddMinutes(30))}" channel="301"><title>New arrival</title></programme></tv>""", StringComparison.Ordinal);
+        await ConnectAsync(client);
+        Assert.DoesNotContain("New arrival", await GuideProgrammeTitlesAsync());
+
+        _dispatcharr.Channels.Add((4, 301, "Film4", "UK General", null));
+        await RefreshAsync();
+
+        Assert.Contains("New arrival", await GuideProgrammeTitlesAsync());
+    }
+
+    private async Task<List<string>> GuideProgrammeTitlesAsync()
+    {
+        await using var scope = _server.Services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<Flexarr.Core.Data.FlexarrDbContext>().LiveProgrammes.Select(p => p.Title).ToListAsync();
     }
 
     [Fact]
@@ -799,6 +975,83 @@ public sealed class LiveTvTests : IDisposable
     }
 
     [Fact]
+    public async Task The_status_says_when_a_refresh_didnt_ask_the_sources_again()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        await SaveAdminKeyAsync(client, FakeDispatcharr.AdminKey);
+        async Task<JsonElement> StatusAsync() => await client.GetFromJsonAsync<JsonElement>(Api("livetv/status"));
+
+        // Asked, and a source failed: that isn't skipping.
+        _dispatcharr.GuideSourceFails = true;
+        await DownloadAsync();
+        Assert.False((await StatusAsync()).GetProperty("downloadSkipped").GetBoolean());
+        var asked = _dispatcharr.GuideDownloads;
+
+        // Pressed again within the limit: not asked, and the failure stands beside saying so.
+        _dispatcharr.GuideSourceFails = false;
+        await DownloadAsync();
+        Assert.Equal(asked, _dispatcharr.GuideDownloads);
+        var skipped = await StatusAsync();
+        Assert.True(skipped.GetProperty("downloadSkipped").GetBoolean());
+        Assert.Contains("couldn’t download", skipped.GetProperty("downloadError").GetString(), StringComparison.Ordinal);
+
+        // A refresh nobody pressed moves on from it.
+        _server.Services.GetRequiredService<LiveTvStatus>().ForgetDownloadProblem();
+        Assert.False((await StatusAsync()).GetProperty("downloadSkipped").GetBoolean());
+    }
+
+    public static TheoryData<string, string, string> SourceFailures => new()
+    {
+        { "unreachable", "Flexarr can’t reach the Live TV source: Connection refused (dispatcharr:9191)", "⟦reach Connection refused (dispatcharr:9191)⟧" },
+        { "slow", "The Live TV source didn’t answer in time.", "⟦late⟧" },
+        { "refused", "The Live TV source refused the user name or password.", "⟦refused⟧" },
+        { "broken", "The Live TV source answered with an error (500).", "⟦broken 500⟧" },
+    };
+
+    [Theory]
+    [MemberData(nameof(SourceFailures))]
+    public async Task A_source_failing_is_said_in_the_language_of_whoever_asks(string how, string english, string pseudo)
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        var folder = Directory.CreateDirectory(Path.Combine(_factory.DataDirectory, "languages")).FullName;
+        // A code of its own: what's loaded is shared across a test run, and the newest version of a code wins. en-XA is
+        // LanguageEndpointTests', en-XC NotificationTests'.
+        File.WriteAllText(Path.Combine(folder, "en-XB.json"), """
+            {"format":1,"code":"en-XB","name":"Pseudo (test)","direction":"ltr","version":7,"coverage":{"web":1},"messages":{
+            "Flexarr can’t reach the Live TV source: {reason}":"⟦reach {reason}⟧",
+            "The Live TV source didn’t answer in time.":"⟦late⟧",
+            "The Live TV source refused the user name or password.":"⟦refused⟧",
+            "The Live TV source answered with an error ({code}).":"⟦broken {code}⟧"},
+            "scopes":{}}
+            """);
+        _server.Services.GetRequiredService<Flexarr.Api.Localization.LanguageIndex>().LoadKept();
+
+        // Each as the HTTP client really fails: thrown, or an answer.
+        _dispatcharr.Fails = how switch
+        {
+            "unreachable" => () => throw new HttpRequestException("Connection refused (dispatcharr:9191)"),
+            "slow" => () => throw new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout of 100 seconds elapsing."),
+            "refused" => () => new HttpResponseMessage(HttpStatusCode.Unauthorized),
+            _ => () => new HttpResponseMessage(HttpStatusCode.InternalServerError),
+        };
+        await RefreshAsync();
+
+        Assert.Equal(english, (await client.GetFromJsonAsync<JsonElement>(Api("livetv/status"))).GetProperty("error").GetString());
+
+        // The one failure, read later by someone in another language.
+        var other = Client();
+        other.DefaultRequestHeaders.AcceptLanguage.ParseAdd("en-XB");
+        Assert.Equal(pseudo, (await other.GetFromJsonAsync<JsonElement>(Api("livetv/status"))).GetProperty("error").GetString());
+
+        // Testing a connection in Settings says the same.
+        var tested = await (await other.PostAsJsonAsync(Api("settings/livetv/test"),
+            new { baseUrl = FakeDispatcharr.Root, username = FakeDispatcharr.User, password = FakeDispatcharr.Password })).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(pseudo, tested.GetProperty("error").GetString());
+    }
+
+    [Fact]
     public async Task Each_finished_refresh_is_counted_even_when_it_fails_the_same_way()
     {
         var client = Client();
@@ -809,6 +1062,19 @@ public sealed class LiveTvTests : IDisposable
         status.Finished(DateTime.UtcNow, "Not there");
         status.Finished(DateTime.UtcNow, "Not there");
         Assert.Equal(before + 2, await FinishedAsync());
+    }
+
+    [Fact]
+    public async Task A_guide_that_cant_be_read_is_said_in_flexarrs_own_words()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        _dispatcharr.Guide = "<tv><programme";
+
+        await RefreshAsync();
+
+        Assert.Equal("The guide from the Live TV source couldn’t be read.", (await client.GetFromJsonAsync<JsonElement>(Api("livetv/status"))).GetProperty("error").GetString());
+        Assert.Equal(LiveTvRefreshProblem.GuideUnreadable, _server.Services.GetRequiredService<LiveTvStatus>().Problem);
     }
 
     [Fact]
@@ -823,10 +1089,12 @@ public sealed class LiveTvTests : IDisposable
         Assert.Equal(1, _dispatcharr.GuideDownloads);
         Assert.Contains("couldn’t download", (await client.GetFromJsonAsync<JsonElement>(Api("livetv/status"))).GetProperty("downloadError").GetString(), StringComparison.Ordinal);
 
-        // Inside the limit: nothing's asked, and the last one's trouble isn't this refresh's.
+        // Inside the limit nothing's asked, so a fix in Dispatcharr hasn't been tried: the fault stands.
+        _dispatcharr.GuideSourceFails = false;
         await DownloadAsync();
+        await RefreshAsync();
         Assert.Equal(1, _dispatcharr.GuideDownloads);
-        Assert.Equal(JsonValueKind.Null, (await client.GetFromJsonAsync<JsonElement>(Api("livetv/status"))).GetProperty("downloadError").ValueKind);
+        Assert.Contains("couldn’t download", (await client.GetFromJsonAsync<JsonElement>(Api("livetv/status"))).GetProperty("downloadError").GetString(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -890,6 +1158,26 @@ public sealed class LiveTvTests : IDisposable
     }
 
     [Fact]
+    public async Task Saving_a_wrong_admin_key_says_so_and_leaves_what_was_saved()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        await SaveAdminKeyAsync(client, FakeDispatcharr.AdminKey);
+        _dispatcharr.SaysWhoKeysAreFor = true;
+
+        var refused = await client.PutAsJsonAsync(Api("settings"), new { liveTv = new { baseUrl = FakeDispatcharr.Root, username = FakeDispatcharr.User, adminApiKey = "wrong" } });
+
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Contains("admin API key", await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.True((await LiveTvSettingsAsync(client, l => l.GetProperty("hasAdminApiKey").GetBoolean())).GetProperty("hasAdminApiKey").GetBoolean());
+
+        // The right one is fine, and the same one again isn't asked about.
+        var before = _dispatcharr.Requests.Count(r => r.AbsolutePath == "/api/accounts/users/me/");
+        (await client.PutAsJsonAsync(Api("settings"), new { liveTv = new { baseUrl = FakeDispatcharr.Root, username = FakeDispatcharr.User, adminApiKey = FakeDispatcharr.AdminKey } })).EnsureSuccessStatusCode();
+        Assert.Equal(before, _dispatcharr.Requests.Count(r => r.AbsolutePath == "/api/accounts/users/me/"));
+    }
+
+    [Fact]
     public async Task A_refused_key_is_put_in_words_and_can_be_tried_again_straight_away()
     {
         var client = Client();
@@ -930,6 +1218,16 @@ public sealed class LiveTvTests : IDisposable
         // Saved again without it: kept, while the server's the same.
         (await client.PutAsJsonAsync(Api("settings"), new { liveTv = new { baseUrl = FakeDispatcharr.Root, username = FakeDispatcharr.User, rewindMinutes = 30 } })).EnsureSuccessStatusCode();
         Assert.True((await LiveTvSettingsAsync(client, l => l.GetProperty("rewindMinutes").GetInt32() == 30)).GetProperty("hasAdminApiKey").GetBoolean());
+
+        // A slash at the end is the same server.
+        (await client.PutAsJsonAsync(Api("settings"), new { liveTv = new { baseUrl = FakeDispatcharr.Root + "/", username = FakeDispatcharr.User, rewindMinutes = 45 } })).EnsureSuccessStatusCode();
+        Assert.True((await LiveTvSettingsAsync(client, l => l.GetProperty("rewindMinutes").GetInt32() == 45)).GetProperty("hasAdminApiKey").GetBoolean());
+
+        // Another path at that address is another app, behind a reverse proxy: not carried over.
+        (await client.PutAsJsonAsync(Api("settings"), new { liveTv = new { baseUrl = FakeDispatcharr.Root + "/other", username = FakeDispatcharr.User, password = "other" } })).EnsureSuccessStatusCode();
+        Assert.False((await LiveTvSettingsAsync(client, l => l.GetProperty("baseUrl").GetString()!.EndsWith("/other", StringComparison.Ordinal))).GetProperty("hasAdminApiKey").GetBoolean());
+        (await client.PutAsJsonAsync(Api("settings"), new { liveTv = new { baseUrl = FakeDispatcharr.Root, username = FakeDispatcharr.User, password = FakeDispatcharr.Password, adminApiKey = "admin-k3y" } })).EnsureSuccessStatusCode();
+        await LiveTvSettingsAsync(client, l => l.GetProperty("hasAdminApiKey").GetBoolean());
 
         // Another server: not carried over.
         (await client.PutAsJsonAsync(Api("settings"), new { liveTv = new { baseUrl = "http://elsewhere:9191", username = FakeDispatcharr.User, password = "other" } })).EnsureSuccessStatusCode();

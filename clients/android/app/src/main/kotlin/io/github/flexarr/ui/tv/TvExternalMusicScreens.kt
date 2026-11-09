@@ -31,6 +31,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.tv.material3.LocalContentColor
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -67,7 +68,6 @@ import io.github.flexarr.core.requestAlbum
 import io.github.flexarr.core.unfollowArtist
 import io.github.flexarr.core.unrequestAlbum
 import io.github.flexarr.ui.components.MenuAction
-import io.github.flexarr.ui.music.isUndoingMusic
 import io.github.flexarr.ui.music.musicUndoConfirm
 import io.github.flexarr.ui.music.musicUndoKeep
 import io.github.flexarr.ui.music.musicUndoTitle
@@ -82,6 +82,7 @@ import androidx.tv.material3.Border
 import androidx.tv.material3.Glow
 import androidx.tv.material3.Icon
 import io.github.flexarr.ui.components.Load
+import io.github.flexarr.ui.Navigator
 import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.RemoteImage
 import io.github.flexarr.ui.components.rememberLoader
@@ -134,8 +135,7 @@ internal fun TvMusicArtwork(image: String?, title: String, circular: Boolean, si
  * included). Pressing opens it, as itself when the household has it.
  */
 @Composable
-internal fun TvMusicExternalCard(item: MusicExternal, onClick: () -> Unit, modifier: Modifier = Modifier, showsArtist: Boolean = true) {
-    val model = LocalContext.current.appModel
+internal fun TvMusicExternalCard(item: MusicExternal, onClick: () -> Unit, modifier: Modifier = Modifier, showsArtist: Boolean = true, model: AppModel = LocalContext.current.appModel) {
     val state = model.requestState(item)
     val stateLine = state.takeIf { it == MusicRequestState.InLibrary || it == MusicRequestState.Requested }?.label(item.isArtist)
     if (item.isArtist) {
@@ -186,11 +186,19 @@ internal fun TvMusicExternalRow(title: String, items: List<MusicExternal>, cardM
 
 /**
  * A music request sent from one control: once (a second press while it's on its way sends nothing), on the app's
- * scope so leaving the page doesn't cut it off, and with what went wrong kept for saying so beside the control.
+ * scope so leaving the page doesn't cut it off, with what went wrong kept for saying so beside the control, or said in
+ * the snackbar once the control has gone from the screen.
  */
-internal class TvMusicAsk(private val model: AppModel) {
+internal class TvMusicAsk(private val model: AppModel, private val navigator: Navigator, private val isArtist: Boolean) {
     var failure by mutableStateOf<String?>(null)
         private set
+
+    /** The control is on the screen, to say what went wrong. */
+    var isShown = false
+
+    private fun failed(words: String, e: Exception) {
+        if (isShown) failure = e.message ?: t("Something went wrong.") else navigator.tellFailure(words, e)
+    }
 
     fun send(keys: List<String>, request: suspend (FlexarrClient) -> Unit) {
         failure = null
@@ -200,7 +208,7 @@ internal class TvMusicAsk(private val model: AppModel) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                failure = e.message ?: t("Something went wrong.")
+                failed(if (isArtist) t("Couldn’t follow this artist") else t("Couldn’t request this album"), e)
             }
         }
     }
@@ -214,14 +222,22 @@ internal class TvMusicAsk(private val model: AppModel) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                failure = e.message ?: t("Something went wrong.")
+                failed(if (isArtist) t("Couldn’t stop following this artist") else t("Couldn’t unrequest this album"), e)
             }
         }
     }
 }
 
 @Composable
-internal fun rememberTvMusicAsk(model: AppModel, key: String): TvMusicAsk = remember(key) { TvMusicAsk(model) }
+internal fun rememberTvMusicAsk(model: AppModel, key: String, isArtist: Boolean): TvMusicAsk {
+    val navigator = LocalNavigator.current
+    val ask = remember(key) { TvMusicAsk(model, navigator, isArtist) }
+    DisposableEffect(ask) {
+        ask.isShown = true
+        onDispose { ask.isShown = false }
+    }
+    return ask
+}
 
 /** What went wrong, beside or under a request control. */
 @Composable
@@ -280,22 +296,23 @@ private fun TvMusicChip(label: String, icon: ImageVector?, on: Boolean, enabled:
 @Composable
 internal fun TvRequestableAlbum(model: AppModel, item: MusicExternal, focus: FocusMemory?, modifier: Modifier = Modifier) {
     val navigator = LocalNavigator.current
-    val ask = rememberTvMusicAsk(model, item.id)
+    val ask = rememberTvMusicAsk(model, item.id, isArtist = false)
     val state = model.requestState(item)
     var confirming by remember { mutableStateOf(false) }
-    val on = state == MusicRequestState.Requested || state == MusicRequestState.Sending
+    val on = state == MusicRequestState.Requested
+    // No longer on (a request that failed went back): there's nothing to take back any more.
+    LaunchedEffect(on) { if (!on) confirming = false }
     val label = if (state == MusicRequestState.CanRequest && ask.failure != null) t("Try again") else state.chipLabel()
     val canAsk = model.canAskForMusicHere
     val enabled = when (state) {
-        MusicRequestState.CanRequest -> canAsk
-        MusicRequestState.Requested -> canAsk && !model.isUndoingMusic(listOf(item.id))
+        MusicRequestState.CanRequest, MusicRequestState.Requested -> canAsk
         MusicRequestState.InLibrary -> item.libraryItemId != null
         else -> false
     }
     val press = {
         when (state) {
-            MusicRequestState.CanRequest -> ask.send(listOf(item.id)) { it.requestAlbum(item) }
-            MusicRequestState.Requested -> confirming = true
+            MusicRequestState.CanRequest -> if (!model.isMusicOnItsWay(listOf(item.id))) ask.send(listOf(item.id)) { it.requestAlbum(item) }
+            MusicRequestState.Requested -> if (!model.isMusicOnItsWay(listOf(item.id))) confirming = true
             MusicRequestState.InLibrary -> navigator.openMusic(item)
             else -> Unit
         }
@@ -307,6 +324,7 @@ internal fun TvRequestableAlbum(model: AppModel, item: MusicExternal, focus: Foc
             onClick = { if (item.hasPage) navigator.openMusic(item) else if (enabled) press() },
             showsArtist = false,
             modifier = Modifier.remembered("album/${item.id}"),
+            model = model,
         )
         if (label != null) {
             TvMusicChip(
@@ -380,22 +398,24 @@ internal fun TvMusicRequestRound(
     undo: suspend (FlexarrClient) -> Unit,
     onUndone: () -> Unit = {},
 ) {
-    val ask = rememberTvMusicAsk(model, keys.first())
+    val ask = rememberTvMusicAsk(model, keys.first(), item.isArtist)
     val shownAt = remember(item.id) { SystemClock.uptimeMillis() }
     var confirming by remember { mutableStateOf(false) }
     val icon = state.icon(item.isArtist) ?: return
     if (state == MusicRequestState.InLibrary) return
     val isArtist = item.isArtist
-    val on = state == MusicRequestState.Requested || state == MusicRequestState.Sending
+    val on = state == MusicRequestState.Requested
+    LaunchedEffect(on) { if (!on) confirming = false }
     val name = when {
         on -> if (isArtist) t(Words.following) else t(Words.requested)
         ask.failure != null -> t("Try again")
         else -> state.label(isArtist).orEmpty()
     }
-    val enabled = model.canAskForMusicHere && !model.isUndoingMusic(keys) && (state == MusicRequestState.CanRequest || state == MusicRequestState.Requested)
+    val enabled = model.canAskForMusicHere && (state == MusicRequestState.CanRequest || state == MusicRequestState.Requested)
     Row(horizontalArrangement = Arrangement.spacedBy(15.dp), verticalAlignment = Alignment.CenterVertically) {
         RoundAction(name, icon, ambient, onFocusName, modifier, enabled = enabled, selected = on) {
             when {
+                model.isMusicOnItsWay(keys) -> Unit
                 state == MusicRequestState.Requested -> confirming = true
                 state != MusicRequestState.CanRequest || SystemClock.uptimeMillis() - shownAt <= MUSIC_SETTLE_MS -> Unit
                 else -> ask.send(keys, request)

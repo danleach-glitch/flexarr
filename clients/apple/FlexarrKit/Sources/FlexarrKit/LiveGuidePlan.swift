@@ -65,8 +65,8 @@ public enum LiveGuidePlan {
     /// - `force`: fetch whatever is kept (a recording was set or taken off, so its marks change).
     ///
     /// The kept guide is fetched again once it's due (with a new start); for a channel on screen that it hasn't got
-    /// (asked for favourites, now showing more); or to reach further. It never shrinks while it's kept, and a guide of
-    /// every channel is never fetched again for a channel it hasn't got (there's nothing more to ask for).
+    /// (asked for favourites, now showing more, or a channel added since); or to reach further. It never shrinks while
+    /// it's kept.
     public static func next(kept: KeptLiveGuide?, scope: LiveGuideScope, shown: [String], showingUntil: Date,
                             keepAhead: TimeInterval, askAhead: TimeInterval, force: Bool = false, now: Date = Date()) -> LiveGuideRequest? {
         func hours(from: Date) -> Int {
@@ -80,7 +80,7 @@ public enum LiveGuidePlan {
         }
 
         let had = Set(kept.guide.channels.map(\.id))
-        let lacksChannels = kept.request.scope != .all && shown.contains { !had.contains($0) }
+        let lacksChannels = shown.contains { !had.contains($0) }
         let lacksTime = kept.request.hours < maxHours && kept.request.until < showingUntil.addingTimeInterval(keepAhead)
         guard force || lacksChannels || lacksTime else { return nil }
 

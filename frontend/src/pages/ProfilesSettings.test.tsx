@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App, { Shell } from '../App'
 import { mockApi, movies, status } from '../test/mockApi'
+import { ProfilesSection } from './settings/ProfilesSection'
 
 beforeAll(() => {
   window.scrollTo = vi.fn() as unknown as typeof window.scrollTo
@@ -169,6 +170,37 @@ describe('Profile menu', () => {
 })
 
 describe('Age limits', () => {
+  describe('before the server has said which names it goes by', () => {
+    const child = { ...kids, hiddenLibraryIds: [], maxRatingAge: 12, isKids: true }
+    const openForm = async (me: () => unknown) => {
+      mockApi({ '/libraries': [movies], '/me': me, '/profiles': [child], '/requests/destinations': [], '/requests/music/status': { configured: false, reachable: false } })
+      render(
+        <MemoryRouter>
+          <ProfilesSection />
+        </MemoryRouter>,
+      )
+      fireEvent.click(await screen.findByRole('button', { name: `Edit ${child.name}` }))
+      return screen.findByRole('combobox', { name: 'Up to' })
+    }
+
+    it('holds the select, so it can’t be set by names about to change, then lets go', async () => {
+      let answer: (value: unknown) => void = () => {}
+      const limit = await openForm(() => new Promise((resolve) => (answer = resolve)))
+      expect(limit).toBeDisabled()
+
+      answer({ ...adminHere, ratingSystem: 'us' })
+
+      await vi.waitFor(() => expect(limit).toBeEnabled())
+      expect(within(limit).getAllByRole('option').map((o) => o.textContent)).toEqual(['No limit', 'R', 'TV-14', 'PG-13', 'PG', 'G'])
+    })
+
+    it('lets go if the server can’t say, rather than holding it for good', async () => {
+      const limit = await openForm(() => new Response('', { status: 500 }))
+
+      await vi.waitFor(() => expect(limit).toBeEnabled())
+    })
+  })
+
   it('goes by the server’s names', async () => {
     const child = { ...kids, hiddenLibraryIds: [], maxRatingAge: 12, isKids: true }
     mockApi({ '/libraries': [movies], '/me': { ...adminHere, ratingSystem: 'us' }, '/profiles': [child] })

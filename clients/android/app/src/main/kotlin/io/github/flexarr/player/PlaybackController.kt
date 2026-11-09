@@ -119,6 +119,22 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         private set
     var isBuffering by mutableStateOf(true)
         private set
+    /** Playing is held while a TV changes its frame rate ([FrameRateMatcher]): waiting, not paused. */
+    var screenSwitching by mutableStateOf(false)
+        private set
+    private var endScreenHold: (() -> Unit)? = null
+    internal val screenHolds = object : ScreenHolds {
+        override fun holdStarted(stayPaused: () -> Unit) {
+            screenSwitching = true
+            endScreenHold = stayPaused
+        }
+
+        override fun holdEnded(leftPaused: Boolean) {
+            screenSwitching = false
+            endScreenHold = null
+            if (leftPaused && !closed) report(paused = true)
+        }
+    }
     /** The file has played to its end (the last frame is up). */
     private var hasEnded by mutableStateOf(false)
     /**
@@ -126,7 +142,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
      * counted down to over the last frame (nothing plays for those seconds, but something is about to). A countdown
      * that follows the picture (over the credits, or to a skip) holds while paused, so it keeps nothing on by itself.
      */
-    val keepsScreenOn: Boolean get() = screenStaysOn(isPlaying, isBuffering || isOpening, error != null, countingDown, hasEnded)
+    val keepsScreenOn: Boolean get() = screenStaysOn(isPlaying, isBuffering || isOpening || screenSwitching, error != null, countingDown, hasEnded)
     var position by mutableDoubleStateOf(0.0)
         private set
     var duration by mutableDoubleStateOf(0.0)
@@ -194,7 +210,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         private set
 
     /** The sleep timer: it lasts as long as the screen, so a timer of minutes carries on into the next episode. */
-    val sleep = VideoSleep(scope, player, onChange = { updatePrompt() })
+    val sleep = VideoSleep(scope, player, pause = { pause() }, onChange = { updatePrompt() })
 
     private var prompt: PlaybackPrompt = PlaybackPrompt.None
     private var preferences = PlaybackPreferences()
@@ -297,7 +313,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                     keepTicking()
                 }
                 // Paused or playing again: the server hears straight away.
-                if (info != null && player.playbackState == Player.STATE_READY) report(paused = !playing)
+                if (info != null && player.playbackState == Player.STATE_READY && !screenSwitching) report(paused = !playing)
                 // Played again from elsewhere (headphones, say) after the sleep timer ran out: awake.
                 if (playing && sleep.phase == VideoSleep.Phase.Asleep) sleep.wake()
             }
@@ -948,6 +964,12 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
     fun togglePlayPause() = if (player.isPlaying) player.pause() else player.play()
 
+    /** A pause someone meant. Held for the screen's switch it's already paused, and the hold's end would play on: so that ends it. */
+    fun pause() {
+        endScreenHold?.invoke()
+        player.pause()
+    }
+
     fun skip(seconds: Int) = seekTo((player.currentPosition / 1000.0 + seconds).coerceAtLeast(0.0))
 
     fun seekTo(seconds: Double) {
@@ -1324,8 +1346,9 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     fun searchSubtitles() {
         val current = info ?: return
         if (subtitleSearchFile != null || !canSearchSubtitles) return
-        wasPlayingBeforeSearch = player.isPlaying
-        player.pause()
+        // Held for the screen's switch counts: it was about to play.
+        wasPlayingBeforeSearch = player.isPlaying || screenSwitching
+        pause()
         subtitleSearchFile = current.fileId
     }
 

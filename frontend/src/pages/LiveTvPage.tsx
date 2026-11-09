@@ -1,7 +1,7 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { PageLoading } from '../components/PageStatus'
+import { PageError, PageLoading } from '../components/PageStatus'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { freshly, getLiveChannels, getLiveGuide, getLiveProgramme, getLiveTvStatus, refreshLiveTv, type LiveChannel, type LiveGuide, type LiveProgramme, type LiveTvStatus } from '../api/client'
+import { ApiError, freshly, getLiveChannels, getLiveGuide, getLiveProgramme, getLiveTvStatus, refreshLiveTv, UnauthorizedError, type LiveChannel, type LiveGuide, type LiveProgramme, type LiveTvStatus } from '../api/client'
 import { IconButton } from '../components/AsyncButton'
 import { FavouriteButton } from '../components/FavouriteButton'
 import { RecordControls } from '../components/RecordControls'
@@ -13,6 +13,7 @@ import { useAgeLimits, useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
 import { usePolling } from '../hooks/usePolling'
 import { clock, programmeTime, programmeTitle, progress, tidyGroup } from '../lib/livetv'
+import { liveTvRefresh, type AskedRefresh } from '../lib/liveTvRefresh'
 import { locale, t, Words } from '../i18n'
 import '../styles/livetv.lazy.css'
 
@@ -26,6 +27,12 @@ const GUIDE_HOURS = 6
 const REFRESH_GIVES_UP_MS = 6 * 60_000
 /** On a server that can't say a refresh finished: one not seen under way by then has come and gone. */
 const OLD_SERVER_STARTS_WITHIN_MS = 15_000
+/** A refresh that ended longer ago than this is nobody's news: the apps drop its result too. */
+const RESULT_KEPT_MS = 2 * 60_000
+/** Back on the page after the wait is over: long enough for a look to say how it ended. */
+const FIRST_LOOK_MS = 5000
+/** How often to look for a server that has stopped answering. */
+const NO_ANSWER_LOOK_MS = 10_000
 
 /** The guide starts on the half hour before now, a little in the past, so what's just started is in view. */
 function guideStart(now = new Date()) {
@@ -42,12 +49,18 @@ export default function LiveTvPage() {
   const status = useApi(getLiveTvStatus, [])
   const { me } = useSession()
   const mainProfile = !!me?.isAdmin || !!me?.canUnlock
-  // A refresh asked for: how the status looked just before, and whether it has been seen under way since.
-  const [refresh, setRefresh] = useState<{ before: LiveTvStatus; seen: boolean; at: number }>()
+  const [refresh, setAsked] = useState(() => liveTvRefresh.asked)
+  const setRefresh = useCallback((asked: AskedRefresh | undefined) => {
+    liveTvRefresh.asked = asked
+    setAsked(asked)
+  }, [])
+  const onScreen = useRef<LiveTvStatus>(undefined)
   /** Bumped when a refresh finishes, so what's shown is fetched again. */
   const [refreshed, setRefreshed] = useState(0)
   const [refreshFailed, setRefreshFailed] = useState<string>()
   const [refreshWorked, setRefreshWorked] = useState(false)
+  // Until the next look that gets an answer.
+  const [noAnswer, setNoAnswer] = useState(false)
   const badLooks = useRef(0)
   const { reload: reloadStatus, loading: statusLoading } = status
   // A look still on its way isn't cut off by the next, or a slow connection would never get an answer.
@@ -55,43 +68,66 @@ export default function LiveTvPage() {
     if (!statusLoading) reloadStatus()
   }, [reloadStatus, statusLoading])
   const configured = status.data?.configured !== false
-  usePolling(lookAgain, !configured ? null : refresh || status.data?.refreshing ? 2000 : mainProfile ? 60_000 : null)
+  const waiting = !!refresh && !refresh.gaveUp
+  usePolling(lookAgain, !configured ? null : noAnswer ? NO_ANSWER_LOOK_MS : waiting || status.data?.refreshing ? 2000 : mainProfile ? 60_000 : null)
 
-  const finishRefresh = useCallback((failed?: string) => {
-    setRefresh(undefined)
-    setRefreshed((n) => n + 1)
-    setRefreshFailed(failed)
-  }, [])
   useEffect(() => {
-    if (!refresh || !status.data) return
+    onScreen.current = status.data
+  }, [status.data])
+  // Any look that gets an answer: the server's back, and a refresh that has finished, whoever asked for it, changes what's listed.
+  useEffect(() => {
+    if (!status.data) return
     badLooks.current = 0
+    setNoAnswer(false)
+    const listed = status.data.refreshesFinished ?? status.data.refreshedAt
+    if (liveTvRefresh.listed !== undefined && liveTvRefresh.listed !== listed) setRefreshed((n) => n + 1)
+    liveTvRefresh.listed = listed
+  }, [status.data])
+  useEffect(() => {
+    if (!refresh || !status.data || status.data === refresh.stale) return
     const { refreshing, refreshedAt, error, downloadError, refreshesFinished } = status.data
     const { before, seen, at } = refresh
     if (refreshing) {
+      liveTvRefresh.going = Date.now()
       if (!seen) setRefresh({ ...refresh, seen: true })
       return
     }
     // Servers from before the release after 0.63 don't count finished refreshes: one that fails as the last did shows nothing changing.
+    // The count goes up as a refresh stops, so one seen under way that stopped without it went with a server restart, which starts the count again.
     const finished =
       refreshesFinished != null
-        ? refreshesFinished !== before.refreshesFinished
+        ? seen || refreshesFinished !== before.refreshesFinished
         : seen || refreshedAt !== before.refreshedAt || error !== before.error || downloadError !== before.downloadError || Date.now() - at > OLD_SERVER_STARTS_WITHIN_MS
-    if (finished) {
-      finishRefresh()
-      setRefreshWorked(!error && !downloadError)
+    if (!finished) {
+      liveTvRefresh.going = Date.now()
+      return
     }
-  }, [refresh, status.data, finishRefresh])
+    setRefresh(undefined)
+    setRefreshed((n) => n + 1)
+    setRefreshFailed(undefined)
+    // Worth saying only if it's news. A failure needs no saying: the status shows it for as long as it's so.
+    const recent = (time: number) => Date.now() - time < RESULT_KEPT_MS
+    const justEnded = recent(liveTvRefresh.going ?? at) || (!!refreshedAt && refreshedAt !== before.refreshedAt && recent(Date.parse(refreshedAt)))
+    // A restart forgets any failure too, and the refresh didn't get to finish.
+    const restarted = refreshesFinished != null && before.refreshesFinished != null && refreshesFinished <= before.refreshesFinished
+    setRefreshWorked(justEnded && !restarted && !error && !downloadError)
+  }, [refresh, status.data, setRefresh])
   useEffect(() => {
     if (!refresh || !status.error) return
     badLooks.current++
-    if (badLooks.current >= 3) finishRefresh(t('Flexarr didn’t answer. Try again.'))
-  }, [refresh, status.error, finishRefresh])
+    if (badLooks.current >= 3) setNoAnswer(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one count per failed look, whatever else changes about the refresh
+  }, [!!refresh, status.error])
+  const asked = refresh?.at
+  const gaveUp = refresh?.gaveUp
   useEffect(() => {
-    if (!refresh) return
-    const giveUp = setTimeout(() => finishRefresh(t('This is taking a while. The guide will update when it’s done.')), REFRESH_GIVES_UP_MS)
+    if (asked === undefined || gaveUp) return
+    const giveUp = setTimeout(() => {
+      if (liveTvRefresh.asked) setRefresh({ ...liveTvRefresh.asked, gaveUp: true })
+    }, Math.max(asked + REFRESH_GIVES_UP_MS - Date.now(), FIRST_LOOK_MS))
     return () => clearTimeout(giveUp)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one wait per refresh, however often it's seen
-  }, [!!refresh])
+  }, [asked])
   useEffect(() => {
     if (!refreshWorked) return
     const hide = setTimeout(() => setRefreshWorked(false), 6000)
@@ -101,15 +137,31 @@ export default function LiveTvPage() {
   async function startRefresh() {
     setRefreshFailed(undefined)
     setRefreshWorked(false)
+    setNoAnswer(false)
     badLooks.current = 0
+    let before: LiveTvStatus
     try {
-      const before = await freshly(() => getLiveTvStatus())
+      before = await freshly(() => getLiveTvStatus())
+    } catch {
+      setNoAnswer(true)
+      return
+    }
+    try {
       await refreshLiveTv()
-      setRefresh({ before, seen: false, at: Date.now() })
+      liveTvRefresh.going = Date.now()
+      setRefresh({ before, stale: onScreen.current, seen: false, at: Date.now() })
+      // Also drops any look still on its way from before the press.
+      reloadStatus()
     } catch (e) {
-      setRefreshFailed(e instanceof Error ? e.message : String(e))
+      // The server's own words if it gave any; otherwise the browser's, which nobody should read, and the next look that gets an answer clears it.
+      if (e instanceof ApiError || e instanceof UnauthorizedError) setRefreshFailed(e.message)
+      else setNoAnswer(true)
     }
   }
+
+  // With no answer it may be over or not: Try again means the button works.
+  const refreshing = !noAnswer && (waiting || !!status.data?.refreshing)
+  const problem = noAnswer ? t(Words.serverDidntAnswer) : (refreshFailed ?? status.data?.downloadError)
 
   if (status.data && !status.data.configured) {
     return (
@@ -134,7 +186,7 @@ export default function LiveTvPage() {
     <div className="livetv-page">
       <header className="livetv-header">
         <h1 className="livetv-title">{t(Words.liveTv)}</h1>
-        {mainProfile && <IconButton className="button quiet small icon livetv-refresh" label={t('Refresh guide')} icon={<RefreshGuide />} busy={!!refresh || status.data?.refreshing} onClick={startRefresh} />}
+        {mainProfile && <IconButton className="button quiet small icon livetv-refresh" label={t(refreshing ? Words.refreshingGuide : Words.refreshGuide)} icon={<RefreshGuide />} busy={refreshing} keepFocus onClick={startRefresh} />}
         <div className="season-tabs livetv-tabs" role="tablist" aria-label={t('View')}>
           <button role="tab" aria-selected={view === 'now'} className={view === 'now' ? 'season-tab active' : 'season-tab'} onClick={() => setParams({}, { replace: true })}>
             {t('On now')}
@@ -164,14 +216,17 @@ export default function LiveTvPage() {
           {status.data.error}
         </p>
       )}
-      {mainProfile && (refreshFailed || status.data?.downloadError) && (
+      {mainProfile && problem && (
         <p className="error livetv-error" role="alert">
-          {refreshFailed ?? status.data?.downloadError}
+          {problem}
         </p>
       )}
       {mainProfile && (
         <div role="status">
-          {refreshWorked && <p className="muted livetv-missing">{t('Guide refreshed')}</p>}
+          {refreshing && <span className="visually-hidden">{t(Words.refreshingGuide)}</span>}
+          {refreshWorked && <p className="muted livetv-missing">{t(Words.guideRefreshed)}</p>}
+          {refresh?.gaveUp && !noAnswer && <p className="muted livetv-missing">{t(Words.guideTakingAWhile)}</p>}
+          {problem && problem === status.data?.downloadError && status.data.downloadSkipped && <p className="muted livetv-missing">{t(Words.guideSourcesAskedRecently)}</p>}
           {!!status.data?.channelsWithoutListings && (
             <p className="muted livetv-missing">
               {t('{count, plural, one {# channel has no listings} other {# channels have no listings}}', { count: status.data.channelsWithoutListings })}{' '}
@@ -199,7 +254,7 @@ const FAVOURITES = '\u0000favourites'
 
 // Only redrawn when a refresh finishes, not by every look at the status above it.
 const OnNow = memo(function OnNow({ refreshed }: { refreshed: number }) {
-  const { data, error, reload } = useApi(getLiveChannels, [])
+  const { data, error, loading, reload } = useApi(getLiveChannels, [])
   usePolling(reload, 60_000)
   useEffect(() => {
     if (refreshed) reload()
@@ -209,7 +264,9 @@ const OnNow = memo(function OnNow({ refreshed }: { refreshed: number }) {
   const [chosen, setGroup] = useState<string>()
   const groups = useMemo(() => [...new Set((data ?? []).map((c) => c.group).filter((g): g is string => !!g))], [data])
   const favourites = (data ?? []).filter(isFavourite)
-  const group = chosen ?? (favourites.length > 0 ? FAVOURITES : '')
+  // A group a refresh took away counts as unchosen.
+  const stillThere = chosen === undefined || chosen === '' || chosen === FAVOURITES || groups.includes(chosen)
+  const group = (stillThere ? chosen : undefined) ?? (favourites.length > 0 ? FAVOURITES : '')
   const shown = (data ?? []).filter((c) => (group === FAVOURITES ? isFavourite(c) : !group || c.group === group))
   const row = (c: LiveChannel) => (
     <li key={c.id}>
@@ -217,12 +274,15 @@ const OnNow = memo(function OnNow({ refreshed }: { refreshed: number }) {
     </li>
   )
 
-  if (error) return <p className="error">{t('Couldn’t load the channels: {error}', { error: error.message })}</p>
+  const failure = error && <PageError error={error} message={t('Couldn’t load the channels: {error}', { error: error.message })} onRetry={reload} retrying={loading} />
+  // Channels already on screen stay there, with the failure above them.
+  if (failure && !data?.length) return failure
   if (!data) return <PageLoading label={t('Loading channels')} />
   if (data.length === 0) return <p className="page-message muted">{t('No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user.')}</p>
 
   return (
     <>
+      {failure}
       <div className="chips livetv-groups" role="toolbar" aria-label={t('Channel groups')}>
         <button className={group === FAVOURITES ? 'chip active' : 'chip'} onClick={() => setGroup(FAVOURITES)}>
           <Star filled className="chip-star" /> {t('Favourites')}
@@ -375,7 +435,8 @@ const Guide = memo(function Guide({ refreshed }: { refreshed: number }) {
   /** The guide, and whether it was asked for the favourite channels only. */
   const [loaded, setLoaded] = useState<{ guide: LiveGuide; favourites: boolean }>()
   const guide = loaded?.guide
-  const [failed, setFailed] = useState<string>()
+  const [failed, setFailed] = useState<Error>()
+  const [asking, setAsking] = useState(true)
   const [selected, setSelected] = useState<{ channel: LiveGuide['channels'][number]; programme: LiveProgramme }>()
   const [now, setNow] = useState(() => Date.now())
   /** Bumped when a recording changes, so the guide's marks are fetched again. */
@@ -409,8 +470,12 @@ const Guide = memo(function Guide({ refreshed }: { refreshed: number }) {
 
   useEffect(() => {
     const controller = new AbortController()
+    // A failure stays up until the answer, with its Try again and the keyboard on it; a blip mid-refresh goes once a later ask has worked.
+    setAsking(true)
     getLiveGuide(from, hours, controller.signal, { favourites: favouritesOnly }).then(
       (loaded) => {
+        setAsking(false)
+        setFailed(undefined)
         setLoaded({ guide: loaded, favourites: favouritesOnly })
         // The programme open in the details keeps up with its marks.
         setSelected((open) => {
@@ -421,7 +486,9 @@ const Guide = memo(function Guide({ refreshed }: { refreshed: number }) {
         })
       },
       (e: unknown) => {
-        if (!controller.signal.aborted) setFailed(e instanceof Error ? e.message : String(e))
+        if (controller.signal.aborted) return
+        setAsking(false)
+        setFailed(e instanceof Error ? e : new Error(String(e)))
       },
     )
     return () => controller.abort()
@@ -432,14 +499,18 @@ const Guide = memo(function Guide({ refreshed }: { refreshed: number }) {
   const width = hours * 60 * PX_PER_MINUTE
   const slots = Array.from({ length: hours * 2 }, (_, i) => new Date(from.getTime() + i * 30 * 60_000))
 
-  if (failed) return <p className="error">{t('Couldn’t load the guide: {error}', { error: failed })}</p>
+  const failure = failed && <PageError error={failed} message={t('Couldn’t load the guide: {error}', { error: failed.message })} onRetry={() => setVersion((v) => v + 1)} retrying={asking} />
   // No favourites after all: on to every channel, still loading.
-  if (!guide || (!favouritesOnly && !hasAll && favouritesChosen === undefined)) return <PageLoading label={t('Loading the guide')} />
+  const nothingToShow = !guide || (!favouritesOnly && !hasAll && favouritesChosen === undefined)
+  // A guide already on screen stays there, with the failure above it.
+  if (failure && nothingToShow) return failure
+  if (nothingToShow) return <PageLoading label={t('Loading the guide')} />
   const description = selected && (selected.programme.description ?? descriptions[selected.programme.id])
   const rows = favouritesOnly ? guide.channels.filter((c) => c.isFavourite) : guide.channels
 
   return (
     <>
+      {failure}
       <div className="chips livetv-groups" role="toolbar" aria-label={t('Channels')}>
         <button className={favouritesOnly ? 'chip active' : 'chip'} onClick={() => setFavouritesOnly(true)}>
           <Star filled className="chip-star" /> {t('Favourites')}

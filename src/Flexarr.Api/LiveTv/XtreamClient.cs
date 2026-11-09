@@ -33,7 +33,14 @@ public sealed record XtreamChannel(int StreamId, double Number, string Name, str
 /// <summary>What the source says about the sign-in.</summary>
 public sealed record XtreamAccountInfo(bool SignedIn, string? Status, int? MaxConnections, DateTime? ExpiresAt);
 
-public sealed class XtreamException(string message, Exception? inner = null) : Exception(message, inner);
+/// <summary>The source failed in a way with words of its own, said in the language of whoever's asking when they read <see cref="Message"/>.</summary>
+/// <param name="detail">What the words quote: the connection's own message, or the answer's status code.</param>
+public sealed class XtreamException(LiveTvRefreshProblem problem, string? detail = null, Exception? inner = null) : Exception(null, inner)
+{
+    public LiveTvRefreshProblem Problem { get; } = problem;
+    public string? Detail { get; } = detail;
+    public override string Message => LiveTvEndpoints.RefreshProblemText(Problem, Detail) ?? "";
+}
 
 /// <summary>
 /// Reads channels and the guide from an Xtream Codes API. Every address carries the password, so failures are
@@ -58,7 +65,7 @@ public sealed class XtreamClient(HttpClient http, IHttpClientFactory clients)
         using var doc = await GetJsonAsync(account.Api(), ct);
         if (doc.RootElement.ValueKind != JsonValueKind.Object || !doc.RootElement.TryGetProperty("user_info", out var user))
         {
-            throw new XtreamException("That address answered, but not as Dispatcharr (no Xtream Codes API there).");
+            throw new XtreamException(LiveTvRefreshProblem.NotDispatcharr);
         }
 
         var signedIn = Int(user, "auth") == 1;
@@ -87,7 +94,7 @@ public sealed class XtreamClient(HttpClient http, IHttpClientFactory clients)
         using var streams = await GetJsonAsync(account.Api("get_live_streams"), ct);
         if (streams.RootElement.ValueKind != JsonValueKind.Array)
         {
-            throw new XtreamException("The Live TV source didn't send a channel list. Check the user name and password.");
+            throw new XtreamException(LiveTvRefreshProblem.NoChannelList);
         }
 
         var channels = new List<XtreamChannel>();
@@ -182,7 +189,7 @@ public sealed class XtreamClient(HttpClient http, IHttpClientFactory clients)
         }
         catch (JsonException ex)
         {
-            throw new XtreamException("That address answered, but not as Dispatcharr (no Xtream Codes API there).", ex);
+            throw new XtreamException(LiveTvRefreshProblem.NotDispatcharr, inner: ex);
         }
     }
 
@@ -198,24 +205,24 @@ public sealed class XtreamClient(HttpClient http, IHttpClientFactory clients)
         catch (HttpRequestException ex)
         {
             // The message names the host and port at most, never the address with its password.
-            throw new XtreamException($"Flexarr can't reach the Live TV source: {ex.Message}", ex);
+            throw new XtreamException(LiveTvRefreshProblem.Unreachable, ex.Message, ex);
         }
         catch (TaskCanceledException ex) when (!ct.IsCancellationRequested)
         {
-            throw new XtreamException("The Live TV source didn't answer in time.", ex);
+            throw new XtreamException(LiveTvRefreshProblem.TimedOut, inner: ex);
         }
 
         if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
         {
             response.Dispose();
-            throw new XtreamException("The Live TV source refused the user name or password.");
+            throw new XtreamException(LiveTvRefreshProblem.Refused);
         }
 
         if (!response.IsSuccessStatusCode)
         {
-            var code = (int)response.StatusCode;
+            var code = ((int)response.StatusCode).ToString(CultureInfo.InvariantCulture);
             response.Dispose();
-            throw new XtreamException($"The Live TV source answered with an error ({code}).");
+            throw new XtreamException(LiveTvRefreshProblem.AnsweredError, code);
         }
 
         return response;
@@ -252,7 +259,7 @@ internal sealed class IdleTimeoutStream(Stream inner, TimeSpan idle) : Stream
         }
         catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new XtreamException("The Live TV source stopped sending the guide part-way.", ex);
+            throw new XtreamException(LiveTvRefreshProblem.StoppedPartway, inner: ex);
         }
     }
 

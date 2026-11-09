@@ -302,9 +302,10 @@ public sealed class NotificationTests : IAsyncLifetime
     [Fact]
     public async Task NewFilm_IsTold_InItsProfilesLanguage()
     {
-        // A pseudo-language of this test's own (en-XA is LanguageEndpointTests'; the catalog is shared, newest version wins).
+        // A pseudo-language of this test's own: the catalog is shared across a run and the newest version of a code wins.
+        // en-XA is LanguageEndpointTests', en-XB LiveTvTests'.
         Loc.Catalog.Install(LanguagePack.Read("""
-            {"format":1,"code":"en-XB","name":"Pseudo (notifications)","direction":"ltr","version":1,"coverage":{"server":1},
+            {"format":1,"code":"en-XC","name":"Pseudo (notifications)","direction":"ltr","version":1,"coverage":{"server":1},
              "messages":{"New film: {title}":"⟦Ñéŵ ƒíĺɱ: {title}⟧","Ready to watch.":"⟦Ŕéàđý ţö ŵàţçĥ.⟧"},"scopes":{"New film: {title}":"s","Ready to watch.":"s"}}
             """u8));
         var (_, phone) = await PhoneAsync();
@@ -315,9 +316,9 @@ public sealed class NotificationTests : IAsyncLifetime
             var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
             profileId = (await db.NotificationDevices.SingleAsync()).ProfileId;
             var profile = await db.Profiles.SingleAsync(p => p.Id == profileId);
-            profile.Language = "en-XB";
+            profile.Language = "en-XC";
             await db.SaveChangesAsync();
-            _server.Services.GetRequiredService<ProfileLanguages>().Changed(profileId, "en-XB");
+            _server.Services.GetRequiredService<ProfileLanguages>().Changed(profileId, "en-XC");
         }
 
         await StartAsync();

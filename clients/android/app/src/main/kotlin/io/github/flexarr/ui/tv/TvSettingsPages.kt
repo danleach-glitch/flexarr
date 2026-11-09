@@ -3,6 +3,7 @@ package io.github.flexarr.ui.tv
 import io.github.flexarr.core.i18n.Localization
 import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
+import androidx.compose.material.icons.filled._4k
 import androidx.compose.material.icons.filled.Language
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -44,6 +45,8 @@ import androidx.compose.material.icons.filled.Theaters
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.annotation.OptIn
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
@@ -66,6 +69,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.audio.AudioCapabilitiesReceiver
 import androidx.tv.material3.Text
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.FlexarrException
@@ -329,14 +334,37 @@ internal fun TvPlaybackSettings(model: AppModel) {
             TvSettingsToggle(
                 t("Lossless surround"), sound.losslessSurround, { SoundSettings.update(context) { it.copy(losslessSurround = !it.losslessSurround) } },
                 icon = Icons.Filled.SurroundSound,
-                help = if (sound.losslessSurround && sound.decodesSurround) {
-                    t("While dialogue boost, night mode or speakers is on, surround is decoded first: Dolby by this TV, DTS and TrueHD by your server.")
-                } else {
-                    t("Dolby Digital, Atmos, DTS and TrueHD go to your receiver or soundbar as they are, when it takes them. Off, this TV decodes Dolby and your server converts DTS and TrueHD.")
-                },
+                help = losslessSurroundHelp(sound, rememberPassthrough()),
             )
         }
     }
+}
+
+/** The surround formats what's connected takes as they are, kept up to date while a page shows them: a soundbar can be switched on meanwhile. */
+@OptIn(UnstableApi::class)
+@Composable
+private fun rememberPassthrough(): Set<String> {
+    val context = LocalContext.current
+    var taken by remember { mutableStateOf(DeviceCapabilities.passthrough(context)) }
+    DisposableEffect(context) {
+        val receiver = AudioCapabilitiesReceiver(context) { taken = DeviceCapabilities.passthrough(context) }
+        receiver.register()
+        // It may have changed between the first look and listening.
+        taken = DeviceCapabilities.passthrough(context)
+        onDispose { receiver.unregister() }
+    }
+    return taken
+}
+
+/** What the 4K row says. The height goes in as words: as a number it would read "1,080p". */
+internal fun fourKHelp(maxHeight: Int): String =
+    if (maxHeight >= 2160) t("This TV plays 4K files.") else t("This TV doesn’t play 4K files, so your server sends them at {height}p.", "height" to maxHeight.toString())
+
+/** What Lossless surround does here: [taken] are the formats the equipment connected takes as they are. */
+internal fun losslessSurroundHelp(sound: SoundSettings, taken: Set<String>): String = when {
+    sound.losslessSurround && sound.decodesSurround -> t("While dialogue boost, night mode or speakers is on, surround is decoded first: Dolby by this TV, DTS and TrueHD by your server.")
+    sound.losslessSurround && taken.isEmpty() -> t("What’s connected takes no surround format as it is, so this TV decodes Dolby and your server converts DTS and TrueHD.")
+    else -> t("Dolby Digital, Atmos, DTS and TrueHD go to your receiver or soundbar as they are, when it takes them. Off, this TV decodes Dolby and your server converts DTS and TrueHD.")
 }
 
 private fun nightModeLabel(mode: SoundSettings.NightMode) = when (mode) {
@@ -686,13 +714,20 @@ internal fun TvDiagnosticsSettings(model: AppModel) {
             TvSettingsRow(
                 t("HDR"), onClick = {}, icon = Icons.Filled.HdrOn, reportOnly = true,
                 value = DeviceCapabilities.hdrNames(facts.hdrTypes).joinToString().ifEmpty { t("None") },
-                help = if (profile.maxHeight >= 2160) t("This TV plays 4K files.") else t("This TV doesn’t play 4K files, so your server sends them at 1080p."),
+            )
+        }
+        item {
+            TvSettingsRow(
+                t("4K"), onClick = {}, icon = Icons.Filled._4k, reportOnly = true,
+                value = if (profile.maxHeight >= 2160) t("Yes") else t("No"),
+                help = fourKHelp(profile.maxHeight),
             )
         }
         item {
             TvSettingsRow(
                 t("Surround out"), onClick = {}, icon = Icons.Filled.SurroundSound, reportOnly = true,
                 value = DeviceCapabilities.surroundShortNames(facts.passthrough).joinToString().ifEmpty { t("None") },
+                spokenValue = DeviceCapabilities.surroundNames(facts.passthrough).joinToString().ifEmpty { t("None") },
                 help = t("Formats your receiver or soundbar takes as they are."),
             )
         }

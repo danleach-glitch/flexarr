@@ -5,13 +5,15 @@ type Props = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onClick'> & {
   onClick?: (event: MouseEvent<HTMLButtonElement>) => unknown
   /** Spin for work the button didn't start itself (a scan under way, a form submitting). */
   busy?: boolean
+  /** For a wait of minutes: while busy it stays focusable and only refuses presses, so the keyboard keeps its place. */
+  keepFocus?: boolean
 }
 
 /**
  * A button whose action takes a moment: while it's under way a spinner takes the label's place (styles in base.css,
  * keyed on aria-busy), so a press is never met with nothing.
  */
-export function AsyncButton({ onClick, busy, disabled, type = 'button', ...rest }: Props) {
+export function AsyncButton({ onClick, busy, keepFocus, disabled, type = 'button', ...rest }: Props) {
   const [pending, setPending] = useState(false)
   const mounted = useRef(true)
   useEffect(() => {
@@ -27,8 +29,10 @@ export function AsyncButton({ onClick, busy, disabled, type = 'button', ...rest 
       {...rest}
       type={type}
       aria-busy={spinning || undefined}
-      disabled={disabled || spinning}
+      aria-disabled={(keepFocus && spinning) || undefined}
+      disabled={disabled || (spinning && !keepFocus)}
       onClick={async (event) => {
+        if (spinning) return
         const result = onClick?.(event)
         if (!(result instanceof Promise)) return
         setPending(true)

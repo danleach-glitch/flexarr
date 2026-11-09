@@ -1,19 +1,21 @@
 import { ApiError } from '../api/client'
+import { AsyncButton } from './AsyncButton'
 import { t } from '../i18n'
 
 /**
  * A page that couldn't load, the same on every page and like the apps' StatusView: what happened, and Try again
- * (left out when the thing isn't there any more, which trying again won't change).
+ * (left out when the thing isn't there any more, which trying again won't change). `retrying`: the page is asking again, with
+ * the failure up until it hears, so the keyboard keeps its place.
  */
-export function PageError({ error, message, onRetry }: { error: Error; message?: string; onRetry?: () => void }) {
+export function PageError({ error, message, onRetry, retrying }: { error: Error; message?: string; onRetry?: () => void; retrying?: boolean }) {
   const gone = error instanceof ApiError ? error.status === 404 : error.message.includes('404')
   return (
     <div className="page-message page-status" role="alert">
       <p className="error">{message ?? error.message}</p>
       {onRetry && !gone && (
-        <button type="button" className="button quiet small" onClick={onRetry}>
+        <AsyncButton className="button quiet small" busy={retrying} keepFocus onClick={onRetry}>
           {t('Try again')}
-        </button>
+        </AsyncButton>
       )}
     </div>
   )

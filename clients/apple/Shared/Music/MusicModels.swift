@@ -24,7 +24,11 @@ final class MusicBrowseModel {
     private(set) var playlists: [PlaylistSummary] = []
     private(set) var isLoading = false
     private(set) var error: String?
+    /// When the artists last arrived: there's something to draw, though the rows may be still on their way.
     private(set) var loadedAt: Date?
+    /// When a load last got to the end, rows and all: what "still fresh" goes by. A load cancelled partway (leaving the
+    /// page before Browse answers) doesn't count, or coming back would keep a page with only the artists on it.
+    private(set) var completedAt: Date?
     /// The track playing when it last loaded: music played since means the hero's Resume may have moved on.
     @ObservationIgnored var playingWhenLoaded: String?
     /// Bumped by each reload, so a page that arrives for an older one is dropped.
@@ -67,6 +71,7 @@ final class MusicBrowseModel {
             guard loaded == nil else {
                 playlists = []
                 recentAlbums = []
+                completedAt = Date()
                 return
             }
             async let newest = client.libraryItems(library.id, sort: .added, skip: 0, take: Self.recentArtists)
@@ -76,6 +81,7 @@ final class MusicBrowseModel {
             guard mine == generation, !Task.isCancelled else { return }
             playlists = fallbackLists
             recentAlbums = fallbackAlbums
+            completedAt = Date()
         } catch {
             if mine == generation, !Task.isCancelled { self.error = ConnectionError(error).message }
         }

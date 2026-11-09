@@ -1856,6 +1856,8 @@ export interface MusicUndo {
 }
 export const unfollowArtist = (body: MusicUndo) => request<void>('POST', '/requests/music/unfollow', body)
 export const unrequestAlbum = (body: MusicUndo) => request<void>('POST', '/requests/music/unrequest', body)
+/** Starts over on an album that couldn't be imported: its count of tries goes back to nothing, and Lidarr searches again. */
+export const retryAlbum = (body: MusicUndo) => request<void>('POST', '/requests/music/retry', body)
 
 /** An album Lidarr is waiting for. Absent from servers before 0.59. */
 export interface MusicRequested {
@@ -1870,6 +1872,8 @@ export interface MusicRequested {
   /** While downloading, 0 to 1. */
   progress: number | null
   artistLibraryItemId: string | null
+  /** Whether Try again would do anything for this profile. Absent from servers before 0.64. */
+  canRetry?: boolean
 }
 /** What Lidarr awaits; given a library, only its artists. */
 export const getMusicRequested = (libraryId?: string, signal?: AbortSignal) =>

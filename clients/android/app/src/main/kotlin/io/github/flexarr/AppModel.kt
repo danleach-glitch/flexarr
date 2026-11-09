@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.MusicRequestStatus
 import io.github.flexarr.core.RequestStatus
+import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import io.github.flexarr.core.requestRefusal
 import io.github.flexarr.core.requestStatus
@@ -27,6 +28,8 @@ import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.LiveTvStatus
+import android.os.SystemClock
+import io.github.flexarr.core.LiveTvRefreshEnd
 import io.github.flexarr.core.refreshLiveTv
 import io.github.flexarr.core.liveTvStatus
 import io.github.flexarr.core.offersAlbums
@@ -389,14 +392,15 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /**
      * The server's version (null if it couldn't be asked) and the video profile the player asks with
      * ([DeviceCapabilities.withServer]): shared by the player and warm-ups, so both ask for exactly the same stream.
-     * The profile is worked out each time, since what's plugged in (an amplifier switched on) and the sound settings change it.
+     * The profile is worked out each time, since what's plugged in (an amplifier switched on) and the sound settings change
+     * it; a warm-up, which only guesses at what Play will ask, takes the one from a moment ago ([fresh] false).
      */
-    suspend fun server(): Pair<String?, DeviceProfile>? {
+    suspend fun server(fresh: Boolean = true): Pair<String?, DeviceProfile>? {
         if (client == null) return null
         val version = serverVersion()
         // Asking the system (decoders, the display, the HDMI output) takes a while: not on the main thread, which
         // the TV's focus warm-ups call this from.
-        val profile = withContext(Dispatchers.Default) { DeviceCapabilities.profile(context) }
+        val profile = withContext(Dispatchers.Default) { if (fresh) DeviceCapabilities.profile(context) else DeviceCapabilities.recentProfile(context) }
         return version to DeviceCapabilities.withServer(profile, version)
     }
 
@@ -413,7 +417,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         warmJob?.second?.cancel()
         warmJob = item.id to scope.launch {
             // A server before 0.59 would show the warm-up as playing and give it a transcode slot.
-            val (version, profile) = server() ?: return@launch
+            val (version, profile) = server(fresh = false) ?: return@launch
             if (version == null || !ServerVersion.atLeast(version, 0, 59)) return@launch
             if (item.kind == MediaKind.Audiobook) {
                 books.getReady(item)
@@ -693,8 +697,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         watchlistItems = emptySet()
         watchlistTitles = emptySet()
         musicAsked = emptySet()
-        musicSending = emptySet()
-        musicUndoing = emptySet()
+        musicOnItsWay = emptySet()
         musicUndone = emptySet()
         musicUnreachable = false
         titleAsked = emptySet()
@@ -825,29 +828,46 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     var musicAsked: Set<String> by mutableStateOf(emptySet())
         private set
 
-    /** Music requests on their way, so a second press (or another card for the same album) doesn't send one again. */
-    var musicSending: Set<String> by mutableStateOf(emptySet())
-        private set
+    /** Music requests, unfollows and unrequests on their way, so a second press (or another card for the same album) sends nothing. */
+    private var musicOnItsWay: Set<String> = emptySet()
+
+    /** Something for [keys] is on its way: a press meanwhile does nothing, as on Apple's apps. */
+    fun isMusicOnItsWay(keys: List<String>): Boolean = keys.any { it in musicOnItsWay }
 
     /**
      * Asks Lidarr for what [keys] name (the first one decides), once: false, sending nothing, while it's asked already or
-     * on its way. Throws what went wrong, leaving it to ask again.
+     * something for it is on its way. It shows as asked from the press. Throws what went wrong, having put it back.
      */
     suspend fun askForMusic(keys: List<String>, send: suspend (FlexarrClient) -> Unit): Boolean {
+        if (keys.any { it in musicAsked }) return false
+        return markingMusic(keys, asAsked = true, send)
+    }
+
+    /**
+     * Shows [keys] as asked for or taken back from the moment it's pressed, since the round buttons have no room to say
+     * they're waiting, and puts them back as they were if [send] fails, as the Apple apps do.
+     */
+    private suspend fun markingMusic(keys: List<String>, asAsked: Boolean, send: suspend (FlexarrClient) -> Unit): Boolean {
         val client = client ?: return false
-        if (keys.any { it in musicAsked || it in musicSending || it in musicUndoing }) return false
-        musicSending = musicSending + keys
+        if (keys.any { it in musicOnItsWay }) return false
+        val before = MusicMarks(musicAsked, musicUndone)
+        musicOnItsWay = musicOnItsWay + keys
+        setMusicMarks(before.marked(keys, asAsked))
         try {
             send(client)
-            // Someone else may have been chosen meanwhile: what they asked for isn't theirs.
-            if (client.profileToken == this.client?.profileToken) {
-                musicAsked = musicAsked + keys
-                musicUndone = musicUndone - keys.toSet()
-            }
+        } catch (e: Exception) {
+            // Someone else may have been chosen meanwhile, whose marks these aren't.
+            if (client.profileToken == this.client?.profileToken) setMusicMarks(MusicMarks(musicAsked, musicUndone).restored(keys, before))
+            throw e
         } finally {
-            musicSending = musicSending - keys.toSet()
+            musicOnItsWay = musicOnItsWay - keys.toSet()
         }
         return true
+    }
+
+    private fun setMusicMarks(marks: MusicMarks) {
+        musicAsked = marks.asked
+        musicUndone = marks.undone
     }
 
     /**
@@ -862,10 +882,6 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         musicArtistsVersion++
     }
 
-    /** Unfollows or unrequests on their way: the control stays Following or Requested, and waits, until they're done. */
-    var musicUndoing: Set<String> by mutableStateOf(emptySet())
-        private set
-
     /**
      * Unfollowed or unrequested here, so every card and page says Follow or Request album again at once, though
      * the page it came from still says the server's Following or Requested. Forgotten with the sign-in or the profile.
@@ -874,24 +890,10 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         private set
 
     /**
-     * Unfollows or unrequests what [keys] name, once: false, sending nothing, while something for them is on its way.
-     * Throws what went wrong, leaving it as it was.
+     * Unfollows or unrequests what [keys] name, once: false, sending nothing, while something for them is on its way. It
+     * shows as taken back from the press. Throws what went wrong, having put it back.
      */
-    suspend fun undoMusic(keys: List<String>, send: suspend (FlexarrClient) -> Unit): Boolean {
-        val client = client ?: return false
-        if (keys.any { it in musicSending || it in musicUndoing }) return false
-        musicUndoing = musicUndoing + keys
-        try {
-            send(client)
-            if (client.profileToken == this.client?.profileToken) {
-                musicAsked = musicAsked - keys.toSet()
-                musicUndone = musicUndone + keys
-            }
-        } finally {
-            musicUndoing = musicUndoing - keys.toSet()
-        }
-        return true
-    }
+    suspend fun undoMusic(keys: List<String>, send: suspend (FlexarrClient) -> Unit): Boolean = markingMusic(keys, asAsked = false, send)
 
     /** The episodes to hear next, in order, the same on every device. */
     var upNext: List<PodcastEpisode> by mutableStateOf(emptyList())
@@ -1571,11 +1573,30 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** Who a refresh is being waited for: another profile, or nobody, doesn't take over the wait. */
     private var liveTvRefreshFor by mutableStateOf<ServerCredentials?>(null)
 
-    /** How the last refresh went for the screens to pick up: what went wrong, or null. Counted, so each is seen once. */
+    /** Goes up as each refresh ends, for the screens to look: [takeLiveTvRefreshEnd] has how it went. */
     var liveTvRefreshesEnded by mutableIntStateOf(0)
         private set
-    var liveTvRefreshProblem by mutableStateOf<String?>(null)
-        private set
+    private val liveTvRefreshEnd = UnseenEnd<ServerCredentials, LiveTvRefreshOutcome>(LIVE_TV_RESULT_KEPT_MS)
+
+    /** Given up on as taking a while, for this sign-in: the server carries on, and the next look at its status says how it went. */
+    val isLiveTvRefreshTakingAWhile: Boolean get() = liveTvRefreshGivenUpFor != null && liveTvRefreshGivenUpFor == credentials
+    private var liveTvRefreshGivenUpFor by mutableStateOf<ServerCredentials?>(null)
+
+    /** When one given up on was last known to be running: it ended some time after this. */
+    private var liveTvRefreshLastRunning = 0L
+
+    /** It was given up on because the server stopped answering, which has been said and may no longer be so. */
+    private var liveTvRefreshUnanswered = false
+
+    /** The server's count of finished refreshes when one given up on was last known to be going: see [LiveTvStatus.finishedSince]. */
+    private var liveTvRefreshFinishedBefore: Int? = null
+
+    /**
+     * How the last refresh went, once: kept until a Live TV screen is there to say it, so one that ends while you're in
+     * Recordings or Settings isn't lost. Only for whoever asked for it, and not long: come back tomorrow and it's nothing
+     * anyone just asked about.
+     */
+    fun takeLiveTvRefreshEnd(): LiveTvRefreshOutcome? = credentials?.let(liveTvRefreshEnd::take)
 
     /**
      * Refreshes the channels and guide. It's waited for here rather than on a screen, so going to Recordings and back
@@ -1586,39 +1607,76 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         val client = client ?: return
         if (isRefreshingLiveTv) return
         liveTvRefreshFor = credentials
-        liveTvRefreshProblem = null
+        liveTvRefreshGivenUpFor = null
+        liveTvRefreshUnanswered = false
         scope.launch {
-            var problem: String? = null
-            try {
-                val status = client.refreshLiveTv()
+            val outcome = try {
+                val end = client.refreshLiveTv()
                 // Someone else may have been chosen meanwhile, whose status this isn't.
                 if (this@AppModel.credentials != credentials) return@launch
-                if (status != null) liveTvStatus = status
-                problem = status?.error ?: status?.downloadError
+                end.status?.let { liveTvStatus = it }
+                // Asked, and then no answer: the server carries on without us, so that's given up on too.
+                if (end.stillGoing || end.noAnswer) {
+                    liveTvRefreshGivenUpFor = credentials
+                    liveTvRefreshLastRunning = SystemClock.elapsedRealtime()
+                    liveTvRefreshUnanswered = end.noAnswer
+                    liveTvRefreshFinishedBefore = end.finishedBefore
+                }
+                if (end.restarted) null else liveTvRefreshOutcome(end)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
-            } catch (_: Exception) {
+            } catch (e: Exception) {
                 if (this@AppModel.credentials != credentials) return@launch
-                problem = t("Couldn’t reach the server.")
+                LiveTvRefreshOutcome(refreshFailure(e), isProblem = true, isRefusal = isRefusal(e))
             } finally {
                 if (liveTvRefreshFor === credentials) liveTvRefreshFor = null
             }
-            liveTvRefreshProblem = problem
+            // Nothing to say, and nothing earlier still waiting to be: the screens only hear to look again.
+            if (outcome != null) liveTvRefreshEnd.ended(credentials, outcome) else liveTvRefreshEnd.take(credentials)
             liveTvRefreshesEnded++
         }
     }
 
-    /** Live TV's status again, for how many channels have no listings: a look that fails leaves things as they were. */
-    suspend fun reloadLiveTvStatus() {
-        val credentials = credentials ?: return
-        val client = client ?: return
-        if (isKids) return
+    /**
+     * Live TV's status again, for how many channels have no listings: a look that fails leaves things as they were.
+     * False when the server wasn't heard from.
+     */
+    suspend fun reloadLiveTvStatus(): Boolean {
+        val credentials = credentials ?: return false
+        val client = client ?: return false
+        if (isKids) return false
         try {
-            val status = client.liveTvStatus() ?: return
-            if (this.credentials == credentials) liveTvStatus = status
+            val status = client.liveTvStatus() ?: return false
+            if (this.credentials != credentials) return false
+            liveTvStatus = status
+            if (isLiveTvRefreshTakingAWhile) {
+                if (status.refreshing) {
+                    liveTvRefreshLastRunning = SystemClock.elapsedRealtime()
+                    liveTvRefreshFinishedBefore = status.refreshesFinished
+                    // Answering again and still at it: "didn't answer" is out of date.
+                    if (liveTvRefreshUnanswered) {
+                        liveTvRefreshUnanswered = false
+                        liveTvRefreshEnd.ended(credentials, liveTvRefreshOutcome(LiveTvRefreshEnd(status, stillGoing = true)))
+                        liveTvRefreshesEnded++
+                    }
+                } else {
+                    // One given up on has now finished: say how, as nobody's still waiting to. Unless it went with a
+                    // server restart, when it never finished: nothing to say, not even that it didn't answer.
+                    liveTvRefreshGivenUpFor = null
+                    liveTvRefreshUnanswered = false
+                    if (status.finishedSince(liveTvRefreshFinishedBefore)) {
+                        liveTvRefreshEnd.ended(credentials, liveTvRefreshOutcome(LiveTvRefreshEnd(status)), at = liveTvRefreshLastRunning)
+                    } else {
+                        liveTvRefreshEnd.take(credentials)
+                    }
+                    liveTvRefreshesEnded++
+                }
+            }
+            return true
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (_: Exception) {
+            return false
         }
     }
 
@@ -2002,6 +2060,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     private val inFront: Boolean get() = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
 
     companion object {
+        /** How long a Live TV refresh's result waits for someone to come back to it. */
+        const val LIVE_TV_RESULT_KEPT_MS = 120_000L
+
         /** How long [refreshWatchlistSoon] waits for changes to stop coming. */
         private const val WATCHLIST_SETTLE_MS = 750L
 
@@ -2075,6 +2136,86 @@ internal fun awaitsProfile(chosenHere: Boolean, loaded: Boolean, needsProfile: B
 
 /** Who's watching offline ([offlineProfiles]); [asksWho]: nobody, and "Who's watching?" stays up until the server's back. */
 internal data class OfflineProfiles(val profiles: List<Profile>, val asksWho: Boolean = false)
+
+/** What's been asked for and taken back here, ahead of what the pages' answers say. */
+internal data class MusicMarks(val asked: Set<String>, val undone: Set<String>) {
+    fun marked(keys: List<String>, asAsked: Boolean): MusicMarks =
+        if (asAsked) MusicMarks(asked + keys, undone - keys.toSet()) else MusicMarks(asked - keys.toSet(), undone + keys)
+
+    /** [keys] back as they stood in [before], whatever's happened to the others since. */
+    fun restored(keys: List<String>, before: MusicMarks): MusicMarks = MusicMarks(
+        asked - keys.toSet() + keys.filter { it in before.asked },
+        undone - keys.toSet() + keys.filter { it in before.undone },
+    )
+}
+
+/**
+ * What to say about a Live TV refresh that ended. [isTakingAWhile]: given up on, not over. [sourcesNote]: said beside a
+ * source's failure that wasn't asked about again this time. [isRefusal]: the server turned the press down, which no
+ * status says anything about, so it stands until the next press.
+ */
+data class LiveTvRefreshOutcome(
+    val words: String,
+    val isProblem: Boolean = false,
+    val isTakingAWhile: Boolean = false,
+    val sourcesNote: String? = null,
+    val isRefusal: Boolean = false,
+) {
+    val worked: Boolean get() = !isProblem && !isTakingAWhile
+
+    /** All of it, where there's one place to say it. */
+    val allWords: String get() = listOfNotNull(words, sourcesNote).joinToString(" ")
+}
+
+internal fun liveTvRefreshOutcome(end: LiveTvRefreshEnd): LiveTvRefreshOutcome {
+    if (end.noAnswer) return LiveTvRefreshOutcome(t(Words.serverDidntAnswer), isProblem = true)
+    val status = end.status
+    return when {
+        end.problem != null -> LiveTvRefreshOutcome(
+            end.problem!!,
+            isProblem = true,
+            sourcesNote = t(Words.guideSourcesAskedRecently).takeIf { status?.error == null && status?.downloadSkipped == true },
+        )
+        end.stillGoing -> LiveTvRefreshOutcome(t(Words.guideTakingAWhile), isTakingAWhile = true)
+        else -> LiveTvRefreshOutcome(t(Words.guideRefreshed))
+    }
+}
+
+/**
+ * A problem still on show, once [status] has more to say: a line lasts as long as the problem, so it says what's wrong
+ * now, or goes (null). A refresh under way hasn't settled anything yet.
+ */
+internal fun LiveTvRefreshOutcome.following(status: LiveTvStatus?): LiveTvRefreshOutcome? {
+    if (!isProblem || isRefusal || status == null || status.refreshing) return this
+    return liveTvRefreshOutcome(LiveTvRefreshEnd(status)).takeIf { it.isProblem }
+}
+
+/** The last thing that ended and who for, until it's been seen: by someone else, or [keptMs] on, it's dropped. */
+internal class UnseenEnd<Who, End : Any>(private val keptMs: Long, private val now: () -> Long = SystemClock::elapsedRealtime) {
+    private var held: Triple<Who, End, Long>? = null
+
+    fun ended(who: Who, end: End, at: Long = now()) {
+        held = Triple(who, end, at)
+    }
+
+    fun take(who: Who): End? = held?.also { held = null }?.takeIf { it.first == who && now() - it.third <= keptMs }?.second
+}
+
+/** Why a Live TV refresh failed: the server's own words when it answered (a lapsed admin unlock, say). */
+internal fun refreshFailure(error: Exception): String =
+    if (error is FlexarrException.Http && error.saidNothing && isRefusal(error)) t("Not allowed")
+    else (error as? FlexarrException)?.message ?: t(Words.serverDidntAnswer)
+
+/**
+ * The server turned down a refresh: a 401 or 403 whatever its body (a policy's refusal has none). What reaches here is
+ * the press or the status check just before it, as the looks after it never throw. Anything else (a proxy's 404 or 429,
+ * say) refused nothing.
+ */
+internal fun isRefusal(error: Exception): Boolean = when (error) {
+    is FlexarrException.Unauthorized, is FlexarrException.ParentPinNeeded, is FlexarrException.OwnPinWrong, is FlexarrException.KidsLocked -> true
+    is FlexarrException.Http -> error.status == 401 || error.status == 403
+    else -> false
+}
 
 /**
  * Why this device can't sign out, or null when it can: child lock is on ([AppModel.kidsLock], remembered offline too),

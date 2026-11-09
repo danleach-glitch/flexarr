@@ -13,6 +13,8 @@ extension View {
 private struct BannerModifier: ViewModifier {
     @Binding var text: String?
     let systemImage: String
+    /// The notice being said, and what takes it away when its time is up.
+    @State private var saying: (text: String, timeUp: Task<Void, Never>)?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
@@ -23,18 +25,41 @@ private struct BannerModifier: ViewModifier {
                     .padding(.top, 8)
                     .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
                     .onTapGesture { dismiss() }
-                    .task(id: text) {
-                        AccessibilityNotification.Announcement(text).post()
-                        // Long enough to read: three seconds, more for a longer notice.
-                        try? await Task.sleep(for: .seconds(Banner.duration(text)))
-                        if self.text == text { dismiss() }
-                    }
+                    .task(id: text) { say(text) }
             }
         }
         .animation(.easeOut(duration: 0.25), value: text)
+        // Taken away by the screen: said again if it comes up again.
+        .onChange(of: text) { _, now in
+            if let saying, saying.text != now { stopSaying() }
+        }
     }
 
-    private func dismiss() { text = nil }
+    /// Said once, and its time runs from then, whether or not the screen stays up. The task showing it doesn't own that:
+    /// a screen being pushed starts it twice, which would cut the notice short, and coming back to the screen starts it
+    /// again, which would say it again however long after.
+    private func say(_ text: String) {
+        guard saying?.text != text else { return }
+        stopSaying()
+        AccessibilityNotification.Announcement(text).post()
+        let timeUp = Task {
+            // Long enough to read: three seconds, more for a longer notice.
+            guard (try? await Task.sleep(for: .seconds(Banner.duration(text)))) != nil else { return }
+            saying = nil
+            if self.text == text { self.text = nil }
+        }
+        saying = (text, timeUp)
+    }
+
+    private func stopSaying() {
+        saying?.timeUp.cancel()
+        saying = nil
+    }
+
+    private func dismiss() {
+        stopSaying()
+        text = nil
+    }
 }
 
 struct Banner: View {

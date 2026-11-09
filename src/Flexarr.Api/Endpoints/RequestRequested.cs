@@ -339,7 +339,7 @@ public static class RequestRequested
         }
 
         if (queued.Any(q => q.TrackedDownloadState is "importPending" or "importing" or "imported" or "importBlocked" or "importFailed" or "failedPending" or "failed"
-                || q.Status is "completed" or "failed" or "warning"))
+                || q.Status is "completed" or "failed" || (q.Status == "warning" && q.TrackedDownloadState != "downloading"))) // a stalled one is still downloading
         {
             return ("importing", null);
         }

@@ -760,7 +760,8 @@ function DispatcharrRow({
   const [username, setUsername] = useState(liveTv?.username ?? '')
   const [password, setPassword] = useState('')
   const [adminKey, setAdminKey] = useState('')
-  const [test, setTest] = useState<LiveTvTest | 'testing'>()
+  // A test's result, for the fields it was run with: change one and it no longer says anything, whenever it answers.
+  const [lastTest, setLastTest] = useState<{ fields: string; result: (LiveTvTest & { keyTested: boolean }) | 'testing' }>()
   const [saving, setSaving] = useState(false)
   // Typed keys don't outlive the form: reopened, a Save would send them again, undoing a removal or reaching a new address.
   const [wasOpen, setWasOpen] = useState(open)
@@ -769,10 +770,14 @@ function DispatcharrRow({
     if (!open) {
       setPassword('')
       setAdminKey('')
+      setLastTest(undefined)
     }
   }
-  const keyTested = !!adminKey.trim() || (!!liveTv?.hasAdminApiKey && liveTv.baseUrl === baseUrl.trim())
-  const shown = test === 'testing' ? t('Testing…') : test ? (test.ok ? testSummary(test, keyTested) : test.error) : status
+  // Saved keys only go with the server they were saved for: at another address, the server forgets them.
+  const sameAddress = !!liveTv && sameServer(liveTv.baseUrl, baseUrl)
+  const fields = JSON.stringify([baseUrl, username, password, adminKey])
+  const test = open && lastTest?.fields === fields ? lastTest.result : undefined
+  const shown = test === 'testing' ? t('Testing…') : test ? (test.ok ? testSummary(test, test.keyTested) : test.error) : status
 
   return (
     <div className="connection">
@@ -783,7 +788,7 @@ function DispatcharrRow({
           aria-label={t('Edit Dispatcharr')}
           onSubmit={(e) => {
             e.preventDefault()
-            setTest(undefined)
+            setLastTest(undefined)
             setSaving(true)
             void onSave({
               baseUrl: baseUrl.trim(),
@@ -818,7 +823,7 @@ function DispatcharrRow({
                 type="password"
                 autoComplete="new-password"
                 value={password}
-                placeholder={liveTv?.hasPassword ? t('Saved; type to replace') : t('The user’s XC password in Dispatcharr')}
+                placeholder={liveTv?.hasPassword ? (sameAddress ? t('Saved; type to replace') : t('Retype for this address')) : t('The user’s XC password in Dispatcharr')}
                 onChange={(e) => setPassword(e.target.value)}
               />
             </label>
@@ -830,7 +835,7 @@ function DispatcharrRow({
                 type="password"
                 autoComplete="new-password"
                 value={adminKey}
-                placeholder={liveTv?.hasAdminApiKey ? t('Saved; type to replace') : t('A Dispatcharr admin’s API key')}
+                placeholder={liveTv?.hasAdminApiKey ? (sameAddress ? t('Saved; type to replace') : t('Retype for this address')) : t('A Dispatcharr admin’s API key')}
                 onChange={(e) => setAdminKey(e.target.value)}
               />
             </label>
@@ -838,7 +843,15 @@ function DispatcharrRow({
           <p className="muted field-hint">{t('Lets Refresh have Dispatcharr download its guides first. Gives Flexarr admin rights there.')}</p>
           {liveTv?.hasAdminApiKey && (
             <p>
-              <AsyncButton type="button" className="button quiet small" onClick={() => onSave({ baseUrl: liveTv.baseUrl, username: liveTv.username, adminApiKey: '' }, t('Admin API key removed'))}>
+              <AsyncButton
+                type="button"
+                className="button danger small"
+                onClick={() =>
+                  confirm(t('Remove the admin API key? Refresh will stop having Dispatcharr download its guides first.'))
+                    ? onSave({ baseUrl: liveTv.baseUrl, username: liveTv.username, adminApiKey: '' }, t('Admin API key removed'))
+                    : undefined
+                }
+              >
                 {t('Remove admin API key')}
               </AsyncButton>
             </p>
@@ -855,18 +868,19 @@ function DispatcharrRow({
               </AsyncButton>
             )}
             {liveTv && (
-              <IconButton label={t('Refresh guide')} icon={<Refresh />} busy={refreshing} onClick={() => onRefresh()} />
+              <IconButton label={t(refreshing ? Words.refreshingGuide : Words.refreshGuide)} icon={<Refresh />} busy={refreshing} keepFocus onClick={() => onRefresh()} />
             )}
             <AsyncButton
               className="button quiet small"
               disabled={!baseUrl || !username}
               onClick={async () => {
-                setTest('testing')
-                setTest(
-                  await testLiveTv({ baseUrl: baseUrl.trim(), username: username.trim(), password: password || undefined, adminApiKey: adminKey.trim() || undefined }).catch(
-                    (e: unknown): LiveTvTest => ({ ok: false, channels: null, maxConnections: null, expiresAt: null, error: errorText(e) }),
-                  ),
+                // As the server tests: a typed key, or the saved one against the address it was saved for.
+                const keyTested = !!adminKey.trim() || (!!liveTv?.hasAdminApiKey && sameAddress)
+                setLastTest({ fields, result: 'testing' })
+                const result = await testLiveTv({ baseUrl: baseUrl.trim(), username: username.trim(), password: password || undefined, adminApiKey: adminKey.trim() || undefined }).catch(
+                  (e: unknown): LiveTvTest => ({ ok: false, channels: null, maxConnections: null, expiresAt: null, error: errorText(e) }),
                 )
+                setLastTest({ fields, result: { ...result, keyTested } })
               }}
             >
               {test && test !== 'testing' && <TestMark ok={test.ok} />}
@@ -883,6 +897,16 @@ function DispatcharrRow({
       )}
     </div>
   )
+}
+
+/** Whether two addresses are the same server, as the server decides whether a saved key still applies. */
+function sameServer(saved: string, given: string) {
+  try {
+    const [a, b] = [new URL(saved), new URL(given.trim())]
+    return a.protocol === b.protocol && a.host === b.host
+  } catch {
+    return false
+  }
 }
 
 function testSummary(test: LiveTvTest, keyTested: boolean) {
