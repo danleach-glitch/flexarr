@@ -227,6 +227,20 @@ public sealed class TitleLinkerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ACopyComingBack_DoesNotUndoMarkingUnwatched()
+    {
+        var hd = Add(_hd, MediaKind.Movie, "Film", tmdb: "1");
+        var uhd = Add(_uhd, MediaKind.Movie, "Film", tmdb: "1");
+        await _db.SaveChangesAsync();
+        _db.PlaybackStates.AddRange(
+            new PlaybackState { MediaItemId = hd.Id, Watched = true, PlayCount = 1, LastPlayedAt = DateTime.UtcNow.AddDays(-9) },
+            new PlaybackState { MediaItemId = uhd.Id, Watched = false, PlayCount = 1, LastPlayedAt = DateTime.UtcNow });
+        await LinkAsync();
+
+        Assert.All(await _db.PlaybackStates.AsNoTracking().ToListAsync(), state => Assert.False(state.Watched));
+    }
+
+    [Fact]
     public async Task Saving_WritesWatchStateToEveryCopy_EvenOneThisProfileCannotSee()
     {
         var hd = Add(_hd, MediaKind.Movie, "Film", tmdb: "1");
