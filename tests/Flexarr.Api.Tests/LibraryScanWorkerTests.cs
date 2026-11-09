@@ -840,7 +840,11 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
         var probe = new FailingProbe(times: 0);
         var (first, library, title) = await FilmToScanAsync(probe);
         first.Dispose();
-        using var host = factory.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.ConfigureDbContext<FlexarrDbContext>(o => o.AddInterceptors(busy))));
+        using var host = factory.WithWebHostBuilder(b => b.ConfigureTestServices(s =>
+        {
+            s.AddSingleton<IMediaProbe>(probe); // without it, the real ffprobe, which CI doesn't have
+            s.ConfigureDbContext<FlexarrDbContext>(o => o.AddInterceptors(busy));
+        }));
         var queue = new LibraryScanQueue();
         busy.Arm();
         await queue.EnqueueAsync(new LibraryScanRequest(title, FolderWatcher.Reason));
