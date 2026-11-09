@@ -69,12 +69,14 @@ object DeviceCapabilities {
 
     /**
      * How tall a picture the server may send as it is. The server takes one height for every codec, so it's the height of
-     * the codec the big files come in that this device decodes: a 4K H.264 decoder says nothing about 4K HEVC. Decoding
-     * that codec only in software can't keep up with more than 1080p.
+     * the codec the big files come in that has a hardware decoder here: a 4K H.264 decoder says nothing about a 1080p
+     * HEVC one. A codec with only a software decoder has no say, or it would have 4K files in other codecs, which the
+     * hardware plays, converted. Where one height doesn't suit (4K HEVC sent to that software decoder, 1440p H.264 to a
+     * 1080p decoder), an error decoding has the server convert after all (`DECODER_ERRORS` in [PlaybackController]).
      */
-    internal fun maxHeight(decoders: Set<String>, heights: Map<String, Int>): Int {
-        val decides = LARGE_FILE_CODECS.firstOrNull { it in decoders } ?: return 1080
-        return maxOf(heights[decides] ?: 1080, 1080)
+    internal fun maxHeight(heights: Map<String, Int>): Int {
+        val decides = LARGE_FILE_CODECS.firstOrNull { it in heights } ?: return 1080
+        return maxOf(heights.getValue(decides), 1080)
     }
 
     /**
@@ -159,7 +161,7 @@ object DeviceCapabilities {
             audioCodecs = (decoded + passedThrough).distinct(),
             hdr = hdr10 || hlg || dolbyVision,
             // A 1080p screen still takes 4K files when a decoder does: it scales them itself, so the server needn't convert.
-            maxHeight = maxHeight(decoders, facts.decoderHeights),
+            maxHeight = maxHeight(facts.decoderHeights),
             // Android mixes surround down for headphones and speakers itself.
             maxAudioChannels = 8,
             maxBitrate = 0,
@@ -230,6 +232,7 @@ object DeviceCapabilities {
             screen(context)?.let { "Screen: ${it.width}×${it.height} at ${rate(it.refreshRate)} Hz; switches to ${it.refreshRates.joinToString { r -> rate(r) }} Hz" },
             "HDR: ${hdrNames(facts.hdrTypes).ifEmpty { listOf("none") }.joinToString()}",
             "4K decoding: ${if (profile.maxHeight >= 2160) "yes" else "no"}",
+            "Hardware decoders: ${facts.decoderHeights.entries.sortedBy { it.key }.joinToString { "${it.key.substringAfterLast('/')} ${it.value}p" }.ifEmpty { "none" }}",
             "Surround to the output: ${surroundNames(facts.passthrough).ifEmpty { listOf("none") }.joinToString()}${if (facts.passesThrough) "" else " (decoded here)"}",
             "Sent to the server: video ${profile.videoCodecs.joinToString()}; audio ${profile.audioCodecs.joinToString()}",
         )

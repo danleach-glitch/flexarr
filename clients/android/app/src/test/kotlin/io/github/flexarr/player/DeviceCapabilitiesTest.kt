@@ -50,8 +50,12 @@ class DeviceCapabilitiesTest {
     @Test fun fourKH264_saysNothingAboutHevc() {
         val heights = mapOf("video/avc" to 2160, "video/hevc" to 1080)
         assertEquals(1080, DeviceCapabilities.profile(facts(heights = heights)).maxHeight)
-        // HEVC only in software can't keep up with 4K either.
-        assertEquals(1080, DeviceCapabilities.profile(facts(heights = mapOf("video/avc" to 2160))).maxHeight)
+    }
+
+    @Test fun hevcOnlyInSoftware_hasNoSay() {
+        // In the decoders, but not the hardware's: the 4K files the hardware plays aren't sent converted.
+        assertEquals(2160, DeviceCapabilities.profile(facts(heights = mapOf("video/avc" to 2160))).maxHeight)
+        assertEquals(2160, DeviceCapabilities.profile(facts(heights = mapOf("video/x-vnd.on2.vp9" to 2160, "video/avc" to 1080))).maxHeight)
     }
 
     @Test fun fourKHevc_isntHeldBackByH264() {
