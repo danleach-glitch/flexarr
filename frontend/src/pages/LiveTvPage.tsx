@@ -1,7 +1,7 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PageError, PageLoading } from '../components/PageStatus'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { freshly, getLiveChannels, getLiveGuide, getLiveProgramme, getLiveTvStatus, refreshLiveTv, type LiveChannel, type LiveGuide, type LiveProgramme, type LiveTvStatus } from '../api/client'
+import { ApiError, freshly, getLiveChannels, getLiveGuide, getLiveProgramme, getLiveTvStatus, refreshLiveTv, UnauthorizedError, type LiveChannel, type LiveGuide, type LiveProgramme, type LiveTvStatus } from '../api/client'
 import { IconButton } from '../components/AsyncButton'
 import { FavouriteButton } from '../components/FavouriteButton'
 import { RecordControls } from '../components/RecordControls'
@@ -153,7 +153,9 @@ export default function LiveTvPage() {
       // Also drops any look still on its way from before the press.
       reloadStatus()
     } catch (e) {
-      setRefreshFailed(e instanceof Error ? e.message : String(e))
+      // The server's own words if it gave any; otherwise the browser's, which nobody should read, and the next look that gets an answer clears it.
+      if (e instanceof ApiError || e instanceof UnauthorizedError) setRefreshFailed(e.message)
+      else setNoAnswer(true)
     }
   }
 

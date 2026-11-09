@@ -373,14 +373,49 @@ describe('refreshing the Live TV guide', () => {
       20000,
     )
 
-    it('keeps the server’s words when it refuses the press', async () => {
+    it(
+      'a press that fails on the network says so in its own words, until the next look that gets an answer',
+      fake(async () => {
+        const state = server()
+        state.postAnswer = () => {
+          throw new TypeError('Failed to fetch')
+        }
+        openPage(true)
+        fireEvent.click(await screen.findByRole('button', { name: 'Refresh guide' }))
+
+        await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(word))
+        expect(screen.queryByText('Failed to fetch')).toBeNull()
+        expect(state.posts).toBe(1)
+        expect(screen.getByRole('button', { name: 'Refresh guide' })).toBeInTheDocument()
+
+        await passes(10_500)
+        await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+      }),
+      20000,
+    )
+
+    it('doesn’t call being signed out no answer', async () => {
       const state = server()
-      state.postAnswer = () => new Response(JSON.stringify({ title: 'Not now' }), { status: 400 })
+      state.postAnswer = () => new Response('', { status: 401 })
       openPage(true)
       fireEvent.click(await screen.findByRole('button', { name: 'Refresh guide' }))
-      await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Not now'))
-      expect(screen.getByRole('button', { name: 'Refresh guide' })).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('API key required'))
     })
+
+    it(
+      'keeps the server’s words when it refuses the press, through later looks',
+      fake(async () => {
+        const state = server()
+        state.postAnswer = () => new Response(JSON.stringify({ title: 'Not now' }), { status: 400 })
+        openPage(true)
+        fireEvent.click(await screen.findByRole('button', { name: 'Refresh guide' }))
+        await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Not now'))
+        expect(screen.getByRole('button', { name: 'Refresh guide' })).toBeInTheDocument()
+        await passes(61_000)
+        expect(screen.getByRole('alert')).toHaveTextContent('Not now')
+      }),
+      20000,
+    )
 
     // The count is kept in memory: a restart takes it back to 0, which may be what it was, and takes the refresh with it.
     it.each([0, 4])(
