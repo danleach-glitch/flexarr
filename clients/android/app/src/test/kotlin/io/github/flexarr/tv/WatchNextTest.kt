@@ -4,7 +4,9 @@ import androidx.tvprovider.media.tv.TvContractCompat
 import io.github.flexarr.AppLink
 import io.github.flexarr.core.Artwork
 import io.github.flexarr.core.ItemSummary
+import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.MediaKind
+import io.github.flexarr.core.Profile
 import io.github.flexarr.core.UserData
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -107,5 +109,43 @@ class WatchNextTest {
         assertEquals(listOf("next", "film"), first.map { it.id })
         assertFalse(first[0].played)
         assertTrue(first[1].played)
+    }
+
+    private fun profile(id: String, current: Boolean = false, main: Boolean = false, pin: Boolean = false) =
+        Profile(id = id, name = id, color = "#fff", hasPin = pin, isMain = main, isCurrent = current)
+
+    @Test fun theChosenProfile_isWhoTheRowIsFor() {
+        val profiles = listOf(profile("main", main = true), profile("mum", current = true))
+        assertEquals("mum", WatchNext.watching(profiles, "mum.sig")?.id)
+    }
+
+    @Test fun aPinAddedToTheChosenProfile_emptiesTheRow() {
+        assertNull(WatchNext.watching(listOf(profile("main", main = true), profile("mum", current = true, pin = true)), "mum.sig"))
+    }
+
+    @Test fun aRetiredTokenAnsweredAsTheMainProfile_emptiesTheRow() {
+        // Mum's PIN changed her token's signature: a server-key sign-in then acts as the main profile, which has no PIN.
+        val profiles = listOf(profile("main", main = true, current = true), profile("mum", pin = true))
+        assertNull(WatchNext.watching(profiles, "mum.sig"))
+    }
+
+    @Test fun nobodyCurrent_emptiesTheRow() {
+        assertNull(WatchNext.watching(listOf(profile("main", main = true), profile("mum")), "mum.sig"))
+    }
+
+    @Test fun nobodyChosen_oneProfile_isTheMainOne() {
+        assertEquals("main", WatchNext.watching(listOf(profile("main", main = true, current = true)), null)?.id)
+    }
+
+    @Test fun nobodyChosen_severalProfiles_emptiesTheRow() {
+        assertNull(WatchNext.watching(listOf(profile("main", main = true, current = true), profile("mum")), null))
+    }
+
+    @Test fun aRefusal_emptiesTheRow_butBeingOfflineKeepsIt() {
+        assertTrue(WatchNext.isRefused(FlexarrException.Unauthorized()))
+        assertTrue(WatchNext.isRefused(FlexarrException.Http(403, null)))
+        assertTrue(WatchNext.isRefused(FlexarrException.KidsLocked(null)))
+        assertFalse(WatchNext.isRefused(FlexarrException.Http(500, null)))
+        assertFalse(WatchNext.isRefused(FlexarrException.Unreachable(java.io.IOException())))
     }
 }
