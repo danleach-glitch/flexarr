@@ -2021,9 +2021,9 @@ export const forgetPin = (id: string, adminPin: string) => request<Profile>('POS
 /** Changing or removing the admin PIN takes `currentPin`, or `apiKey` if it's forgotten. */
 type ProfileChanges = { name: string; color: string; pin?: string; removePin?: boolean; hiddenLibraryIds?: string[]; currentPin?: string; apiKey?: string }
 
-/** A profile's age limit (null for none) and whether it's a child's; a kids profile always has a limit. */
 export type RatingSystem = 'uk' | 'us'
 
+/** A profile's age limit (null for none) and whether it's a child's; a kids profile always has a limit. */
 export type AgeLimit = { maxRatingAge: number | null; isKids: boolean }
 
 export const getProfiles = (signal?: AbortSignal) => cachedGet<Profile[]>('/profiles', signal, 5 * 60_000)
