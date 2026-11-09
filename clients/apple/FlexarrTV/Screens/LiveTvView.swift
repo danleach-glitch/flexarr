@@ -236,9 +236,7 @@ struct LiveTvView: View {
         Button { chosen = value } label: {
             HStack(spacing: 14) {
                 if let systemImage {
-                    Image(systemName: systemImage)
-                        .foregroundStyle(value == .favourites ? Self.gold : Color.usher)
-                        .frame(width: 32)
+                    CategoryIcon(systemImage: systemImage, tint: value == .favourites ? Self.gold : Color.usher)
                 } else {
                     Color.clear.frame(width: 32, height: 1)
                 }
@@ -351,6 +349,19 @@ private struct CategoryButtonStyle: ButtonStyle {
                 .scaleEffect(isFocused ? 1.04 : 1)
                 .animation(.spring(response: 0.25, dampingFraction: 0.8), value: isFocused)
         }
+    }
+}
+
+/// A category's icon, dark on the focused row's light fill, where its own colour could vanish.
+private struct CategoryIcon: View {
+    let systemImage: String
+    let tint: Color
+    @Environment(\.isFocused) private var isFocused
+
+    var body: some View {
+        Image(systemName: systemImage)
+            .foregroundStyle(isFocused ? Color.room : tint)
+            .frame(width: 32)
     }
 }
 
