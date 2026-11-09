@@ -340,6 +340,44 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
     }
 
     [Fact]
+    public async Task TheAddedEvent_SkipsAnEpisodeThatOnlyMoved_AndAnnouncesANewOne()
+    {
+        var since = DateTime.UtcNow.AddMinutes(-1);
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var library = new Library { Name = $"Moved shows {Guid.NewGuid():N}", Type = LibraryType.TvShows };
+        db.Libraries.Add(library);
+        await db.SaveChangesAsync();
+        const string Tvdb = "949100";
+        MediaItem Season(string folder, DateTime seen)
+        {
+            var series = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Series, Title = "Severance", SortTitle = "Severance", TvdbId = Tvdb, FirstSeenAt = seen, Path = folder };
+            var season = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Season, Title = "Season 1", SortTitle = "Season 1", SeasonNumber = 1, Parent = series, FirstSeenAt = seen };
+            db.MediaItems.AddRange(series, season);
+            return season;
+        }
+
+        MediaItem Episode(MediaItem season, int number, DateTime seen) =>
+            new() { LibraryId = library.Id, Kind = MediaKind.Episode, Title = $"Episode {number}", SortTitle = $"Episode {number}", SeasonNumber = 1, EpisodeNumber = number, Parent = season, FirstSeenAt = seen };
+        var before = Season($"/shows/{Guid.NewGuid():N}", DateTime.UtcNow.AddDays(-30));
+        var now = Season($"/shows/{Guid.NewGuid():N}", DateTime.UtcNow);
+        var moved = Episode(now, 1, DateTime.UtcNow);
+        var fresh = Episode(now, 2, DateTime.UtcNow);
+        db.MediaItems.AddRange(Episode(before, 1, DateTime.UtcNow.AddDays(-30)), moved, fresh);
+        await db.SaveChangesAsync();
+
+        var events = factory.Services.GetRequiredService<Flexarr.Api.Events.PlaybackEvents>();
+        using var listener = events.Listen(added: true);
+        using var worker = new LibraryScanWorker(new RecordingScanQueue(), factory.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance,
+            factory.Services.GetRequiredService<LibraryWorkGate>(), events: events);
+        await worker.AnnounceAddedAsync(db, [library.Id], since, default);
+
+        Assert.True(listener.Added.TryRead(out var announced));
+        Assert.Equal(fresh.Id, announced!.Item.Id);
+        Assert.False(listener.Added.TryRead(out _));
+    }
+
+    [Fact]
     public async Task ANewFilm_IsAnnouncedOnTheEventStream()
     {
         using var host = factory.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.AddSingleton<IMediaProbe>(new FixedProbe())));

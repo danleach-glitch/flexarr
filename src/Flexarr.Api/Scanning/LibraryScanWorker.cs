@@ -400,13 +400,20 @@ public sealed partial class LibraryScanWorker(
             SeriesImdb = i.Parent != null && i.Parent.Parent != null ? i.Parent.Parent.ImdbId : null,
         }).FirstAsync(ct);
         var earlier = items.Where(i => i.Id != id && i.Kind == item.Kind && i.FirstSeenAt < since);
-        return item.Kind switch
+        if (item.Kind == MediaKind.Episode)
         {
-            MediaKind.Movie => await earlier.AnyAsync(i => (item.TmdbId != null && i.TmdbId == item.TmdbId) || (item.TvdbId != null && i.TvdbId == item.TvdbId) || (item.ImdbId != null && i.ImdbId == item.ImdbId), ct),
-            MediaKind.Episode => await earlier.AnyAsync(i => i.SeasonNumber == item.SeasonNumber && i.EpisodeNumber == item.EpisodeNumber && i.Parent != null && i.Parent.Parent != null
-                && ((item.SeriesTmdb != null && i.Parent.Parent.TmdbId == item.SeriesTmdb) || (item.SeriesTvdb != null && i.Parent.Parent.TvdbId == item.SeriesTvdb) || (item.SeriesImdb != null && i.Parent.Parent.ImdbId == item.SeriesImdb)), ct),
-            _ => await earlier.AnyAsync(i => i.Title == item.Title && i.Parent != null && i.Parent.Title == item.ParentTitle, ct),
-        };
+            // The series by its indexed ids first, then only its episodes: season and episode numbers have no index, so
+            // asking for them outright reads every earlier episode in the library.
+            var series = await items.Where(i => i.Kind == MediaKind.Series
+                && ((item.SeriesTmdb != null && i.TmdbId == item.SeriesTmdb) || (item.SeriesTvdb != null && i.TvdbId == item.SeriesTvdb) || (item.SeriesImdb != null && i.ImdbId == item.SeriesImdb)))
+                .Select(i => i.Id).ToListAsync(ct);
+            return series.Count > 0 && await earlier.AnyAsync(i => i.SeasonNumber == item.SeasonNumber && i.EpisodeNumber == item.EpisodeNumber
+                && i.Parent != null && i.Parent.ParentId != null && series.Contains(i.Parent.ParentId.Value), ct);
+        }
+
+        return item.Kind == MediaKind.Movie
+            ? await earlier.AnyAsync(i => (item.TmdbId != null && i.TmdbId == item.TmdbId) || (item.TvdbId != null && i.TvdbId == item.TvdbId) || (item.ImdbId != null && i.ImdbId == item.ImdbId), ct)
+            : await earlier.AnyAsync(i => i.Title == item.Title && i.Parent != null && i.Parent.Title == item.ParentTitle, ct);
     }
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "{Path} was already scanned since it last changed")]
