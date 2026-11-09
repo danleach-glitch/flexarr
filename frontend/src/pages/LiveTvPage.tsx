@@ -48,6 +48,8 @@ export default function LiveTvPage() {
   const [refreshed, setRefreshed] = useState(0)
   const [refreshFailed, setRefreshFailed] = useState<string>()
   const [refreshWorked, setRefreshWorked] = useState(false)
+  // Waited as long as the server should need, and it's still going: how many had finished when this one was asked for.
+  const [takingAWhile, setTakingAWhile] = useState<{ finished: number | null | undefined }>()
   const badLooks = useRef(0)
   const { reload: reloadStatus, loading: statusLoading } = status
   // A look still on its way isn't cut off by the next, or a slow connection would never get an answer.
@@ -88,10 +90,23 @@ export default function LiveTvPage() {
   }, [refresh, status.error, finishRefresh])
   useEffect(() => {
     if (!refresh) return
-    const giveUp = setTimeout(() => finishRefresh(Words.guideTakingAWhile), REFRESH_GIVES_UP_MS)
+    const { refreshesFinished } = refresh.before
+    const giveUp = setTimeout(() => {
+      finishRefresh()
+      setTakingAWhile({ finished: refreshesFinished })
+    }, REFRESH_GIVES_UP_MS)
     return () => clearTimeout(giveUp)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one wait per refresh, however often it's seen
   }, [!!refresh])
+  // It ends in its own time, and then what's shown catches up, as the words promise.
+  useEffect(() => {
+    if (!takingAWhile || !status.data) return
+    const { refreshing, refreshesFinished, error, downloadError } = status.data
+    if (refreshesFinished != null ? refreshesFinished === takingAWhile.finished : refreshing) return
+    setTakingAWhile(undefined)
+    setRefreshed((n) => n + 1)
+    setRefreshWorked(!error && !downloadError)
+  }, [takingAWhile, status.data])
   useEffect(() => {
     if (!refreshWorked) return
     const hide = setTimeout(() => setRefreshWorked(false), 6000)
@@ -101,6 +116,7 @@ export default function LiveTvPage() {
   async function startRefresh() {
     setRefreshFailed(undefined)
     setRefreshWorked(false)
+    setTakingAWhile(undefined)
     badLooks.current = 0
     try {
       const before = await freshly(() => getLiveTvStatus())
@@ -175,6 +191,7 @@ export default function LiveTvPage() {
         <div role="status">
           {refreshing && <span className="visually-hidden">{t(Words.refreshingGuide)}</span>}
           {refreshWorked && <p className="muted livetv-missing">{t(Words.guideRefreshed)}</p>}
+          {takingAWhile && <p className="muted livetv-missing">{t(Words.guideTakingAWhile)}</p>}
           {!!status.data?.channelsWithoutListings && (
             <p className="muted livetv-missing">
               {t('{count, plural, one {# channel has no listings} other {# channels have no listings}}', { count: status.data.channelsWithoutListings })}{' '}

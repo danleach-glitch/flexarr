@@ -137,6 +137,78 @@ describe('refreshing the Live TV guide', () => {
     expect(button).not.toHaveAttribute('aria-disabled')
   }, 15000)
 
+  it('after the wait, says it’s taking a while beside any real failure, then catches up when it ends', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      let refreshing = false
+      let finished = 4
+      let downloadError: string | null = 'A source failed earlier'
+      let channelFetches = 0
+      mockApi({
+        '/livetv/status': () => ({ configured: true, channels: 20, refreshing, refreshedAt: null, error: null, downloadError, rewindMinutes: 0, refreshesFinished: finished }),
+        '/livetv/channels': () => {
+          channelFetches++
+          return []
+        },
+        '/livetv/refresh': () => {
+          refreshing = true
+          return {}
+        },
+      })
+      openPage(true)
+      const button = await screen.findByRole('button', { name: 'Refresh guide' })
+      fireEvent.click(button)
+      await waitFor(() => expect(button).toHaveAccessibleName('Refreshing…'))
+
+      await vi.advanceTimersByTimeAsync(6 * 60_000 + 1000)
+
+      const note = await screen.findByText(/This is taking a while/)
+      expect(note).toHaveClass('muted')
+      expect(note.closest('[role="alert"]')).toBeNull()
+      expect(note.closest('[role="status"]')).not.toBeNull()
+      // Nothing failed by waiting, and the failure that did happen isn't hidden.
+      expect(screen.getByRole('alert')).toHaveTextContent('A source failed earlier')
+      expect(screen.queryByText('Guide refreshed')).toBeNull()
+      expect(button).toHaveAccessibleName('Refreshing…')
+
+      const before = channelFetches
+      refreshing = false
+      finished = 5
+      downloadError = null
+      await vi.advanceTimersByTimeAsync(2500)
+
+      await waitFor(() => expect(screen.queryByText(/This is taking a while/)).toBeNull())
+      await waitFor(() => expect(channelFetches).toBeGreaterThan(before))
+      expect(await screen.findByText('Guide refreshed')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  }, 30000)
+
+  it('keeps a source’s failure through a refresh that didn’t ask the sources, and doesn’t say it worked', async () => {
+    let finished = 4
+    const downloadError = 'A source failed earlier'
+    mockApi({
+      '/livetv/status': () => ({ configured: true, channels: 20, refreshing: false, refreshedAt: '2026-11-09T10:00:00Z', error: null, downloadError, rewindMinutes: 0, refreshesFinished: finished }),
+      '/livetv/channels': [],
+      // Within the 15 minutes: the guide is read again, the sources aren't asked, and the server keeps the failure.
+      '/livetv/refresh': () => {
+        finished++
+        return {}
+      },
+    })
+    openPage(true)
+    const button = await screen.findByRole('button', { name: 'Refresh guide' })
+    await screen.findByText(downloadError)
+
+    fireEvent.click(button)
+    await waitFor(() => expect(button).toHaveAccessibleName('Refreshing…'))
+    await waitFor(() => expect(button).toHaveAccessibleName('Refresh guide'), { timeout: 5000 })
+
+    expect(screen.getByRole('alert')).toHaveTextContent(downloadError)
+    expect(screen.queryByText('Guide refreshed')).toBeNull()
+  }, 15000)
+
   it('isn’t offered to other profiles', async () => {
     mockApi({
       '/livetv/status': { configured: true, channels: 20, refreshing: false, refreshedAt: null, error: null, rewindMinutes: 0, channelsWithoutListings: 3 },
