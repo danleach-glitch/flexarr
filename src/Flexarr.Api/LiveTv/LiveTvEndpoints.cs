@@ -68,6 +68,14 @@ public static partial class LiveTvEndpoints
         _ => Loc.T("Flexarr couldn’t ask Dispatcharr to download its guides."),
     };
 
+    /// <summary>The last refresh's failure, in this request's language when it's Flexarr's own words.</summary>
+    private static string? RefreshErrorText(LiveTvStatus status) => status.Problem switch
+    {
+        LiveTvRefreshProblem.GuideUnreadable => Loc.T("The guide from the Live TV source couldn’t be read."),
+        LiveTvRefreshProblem.DidntFinish => Loc.T("The Live TV refresh didn’t finish."),
+        _ => status.Error,
+    };
+
     /// <summary>The status is asked for a lot, and the count only changes as programmes run out or a refresh finishes (which clears it).</summary>
     private static readonly TimeSpan MissingKeptFor = TimeSpan.FromMinutes(1);
 
@@ -100,7 +108,7 @@ public static partial class LiveTvEndpoints
                 }
             }
 
-            return new LiveTvStatusDto(available, channels, status.Refreshing, refreshed, main ? status.Error : null, o?.RewindMinutes ?? 60, missing,
+            return new LiveTvStatusDto(available, channels, status.Refreshing, refreshed, main ? RefreshErrorText(status) : null, o?.RewindMinutes ?? 60, missing,
                 main && !string.IsNullOrEmpty(o?.AdminApiKey) ? DownloadErrorText(status.DownloadProblem) : null, main ? status.RefreshesFinished : null);
         }).WithTags("Live TV");
 

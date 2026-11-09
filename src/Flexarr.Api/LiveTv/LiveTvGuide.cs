@@ -7,6 +7,14 @@ using Microsoft.Extensions.Options;
 
 namespace Flexarr.Api.LiveTv;
 
+/// <summary>A refresh's failure that's put in words per request, in the language of whoever's asking.</summary>
+public enum LiveTvRefreshProblem
+{
+    None,
+    GuideUnreadable,
+    DidntFinish,
+}
+
 /// <summary>How the last refresh of the channels and guide went, for Settings › Connections.</summary>
 public sealed class LiveTvStatus
 {
@@ -15,6 +23,9 @@ public sealed class LiveTvStatus
     public bool Refreshing { get; private set; }
     public DateTime? RefreshedAt { get; private set; }
     public string? Error { get; private set; }
+
+    /// <summary>What <see cref="Error"/> is, when it isn't the source's own words.</summary>
+    public LiveTvRefreshProblem Problem { get; private set; }
 
     /// <summary>What went wrong the last time Dispatcharr was asked to download its guides, until a refresh has moved on from it.</summary>
     public GuideDownloadProblem DownloadProblem { get; private set; }
@@ -102,12 +113,13 @@ public sealed class LiveTvStatus
         }
     }
 
-    internal void Finished(DateTime at, string? error)
+    internal void Finished(DateTime at, string? error, LiveTvRefreshProblem problem = LiveTvRefreshProblem.None)
     {
         lock (_lock)
         {
             Refreshing = false;
             Error = error;
+            Problem = problem;
             RefreshesFinished++;
             AttemptedAt = at;
             _missing = null;
@@ -247,6 +259,7 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
         }
 
         string? error = null;
+        var problem = LiveTvRefreshProblem.None;
         try
         {
             var (channels, changed) = await SyncChannelsAsync(account, now, stamp: refreshing, ct);
@@ -267,20 +280,20 @@ public sealed partial class LiveTvGuide(FlexarrDbContext db, XtreamClient client
         }
         catch (XmlException ex)
         {
-            error = "The guide from the Live TV source couldn't be read.";
+            (error, problem) = ("The guide from the Live TV source couldn’t be read.", LiveTvRefreshProblem.GuideUnreadable);
             LogFailed(ex.Message);
         }
         catch (Exception) when (!ct.IsCancellationRequested)
         {
             // Anything else (the database, the connection dropping part-way) is a failed refresh too; the worker logs it.
-            error = "The Live TV refresh didn't finish.";
+            (error, problem) = ("The Live TV refresh didn’t finish.", LiveTvRefreshProblem.DidntFinish);
             throw;
         }
         finally
         {
             if (refreshing || error is not null)
             {
-                status.Finished(now, error);
+                status.Finished(now, error, problem);
             }
         }
     }

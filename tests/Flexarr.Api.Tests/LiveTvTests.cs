@@ -812,6 +812,19 @@ public sealed class LiveTvTests : IDisposable
     }
 
     [Fact]
+    public async Task A_guide_that_cant_be_read_is_said_in_flexarrs_own_words()
+    {
+        var client = Client();
+        await ConnectAsync(client);
+        _dispatcharr.Guide = "<tv><programme";
+
+        await RefreshAsync();
+
+        Assert.Equal("The guide from the Live TV source couldn’t be read.", (await client.GetFromJsonAsync<JsonElement>(Api("livetv/status"))).GetProperty("error").GetString());
+        Assert.Equal(LiveTvRefreshProblem.GuideUnreadable, _server.Services.GetRequiredService<LiveTvStatus>().Problem);
+    }
+
+    [Fact]
     public async Task The_limit_on_downloads_holds_when_one_goes_wrong_part_way()
     {
         var client = Client();
