@@ -24,6 +24,8 @@ struct LiveTvView: View {
     /// A recording was set or taken off while the guide couldn't be fetched for it (Recordings was shown, or the guide
     /// was already being asked for): the next fetch is for its marks, whatever is kept.
     @State private var marksChanged = false
+    /// Why the guide couldn't be asked for just now.
+    @State private var guideProblem: String?
     /// How many recordings are coming up, for the sidebar.
     @State private var upcoming: Int?
     /// What went wrong refreshing the guide.
@@ -65,7 +67,7 @@ struct LiveTvView: View {
                                           onWatch: { model.watch($0, among: order) },
                                           onFavourite: { setFavourite($0, !$0.isFavourite) },
                                           onRecordingsChanged: { Task { await loadGuide(force: true) } }, records: !model.hasAgeLimit,
-                                          onWindow: { showingUntil = $0 })
+                                          onWindow: { showingUntil = $0 }, note: guideIsShort ? guideProblem : nil)
                         }
                     }
                     .padding(.leading, Layout.edge)
@@ -96,6 +98,14 @@ struct LiveTvView: View {
             while !Task.isCancelled {
                 await loadGuide(countsUpcoming: true)
                 try? await Task.sleep(for: .seconds(300))
+            }
+        }
+        // Rows with no way into them: sooner than the next look.
+        .task(id: guideIsShort && guideProblem != nil) {
+            guard guideIsShort, guideProblem != nil else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(30))
+                if !Task.isCancelled { await loadGuide() }
             }
         }
         // The list shown changes when the channels arrive, and when a favourite is starred on another device.
@@ -326,12 +336,20 @@ struct LiveTvView: View {
         }
         asking = request
         defer { if asking == request { asking = nil } }
-        if let loaded = try? await client.liveGuide(request, kept: kept) {
-            kept = loaded
+        do {
+            kept = try await client.liveGuide(request, kept: kept)
+            guideProblem = nil
             if force { marksChanged = false }
-        } else if force {
-            marksChanged = true
+        } catch {
+            if !Task.isCancelled { guideProblem = t("Couldn’t load the guide: {error}", ["error": ConnectionError(error).message]) }
+            if force { marksChanged = true }
         }
+    }
+
+    /// Channels on screen that the kept guide hasn't got, so whose rows have nothing in them.
+    private var guideIsShort: Bool {
+        let had = Set(kept?.guide.channels.map(\.id) ?? [])
+        return channels(in: category).contains { !had.contains($0.id) }
     }
 
     private func load() async {

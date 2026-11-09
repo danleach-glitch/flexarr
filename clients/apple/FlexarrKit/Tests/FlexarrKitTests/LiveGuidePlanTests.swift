@@ -82,8 +82,8 @@ struct LiveGuidePlanTests {
         #expect(tv(every, .favourites, shown: ["a"]) == nil)
         // A favourite starred elsewhere that the favourites guide hasn't got: every channel, rather than the same again.
         #expect(tv(favourites, .favourites, shown: ["a", "c"])?.scope == .all)
-        // A channel that even every channel's guide hasn't got (just added): nothing to ask for until it's due.
-        #expect(tv(every, .all, shown: ["a", "b", "new"]) == nil)
+        // A channel that even every channel's guide hasn't got (just added): the same question, which its ETag makes cheap.
+        #expect(tv(every, .all, shown: ["a", "b", "new"]) == all)
         // A recording changed on Favourites with every channel kept: still every channel.
         #expect(tv(every, .favourites, shown: ["a"], force: true)?.scope == .all)
     }

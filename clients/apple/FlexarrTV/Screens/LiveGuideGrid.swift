@@ -22,6 +22,8 @@ struct LiveGuideGrid: View {
     var records = true
     /// The end of the window, each time it moves: the guide is fetched further ahead as it nears the end of it.
     var onWindow: ((Date) -> Void)? = nil
+    /// Said quietly above the channels (the guide couldn't be fetched for some of them).
+    var note: String? = nil
 
     /// Where focus is in the grid: a programme, or the cell of a channel with nothing listed in the window.
     private enum GridFocus: Hashable {
@@ -60,6 +62,9 @@ struct LiveGuideGrid: View {
             let perSecond = width / Self.window
             VStack(alignment: .leading, spacing: 0) {
                 timeline(width: width)
+                if let note {
+                    Text(note).font(.system(size: 22)).foregroundStyle(Color.usher).lineLimit(1)
+                }
                 if guide == nil {
                     StatusView(state: .loading)
                 } else {
