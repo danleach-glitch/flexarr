@@ -230,6 +230,76 @@ class LiveTvRefreshTest {
         assertEquals(1, model.liveTvRefreshesEnded)
     }
 
+    private fun assertEndedSilently(ended: Int) {
+        assertEquals("The screens still hear, to load again", ended, model.liveTvRefreshesEnded)
+        assertNull(model.takeLiveTvRefreshEnd())
+        assertFalse(model.isLiveTvRefreshTakingAWhile)
+    }
+
+    @Test fun afterNoAnswer_aServerThatRestarted_endsSilently() {
+        lostTheServer()
+        statusAnswer = TestServer.json(status(finished = 0))
+        lookAtStatus()
+        assertEndedSilently(ended = 2)
+        lookAtStatus()
+        assertEndedSilently(ended = 2)
+    }
+
+    @Test fun afterNoAnswer_aSaidNoAnswerNobodyHasSeen_goesWithTheRestart() {
+        refreshAsked()
+        statusAnswer = TestServer.json("{}", 502)
+        server.waitUntil("the refresh") { model.liveTvRefreshesEnded == 1 }
+        statusAnswer = TestServer.json(status(finished = 0))
+        lookAtStatus()
+        assertEndedSilently(ended = 2)
+    }
+
+    @Test fun afterNoAnswer_theServersOwnRefreshAfterARestart_isNews() {
+        lostTheServer()
+        statusAnswer = TestServer.json(status(refreshing = true, finished = 0))
+        lookAtStatus()
+        assertTrue(model.takeLiveTvRefreshEnd()!!.isTakingAWhile)
+        statusAnswer = TestServer.json(status(finished = 1))
+        lookAtStatus()
+        assertEquals(3, model.liveTvRefreshesEnded)
+        assertTrue(model.takeLiveTvRefreshEnd()!!.worked)
+    }
+
+    @Test fun aSlowRefresh_thenARestart_endsSilently() {
+        givenUpOn()
+        statusAnswer = TestServer.json(status(finished = 0))
+        lookAtStatus()
+        assertEndedSilently(ended = 2)
+    }
+
+    @Test fun aRestartQuickEnoughNotToBeGivenUpOn_endsSilently() {
+        refreshAsked()
+        statusAnswer = TestServer.json(status(finished = 0))
+        server.waitUntil("the refresh") { model.liveTvRefreshesEnded == 1 }
+        assertEndedSilently(ended = 1)
+    }
+
+    @Test fun aRestartQuickEnoughNotToBeGivenUpOn_itsOwnRefreshIsNews() {
+        refreshAsked()
+        statusAnswer = TestServer.json(status(refreshing = true, finished = 0))
+        server.waitUntil("the look") { server.requestsTo("/livetv/status").size >= 3 }
+        statusAnswer = TestServer.json(status(finished = 1, extra = ""","error":"No sources""""))
+        server.waitUntil("the refresh") { model.liveTvRefreshesEnded == 1 }
+        assertEquals("No sources", model.takeLiveTvRefreshEnd()!!.words)
+    }
+
+    @Test fun aServerThatDoesntCount_endsAsItAlwaysHas() {
+        val old = """{"configured":true,"channels":1,"refreshing":false}"""
+        statusAnswer = TestServer.json(old)
+        refreshAsked()
+        statusAnswer = TestServer.json("{}", 502)
+        server.waitUntil("the refresh") { model.liveTvRefreshesEnded == 1 }
+        assertEquals(Words.serverDidntAnswer, model.takeLiveTvRefreshEnd()!!.words)
+        statusAnswer = TestServer.json(old)
+        lookAtStatus()
+        assertTrue(model.takeLiveTvRefreshEnd()!!.worked)
+    }
+
     @Test fun aLook_saysWhetherTheServerWasHeardFrom() {
         assertTrue(lookAtStatus())
         statusAnswer = TestServer.json("{}", 502)

@@ -1588,6 +1588,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** It was given up on because the server stopped answering, which has been said and may no longer be so. */
     private var liveTvRefreshUnanswered = false
 
+    /** The server's count of finished refreshes when one given up on was last known to be going: see [LiveTvStatus.finishedSince]. */
+    private var liveTvRefreshFinishedBefore: Int? = null
+
     /**
      * How the last refresh went, once: kept until a Live TV screen is there to say it, so one that ends while you're in
      * Recordings or Settings isn't lost. Only for whoever asked for it, and not long: come back tomorrow and it's nothing
@@ -1617,8 +1620,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                     liveTvRefreshGivenUpFor = credentials
                     liveTvRefreshLastRunning = SystemClock.elapsedRealtime()
                     liveTvRefreshUnanswered = end.noAnswer
+                    liveTvRefreshFinishedBefore = end.finishedBefore
                 }
-                liveTvRefreshOutcome(end)
+                if (end.restarted) null else liveTvRefreshOutcome(end)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -1627,7 +1631,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             } finally {
                 if (liveTvRefreshFor === credentials) liveTvRefreshFor = null
             }
-            liveTvRefreshEnd.ended(credentials, outcome)
+            // Nothing to say, and nothing earlier still waiting to be: the screens only hear to look again.
+            if (outcome != null) liveTvRefreshEnd.ended(credentials, outcome) else liveTvRefreshEnd.take(credentials)
             liveTvRefreshesEnded++
         }
     }
@@ -1647,6 +1652,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             if (isLiveTvRefreshTakingAWhile) {
                 if (status.refreshing) {
                     liveTvRefreshLastRunning = SystemClock.elapsedRealtime()
+                    liveTvRefreshFinishedBefore = status.refreshesFinished
                     // Answering again and still at it: "didn't answer" is out of date.
                     if (liveTvRefreshUnanswered) {
                         liveTvRefreshUnanswered = false
@@ -1654,10 +1660,15 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                         liveTvRefreshesEnded++
                     }
                 } else {
-                    // One given up on has now finished: say how, as nobody's still waiting to.
+                    // One given up on has now finished: say how, as nobody's still waiting to. Unless it went with a
+                    // server restart, when it never finished: nothing to say, not even that it didn't answer.
                     liveTvRefreshGivenUpFor = null
                     liveTvRefreshUnanswered = false
-                    liveTvRefreshEnd.ended(credentials, liveTvRefreshOutcome(LiveTvRefreshEnd(status)), at = liveTvRefreshLastRunning)
+                    if (status.finishedSince(liveTvRefreshFinishedBefore)) {
+                        liveTvRefreshEnd.ended(credentials, liveTvRefreshOutcome(LiveTvRefreshEnd(status)), at = liveTvRefreshLastRunning)
+                    } else {
+                        liveTvRefreshEnd.take(credentials)
+                    }
                     liveTvRefreshesEnded++
                 }
             }

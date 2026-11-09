@@ -70,6 +70,13 @@ data class LiveTvStatus(
         if (refreshesFinished != null && was != null) return refreshesFinished != was
         return sawRefreshing || refreshedAt != before?.refreshedAt || error != before?.error || downloadError != before?.downloadError || looks >= 8
     }
+
+    /**
+     * Whether a refresh has finished since the count stood at [finishedBefore]. It starts again when the server does, so one
+     * that hasn't risen went with a restart and never got to finish. Older servers don't count: taken as having finished.
+     */
+    fun finishedSince(finishedBefore: Int?): Boolean =
+        refreshesFinished == null || finishedBefore == null || refreshesFinished > finishedBefore
 }
 
 /** A programme in the guide. */
@@ -291,9 +298,16 @@ suspend fun FlexarrClient.liveTvStatus(): LiveTvStatus? =
 /**
  * How a refresh ended. [status]: as it last stood. [stillGoing]: it hadn't finished when the wait ran out, which isn't a
  * failure (the server carries on), so its last result isn't this refresh's [problem]. [noAnswer]: asked, then the server
- * stopped answering as it was looked in on.
+ * stopped answering as it was looked in on. [restarted]: the server restarted and the refresh went with it, so there's
+ * nothing to say. [finishedBefore]: for one not over, what [LiveTvStatus.finishedSince] should go by.
  */
-data class LiveTvRefreshEnd(val status: LiveTvStatus?, val stillGoing: Boolean = false, val noAnswer: Boolean = false) {
+data class LiveTvRefreshEnd(
+    val status: LiveTvStatus?,
+    val stillGoing: Boolean = false,
+    val noAnswer: Boolean = false,
+    val restarted: Boolean = false,
+    val finishedBefore: Int? = null,
+) {
     val problem: String? get() = if (stillGoing) null else status?.error ?: status?.downloadError
 }
 
@@ -306,6 +320,8 @@ suspend fun FlexarrClient.refreshLiveTv(): LiveTvRefreshEnd {
     send("POST", "livetv/refresh")
     var sawRefreshing = false
     var badLooks = 0
+    // One seen running ends one above where the count is then, which after a restart (and its own refresh) is lower.
+    var finishedBefore = before?.refreshesFinished
     repeat(180) { look ->
         kotlinx.coroutines.delay(2_000)
         val status = try {
@@ -314,11 +330,12 @@ suspend fun FlexarrClient.refreshLiveTv(): LiveTvRefreshEnd {
             throw e
         } catch (e: Exception) {
             // The server carries on without us: a phone changing network doesn't make the refresh a failure.
-            if (++badLooks >= 3) return LiveTvRefreshEnd(null, noAnswer = true)
+            if (++badLooks >= 3) return LiveTvRefreshEnd(null, noAnswer = true, finishedBefore = finishedBefore)
             return@repeat
         }
         sawRefreshing = sawRefreshing || status.refreshing
-        if (status.finishedRefresh(before, sawRefreshing, looks = look + 1)) return LiveTvRefreshEnd(status)
+        if (status.refreshing) finishedBefore = status.refreshesFinished
+        if (status.finishedRefresh(before, sawRefreshing, looks = look + 1)) return LiveTvRefreshEnd(status, restarted = !status.finishedSince(finishedBefore))
     }
     val last = try {
         liveTvStatus()
@@ -327,7 +344,7 @@ suspend fun FlexarrClient.refreshLiveTv(): LiveTvRefreshEnd {
     } catch (_: Exception) {
         null
     }
-    return LiveTvRefreshEnd(last, stillGoing = true)
+    return LiveTvRefreshEnd(last, stillGoing = true, finishedBefore = finishedBefore)
 }
 
 /** Every channel's programmes from [from] for [hours] (at most a day). */
