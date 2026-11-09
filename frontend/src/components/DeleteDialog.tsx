@@ -40,7 +40,7 @@ export function DeleteDialog({ item, onDeleted, onClose }: { item: ItemSummary; 
     setBusy(true)
     setError(undefined)
     try {
-      await deleteItem(item.id)
+      await deleteItem(item.id, (plan.data?.copies?.length ?? 0) > 1)
       onDeleted()
     } catch (e) {
       setError(e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e))

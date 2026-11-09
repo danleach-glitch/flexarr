@@ -23,7 +23,7 @@ Copies are always found through `db.MediaItems`, whose filter applies the profil
 - **Watch state** is written to every copy for that profile (`FlexarrDbContext` does this when it saves), so a list query reads a title's state without knowing about links. When copies link, a title is watched if any copy was (unless the latest change was marking it unwatched), and the newest position wins.
 - **Lists** show a linked title once: search, Home rows, Continue Watching, people pages and smart collections. A library's own page still lists everything in that library, and manual collections and playlists keep what was added.
 - **Show pages** combine the seasons and episodes of the copies a profile can see.
-- **Delete** removes every copy in every library, including ones hidden from the current profile. The dialog names each one.
+- **Delete** in the dialog removes every copy in every library, including ones hidden from the current profile, and names each one. It asks for that with `DELETE /items/{id}?allCopies=true`; a plain `DELETE` takes only the item named, as it always has. Copies in a library hidden from the current profile take the admin PIN.
 
 ## What counts as a version
 

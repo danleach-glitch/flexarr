@@ -391,7 +391,7 @@ public class DeleteTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
             Assert.Equal(2, plan!.Copies!.Length);
             Assert.Equal(["Radarr", "Radarr 4K"], plan.Copies.Select(c => c.ManagedBy!).Order());
 
-            var response = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{hd}", UriKind.Relative));
+            var response = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{hd}?allCopies=true", UriKind.Relative));
 
             Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
             Assert.Contains("DELETE /api/v3/movie/7?deleteFiles=true&addImportExclusion=false", arr.Requests);
@@ -408,6 +408,24 @@ public class DeleteTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
     }
 
     [Fact]
+    public async Task APlainDelete_TakesOnlyTheCopyNamed()
+    {
+        var arr = new FakeArr();
+        using var app = WithSecondRadarr(arr, factory);
+        var (hd, uhd, _, _, _, root) = await AddLinkedFilmAsync(app, arr);
+
+        var response = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{hd}", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Contains("DELETE /api/v3/movie/7?deleteFiles=true&addImportExclusion=false", arr.Requests);
+        Assert.DoesNotContain("DELETE /api/v3/movie/9?deleteFiles=true&addImportExclusion=false", arr.Requests);
+        using var check = app.Services.CreateScope();
+        var left = await check.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaItems.SingleAsync(i => i.Id == uhd);
+        Assert.Null(left.LinkGroupId);
+        Directory.Delete(root, recursive: true);
+    }
+
+    [Fact]
     public async Task ACopyThatWontDelete_IsReported_AndStays_WhileTheOtherGoes()
     {
         var arr = new FakeArr();
@@ -417,7 +435,7 @@ public class DeleteTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
             ? throw new HttpRequestException("no", null, HttpStatusCode.InternalServerError)
             : Task.CompletedTask;
 
-        var response = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{hd}", UriKind.Relative));
+        var response = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{hd}?allCopies=true", UriKind.Relative));
 
         Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
         Assert.Contains("Deleted 1 of 2 copies", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);

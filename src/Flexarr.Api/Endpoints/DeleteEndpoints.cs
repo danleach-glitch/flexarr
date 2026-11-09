@@ -17,7 +17,7 @@ namespace Flexarr.Api.Endpoints;
 /// <summary>What deleting a title will do: Radarr or Sonarr delete it, or (when neither manages it) Flexarr deletes these files.</summary>
 /// <param name="ManagedBy">The app that deletes it, if one does.</param>
 /// <param name="Files">What Flexarr deletes itself: all its files if no app manages it, or a managed episode's extra files.</param>
-/// <param name="Copies">Each copy of a linked title, all of which go. Absent from servers before 0.64, and for a title with one copy.</param>
+/// <param name="Copies">Each copy of a linked title, all of which go when the delete asks for allCopies. Absent from servers before 0.64, and for a title with one copy.</param>
 public sealed record DeletionDto(string? ManagedBy, IReadOnlyList<string> Files, IReadOnlyList<DeletionCopyDto>? Copies = null);
 
 /// <summary>One copy of a title being deleted: which library it's in, who deletes it, and the files Flexarr deletes itself.</summary>
@@ -50,7 +50,9 @@ public static partial class DeleteEndpoints
                 : new DeletionDto(instance?.Name, instance is null ? await FilesAsync(db, item, ct) : await ExtrasAsync(db, item, instance, Manager(item, options.CurrentValue).ArrId, options.CurrentValue, arr, ct)));
         }).WithTags("Items").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
 
-        api.MapDelete("/items/{id:guid}", async (Guid id, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, ILoggerFactory logs, Books.BookFileConverter converter,
+        // Deletes the item named, and every copy of it only when asked to with ?allCopies=true (added in 0.64): a caller
+        // that doesn't know about copies mustn't take a copy in another library with it.
+        api.MapDelete("/items/{id:guid}", async (Guid id, bool? allCopies, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, ILoggerFactory logs, Books.BookFileConverter converter,
             Microsoft.Extensions.Caching.Memory.IMemoryCache cache, CancellationToken ct) =>
         {
             var item = await db.MediaItems.AsNoTracking().Include(i => i.Parent).ThenInclude(p => p!.Parent).FirstOrDefaultAsync(i => i.Id == id, ct);
@@ -60,7 +62,7 @@ public static partial class DeleteEndpoints
             }
 
             return LooksForOwner(item, options.CurrentValue)
-                ? await DeleteCopiesAsync(db, item, options, arr, logs, converter, cache, ct)
+                ? await DeleteCopiesAsync(db, item, allCopies == true, options, arr, logs, converter, cache, ct)
                 : await DeleteOneAsync(db, item, Manager(item, options.CurrentValue), options, arr, logs, converter, cache, ct);
         }).WithTags("Items").RequireAuthorization(FlexarrClaims.MainProfilePolicy);
 
@@ -80,13 +82,14 @@ public static partial class DeleteEndpoints
     };
 
     /// <summary>
-    /// Deletes every copy of a linked title, in every library, whoever can see them. Each goes through whichever Radarr or
-    /// Sonarr holds its files, or from disk if none does. One that fails doesn't stop the others, and is reported.
+    /// Deletes a title, or with <paramref name="allCopies"/> every copy of a linked one, in every library, whoever can see
+    /// them. Each goes through whichever Radarr or Sonarr holds its files, or from disk if none does. One that fails
+    /// doesn't stop the others, and is reported.
     /// </summary>
-    private static async Task<IResult> DeleteCopiesAsync(FlexarrDbContext db, MediaItem item, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, ILoggerFactory logs,
+    private static async Task<IResult> DeleteCopiesAsync(FlexarrDbContext db, MediaItem item, bool allCopies, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, ILoggerFactory logs,
         Books.BookFileConverter converter, Microsoft.Extensions.Caching.Memory.IMemoryCache cache, CancellationToken ct)
     {
-        var copies = await CopiesAsync(db, item, ct);
+        var copies = allCopies ? await CopiesAsync(db, item, ct) : [item];
         var libraries = await db.Libraries.AsNoTracking().IgnoreQueryFilters().ToDictionaryAsync(l => l.Id, l => l.Name, ct);
         var failures = new List<string>();
         var status = StatusCodes.Status502BadGateway;

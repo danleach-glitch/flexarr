@@ -830,13 +830,13 @@ const deleted = new Set<string>()
 export interface DeletionPlan {
   managedBy: string | null
   files: string[]
-  /** Each copy of a title in more than one library, all of which go. Absent from servers before 0.64. */
+  /** Each copy of a title in more than one library, all of which go when the delete asks for them. Absent from servers before 0.64. */
   copies?: { itemId: string; library: string; managedBy: string | null; files: string[] }[] | null
 }
 export const getDeletion = (id: string, signal?: AbortSignal) => apiGet<DeletionPlan>(`/items/${seg(id)}/deletion`, signal)
-/** Deletes a film, show or episode and its files, through Radarr or Sonarr when they manage it (main profile only). */
-export async function deleteItem(id: string) {
-  await request<void>('DELETE', `/items/${seg(id)}`)
+/** Deletes a film, show or episode and its files, through Radarr or Sonarr when they manage it (main profile only). `allCopies` takes every library's copy. */
+export async function deleteItem(id: string, allCopies = false) {
+  await request<void>('DELETE', `/items/${seg(id)}${allCopies ? '?allCopies=true' : ''}`)
   deleted.add(id)
 }
 /** Whether `id` was deleted from this browser (a page kept for going back may still show it). */
