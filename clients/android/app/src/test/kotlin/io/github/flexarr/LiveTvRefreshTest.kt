@@ -2,6 +2,7 @@ package io.github.flexarr
 
 import android.app.Application
 import android.os.Looper
+import io.github.flexarr.core.LiveTvStatus
 import io.github.flexarr.core.i18n.Words
 import kotlinx.coroutines.launch
 import mockwebserver3.MockResponse
@@ -25,10 +26,11 @@ class LiveTvRefreshTest {
         """{"configured":true,"channels":1,"refreshing":$refreshing,"refreshesFinished":$finished$extra}"""
 
     @Volatile private var statusAnswer: MockResponse = TestServer.json(status())
+    @Volatile private var refreshAnswer: MockResponse = MockResponse.Builder().code(202).build()
     private val server = TestServer { request ->
         when {
             request.url.encodedPath.endsWith("/livetv/status") -> statusAnswer
-            request.url.encodedPath.endsWith("/livetv/refresh") -> MockResponse.Builder().code(202).build()
+            request.url.encodedPath.endsWith("/livetv/refresh") -> refreshAnswer
             else -> null
         }
     }
@@ -129,6 +131,121 @@ class LiveTvRefreshTest {
         val said = model.takeLiveTvRefreshEnd()!!
         assertEquals(Words.serverDidntAnswer, said.words)
         assertTrue(said.isProblem)
+    }
+
+    /** Asked, then the server stops answering for long enough to be told so. */
+    private fun lostTheServer() {
+        refreshAsked()
+        statusAnswer = TestServer.json("{}", 502)
+        server.waitUntil("the refresh") { model.liveTvRefreshesEnded == 1 }
+        assertEquals(Words.serverDidntAnswer, model.takeLiveTvRefreshEnd()!!.words)
+        assertTrue("The server carries on without us", model.isLiveTvRefreshTakingAWhile)
+    }
+
+    @Test fun afterNoAnswer_aLookThatStillFails_changesNothing() {
+        lostTheServer()
+        lookAtStatus()
+        assertEquals(1, model.liveTvRefreshesEnded)
+        assertTrue(model.isLiveTvRefreshTakingAWhile)
+    }
+
+    @Test fun afterNoAnswer_theEndIsSaidAtTheNextLook() {
+        lostTheServer()
+        statusAnswer = TestServer.json(status(finished = 5))
+        lookAtStatus()
+        assertEquals(2, model.liveTvRefreshesEnded)
+        assertFalse(model.isLiveTvRefreshTakingAWhile)
+        assertTrue(model.takeLiveTvRefreshEnd()!!.worked)
+
+        lookAtStatus()
+        assertEquals("Said once", 2, model.liveTvRefreshesEnded)
+    }
+
+    @Test fun afterNoAnswer_aFailedEndIsSaidToo() {
+        lostTheServer()
+        statusAnswer = TestServer.json(status(finished = 5, extra = ""","error":"No sources""""))
+        lookAtStatus()
+        assertEquals("No sources", model.takeLiveTvRefreshEnd()!!.words)
+    }
+
+    @Test fun afterNoAnswer_stillRunning_saysSoOnce_thenHowItEnded() {
+        lostTheServer()
+        statusAnswer = TestServer.json(status(refreshing = true))
+        lookAtStatus()
+        assertEquals(2, model.liveTvRefreshesEnded)
+        assertTrue("Replaces the line that says it didn't answer", model.takeLiveTvRefreshEnd()!!.isTakingAWhile)
+        assertTrue(model.isLiveTvRefreshTakingAWhile)
+
+        lookAtStatus()
+        assertEquals(2, model.liveTvRefreshesEnded)
+        assertNull(model.takeLiveTvRefreshEnd())
+
+        statusAnswer = TestServer.json(status(finished = 5))
+        lookAtStatus()
+        assertEquals(3, model.liveTvRefreshesEnded)
+        assertTrue(model.takeLiveTvRefreshEnd()!!.worked)
+    }
+
+    @Test fun afterNoAnswer_anEndLongAfter_isntAnnounced_butTheScreensStillHear() {
+        lostTheServer()
+        pass(Duration.ofMinutes(5))
+        statusAnswer = TestServer.json(status(finished = 5))
+        lookAtStatus()
+        assertEquals(2, model.liveTvRefreshesEnded)
+        assertNull(model.takeLiveTvRefreshEnd())
+        assertFalse(model.isLiveTvRefreshTakingAWhile)
+    }
+
+    @Test fun afterNoAnswer_aNewRefreshStartsAfresh() {
+        lostTheServer()
+        statusAnswer = TestServer.json(status(refreshing = true))
+        refreshAsked()
+        assertFalse(model.isLiveTvRefreshTakingAWhile)
+        lookAtStatus()
+        assertEquals("No news from the old one while the new one's waited for", 1, model.liveTvRefreshesEnded)
+        statusAnswer = TestServer.json(status(finished = 5))
+        server.waitUntil("the refresh") { model.liveTvRefreshesEnded == 2 }
+        assertTrue(model.takeLiveTvRefreshEnd()!!.worked)
+    }
+
+    @Test fun aRefusedRefresh_isntGivenUpOn_soIsntAnnouncedAsDone() {
+        refreshAnswer = TestServer.json("""{"title":"Unlock first"}""", 403)
+        refreshAndWait()
+        assertTrue(model.takeLiveTvRefreshEnd()!!.isProblem)
+        assertFalse(model.isLiveTvRefreshTakingAWhile)
+        lookAtStatus()
+        assertEquals(1, model.liveTvRefreshesEnded)
+        assertNull(model.takeLiveTvRefreshEnd())
+    }
+
+    @Test fun aServerThatNeverAnswered_wasNeverAsked_soIsntAnnouncedAsDone() {
+        statusAnswer = TestServer.json("{}", 502)
+        refreshAndWait()
+        assertTrue(model.takeLiveTvRefreshEnd()!!.isProblem)
+        assertEquals(0, server.requestsTo("/livetv/refresh").size)
+        assertFalse(model.isLiveTvRefreshTakingAWhile)
+        statusAnswer = TestServer.json(status())
+        lookAtStatus()
+        assertEquals(1, model.liveTvRefreshesEnded)
+    }
+
+    private fun parsed(refreshing: Boolean = false, error: String? = null, downloadError: String? = null, skipped: Boolean = false) =
+        LiveTvStatus(configured = true, channels = 1, refreshing = refreshing, error = error, downloadError = downloadError, downloadSkipped = skipped)
+
+    @Test fun aProblemNote_followsTheStatus() {
+        val note = LiveTvRefreshOutcome("Was wrong", isProblem = true)
+        assertNull("A clean status clears it", note.following(parsed()))
+        assertEquals("Under way settles nothing", note, note.following(parsed(refreshing = true)))
+        assertEquals("No status settles nothing", note, note.following(null))
+        assertEquals("Now wrong", note.following(parsed(error = "Now wrong"))?.words)
+        val kept = note.following(parsed(downloadError = "Source failed", skipped = true))!!
+        assertEquals("Source failed", kept.words)
+        assertEquals(Words.guideSourcesAskedRecently, kept.sourcesNote)
+    }
+
+    @Test fun aNoteThatWorked_isLeftAlone() {
+        val worked = LiveTvRefreshOutcome("Guide refreshed")
+        assertEquals(worked, worked.following(parsed(error = "Later failure")))
     }
 
     @Test fun aSourceNotAskedAgain_saysSoBesideItsFailure_andOnlyThen() {

@@ -2,6 +2,7 @@ package io.github.flexarr.ui.tv
 
 import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.LiveTvRefreshOutcome
+import io.github.flexarr.following
 import io.github.flexarr.core.i18n.t
 import android.text.format.DateFormat
 import androidx.compose.foundation.background
@@ -248,7 +249,7 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
     val scope = rememberCoroutineScope()
     var channels by remember { mutableStateOf<List<LiveChannel>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    // How refreshing the guide went: one that worked says so in its button for a while, a problem stays until the next.
+    // How refreshing the guide went: one that worked says so in its button for a while, a problem lasts as long as it does.
     var refreshNote by remember { mutableStateOf<LiveTvRefreshOutcome?>(null) }
     // The guide on screen, with what it was asked for and its ETag.
     var kept by remember { mutableStateOf<KeptGuide?>(null) }
@@ -333,9 +334,11 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
     LaunchedEffect(model.liveTvRefreshesEnded) {
         val ended = model.takeLiveTvRefreshEnd()
         // Taking a while says itself, for as long as it does.
-        ended?.takeUnless { it.isTakingAWhile }?.let { refreshNote = it }
+        ended?.let { refreshNote = it.takeUnless { outcome -> outcome.isTakingAWhile } }
         if (model.liveTvRefreshesEnded != refreshesSeen) {
             refreshesSeen = model.liveTvRefreshesEnded
+            // Ended too long ago to announce, but a red line doesn't outlast it.
+            if (ended == null) refreshNote = refreshNote?.following(model.liveTvStatus)
             load()
             loadGuide(true)
         }
@@ -344,6 +347,9 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
             refreshNote = null
         }
     }
+    // A later status (a scheduled refresh has been through since, say) replaces a problem, or clears it.
+    val liveTvStatus = model.liveTvStatus
+    LaunchedEffect(liveTvStatus) { refreshNote = refreshNote?.following(liveTvStatus) }
     // The count of what's set to record every five minutes, on its own: not again for each category moved onto.
     RepeatWhileShowing(300_000, model.credentials) { loadUpcoming() }
     // The guide (a few hours of it) every five minutes, and more of it as the guide's moved on or another category's
@@ -370,7 +376,8 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
             add(note.words to Flexarr.danger)
             note.sourcesNote?.let { add(it to Flexarr.usher) }
         }
-        if (model.isLiveTvRefreshTakingAWhile) add(t(Words.guideTakingAWhile) to Flexarr.usher)
+        // Not under "didn't answer", which is all that's known until the server answers again.
+        if (model.isLiveTvRefreshTakingAWhile && refreshNote?.isProblem != true) add(t(Words.guideTakingAWhile) to Flexarr.usher)
         val missing = model.liveTvStatus?.channelsWithoutListings ?: 0
         if (missing > 0) add(t("{count, plural, one {# channel has no listings} other {# channels have no listings}}", "count" to missing) to Flexarr.usher)
     }

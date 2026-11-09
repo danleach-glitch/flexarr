@@ -1585,6 +1585,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** When one given up on was last known to be running: it ended some time after this. */
     private var liveTvRefreshLastRunning = 0L
 
+    /** It was given up on because the server stopped answering, which has been said and may no longer be so. */
+    private var liveTvRefreshUnanswered = false
+
     /**
      * How the last refresh went, once: kept until a Live TV screen is there to say it, so one that ends while you're in
      * Recordings or Settings isn't lost. Only for whoever asked for it, and not long: come back tomorrow and it's nothing
@@ -1602,15 +1605,18 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         if (isRefreshingLiveTv) return
         liveTvRefreshFor = credentials
         liveTvRefreshGivenUpFor = null
+        liveTvRefreshUnanswered = false
         scope.launch {
             val outcome = try {
                 val end = client.refreshLiveTv()
                 // Someone else may have been chosen meanwhile, whose status this isn't.
                 if (this@AppModel.credentials != credentials) return@launch
                 end.status?.let { liveTvStatus = it }
-                if (end.stillGoing) {
+                // Asked, and then no answer: the server carries on without us, so that's given up on too.
+                if (end.stillGoing || end.noAnswer) {
                     liveTvRefreshGivenUpFor = credentials
                     liveTvRefreshLastRunning = SystemClock.elapsedRealtime()
+                    liveTvRefreshUnanswered = end.noAnswer
                 }
                 liveTvRefreshOutcome(end)
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -1638,9 +1644,16 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             if (isLiveTvRefreshTakingAWhile) {
                 if (status.refreshing) {
                     liveTvRefreshLastRunning = SystemClock.elapsedRealtime()
+                    // Answering again and still at it: "didn't answer" is out of date.
+                    if (liveTvRefreshUnanswered) {
+                        liveTvRefreshUnanswered = false
+                        liveTvRefreshEnd.ended(credentials, liveTvRefreshOutcome(LiveTvRefreshEnd(status, stillGoing = true)))
+                        liveTvRefreshesEnded++
+                    }
                 } else {
                     // One given up on has now finished: say how, as nobody's still waiting to.
                     liveTvRefreshGivenUpFor = null
+                    liveTvRefreshUnanswered = false
                     liveTvRefreshEnd.ended(credentials, liveTvRefreshOutcome(LiveTvRefreshEnd(status)), at = liveTvRefreshLastRunning)
                     liveTvRefreshesEnded++
                 }
@@ -2143,6 +2156,15 @@ internal fun liveTvRefreshOutcome(end: LiveTvRefreshEnd): LiveTvRefreshOutcome {
         end.stillGoing -> LiveTvRefreshOutcome(t(Words.guideTakingAWhile), isTakingAWhile = true)
         else -> LiveTvRefreshOutcome(t(Words.guideRefreshed))
     }
+}
+
+/**
+ * A problem still on show, once [status] has more to say: a line lasts as long as the problem, so it says what's wrong
+ * now, or goes (null). A refresh under way hasn't settled anything yet.
+ */
+internal fun LiveTvRefreshOutcome.following(status: LiveTvStatus?): LiveTvRefreshOutcome? {
+    if (!isProblem || status == null || status.refreshing) return this
+    return liveTvRefreshOutcome(LiveTvRefreshEnd(status)).takeIf { it.isProblem }
 }
 
 /** The last thing that ended and who for, until it's been seen: by someone else, or [keptMs] on, it's dropped. */
