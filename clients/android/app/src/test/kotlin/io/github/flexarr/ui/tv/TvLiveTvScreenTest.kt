@@ -11,8 +11,6 @@ import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onRoot
-import androidx.compose.ui.test.printToString
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.pressKey
@@ -193,11 +191,7 @@ class TvLiveTvScreenTest {
         press("Try again")
         settle()
         assertEquals(asked + 1, server.requestsTo("/livetv/guide").size)
-        try {
-            rule.onNodeWithText(guideFailure).assertExists()
-        } catch (e: AssertionError) {
-            throw AssertionError("DIAG requests=${server.requestsTo("/livetv/guide").size} screen:\n" + rule.onRoot().printToString(), e)
-        }
+        rule.onNodeWithText(guideFailure).assertExists()
         rule.onNodeWithText("Try again").assertIsFocused()
 
         guideFails = false
