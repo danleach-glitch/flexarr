@@ -1578,6 +1578,10 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     var liveTvRefreshProblem by mutableStateOf<String?>(null)
         private set
 
+    /** The last refresh was still running when the wait for it ran out: neither a problem nor done. */
+    var liveTvRefreshTakingAWhile by mutableStateOf(false)
+        private set
+
     /**
      * Refreshes the channels and guide. It's waited for here rather than on a screen, so going to Recordings and back
      * doesn't lose it.
@@ -1588,14 +1592,16 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         if (isRefreshingLiveTv) return
         liveTvRefreshFor = credentials
         liveTvRefreshProblem = null
+        liveTvRefreshTakingAWhile = false
         scope.launch {
             var problem: String? = null
             try {
-                val status = client.refreshLiveTv()
+                val end = client.refreshLiveTv()
                 // Someone else may have been chosen meanwhile, whose status this isn't.
                 if (this@AppModel.credentials != credentials) return@launch
-                if (status != null) liveTvStatus = status
-                problem = status?.error ?: status?.downloadError
+                end.status?.let { liveTvStatus = it }
+                problem = end.problem
+                liveTvRefreshTakingAWhile = end.stillGoing
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {

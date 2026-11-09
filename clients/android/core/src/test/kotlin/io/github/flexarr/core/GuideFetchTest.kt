@@ -5,7 +5,9 @@ import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
@@ -96,5 +98,35 @@ class GuideFetchTest {
         assertNull(client.liveProgramme(7))
         server.enqueue(MockResponse.Builder().addHeader("Content-Type", "text/html").body("<html></html>").build())
         assertNull(client.liveProgramme(7))
+    }
+
+    private fun status(refreshing: Boolean, finished: Int, error: String? = null) =
+        MockResponse.Builder().addHeader("Content-Type", "application/json").body(
+            """{"configured":true,"channels":1,"refreshing":$refreshing,"refreshesFinished":$finished${if (error != null) ""","error":"$error"""" else ""}}""",
+        ).build()
+
+    private fun answers(vararg responses: MockResponse) = responses.forEach(server::enqueue)
+
+    @Test
+    fun `a refresh still running when the wait runs out isn't done, and isn't its last result's failure`() = runTest {
+        val client = FlexarrClient(server.url("/"), apiKey = "key")
+        answers(status(false, 4, error = "Last time"), MockResponse.Builder().code(202).build())
+        repeat(181) { answers(status(true, 4, error = "Last time")) }
+        val end = client.refreshLiveTv()
+        assertTrue(end.stillGoing)
+        assertNull(end.problem)
+        assertTrue(end.status!!.refreshing)
+    }
+
+    @Test
+    fun `a refresh that finishes says how it went`() = runTest {
+        val client = FlexarrClient(server.url("/"), apiKey = "key")
+        answers(status(false, 4), MockResponse.Builder().code(202).build(), status(true, 4), status(false, 5))
+        val fine = client.refreshLiveTv()
+        assertFalse(fine.stillGoing)
+        assertNull(fine.problem)
+
+        answers(status(false, 5), MockResponse.Builder().code(202).build(), status(false, 6, error = "No sources"))
+        assertEquals("No sources", client.refreshLiveTv().problem)
     }
 }

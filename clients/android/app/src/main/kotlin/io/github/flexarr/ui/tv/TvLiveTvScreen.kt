@@ -326,7 +326,7 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
         if (model.liveTvRefreshesEnded == refreshesSeen) return@LaunchedEffect
         refreshesSeen = model.liveTvRefreshesEnded
         val problem = model.liveTvRefreshProblem
-        refreshNote = problem ?: t(Words.guideRefreshed)
+        refreshNote = problem ?: if (model.liveTvRefreshTakingAWhile) t(Words.guideTakingAWhile) else t(Words.guideRefreshed)
         load()
         loadGuide(true)
         if (problem == null) {
@@ -369,7 +369,7 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
             loaded.isEmpty() -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(t("No channels yet. Dispatcharr gives Flexarr the channels it has for Flexarr’s user."), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
                 if (model.canRefreshLiveTv) {
-                    TvActionButton(t(if (model.isRefreshingLiveTv) Words.refreshingGuide else Words.refreshGuide), onClick = model::refreshLiveTv, prominent = true)
+                    TvActionButton(if (model.isRefreshingLiveTv) t(Words.refreshingGuide) else t(Words.refreshGuide), onClick = model::refreshLiveTv, prominent = true)
                     refreshNote?.let { Text(it, fontSize = 13.sp, color = Flexarr.usher) }
                 }
             }
@@ -399,7 +399,7 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                     if (model.canRefreshLiveTv) {
                         item(key = "refresh") {
                             CategoryButton(
-                                t(if (model.isRefreshingLiveTv) Words.refreshingGuide else Words.refreshGuide),
+                                if (model.isRefreshingLiveTv) t(Words.refreshingGuide) else t(Words.refreshGuide),
                                 selected = false,
                                 icon = FlexarrIcons.refresh,
                                 count = null,

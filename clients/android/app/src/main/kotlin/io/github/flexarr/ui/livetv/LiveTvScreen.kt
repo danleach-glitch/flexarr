@@ -206,7 +206,7 @@ fun LiveTvScreen(model: AppModel) {
         Column {
             PageTitle(t(Words.liveTv), onBack = { navigator.back() }) {
                 if (model.canRefreshLiveTv) {
-                    val refreshLabel = t(if (model.isRefreshingLiveTv) Words.refreshingGuide else Words.refreshGuide)
+                    val refreshLabel = if (model.isRefreshingLiveTv) t(Words.refreshingGuide) else t(Words.refreshGuide)
                     IconButton(enabled = !model.isRefreshingLiveTv, onClick = model::refreshLiveTv, modifier = Modifier.semantics { contentDescription = refreshLabel }) {
                         if (model.isRefreshingLiveTv) {
                             CircularProgressIndicator(Modifier.size(20.dp), color = Flexarr.screen, strokeWidth = 2.dp)
@@ -283,7 +283,7 @@ fun LiveTvScreen(model: AppModel) {
         refreshesSeen = model.liveTvRefreshesEnded
         load()
         refreshed++
-        navigator.notices.showSnackbar(model.liveTvRefreshProblem ?: t(Words.guideRefreshed))
+        navigator.notices.showSnackbar(model.liveTvRefreshProblem ?: if (model.liveTvRefreshTakingAWhile) t(Words.guideTakingAWhile) else t(Words.guideRefreshed))
     }
     notice?.let { message ->
         AlertDialog(

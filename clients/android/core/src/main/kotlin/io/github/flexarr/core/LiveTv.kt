@@ -287,11 +287,18 @@ suspend fun FlexarrClient.liveTvStatus(): LiveTvStatus? =
     }
 
 /**
- * Refreshes the channels and guide (the main profile only), and waits for it: the status once it's done, or as it stands
- * once it's been a while. With an admin key saved, the server has Dispatcharr download its guides first, which takes
+ * How a refresh ended. [status]: as it last stood. [stillGoing]: it hadn't finished when the wait ran out, which isn't a
+ * failure (the server carries on), so its last result isn't this refresh's [problem].
+ */
+data class LiveTvRefreshEnd(val status: LiveTvStatus?, val stillGoing: Boolean = false) {
+    val problem: String? get() = if (stillGoing) null else status?.error ?: status?.downloadError
+}
+
+/**
+ * Refreshes the channels and guide (the main profile only), and waits for it, until it's been a while. With an admin key saved, the server has Dispatcharr download its guides first, which takes
  * minutes at worst. Servers before the release after 0.63 refuse a locked main profile.
  */
-suspend fun FlexarrClient.refreshLiveTv(): LiveTvStatus? {
+suspend fun FlexarrClient.refreshLiveTv(): LiveTvRefreshEnd {
     val before = liveTvStatus()
     send("POST", "livetv/refresh")
     var sawRefreshing = false
@@ -299,7 +306,7 @@ suspend fun FlexarrClient.refreshLiveTv(): LiveTvStatus? {
     repeat(180) { look ->
         kotlinx.coroutines.delay(2_000)
         val status = try {
-            liveTvStatus().also { badLooks = 0 } ?: return null
+            liveTvStatus().also { badLooks = 0 } ?: return LiveTvRefreshEnd(null)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -308,9 +315,16 @@ suspend fun FlexarrClient.refreshLiveTv(): LiveTvStatus? {
             return@repeat
         }
         sawRefreshing = sawRefreshing || status.refreshing
-        if (status.finishedRefresh(before, sawRefreshing, looks = look + 1)) return status
+        if (status.finishedRefresh(before, sawRefreshing, looks = look + 1)) return LiveTvRefreshEnd(status)
     }
-    return liveTvStatus()
+    val last = try {
+        liveTvStatus()
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        null
+    }
+    return LiveTvRefreshEnd(last, stillGoing = true)
 }
 
 /** Every channel's programmes from [from] for [hours] (at most a day). */
