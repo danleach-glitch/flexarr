@@ -88,7 +88,7 @@ export default function LiveTvPage() {
   }, [refresh, status.error, finishRefresh])
   useEffect(() => {
     if (!refresh) return
-    const giveUp = setTimeout(() => finishRefresh(t('This is taking a while. The guide will update when it’s done.')), REFRESH_GIVES_UP_MS)
+    const giveUp = setTimeout(() => finishRefresh(Words.guideTakingAWhile), REFRESH_GIVES_UP_MS)
     return () => clearTimeout(giveUp)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one wait per refresh, however often it's seen
   }, [!!refresh])
@@ -134,7 +134,7 @@ export default function LiveTvPage() {
     <div className="livetv-page">
       <header className="livetv-header">
         <h1 className="livetv-title">{t(Words.liveTv)}</h1>
-        {mainProfile && <IconButton className="button quiet small icon livetv-refresh" label={t('Refresh guide')} icon={<RefreshGuide />} busy={!!refresh || status.data?.refreshing} onClick={startRefresh} />}
+        {mainProfile && <IconButton className="button quiet small icon livetv-refresh" label={Words.refreshGuide} icon={<RefreshGuide />} busy={!!refresh || status.data?.refreshing} onClick={startRefresh} />}
         <div className="season-tabs livetv-tabs" role="tablist" aria-label={t('View')}>
           <button role="tab" aria-selected={view === 'now'} className={view === 'now' ? 'season-tab active' : 'season-tab'} onClick={() => setParams({}, { replace: true })}>
             {t('On now')}
@@ -171,7 +171,7 @@ export default function LiveTvPage() {
       )}
       {mainProfile && (
         <div role="status">
-          {refreshWorked && <p className="muted livetv-missing">{t('Guide refreshed')}</p>}
+          {refreshWorked && <p className="muted livetv-missing">{Words.guideRefreshed}</p>}
           {!!status.data?.channelsWithoutListings && (
             <p className="muted livetv-missing">
               {t('{count, plural, one {# channel has no listings} other {# channels have no listings}}', { count: status.data.channelsWithoutListings })}{' '}

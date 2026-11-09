@@ -33,6 +33,8 @@ public static class Words
     public const string Genres = "Genres";
     public const string GoToArtist = "Go to artist";
     public const string GoToShow = "Go to show";
+    public const string GuideRefreshed = "Guide refreshed";
+    public const string GuideTakingAWhile = "This is taking a while. The guide will update when it’s done.";
     public const string Home = "Home";
     public const string InYourLibrary = "In your library";
     public const string Length = "Length";
@@ -59,6 +61,8 @@ public static class Words
     public const string Rating = "Rating";
     public const string RecentlyAdded = "Recently added";
     public const string RecentlyListened = "Recently listened";
+    public const string RefreshGuide = "Refresh guide";
+    public const string RefreshingGuide = "Refreshing…";
     public const string RemoveFromWatchlist = "Remove from watchlist";
     public const string Request = "Request";
     public const string RequestAlbum = "Request album";

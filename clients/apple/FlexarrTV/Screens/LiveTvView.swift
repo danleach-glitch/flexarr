@@ -162,14 +162,14 @@ struct LiveTvView: View {
                     refreshNote = nil
                     guard let result = await model.refreshLiveTv() else { return }
                     switch result {
-                    case .worked: refreshNote = t("Guide refreshed")
+                    case .worked: refreshNote = Words.guideRefreshed
                     case .failed(let problem): refreshNote = problem
                     }
                     await load()
                     await loadGuide(force: true)
                     if case .worked = result {
                         try? await Task.sleep(for: .seconds(6))
-                        if refreshNote == t("Guide refreshed") { refreshNote = nil }
+                        if refreshNote == Words.guideRefreshed { refreshNote = nil }
                     }
                 }
             } label: {
@@ -179,7 +179,7 @@ struct LiveTvView: View {
                         .symbolEffect(.rotate, options: .repeat(.continuous), isActive: model.isRefreshingLiveTv)
                         .foregroundStyle(Color.usher)
                         .frame(width: 32)
-                    Text(model.isRefreshingLiveTv ? t("Refreshing…") : t("Refresh guide")).lineLimit(1)
+                    Text(model.isRefreshingLiveTv ? Words.refreshingGuide : Words.refreshGuide).lineLimit(1)
                     Spacer(minLength: 8)
                 }
             }

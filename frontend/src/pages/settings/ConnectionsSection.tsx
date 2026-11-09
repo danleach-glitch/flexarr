@@ -855,7 +855,7 @@ function DispatcharrRow({
               </AsyncButton>
             )}
             {liveTv && (
-              <IconButton label={t('Refresh guide')} icon={<Refresh />} busy={refreshing} onClick={() => onRefresh()} />
+              <IconButton label={Words.refreshGuide} icon={<Refresh />} busy={refreshing} onClick={() => onRefresh()} />
             )}
             <AsyncButton
               className="button quiet small"

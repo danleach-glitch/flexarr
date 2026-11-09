@@ -1,6 +1,10 @@
 {
  "about": "Flexarr's shared words (docs/design.md, Words): every platform reads them from here as Words.<name> (C#: Words.<Name>), so changing one is one edit. Typing one of these inline in code is a make strings error. A value may start with a context (music::Play). See docs/languages.md.",
  "words": {
+  "refreshGuide": "Refresh guide",
+  "refreshingGuide": "Refreshing…",
+  "guideRefreshed": "Guide refreshed",
+  "guideTakingAWhile": "This is taking a while. The guide will update when it’s done.",
   "play": "Play",
   "resumeFrom": "Resume from {time}",
   "resumeEpisode": "Resume {episode}",
