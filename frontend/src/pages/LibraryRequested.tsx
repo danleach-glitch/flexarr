@@ -204,9 +204,7 @@ function RequestedCard({ row, square, offline, service, onGone, onRetried }: { r
   const stuck = state === 'couldNotImport'
   const canTryAgain = stuck && !!row.retry
   // Why it couldn't is only about a button that's there.
-  useEffect(() => {
-    if (!canTryAgain) setRetryError(undefined)
-  }, [canTryAgain])
+  if (!canTryAgain && retryError) setRetryError(undefined)
 
   async function retry(event: MouseEvent<HTMLButtonElement>) {
     const button = event.currentTarget
