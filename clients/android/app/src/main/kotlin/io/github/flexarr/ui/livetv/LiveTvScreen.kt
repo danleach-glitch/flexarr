@@ -77,6 +77,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import io.github.flexarr.AppModel
 import io.github.flexarr.appModel
+import io.github.flexarr.refreshFailure
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.LiveChannel
 import io.github.flexarr.core.LiveGuide
@@ -452,16 +453,22 @@ private fun LiveGuideView(
     // What the guide shown was asked for, and the ETag it came with.
     var guideAsk by remember { mutableStateOf<GuideFilter?>(null) }
     var etag by remember { mutableStateOf<String?>(null) }
+    // Why the guide couldn't be fetched, and for which question: said only while there's none to show for it.
+    var problem by remember { mutableStateOf<Pair<GuideFilter, String>?>(null) }
 
     suspend fun load() {
         val asking = ask
-        runCatching {
-            client.liveGuide(windowStart, GUIDE_HOURS, asking, descriptions = false, etag = etag.takeIf { guide != null && guideAsk == asking })
-        }.onSuccess { fetched ->
+        try {
+            val fetched = client.liveGuide(windowStart, GUIDE_HOURS, asking, descriptions = false, etag = etag.takeIf { guide != null && guideAsk == asking })
             // Null when it hadn't changed: the guide shown stands.
             fetched.guide?.let { guide = it }
             etag = fetched.etag
             guideAsk = asking
+            problem = null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            problem = asking to t("Couldn’t load the guide: {error}", "error" to refreshFailure(e))
         }
     }
     RepeatWhileShowing(GUIDE_REFRESH_MS, ask, refreshed) {
@@ -491,10 +498,11 @@ private fun LiveGuideView(
     val channelWidth = 84.dp
     val rowHeight = 56.dp
     val width = perMinute * (GUIDE_HOURS * 60)
-    val loaded = guide ?: return StatusView()
+    @Composable fun waiting() = StatusView(problem?.takeIf { it.first == ask }?.second, retry = { problem = null; scope.launch { load() } })
+    val loaded = guide ?: return waiting()
     val byChannel = loaded.channels.associateBy { it.id }
     // Another view chosen, its channels not in the guide yet: loading, rather than "No listings" for each.
-    if (guideAsk != ask && channels.any { it.id !in byChannel }) return StatusView()
+    if (guideAsk != ask && channels.any { it.id !in byChannel }) return waiting()
     // One sideways position for every row, so the times and all the channels scroll across together.
     val across = rememberScrollState()
 

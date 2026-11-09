@@ -3,6 +3,7 @@ package io.github.flexarr.ui.tv
 import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.LiveTvRefreshOutcome
 import io.github.flexarr.following
+import io.github.flexarr.refreshFailure
 import io.github.flexarr.core.i18n.t
 import android.os.SystemClock
 import android.text.format.DateFormat
@@ -259,6 +260,10 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
     var refreshProblemSaidAt by remember { mutableLongStateOf(0L) }
     // The guide on screen, with what it was asked for and its ETag.
     var kept by remember { mutableStateOf<KeptGuide?>(null) }
+    // Why the guide couldn't be fetched, and for which question: said only while there's none to show for it.
+    var guideProblem by remember { mutableStateOf<Pair<GuideFilter, String>?>(null) }
+    // Focus is on the guide's Try again, which goes when the guide comes.
+    var guideRetryHasFocus by remember { mutableStateOf(false) }
     var upcoming by remember { mutableStateOf<Int?>(null) }
     var chosen by remember { mutableStateOf<Category?>(null) }
     // The category focus is on: shown once it rests there, so holding Down through the list doesn't build each guide.
@@ -332,9 +337,15 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
             return
         }
         val asking = currentAsk
-        runCatching { TvGuideCache.guide(client, guideHours, model.currentProfile?.id, asking, currentIds, kept, fresh) }.onSuccess {
+        try {
+            val fetched = TvGuideCache.guide(client, guideHours, model.currentProfile?.id, asking, currentIds, kept, fresh)
             // A slower answer to an earlier question doesn't replace the guide of a category chosen since.
-            if (asking == currentAsk || kept?.covers(currentAsk, currentIds) != true) kept = it
+            if (asking == currentAsk || kept?.covers(currentAsk, currentIds) != true) kept = fetched
+            if (asking == currentAsk) guideProblem = null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            guideProblem = asking to t("Couldn’t load the guide: {error}", "error" to refreshFailure(e))
         }
     }
     // How a refresh went, once each, and the guide fetched again: the note goes a while after one that worked. Back on
@@ -368,6 +379,8 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
     RepeatWhileShowing(300_000, model.credentials, guideHours, ask, showsGuide) { loadGuide() }
     // Another category chosen, its channels not in the guide yet: loading, rather than "No listings" for each.
     val guide = kept?.takeIf { it.covers(ask, shownIds) }?.guide
+    val guideFailure = guideProblem?.takeIf { showsGuide && guide == null && it.first == ask }?.second
+    val currentGuideFailure by rememberUpdatedState(guideFailure)
 
     fun setFavourite(channel: LiveChannel, favourite: Boolean) {
         channels = channels?.map { if (it.id == channel.id) it.copy(isFavourite = favourite) else it }
@@ -409,7 +422,8 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
             runCatching { categoryList.scrollToItem(currentRowsBeforeGroups + currentGroups.indexOf(group.name).coerceAtLeast(0)) }
         }
         delay(50)
-        runCatching { shownCategory.requestFocus() }
+        // Already failed by now (a server answers fast), Try again has focus and keeps it.
+        if (currentGuideFailure == null) runCatching { shownCategory.requestFocus() }
     }
     LaunchedEffect(takeFocus, channels != null) {
         if (!takeFocus || channels == null) return@LaunchedEffect
@@ -433,6 +447,13 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
         refreshHasFocus = false
         delay(50)
         runCatching { allChannels.requestFocus() }
+    }
+
+    // Its button gone, focus would land anywhere.
+    LaunchedEffect(guideFailure == null) {
+        if (guideFailure != null || !guideRetryHasFocus) return@LaunchedEffect
+        guideRetryHasFocus = false
+        focusShownCategory()
     }
 
     RoomBackground(ambient = null) {
@@ -500,6 +521,12 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                     when {
                         category == Category.Recordings -> TvLiveRecordings(model, onChanged = { scope.launch { loadGuide(fresh = true) } }, onUpcoming = { upcoming = it })
                         category == Category.Favourites && favourites.isEmpty() -> NoFavourites()
+                        guideFailure != null -> TvStatusView(
+                            guideFailure,
+                            retry = { scope.launch { loadGuide() } },
+                            // Only while it's here: the guide arriving isn't focus moving away.
+                            modifier = Modifier.onFocusChanged { if (currentGuideFailure != null) guideRetryHasFocus = it.hasFocus },
+                        )
                         else -> TvLiveGuideGrid(
                             client,
                             shown,

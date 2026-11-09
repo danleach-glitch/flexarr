@@ -8,6 +8,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.navigation.compose.rememberNavController
@@ -42,6 +43,8 @@ class TvLiveTvScreenTest {
     @Volatile private var extra = ""
     @Volatile private var unreachable = false
     @Volatile private var refusal: MockResponse? = null
+    @Volatile private var guideFails = false
+    private val guideHeld = java.util.concurrent.atomic.AtomicReference<java.util.concurrent.CountDownLatch?>()
     private val server = TestServer { request ->
         val path = request.url.encodedPath
         when {
@@ -49,6 +52,11 @@ class TvLiveTvScreenTest {
             path.endsWith("/livetv/channels") -> TestServer.json(channels.joinToString(",", "[", "]"))
             path.endsWith("/livetv/status") && unreachable -> MockResponse.Builder().onResponseStart(SocketEffect.CloseSocket()).build()
             path.endsWith("/livetv/status") -> TestServer.json("""{"configured":true,"channels":2,"refreshing":false,"refreshesFinished":$finished,"channelsWithoutListings":3$extra}""")
+            path.endsWith("/livetv/guide") && guideHeld.get() != null -> {
+                guideHeld.get()?.await(20, java.util.concurrent.TimeUnit.SECONDS)
+                TestServer.json("""{"title":"Too late"}""", 500)
+            }
+            path.endsWith("/livetv/guide") && guideFails -> TestServer.json("""{"title":"Guide broke"}""", 500)
             path.endsWith("/livetv/guide") -> TestServer.json(object {}.javaClass.classLoader!!.getResource("live-guide.json")!!.readText())
             path.endsWith("/livetv/refresh") && refusal != null -> refusal
             path.endsWith("/livetv/refresh") -> MockResponse.Builder().code(202).build().also { finished++ }
@@ -61,10 +69,11 @@ class TvLiveTvScreenTest {
 
     @After fun close() {
         rule.mainClock.autoAdvance = true
+        guideHeld.getAndSet(null)?.countDown()
         server.close()
     }
 
-    private fun show(takeFocus: Boolean = true) {
+    private fun show(takeFocus: Boolean = true, pump: () -> Unit = {}) {
         var signedIn = false
         model.scope.launch {
             model.loadSignIn()
@@ -80,6 +89,7 @@ class TvLiveTvScreenTest {
                 TvLiveTvScreen(model, takeFocus = takeFocus, onFocusTaken = {})
             }
         }
+        pump()
         settle()
     }
 
@@ -92,6 +102,12 @@ class TvLiveTvScreenTest {
             Thread.sleep(10)
             rule.waitForIdle()
         }
+    }
+
+    /** A slow machine's network may need longer than one [settle]. */
+    private fun settleUntilGone(words: String) {
+        var tries = 0
+        while (tries++ < 20 && rule.onAllNodesWithText(words).fetchSemanticsNodes().isNotEmpty()) settle()
     }
 
     private fun press(words: String) = rule.onNodeWithText(words).performSemanticsAction(SemanticsActions.OnClick)
@@ -151,6 +167,89 @@ class TvLiveTvScreenTest {
         refresh()
         rule.onNodeWithText("Unlock first").assertDoesNotExist()
         rule.onNodeWithText(Words.guideRefreshed).assertExists()
+    }
+
+    private val guideFailure = "Couldn’t load the guide: Guide broke"
+
+    @Test fun aFirstGuideThatFails_saysSo_withTryAgainFocused_andTryAgainBringsIt() {
+        guideFails = true
+        show()
+        rule.onNodeWithText(guideFailure).assertExists()
+        rule.onNodeWithText("Try again").assertIsFocused()
+        // Still failing: still there, and still focused.
+        val asked = server.requestsTo("/livetv/guide").size
+        press("Try again")
+        settle()
+        assertEquals(asked + 1, server.requestsTo("/livetv/guide").size)
+        rule.onNodeWithText(guideFailure).assertExists()
+        rule.onNodeWithText("Try again").assertIsFocused()
+
+        guideFails = false
+        press("Try again")
+        settleUntilGone(guideFailure)
+        settle()
+        rule.onNodeWithText(guideFailure).assertDoesNotExist()
+        rule.onNodeWithText("Try again").assertDoesNotExist()
+        rule.onNodeWithText("Channel 1").assertExists()
+        // Its button gone, focus goes back to the category shown rather than anywhere.
+        rule.onNodeWithText("All channels").assertIsFocused()
+    }
+
+    @Test fun aGuideThatFails_thenComesAtTheNextLook_replacesTheWords() {
+        guideFails = true
+        show()
+        rule.onNodeWithText(guideFailure).assertExists()
+        guideFails = false
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idleFor(java.time.Duration.ofMinutes(5))
+        rule.mainClock.advanceTimeBy(300_000)
+        settleUntilGone(guideFailure)
+        rule.onNodeWithText(guideFailure).assertDoesNotExist()
+        rule.onNodeWithText("Channel 1").assertExists()
+    }
+
+    @Test fun aReloadThatFails_withAGuideShowing_changesNothing() {
+        show()
+        rule.onNodeWithText("Channel 1").assertExists()
+        val asked = server.requestsTo("/livetv/guide").size
+        guideFails = true
+        refresh()
+        assertEquals("The refresh asked for the guide again", asked + 1, server.requestsTo("/livetv/guide").size)
+        rule.onNodeWithText(guideFailure).assertDoesNotExist()
+        rule.onNodeWithText("Try again").assertDoesNotExist()
+        rule.onNodeWithText("Channel 1").assertExists()
+    }
+
+    @Test fun aFetchCalledOffByChoosingAnotherCategory_saysNothing() {
+        guideHeld.set(java.util.concurrent.CountDownLatch(1))
+        show()
+        // Nothing asked for in Recordings, so what was on its way is called off, and asked for again on coming back.
+        press("Recordings")
+        settle()
+        press("All channels")
+        settle()
+        rule.onNodeWithText("Couldn’t load the guide", substring = true).assertDoesNotExist()
+        rule.onNodeWithText("Try again").assertDoesNotExist()
+    }
+
+    @Test fun aGuideThatFailsBeforeTheCategoryTakesFocus_leavesItOnTryAgain_thenOnTheCategoryNotJustAnywhere() {
+        guideFails = true
+        // The clock barely moving, so the answer comes inside the wait before a category takes focus, as on a quick network.
+        rule.mainClock.autoAdvance = false
+        show(pump = {
+            var frames = 0
+            while (frames++ < 40 && rule.onAllNodesWithText(guideFailure).fetchSemanticsNodes().isEmpty()) {
+                rule.mainClock.advanceTimeByFrame()
+                org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+                Thread.sleep(40)
+            }
+        })
+        rule.onNodeWithText("Try again").assertIsFocused()
+        guideFails = false
+        press("Try again")
+        settleUntilGone(guideFailure)
+        settle()
+        rule.onNodeWithText("All channels").assertIsFocused()
+        rule.onNodeWithText("No favourites yet").assertDoesNotExist()
     }
 
     @Test fun noFavourites_opensOnAllChannels_notTheEmptyPage() {
