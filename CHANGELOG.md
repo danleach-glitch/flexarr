@@ -4,6 +4,11 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Profiles
+
+- Age limits now use the US's names on a server in the US: **G**, **PG**, **PG-13**, **TV-14** and **R**. Everywhere else they stay **U**, **PG**, **12**, **15** and **18**. Changing them only changes the names, so every profile keeps seeing the same titles.
+- **Country** is now its own setting in **Settings › Overview**, moved from Podcasts, and the setup guide asks for it. It sets the names of age limits, whose certificates titles show first (now including titles from Discover), podcast charts and the Audible store.
+
 ### Live TV
 
 - **Refresh guide** is now on the Live TV page on the web, iPhone, iPad, Mac, Apple TV, Android and Android TV, for the main profile.
