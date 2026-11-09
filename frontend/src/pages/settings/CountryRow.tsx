@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { getPodcastCountries, getSettings, saveSettings } from '../../api/client'
 import { AsyncButton } from '../../components/AsyncButton'
 import { useApi } from '../../hooks/useApi'
@@ -8,33 +8,61 @@ import { t } from '../../i18n'
 import { SettingRow } from './shared'
 import { errorText } from './useSettings'
 
+/** How long a pick waits to be saved: on a closed select, arrow keys and typing a name change it at every step. */
+const SAVE_PAUSE_MS = 600
+
 /** The server's country (saved as the podcast charts', where it began) and everything that hangs off it. */
 function useCountry() {
   const settings = useApi((signal) => getSettings(signal), [])
   const countries = useApi((signal) => getPodcastCountries(signal), [])
   const { me, reloadMe } = useSession()
-  // What's been chosen here, shown from the moment it's picked, with the select held until it's saved.
+  // What's been chosen here, shown from the moment it's picked; the select stays usable, and only the latest pick is saved.
   const [picked, setPicked] = useState<string>()
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string>()
+  const waiting = useRef<{ timer: ReturnType<typeof setTimeout>; send: () => void }>(undefined)
+  const saves = useRef<Promise<unknown>>(Promise.resolve())
+  const latest = useRef(0)
+  const lastSaved = useRef<string>(undefined)
+  // Leaving straight after a pick doesn't lose it.
+  useEffect(
+    () => () => {
+      if (!waiting.current) return
+      clearTimeout(waiting.current.timer)
+      waiting.current.send()
+    },
+    [],
+  )
   const chosen = picked ?? settings.data?.podcasts?.country ?? ''
   const detected = settings.data?.podcasts?.detectedCountry
   const regionName = countries.data?.find((c) => c.code === detected)?.name
 
-  async function choose(country: string) {
-    const before = chosen
+  async function send(country: string, ask: number) {
+    waiting.current = undefined
+    // One at a time, so they can't arrive in the wrong order.
+    const saved = saves.current.catch(() => undefined).then(() => saveSettings({ podcasts: { country } }))
+    saves.current = saved
+    try {
+      await saved
+      lastSaved.current = country
+      if (ask !== latest.current) return
+      setSaving(false)
+      reloadMe?.()
+    } catch (e) {
+      if (ask !== latest.current) return
+      setPicked(lastSaved.current)
+      setSaving(false)
+      setSaveError(errorText(e))
+    }
+  }
+
+  function choose(country: string) {
+    const ask = ++latest.current
     setPicked(country)
     setSaving(true)
     setSaveError(undefined)
-    try {
-      await saveSettings({ podcasts: { country } })
-      reloadMe?.()
-    } catch (e) {
-      setPicked(before)
-      setSaveError(errorText(e))
-    } finally {
-      setSaving(false)
-    }
+    if (waiting.current) clearTimeout(waiting.current.timer)
+    waiting.current = { timer: setTimeout(() => void send(country, ask), SAVE_PAUSE_MS), send: () => void send(country, ask) }
   }
 
   const select = (describedBy?: string, invalid?: boolean, name?: string) => (
@@ -43,8 +71,9 @@ function useCountry() {
       aria-describedby={describedBy}
       aria-invalid={invalid || undefined}
       value={chosen}
-      onChange={(e) => void choose(e.target.value)}
-      disabled={saving || !settings.data || !countries.data}
+      aria-busy={saving || undefined}
+      onChange={(e) => choose(e.target.value)}
+      disabled={!settings.data || !countries.data}
     >
       <option value="">{settings.data && !detected ? t('Not set') : !chosen && regionName ? t('Automatic ({region})', { region: regionName }) : t('Automatic')}</option>
       {countries.data?.map((c) => (
