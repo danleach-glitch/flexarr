@@ -91,7 +91,7 @@ export default function LiveTvPage() {
   useEffect(() => {
     if (!refresh || !status.error) return
     badLooks.current++
-    if (badLooks.current >= 3) finishRefresh(t('Flexarr didn’t answer. Try again.'))
+    if (badLooks.current >= 3) finishRefresh(t(Words.serverDidntAnswer))
   }, [refresh, status.error, finishRefresh])
   useEffect(() => {
     if (!refresh) return

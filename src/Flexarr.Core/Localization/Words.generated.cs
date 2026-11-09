@@ -34,6 +34,7 @@ public static class Words
     public const string GoToArtist = "Go to artist";
     public const string GoToShow = "Go to show";
     public const string GuideRefreshed = "Guide refreshed";
+    public const string GuideSourcesAskedRecently = "Its sources were asked a few minutes ago, so they weren’t asked again.";
     public const string GuideTakingAWhile = "This is taking a while. The guide will update when it’s done.";
     public const string Home = "Home";
     public const string InYourLibrary = "In your library";
@@ -73,6 +74,7 @@ public static class Words
     public const string SeasonEpisodeHeading = "Season {season}, Episode {episode}";
     public const string SeasonEpisodeShort = "S{season}E{episode}";
     public const string Series = "Series";
+    public const string ServerDidntAnswer = "Flexarr didn’t answer. Try again.";
     public const string Settings = "Settings";
     public const string Shows = "Shows";
     public const string Shuffle = "Shuffle";

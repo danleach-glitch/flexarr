@@ -5,6 +5,8 @@
   "refreshingGuide": "Refreshing…",
   "guideRefreshed": "Guide refreshed",
   "guideTakingAWhile": "This is taking a while. The guide will update when it’s done.",
+  "serverDidntAnswer": "Flexarr didn’t answer. Try again.",
+  "guideSourcesAskedRecently": "Its sources were asked a few minutes ago, so they weren’t asked again.",
   "play": "Play",
   "resumeFrom": "Resume from {time}",
   "resumeEpisode": "Resume {episode}",
