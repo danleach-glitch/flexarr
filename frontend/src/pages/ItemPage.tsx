@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { PageError } from '../components/PageStatus'
 import { openAddToCollection } from '../components/AddToCollection'
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
@@ -152,6 +152,7 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   // The order every client shares (docs/design.md › Platforms): Play, Start over, Shuffle, Trailer, Watched, Watchlist,
   // then the ellipsis for everything else, so the row doesn't wrap.
   const more: MenuAction[] = []
+  const moreButton = useRef<HTMLButtonElement>(null)
   const versions = detail.versions ?? []
   const chosenVersion = versions.find((v) => v.chosen)?.fileId ?? null
   if (versions.length > 1) more.push({ label: t(Words.version), run: () => setVersionAt(moreAt) })
@@ -289,7 +290,8 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
                 className="button quiet icon"
                 aria-label={t('More actions')}
                 aria-haspopup="menu"
-                aria-expanded={moreAt !== null}
+                aria-expanded={moreAt !== null || versionAt !== null}
+                ref={moreButton}
                 onClick={(e) => {
                   const r = e.currentTarget.getBoundingClientRect()
                   setMoreAt(moreAt ? null : { x: r.left, y: r.bottom + 6 })
@@ -298,8 +300,8 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
                 <icon.more />
               </button>
             )}
-            {moreAt && <Menu label={t('More for {title}', { title: item.title })} at={moreAt} actions={more} onClose={() => setMoreAt(null)} />}
-            {versionAt && <Menu label={t(Words.version)} at={versionAt} actions={versionMenu} onClose={() => setVersionAt(null)} />}
+            {moreAt && <Menu label={t('More for {title}', { title: item.title })} at={moreAt} actions={more} onClose={() => setMoreAt(null)} focusBack={moreButton} />}
+            {versionAt && <Menu label={t(Words.version)} at={versionAt} actions={versionMenu} onClose={() => setVersionAt(null)} focusBack={moreButton} />}
           </div>
           {subtitlesSaved && (
             <p className="muted" role="status">

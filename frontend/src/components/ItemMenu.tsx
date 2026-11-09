@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router'
 import { addToWatchlist, ApiError, getTracks, watchlistChanged, removeFromContinueWatching, removeFromWatchlist, setBookFinished, setWatched, type ItemSummary } from '../api/client'
@@ -148,9 +148,14 @@ function withoutWatched(actions: MenuAction[]) {
 const ITEM = '[role^="menuitem"]'
 
 /** A popup list of actions, anchored at a point and kept on screen; Escape, Tab or a click elsewhere closes it. */
-export function Menu({ label, at, actions, onClose }: { label: string; at: MenuPoint; actions: MenuAction[]; onClose: () => void }) {
+export function Menu({ label, at, actions, onClose, focusBack }: { label: string; at: MenuPoint; actions: MenuAction[]; onClose: () => void; focusBack?: RefObject<HTMLElement | null> }) {
   const menu = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState(at)
+
+  // Closing puts focus back where it came from, or a keyboard is left at the top of the page. A menu that replaced
+  // another has no opener left of its own, so says what it belongs to.
+  const opener = useRef(document.activeElement as HTMLElement | null)
+  useEffect(() => () => (focusBack?.current ?? (opener.current?.isConnected ? opener.current : null))?.focus(), [focusBack])
 
   // Keep the menu on screen, then focus its first item.
   useLayoutEffect(() => {
