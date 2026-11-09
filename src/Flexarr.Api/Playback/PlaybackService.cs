@@ -487,7 +487,6 @@ public sealed class PlaybackService(
         for (var attempt = 0; ; attempt++)
         {
             var state = await db.PlaybackStates.FirstOrDefaultAsync(p => p.UserId == session.ProfileId && p.MediaItemId == session.ItemId, ct);
-            var added = state is null;
             if (state is null)
             {
                 state = new PlaybackState { UserId = session.ProfileId, MediaItemId = session.ItemId };
@@ -501,10 +500,11 @@ public sealed class PlaybackService(
                 session.CountedAsPlay |= countedPlay;
                 return;
             }
-            catch (DbUpdateException) when (added && attempt == 0)
+            catch (DbUpdateException) when (attempt == 0)
             {
-                // Two first reports for the same item raced and the other inserted the row: apply this one to it.
-                db.Entry(state).State = EntityState.Detached;
+                // Two first reports raced and the other inserted a row, of this copy or of another it's mirrored to:
+                // start again from what's saved, so this one is applied to that.
+                db.ChangeTracker.Clear();
             }
         }
     }

@@ -376,6 +376,27 @@ public sealed class TitleVersionsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task FirstProgressReports_ThatRace_AllGetRecorded()
+    {
+        var client = Client();
+        var sessions = new List<string>();
+        for (var i = 0; i < 6; i++)
+        {
+            var info = await (await client.PostAsJsonAsync(Api("/playback"), new { itemId = i % 2 == 0 ? _hdItem : _uhdItem, profile = Big })).EnsureSuccessStatusCode().Content.ReadFromJsonAsync<JsonElement>();
+            sessions.Add(info.GetProperty("sessionId").GetString()!);
+        }
+
+        var reports = await Task.WhenAll(sessions.Select(s => client.PostAsJsonAsync(Api($"/playback/{s}/progress"), new { positionSeconds = 300 })));
+        Assert.All(reports, r => Assert.True(r.IsSuccessStatusCode, r.StatusCode.ToString()));
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var states = await db.PlaybackStates.IgnoreQueryFilters().Where(p => p.MediaItemId == _hdItem || p.MediaItemId == _uhdItem).ToListAsync();
+        Assert.Equal(2, states.Count);
+        Assert.All(states, p => Assert.Equal(300, p.PositionSeconds));
+    }
+
+    [Fact]
     public async Task AHiddenCopy_AddsNothingToAShow()
     {
         var (hd, _, _) = await SeedShowAsync();
