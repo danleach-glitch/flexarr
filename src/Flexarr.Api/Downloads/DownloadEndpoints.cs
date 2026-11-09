@@ -113,7 +113,9 @@ public static class DownloadEndpoints
             if (item is null || item.Kind is not (MediaKind.Movie or MediaKind.Episode or MediaKind.Track or MediaKind.PodcastEpisode)
                 || (item.Kind == MediaKind.PodcastEpisode
                     ? !await db.PodcastEpisodes.AnyAsync(e => e.MediaItemId == item.Id, ct)
-                    : await BestFileAsync(db, item.Id, ct) is null))
+                    : item.Kind == MediaKind.Track
+                        ? await BestFileAsync(db, item.Id, ct) is null
+                        : (await DownloadSource.FilesAsync(db, item.Id, profile.Id, ct)).Count == 0))
             {
                 return Results.NotFound();
             }

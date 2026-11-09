@@ -366,6 +366,19 @@ public sealed class TitleVersionsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Downloads_CanBeCreatedWhenOnlyAnotherCopyCanBeRead()
+    {
+        await using (var scope = _factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            await db.MediaFiles.IgnoreQueryFilters().Where(f => f.MediaItemId == _hdItem).ExecuteUpdateAsync(u => u.SetProperty(f => f.ProbeError, "unreadable"));
+        }
+
+        var created = await Client().PostAsJsonAsync(Api("/offline"), new { itemId = _hdItem, quality = "Original" });
+        Assert.True(created.IsSuccessStatusCode, created.StatusCode.ToString());
+    }
+
+    [Fact]
     public async Task Downloads_NeverUseACopyOverTheAgeLimit_OrBlocked()
     {
         using var scope = _factory.Services.CreateScope();
