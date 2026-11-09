@@ -52,10 +52,25 @@ class DeviceCapabilitiesTest {
         assertEquals(1080, DeviceCapabilities.profile(facts(heights = heights)).maxHeight)
     }
 
-    @Test fun hevcOnlyInSoftware_hasNoSay() {
-        // In the decoders, but not the hardware's: the 4K files the hardware plays aren't sent converted.
-        assertEquals(2160, DeviceCapabilities.profile(facts(heights = mapOf("video/avc" to 2160))).maxHeight)
-        assertEquals(2160, DeviceCapabilities.profile(facts(heights = mapOf("video/x-vnd.on2.vp9" to 2160, "video/avc" to 1080))).maxHeight)
+    @Test fun hevcOnlyInSoftware_means1080p() {
+        // A 4K HEVC file sent to a software decoder is a slideshow with no error to go on: 4K in other codecs converts instead.
+        val h264 = DeviceCapabilities.profile(facts(heights = mapOf("video/avc" to 2160)))
+        assertEquals(1080, h264.maxHeight)
+        assertTrue("1080p HEVC still plays as it is", "hevc" in h264.videoCodecs)
+        assertEquals(1080, DeviceCapabilities.profile(facts(heights = mapOf("video/x-vnd.on2.vp9" to 2160, "video/avc" to 1080))).maxHeight)
+        assertEquals(1080, DeviceCapabilities.profile(facts(heights = mapOf("video/av01" to 2160))).maxHeight)
+    }
+
+    @Test fun noHevcAtAll_leavesItToTheHardwareThereIs() {
+        val decoders = setOf("video/avc", "video/x-vnd.on2.vp9")
+        assertEquals(2160, DeviceCapabilities.profile(facts(decoders = decoders, heights = mapOf("video/x-vnd.on2.vp9" to 2160, "video/avc" to 1080))).maxHeight)
+    }
+
+    @Test fun softwareAv1_changesNothingBesideHardwareHevc() {
+        // AV1 isn't held to the same rule (bug-32): a 4K HEVC box keeps its 4K, and still lists AV1 for the 1080p files.
+        val profile = DeviceCapabilities.profile(facts(heights = mapOf("video/hevc" to 2160)))
+        assertEquals(2160, profile.maxHeight)
+        assertTrue("av1" in profile.videoCodecs)
     }
 
     @Test fun fourKHevc_isntHeldBackByH264() {

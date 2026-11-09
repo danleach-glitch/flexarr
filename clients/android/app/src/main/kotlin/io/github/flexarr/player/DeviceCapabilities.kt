@@ -70,13 +70,15 @@ object DeviceCapabilities {
     /**
      * How tall a picture the server may send as it is. The server takes one height for every codec, so it's the height of
      * the codec the big files come in that has a hardware decoder here: a 4K H.264 decoder says nothing about a 1080p
-     * HEVC one. A codec with only a software decoder has no say, or it would have 4K files in other codecs, which the
-     * hardware plays, converted. Where one height doesn't suit (4K HEVC sent to that software decoder, 1440p H.264 to a
-     * 1080p decoder), an error decoding has the server convert after all (`DECODER_ERRORS` in [PlaybackController]).
+     * HEVC one. HEVC with only a software decoder means 1080p: it's still listed, and a 4K file sent to that decoder plays
+     * as a slideshow with no error to go on, so 4K files in other codecs are converted rather than risk it. Where one height
+     * doesn't suit otherwise (1440p H.264 to a 1080p decoder), an error decoding has the server convert after all
+     * (`DECODER_ERRORS` in [PlaybackController]).
      */
-    internal fun maxHeight(heights: Map<String, Int>): Int {
-        val decides = LARGE_FILE_CODECS.firstOrNull { it in heights } ?: return 1080
-        return maxOf(heights.getValue(decides), 1080)
+    internal fun maxHeight(facts: Facts): Int {
+        if ("video/hevc" in facts.decoders && "video/hevc" !in facts.decoderHeights) return 1080
+        val decides = LARGE_FILE_CODECS.firstOrNull { it in facts.decoderHeights } ?: return 1080
+        return maxOf(facts.decoderHeights.getValue(decides), 1080)
     }
 
     /**
@@ -161,7 +163,7 @@ object DeviceCapabilities {
             audioCodecs = (decoded + passedThrough).distinct(),
             hdr = hdr10 || hlg || dolbyVision,
             // A 1080p screen still takes 4K files when a decoder does: it scales them itself, so the server needn't convert.
-            maxHeight = maxHeight(facts.decoderHeights),
+            maxHeight = maxHeight(facts),
             // Android mixes surround down for headphones and speakers itself.
             maxAudioChannels = 8,
             maxBitrate = 0,
