@@ -184,6 +184,27 @@ describe('Setup guide', () => {
     await vi.waitFor(() => expect(screen.queryByRole('combobox', { name: 'Country' })).toBeNull())
   })
 
+  it('keeps the country, with Try again, when settings only failed to load', async () => {
+    let down = true
+    mockApi({
+      '/profiles': [main],
+      '/podcasts/countries': [{ code: 'us', name: 'United States' }],
+      '/settings': () => (down ? new Response('', { status: 500 }) : { arr: [], pathMappings: [], podcasts: { country: null, resolvedCountry: 'gb', detectedCountry: 'gb' } }),
+      'PUT /setup-guide': undefined,
+    })
+    renderAt('name')
+
+    expect(await screen.findByText(/Couldn’t load the countries/)).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Country' })).toBeDisabled()
+
+    down = false
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Country' })).toBeEnabled())
+    expect(screen.queryByText(/Couldn’t load the countries/)).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
+  })
+
   it('keeps an app’s API key hidden as it’s typed', async () => {
     mockApi({ '/profiles': [main], '/settings': { arr: [], pathMappings: [] }, '/arr/discover': [], 'PUT /setup-guide': undefined })
     renderAt('apps')

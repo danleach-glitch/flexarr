@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { getPodcastCountries, getSettings, saveSettings } from '../../api/client'
+import { ApiError, getPodcastCountries, getSettings, saveSettings } from '../../api/client'
 import { AsyncButton } from '../../components/AsyncButton'
 import { useApi } from '../../hooks/useApi'
 import { useSession } from '../../hooks/sessionContext'
@@ -66,7 +66,8 @@ function useCountryChoices() {
     help,
     loadError: loadError && t('Couldn’t load the countries: {message}', { message: errorText(loadError) }),
     tryAgain,
-    locked: settings.error !== undefined,
+    // Refused, not failed: a settings failure is one Try again can mend.
+    locked: settings.error instanceof ApiError && settings.error.status === 403,
   }
 }
 
