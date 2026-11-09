@@ -59,9 +59,9 @@ public static class MusicRequested
             var queued = queue.Where(q => q.AlbumId is not null).ToLookup(q => q.AlbumId!.Value);
             foreach (var item in queue)
             {
-                if (item.Album?.ForeignAlbumId is { Length: > 0 } id)
+                if (item.Album?.ForeignAlbumId is { Length: > 0 } id && (!queuedAlbums.TryGetValue(id, out var had) || Telling(item) > Telling(had)))
                 {
-                    queuedAlbums.TryAdd(id, item);
+                    queuedAlbums[id] = item;
                 }
             }
 
@@ -83,7 +83,7 @@ public static class MusicRequested
                     continue;
                 }
 
-                var (state, progress) = State(album, queued[album.Id].FirstOrDefault(), now);
+                var (state, progress) = State(album, queued[album.Id].MaxBy(Telling), now);
                 listed.Add(new MusicRequestedDto(releaseGroup, album.Title, artist.ArtistName, artist.ForeignArtistId, Cover(lidarr, album) ?? Photo(lidarr, artist),
                     album.ReleaseDate is { } d ? DateOnly.FromDateTime(d) : null, state, progress, owned.ArtistId(artist.ArtistName), open.Contains(releaseGroup)));
             }
@@ -200,6 +200,15 @@ public static class MusicRequested
 
         return album.ReleaseDate is { } released && released > now ? ("upcoming", null) : ("searching", null);
     }
+
+    /// <summary>
+    /// A copy on its way in: one Lidarr gave up on stays in its queue, and a search can grab another beside it.
+    /// </summary>
+    internal static bool IsMoving(ArrQueueItem queued) =>
+        queued.TrackedDownloadState is not ("importBlocked" or "importFailed" or "failedPending" or "failed") && queued.Status != "failed";
+
+    /// <summary>Which copy the card goes by: one on its way, then one someone could do something about, then one on its way out.</summary>
+    private static int Telling(ArrQueueItem queued) => IsMoving(queued) ? 2 : queued.TrackedDownloadState is "importBlocked" or "importFailed" ? 1 : 0;
 
     private static (string State, double? Progress) FromQueue(ArrQueueItem queued)
     {

@@ -159,7 +159,8 @@ public static partial class MusicUndo
     /// Tries a stuck album again: its count of tries starts over, the copies Lidarr gave up on for missing tracks are
     /// blocklisted (a complete one that scored low stays for importing by hand, and one shared with another album stays, as
     /// for an unrequest) and it's searched for. Only for an album somebody has an open request for, so this can't set off a
-    /// search for anything else, and only if it's stuck: a failed copy in the queue, or nothing in the queue and no files.
+    /// search for anything else, and only if it's stuck: a failed copy in the queue with no other on its way, or nothing in
+    /// the queue and no files.
     /// Nothing to do, or an album this profile can't see, answers 204; one that isn't stuck, or was tried just now, 409.
     /// A search by id doesn't ask whether an album is monitored, so one Lidarr has unmonitored stays so, until a copy of it
     /// is blocklisted: then, as in the sweep, it's monitored, or nothing goes on looking if this search finds nothing.
@@ -195,7 +196,7 @@ public static partial class MusicUndo
         var mine = await AlbumQueueAsync(c, lidarr, album.Id, ct);
         var failed = mine.Where(q => q.TrackedDownloadState is "importBlocked" or "importFailed").ToList();
         var nothing = mine.Count == 0 && album.Statistics is not { TrackFileCount: > 0 };
-        if (failed.Count == 0 && !nothing)
+        if ((failed.Count == 0 && !nothing) || mine.Any(MusicRequested.IsMoving))
         {
             return Problems.Of("That album isn’t stuck.", status: 409);
         }

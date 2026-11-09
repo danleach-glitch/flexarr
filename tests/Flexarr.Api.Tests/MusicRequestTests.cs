@@ -1184,6 +1184,68 @@ public sealed class MusicRequestTests : IAsyncLifetime
         Assert.False(WroteToLidarr());
     }
 
+    /// <summary>The copy Lidarr gave up on, still in its queue, and another a search grabbed beside it, in the order given.</summary>
+    private void LidarrHasAStuckCopyAndAMovingOne(bool stuckFirst, string statusOfTheOther = "downloading", string stateOfTheOther = "downloading", bool monitored = true)
+    {
+        LidarrAwaitsMoisturizer();
+        var flag = monitored ? "true" : "false";
+        var album = "\"album\":" + $$"""{"id":9,"artistId":3,"title":"moisturizer","foreignAlbumId":"{{Moisturizer}}","monitored":{{flag}} }""";
+        var stuck = $$$"""
+            {"id":5,"albumId":9,"artistId":3,"title":"complete","downloadId":"complete","status":"completed","size":100,"sizeleft":0,"trackedDownloadStatus":"warning","trackedDownloadState":"importBlocked",
+             "statusMessages":[{"title":"complete","messages":["Album match is not close enough: 78.9% vs 80% [album, year]"]}],{{{album}}} }
+            """;
+        var other = $$$"""
+            {"id":6,"albumId":9,"artistId":3,"title":"going","downloadId":"going","status":"{{{statusOfTheOther}}}","size":100,"sizeleft":50,"trackedDownloadStatus":"ok","trackedDownloadState":"{{{stateOfTheOther}}}",{{{album}}} }
+            """;
+        var records = stuckFirst ? $"{stuck},{other}" : $"{other},{stuck}";
+        _lidarr.Responses["GET /api/v1/queue?page=1&pageSize=200&includeArtist=true&includeAlbum=true"] = $$"""{"page":1,"pageSize":200,"totalRecords":2,"records":[{{records}}]}""";
+        _lidarr.Responses["GET /api/v1/queue/details?albumIds=9"] = $"[{records}]";
+        var today = DateTime.UtcNow.Date;
+        _lidarr.Responses["GET /api/v1/wanted/missing?page=1&pageSize=1000&includeArtist=false&monitored=true&sortKey=releaseDate&sortDirection=descending"] = monitored
+            ? $$"""{"page":1,"pageSize":200,"totalRecords":1,"records":[{"id":9,"artistId":3,"title":"moisturizer","foreignAlbumId":"{{Moisturizer}}","monitored":true}]}"""
+            : """{"page":1,"pageSize":200,"totalRecords":0,"records":[]}""";
+        _lidarr.Responses[$"GET /api/v1/calendar?start={today:yyyy-MM-dd}&end={today.AddYears(1):yyyy-MM-dd}&unmonitored=false&includeArtist=false"] = "[]";
+    }
+
+    private async Task<string> RequestedStateAsync() =>
+        (await Client().GetFromJsonAsync<JsonElement>(Api("/requests/music/requested"))).EnumerateArray().Single(r => r.GetProperty("title").GetString() == "moisturizer").GetProperty("state").GetString()!;
+
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    [InlineData(true, false)] // Off Lidarr's Wanted list, so the request's own row
+    [InlineData(false, false)]
+    public async Task A_stuck_copy_doesnt_hide_another_on_its_way(bool stuckFirst, bool monitored)
+    {
+        await MusicLibraryAsync();
+        LidarrHasAStuckCopyAndAMovingOne(stuckFirst, monitored: monitored);
+        await AskedForMoisturizerAsync(addedArtist: false);
+
+        Assert.Equal("downloading", await RequestedStateAsync());
+    }
+
+    [Fact]
+    public async Task A_stuck_copy_is_said_beside_a_download_that_failed()
+    {
+        await MusicLibraryAsync();
+        LidarrHasAStuckCopyAndAMovingOne(stuckFirst: false, statusOfTheOther: "failed", stateOfTheOther: "failedPending");
+        await AskedForMoisturizerAsync(addedArtist: false);
+
+        Assert.Equal("couldNotImport", await RequestedStateAsync());
+    }
+
+    [Fact]
+    public async Task TryAgain_WithAnotherCopyOnItsWay_Says409_AndTouchesNothing()
+    {
+        await MusicLibraryAsync();
+        LidarrHasAStuckCopyAndAMovingOne(stuckFirst: true);
+        await AskedForMoisturizerAsync(addedArtist: false);
+        _sent.Clear();
+
+        Assert.Equal(HttpStatusCode.Conflict, (await TryAgainAsync()).StatusCode);
+        Assert.False(WroteToLidarr());
+    }
+
     [Fact]
     public async Task TryAgain_PressedAgainTooSoon_Says409_AndSearchesOnce()
     {
