@@ -23,6 +23,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A Dispatcharr admin key that’s refused is turned down when you save it, and **Test** only says a key was accepted if it tried that key. A saved key isn’t sent to a changed address.
 - The usual Live TV connection errors now appear in your language.
 - **On now** on the web keeps its channels when a load fails, and offers **Try again**.
+- When the guide can’t load, on the web, on iPhone and iPad or over the picture on Apple TV, it says so and offers **Try again** instead of spinning.
+- On Apple TV, the guide over the picture opens on the channel you’re watching, even with nothing listed for it right now.
 - On Apple TV, the Live TV sidebar scrolls when there are many groups, and channels with no listings can be reached in the guide and played from there.
 - On the web, iPhone, iPad, Apple TV, Android and Android TV, Live TV goes back to its usual view if the group you chose disappears.
 
