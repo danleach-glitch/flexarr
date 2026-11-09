@@ -189,7 +189,9 @@ struct LiveTvView: View {
             refreshProblem = problem
             refreshNotice = problem
             refreshFailedAt = Date()
-        case .stillGoing, .tooLate: break // Said by `isLiveTvRefreshTakingAWhile`, or not news.
+        case .stillGoing: break // Said by `isLiveTvRefreshTakingAWhile`.
+        // Not news any more, but still true: what's wrong now, quietly, with no banner.
+        case .tooLate: refreshProblem = model.liveTvStatus?.error ?? model.liveTvStatus?.downloadError
         }
         Task {
             await load()

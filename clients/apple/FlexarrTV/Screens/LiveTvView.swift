@@ -140,7 +140,9 @@ struct LiveTvView: View {
         case .failed(let problem):
             refreshProblem = problem
             refreshFailedAt = Date()
-        case .stillGoing, .tooLate: break // Said by `isLiveTvRefreshTakingAWhile`, or not news.
+        case .stillGoing: break // Said by `isLiveTvRefreshTakingAWhile`.
+        // Not news any more, but still true: what's wrong now, quietly.
+        case .tooLate: refreshProblem = model.liveTvStatus?.error ?? model.liveTvStatus?.downloadError
         }
         // Before fetching: a big line-up takes seconds, and the button would read Refresh guide again meanwhile.
         if result == .worked {
