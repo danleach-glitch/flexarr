@@ -63,16 +63,17 @@ export function DeleteDialog({ item, onDeleted, onClose }: { item: ItemSummary; 
                 {plan.data.copies.map((c) => (
                   <li key={c.itemId}>
                     <strong>{c.library || t('A hidden library')}</strong> {c.managedBy && t('{app} deletes it', { app: c.managedBy })}
+                    {c.managedBy && c.files.length > 0 && <div className="muted">{t('Flexarr deletes these too:')}</div>}
                     {c.files.slice(0, 5).map((f) => (
                       <code key={f} className="confirm-dialog-path">
                         {f}
                       </code>
                     ))}
-                    {c.files.length > 5 && t('and {count} more', { count: c.files.length - 5 })}
+                    {c.files.length > 5 && <div className="muted">{t('and {count} more', { count: c.files.length - 5 })}</div>}
                   </li>
                 ))}
               </ul>
-              <p>{t('You can’t undo this.')}</p>
+              <p>{plan.data.copies.some((c) => !c.managedBy && c.files.length > 0) ? t('Folders they leave empty go too. You can’t undo this.') : t('You can’t undo this.')}</p>
             </>
           )}
           {!(plan.data?.copies && plan.data.copies.length > 1) && plan.data?.managedBy && (

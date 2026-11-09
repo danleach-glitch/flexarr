@@ -538,7 +538,7 @@ function FileInfo({ files, itemId, kind }: { files: MediaFile[]; itemId: string;
   const [queued, setQueued] = useState(false)
   return (
     <details className="file-info">
-      <summary>{files.length > 1 ? t('{count} versions on disk', { count: files.length }) : t('File and stream details')}</summary>
+      <summary>{files.length > 1 ? t('{count} files on disk', { count: files.length }) : t('File and stream details')}</summary>
       {files.map((file) => (
         <div key={file.id} className="file">
           {file.path && <code>{file.path}</code>}

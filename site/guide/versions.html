@@ -136,15 +136,15 @@
 <h2 id="setting-it-up"><a class="anchor" href="#setting-it-up" aria-hidden="true" tabindex="-1">#</a>Setting it up</h2>
 <p>Either of these works:</p>
 <ul>
-<li><strong>Two libraries.</strong> Add a library for each, such as <strong>Movies</strong> and <strong>Movies in 4K</strong>, typically with <a href="/guide/connect-arrs">a second Radarr or Sonarr</a>. Flexarr links titles that share a TMDB, TVDB or IMDb ID, so there&#39;s nothing else to do. A show&#39;s page brings together the seasons and episodes of both.</li>
+<li><strong>Two libraries.</strong> Add a library for each, such as <strong>Movies</strong> and <strong>Movies in 4K</strong>, typically with <a href="/guide/connect-arrs">a second Radarr or Sonarr</a>. Flexarr links titles that share a TMDB, TVDB, TVmaze or IMDb ID, so there&#39;s nothing else to do. A show&#39;s page brings together the seasons and episodes of both.</li>
 <li><strong>One folder.</strong> Put the files side by side in the film&#39;s folder.</li>
 </ul>
 <p>To name a cut, put it in the file&#39;s name, such as <code>Blade Runner (1982) {edition-Final Cut}.mkv</code>. Without a name, a cut still counts as its own version when its length is clearly different.</p>
 <p>Each library keeps its own page, so <strong>Movies in 4K</strong> still lists everything in it.</p>
 <h2 id="which-one-plays"><a class="anchor" href="#which-one-plays" aria-hidden="true" tabindex="-1">#</a>Which one plays</h2>
-<p><strong>Automatic</strong> picks the best version your device can play without converting it, keeping to the main cut. On a 4K TV that&#39;s the 4K copy. On a phone that can&#39;t take 4K it&#39;s the 1080p copy, so nothing has to be converted.</p>
+<p><strong>Automatic</strong> picks the best version your device can play without converting it, keeping to the cut of your best-quality copy. On a 4K TV that&#39;s the 4K copy. On a phone that can&#39;t take 4K it&#39;s the 1080p copy of that cut, so nothing has to be converted.</p>
 <h2 id="choosing-one"><a class="anchor" href="#choosing-one" aria-hidden="true" tabindex="-1">#</a>Choosing one</h2>
-<p>On a film&#39;s or episode&#39;s page, choose <strong>⋯</strong>, then <strong>Version</strong>. Your choice is remembered for your profile on all your devices. <strong>Automatic</strong> goes back to the best pick.</p>
+<p>On a film&#39;s or episode&#39;s page, choose <strong>⋯</strong>, then <strong>Version</strong>. Your choice is remembered for your profile on all your devices. A choice is for that one episode: the next one plays with <strong>Automatic</strong>, which is also how you go back to the best pick.</p>
 <p>If the file you chose is replaced, a file with the same name and cut takes its place. If your choice would need converting on this device while another version of that cut wouldn&#39;t, the other one plays, and your choice stays for next time.</p>
 <p>Skip intro carries across versions of the same length. Your place is kept in seconds, so going from one cut to a longer one can land you somewhere slightly different.</p>
 <h2 id="downloads"><a class="anchor" href="#downloads" aria-hidden="true" tabindex="-1">#</a>Downloads</h2>
@@ -152,9 +152,9 @@
 <h2 id="hidden-libraries-and-age-limits"><a class="anchor" href="#hidden-libraries-and-age-limits" aria-hidden="true" tabindex="-1">#</a>Hidden libraries and age limits</h2>
 <p>A version in a library a profile can&#39;t see isn&#39;t a version for that profile. It doesn&#39;t appear in the list and it can&#39;t play.</p>
 <h2 id="deleting"><a class="anchor" href="#deleting" aria-hidden="true" tabindex="-1">#</a>Deleting</h2>
-<p><strong>Delete</strong> on a title deletes every version, in every library, including libraries hidden from your profile. The dialog names each library first. To keep one version, delete the other in Sonarr, Radarr or the Finder instead.</p>
+<p><strong>Delete</strong> on a film or show in the web app deletes every copy, in every library, including libraries hidden from your profile (those take the admin PIN). The dialog names each library first. To keep one copy, delete the other in Sonarr or Radarr, or from its folder, instead.</p>
 <h2 id="avoiding-spare-copies"><a class="anchor" href="#avoiding-spare-copies" aria-hidden="true" tabindex="-1">#</a>Avoiding spare copies</h2>
-<p>Two files with the same resolution, HDR type and length aren&#39;t versions, they&#39;re spares. They don&#39;t appear under <strong>Version</strong>, and <a href="/guide/library-health">Library health</a> can remove them for you.</p>
+<p>Two files with the same resolution, HDR type and length aren&#39;t versions, they&#39;re spares. They don&#39;t appear under <strong>Version</strong>. Side by side in one folder, <a href="/guide/library-health">Library health</a> can remove them for you. The same file in two libraries is listed there under <strong>Versions</strong> instead, so you can delete the one you don&#39;t want in its Sonarr or Radarr.</p>
 
         </div>
         <nav class="pager" aria-label="More of the guide">
