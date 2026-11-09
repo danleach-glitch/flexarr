@@ -5,7 +5,7 @@ import { relativeTime } from '../../lib/format'
 import { parse, ReleaseNotes } from './changelog'
 import { SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText, useSettings } from './useSettings'
-import { t } from '../../i18n'
+import { t, Words } from '../../i18n'
 
 /** Which Flexarr this is, where it keeps things, and what's changed. */
 export function AboutSection() {
@@ -16,7 +16,7 @@ export function AboutSection() {
       <SettingsHeader title={t('About')} />
       <SettingsGroup title={t('This server')}>
         {/* The server's version is "0.8.0+<commit>"; the commit is for bug reports, not people. */}
-        <SettingRow as="div" label={t('Version')}>
+        <SettingRow as="div" label={t(Words.version)}>
           <span className="setting-value">{status ? status.version.split('+')[0] : '…'}</span>
         </SettingRow>
         {status && (

@@ -115,6 +115,7 @@ The same words on every client and in the guide. The ones every client shares ar
 - **Mark as watched** and **Mark as unwatched** for video, **Mark as played** for podcasts, **Mark as finished** and **Mark as unread** for books. **Mark season as watched**.
 - Sorting a library: **A–Z**, **Recently added**, **Year**, **Rating** (never "Title", "Newest first" or "Highest rated"). Audiobooks add **Author**, **Series**, **Length** and **Recently listened**, and have no Rating.
 - Music: **Artists**, **Albums**, **Genres**, **Your artists**, **Radio**, **Shuffle**; a music library's switch reads **Browse · Artists · Albums · Genres**.
+- A title with two or more versions: **Version** in ⋯ opens the list, **Automatic** first, then each by its name (**4K HDR10**, **1080p**), with its cut (**Director’s Cut**) and its length where they differ. The title’s facts show them side by side.
 - **Watchlist**, **Continue watching**, **Up next**, **Coming soon**, **Discover**, **Cast and crew**, **More like this**.
 - Requests: **Request** (movies and shows), **Request album**, **Follow** and then **Following**, **Unrequest**, **Stop following**, **Requested**, **In your library**, **Partly in your library**, **Not in your library**, **Fans also like**. Discover's halves are **Movies and shows** and **Music**.
 - Episodes: **S1E3** where space is short, **Season 1, Episode 3** in headings. No zero padding, no pipes.
@@ -130,6 +131,7 @@ What's on each client today. The gaps are for future briefs. How the four kinds 
 | --- | --- | --- | --- | --- | --- | --- |
 | Home, libraries, detail, search, player | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Trailer | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Choosing a version (4K, 1080p, a director’s cut) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | IMDb and Rotten Tomatoes scores | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Coming soon page | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Watchlist | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |

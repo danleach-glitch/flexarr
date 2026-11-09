@@ -395,15 +395,17 @@ public static class ItemEndpoints
     /// <summary>What the title's Version choice offers; null with only one version to play.</summary>
     private static async Task<List<VersionDto>?> VersionsAsync(FlexarrDbContext db, MediaItem item, string profileId, CancellationToken ct)
     {
+        // Only what someone could tell apart: a spare copy isn't a version to choose.
         var files = await Playback.TitleVersions.FilesAsync(db, item, ct);
-        if (files.Count < 2)
+        var offered = VersionRules.Sort(VersionRules.BestFirst(files)).Kept;
+        if (offered.Count < 2)
         {
             return null;
         }
 
         var choice = await Playback.TitleVersions.ChoiceAsync(db, item, profileId, ct);
         var chosen = choice is null ? null : Streaming.VersionPicker.Chosen(files, choice);
-        return VersionRules.BestFirst(files)
+        return offered
             .Select(f => new VersionDto(f.Id, VersionRules.Label(f), VersionRules.Edition(f), f.DurationSeconds, f.Size, f.Id == chosen?.Id))
             .ToList();
     }

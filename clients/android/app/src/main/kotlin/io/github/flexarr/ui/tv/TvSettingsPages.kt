@@ -572,7 +572,7 @@ internal fun TvServerSettings(model: AppModel, libraries: Loader<List<Library>>,
         item { TvSettingsGroupLabel(t("Server")) }
         when (val state = status.state) {
             is Load.Loaded -> {
-                item { TvSettingsFact(t("Version"), ServerVersion.short(state.value.version)) }
+                item { TvSettingsFact(t(Words.version), ServerVersion.short(state.value.version)) }
                 item { TvSettingsFact(t("Running on"), state.value.osDescription) }
                 state.value.startTime?.let(::upSince)?.let { item { TvSettingsFact(t("Up since"), it) } }
             }

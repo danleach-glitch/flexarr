@@ -15,6 +15,7 @@ public static class Words
     public const string Author = "Author";
     public const string AutoPlayNext = "Auto-play the next episode";
     public const string AutoPlayNextHelp = "The next episode starts after a 10-second countdown.";
+    public const string Automatic = "Automatic";
     public const string Browse = "Browse";
     public const string Cancel = "Cancel";
     public const string CastAndCrew = "Cast and crew";
@@ -86,6 +87,7 @@ public static class Words
     public const string Unrequest = "Unrequest";
     public const string UpNext = "Up next";
     public const string UpdateYourServer = "Update your Flexarr server";
+    public const string Version = "Version";
     public const string Watchlist = "Watchlist";
     public const string Year = "Year";
     public const string YourArtists = "Your artists";

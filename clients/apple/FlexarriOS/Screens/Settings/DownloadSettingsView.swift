@@ -30,7 +30,7 @@ struct DownloadSettingsView: View {
                 Toggle(t("Automatic downloads on Wi-Fi only"), isOn: Binding(get: { downloads.autoDownloadsOnWiFiOnly }, set: { downloads.autoDownloadsOnWiFiOnly = $0 }))
                     .settingsRow()
             } header: {
-                Text(t("Automatic"))
+                Text(t(Words.automatic))
             } footer: {
                 Text(downloads.autoDownloadsOnWiFiOnly
                     ? t("Downloads this {device} starts by itself, like the next episode or new podcast episodes, wait for Wi-Fi and never use Low Data Mode. Ones you start yourself use mobile data too.", ["device": ThisDevice.name])

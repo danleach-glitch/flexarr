@@ -98,6 +98,21 @@ public sealed class TitleVersionsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Details_LeaveASpareCopy_OutOfTheVersions()
+    {
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var spare = File(await db.MediaItems.SingleAsync(i => i.Id == _hdItem), "Film (2020) 1080p copy.mkv", 1920, 1080);
+            spare.Bitrate = 2_000_000;
+            db.Add(spare);
+            await db.SaveChangesAsync();
+        }
+        var detail = await Client().GetFromJsonAsync<JsonElement>(Api($"/items/{_hdItem}"));
+        Assert.Equal([_uhdFile, _hdFile], detail.GetProperty("versions").EnumerateArray().Select(v => v.GetProperty("fileId").GetGuid()));
+    }
+
+    [Fact]
     public async Task Playback_PicksAcrossCopies_ForTheDevice()
     {
         Assert.Equal(_uhdFile, await PlayAsync(_hdItem, Big));
