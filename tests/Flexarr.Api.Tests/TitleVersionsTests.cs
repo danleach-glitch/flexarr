@@ -364,4 +364,27 @@ public sealed class TitleVersionsTests : IAsyncLifetime
         var hdOnly = await client.GetFromJsonAsync<JsonElement>(Api($"/items/{_hdItem}/download-options"));
         Assert.Equal(1080 * 1000, Original(hdOnly));
     }
+
+    [Fact]
+    public async Task Downloads_NeverUseACopyOverTheAgeLimit_OrBlocked()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        db.AddRange(new Profile { Id = "kid", Name = "Kid", MaxRatingAge = 12 }, new Profile { Id = "adult", Name = "Adult" });
+        var uhd = await db.MediaItems.IgnoreQueryFilters().FirstAsync(i => i.Id == _uhdItem);
+        uhd.ContentRating = "18";
+        await db.SaveChangesAsync();
+
+        var overLimit = await Flexarr.Api.Downloads.DownloadSource.FilesAsync(db, _hdItem, "kid", default);
+        Assert.Equal([_hdFile], overLimit.Select(f => f.Id));
+        // A profile with no limit still gets both.
+        Assert.Equal(2, (await Flexarr.Api.Downloads.DownloadSource.FilesAsync(db, _hdItem, "adult", default)).Count);
+
+        uhd.ContentRating = "PG";
+        uhd.KidsOverride = KidsOverride.Block;
+        await db.SaveChangesAsync();
+
+        var blocked = await Flexarr.Api.Downloads.DownloadSource.FilesAsync(db, _hdItem, "kid", default);
+        Assert.Equal([_hdFile], blocked.Select(f => f.Id));
+    }
 }

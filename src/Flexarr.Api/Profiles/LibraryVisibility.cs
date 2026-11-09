@@ -36,21 +36,37 @@ public static class LibraryVisibility
     public static async Task ApplyAsync(FlexarrDbContext db, string profileId, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(db);
+        var sees = await SeenByAsync(db, profileId, ct);
+        db.HiddenLibraryIds = sees.HiddenLibraryIds;
+        db.MaxRatingAge = sees.MaxRatingAge;
+        db.ServesKids = sees.IsKids;
+        db.KidsLibraryIds = sees.KidsLibraryIds;
+    }
+
+    /// <summary>What <paramref name="profileId"/> may see, for work that isn't done on its behalf through the context's filter.</summary>
+    public static async Task<ProfileSees> SeenByAsync(FlexarrDbContext db, string profileId, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(db);
         var profile = await db.Profiles.Where(p => p.Id == profileId).Select(p => new { p.HiddenLibraryIds, p.MaxRatingAge, p.IsKids }).FirstOrDefaultAsync(ct);
-        db.HiddenLibraryIds = profile?.HiddenLibraryIds ?? [];
-        db.MaxRatingAge = profile?.MaxRatingAge;
-        db.ServesKids = profile?.IsKids == true;
-        if (db.ServesKids)
+        var hidden = profile?.HiddenLibraryIds ?? [];
+        var isKids = profile?.IsKids == true;
+        if (isKids)
         {
             // A kids profile has no podcasts, audiobooks or Live TV: their libraries (podcasts, audiobooks, and the DVR's
             // recordings) are hidden from it like any it's kept out of.
             var kept = await db.Libraries.IgnoreQueryFilters()
                 .Where(l => l.Type == LibraryType.Podcasts || l.Type == LibraryType.Audiobooks || (l.Type == LibraryType.TvShows && l.Name == RecordingsLibrary.Name))
                 .Select(l => l.Id).ToListAsync(ct);
-            db.HiddenLibraryIds = [.. db.HiddenLibraryIds.Union(kept)];
+            hidden = [.. hidden.Union(kept)];
         }
-        db.KidsLibraryIds = db.MaxRatingAge is null ? [] : await db.Libraries.IgnoreQueryFilters().Where(l => l.FineForKids).Select(l => l.Id).ToListAsync(ct);
+
+        var kids = profile?.MaxRatingAge is null ? [] : await db.Libraries.IgnoreQueryFilters().Where(l => l.FineForKids).Select(l => l.Id).ToListAsync(ct);
+        return new ProfileSees(hidden, profile?.MaxRatingAge, isKids, kids);
     }
+
+    /// <summary>The same test as the context's filter on items, for items read without it.</summary>
+    public static bool Allows(this ProfileSees sees, Guid libraryId, int? ratingAge, KidsOverride kidsOverride) =>
+        !sees.HiddenLibraryIds.Contains(libraryId) && AgeAllows(sees.MaxRatingAge, sees.KidsLibraryIds, libraryId, ratingAge, kidsOverride);
 
     /// <summary>
     /// Turns away profiles with an age limit: what these endpoints reach (Seerr, podcast directories, the DVR) has no
@@ -171,3 +187,6 @@ public static class LibraryVisibility
         _ => types.Contains(LibraryType.Music),
     };
 }
+
+/// <summary>What a profile may see: see <see cref="LibraryVisibility.SeenByAsync"/>.</summary>
+public sealed record ProfileSees(List<Guid> HiddenLibraryIds, int? MaxRatingAge, bool IsKids, List<Guid> KidsLibraryIds);

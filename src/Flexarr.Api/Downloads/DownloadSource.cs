@@ -1,4 +1,5 @@
 using Flexarr.Core.Data;
+using Flexarr.Api.Profiles;
 using Flexarr.Core.Media;
 using Flexarr.Streaming;
 using Microsoft.EntityFrameworkCore;
@@ -8,7 +9,7 @@ namespace Flexarr.Api.Downloads;
 /// <summary>
 /// The file a download is made from, the same each time it's asked: sizing it, preparing it, and telling the phone its
 /// marks and length. It's worked out for the profile whose download it is, also from the background (whose context sees
-/// every library), so another library's copy is only used if that profile can see it.
+/// every library), so another copy is only used if that profile's libraries and age limit allow it.
 /// </summary>
 internal static class DownloadSource
 {
@@ -32,8 +33,10 @@ internal static class DownloadSource
         List<Guid> copies = [itemId];
         if (item.LinkGroupId is { } group)
         {
-            var hidden = await db.Profiles.AsNoTracking().Where(p => p.Id == profileId).Select(p => p.HiddenLibraryIds).FirstOrDefaultAsync(ct) ?? [];
-            copies = await db.MediaItems.IgnoreQueryFilters().Where(i => i.LinkGroupId == group && i.MissingSince == null && !hidden.Contains(i.LibraryId)).Select(i => i.Id).ToListAsync(ct);
+            var sees = await LibraryVisibility.SeenByAsync(db, profileId, ct);
+            var linked = await db.MediaItems.IgnoreQueryFilters().AsNoTracking().Where(i => i.LinkGroupId == group && i.MissingSince == null)
+                .Select(i => new { i.Id, i.LibraryId, i.RatingAge, i.KidsOverride }).ToListAsync(ct);
+            copies = linked.Where(i => sees.Allows(i.LibraryId, i.RatingAge, i.KidsOverride)).Select(i => i.Id).ToList();
             copies.Add(itemId);
         }
 
