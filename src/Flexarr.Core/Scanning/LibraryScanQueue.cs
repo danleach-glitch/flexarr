@@ -14,7 +14,7 @@ namespace Flexarr.Core.Scanning;
 /// <see cref="OnlySubtitles"/>: only subtitle files changed, so the title's details needn't be looked up.
 /// <see cref="Retries"/>: how many times this scan has failed and been queued again.
 /// </summary>
-public sealed record LibraryScanRequest(string Path, string Reason, bool ForceMetadata = false, bool Deleted = false, int? TmdbId = null, int? TvdbId = null, DateTimeOffset? LastChange = null, bool OnlySubtitles = false, int Retries = 0);
+public sealed record LibraryScanRequest(string Path, string Reason, bool ForceMetadata = false, bool Deleted = false, int? TmdbId = null, int? TvdbId = null, DateTimeOffset? LastChange = null, bool OnlySubtitles = false, int Retries = 0, DateTime? AddedSince = null);
 
 public interface ILibraryScanQueue
 {

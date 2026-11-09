@@ -62,6 +62,9 @@ public sealed partial class LibraryScanWorker(
     /// <summary>How long a watched scan that failed waits before its next try: the watcher won't hear of those files again.</summary>
     internal TimeSpan RetryWatchedAfter { get; set; } = TimeSpan.FromMinutes(5);
 
+    /// <summary>What's been announced as added lately. Only this worker's own loop uses it.</summary>
+    private readonly Dictionary<Guid, DateTime> _announcedAt = [];
+
     /// <summary>Scans waiting for <see cref="RetryWatchedAfter"/>, by path.</summary>
     private readonly Dictionary<string, LibraryScanRequest> _retrying = new(StringComparer.Ordinal);
 
@@ -105,20 +108,23 @@ public sealed partial class LibraryScanWorker(
 
             foreach (var request in requests)
             {
+                var attempt = DateTime.UtcNow;
                 try
                 {
                     using var entered = await gate.EnterAsync(stoppingToken);
-                    if (await ScanAsync(request, stoppingToken))
+                    attempt = DateTime.UtcNow;
+                    if (await ScanAsync(request, attempt, stoppingToken))
                     {
                         // It finished, so nothing about it needs doing twice but looking again.
-                        RetryLater(request with { ForceMetadata = false }, stoppingToken);
+                        RetryLater(request with { ForceMetadata = false, AddedSince = null }, stoppingToken);
                     }
                 }
                 // Anything but shutdown, including an HTTP timeout (a TaskCanceledException), is one failed scan.
                 catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
                 {
                     LogScanFailed(ex, PathComparison.Printable(request.Path));
-                    RetryLater(request, stoppingToken);
+                    // What it saved before it failed hasn't been announced: the next try goes back to here.
+                    RetryLater(request with { AddedSince = request.AddedSince ?? attempt }, stoppingToken);
                 }
             }
         }
@@ -264,6 +270,7 @@ public sealed partial class LibraryScanWorker(
                     LastChange = covered.All(o => o.LastChange is not null) ? covered.Max(o => o.LastChange) : null,
                     OnlySubtitles = covered.All(o => o.OnlySubtitles),
                     Retries = covered.Max(o => o.Retries),
+                    AddedSince = covered.Min(o => o.AddedSince),
                     // A broader scan in its place: the watcher still won't hear of these files again if it fails.
                     Reason = covered.Any(o => o.Reason == FolderWatcher.Reason) ? FolderWatcher.Reason : r.Reason,
                 });
@@ -290,7 +297,7 @@ public sealed partial class LibraryScanWorker(
     }
 
     /// <summary>Runs one request. True if it finished without seeing everything, or without being able to read a file it found.</summary>
-    private async Task<bool> ScanAsync(LibraryScanRequest request, CancellationToken ct)
+    private async Task<bool> ScanAsync(LibraryScanRequest request, DateTime scanStarted, CancellationToken ct)
     {
         if (AlreadyScanned(request))
         {
@@ -298,7 +305,6 @@ public sealed partial class LibraryScanWorker(
             return false;
         }
 
-        var scanStarted = DateTime.UtcNow;
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
         var scanner = scope.ServiceProvider.GetRequiredService<LibraryScanner>();
@@ -401,7 +407,7 @@ public sealed partial class LibraryScanWorker(
 
         if (events is not null)
         {
-            await AnnounceAddedAsync(db, targets.Select(t => t.Library.Id).Distinct().ToList(), scanStarted, ct);
+            await AnnounceAddedAsync(db, targets.Select(t => t.Library.Id).Distinct().ToList(), request.AddedSince ?? scanStarted, ct);
         }
 
         return again;
@@ -423,10 +429,17 @@ public sealed partial class LibraryScanWorker(
         }
 
         var now = DateTime.UtcNow;
+        foreach (var old in _announcedAt.Where(a => now - a.Value > RememberScansFor).Select(a => a.Key).ToList())
+        {
+            _announcedAt.Remove(old);
+        }
+
         foreach (var item in await added.OrderBy(i => i.FirstSeenAt).Summaries(NoProfile).ToListAsync(ct))
         {
-            if (!await WasHereBeforeAsync(db, item.Id, since, ct))
+            // A later try looks back past scans that have announced theirs since.
+            if (!_announcedAt.ContainsKey(item.Id) && !await WasHereBeforeAsync(db, item.Id, since, ct))
             {
+                _announcedAt[item.Id] = now;
                 events!.PublishAdded(new Events.LibraryAddedEventDto(item, now));
             }
         }

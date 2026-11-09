@@ -378,6 +378,29 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
     }
 
     [Fact]
+    public async Task TheAddedEvent_IsntSaidTwice_WhenATryLooksBackOverAScanThatSaidIt()
+    {
+        var since = DateTime.UtcNow.AddMinutes(-1);
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var library = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies };
+        db.Libraries.Add(library);
+        await db.SaveChangesAsync();
+        db.MediaItems.Add(new MediaItem { LibraryId = library.Id, Kind = MediaKind.Movie, Title = "Heat", SortTitle = "Heat", TmdbId = "949300", FirstSeenAt = DateTime.UtcNow, Path = $"/films/{Guid.NewGuid():N}" });
+        await db.SaveChangesAsync();
+        var events = factory.Services.GetRequiredService<Flexarr.Api.Events.PlaybackEvents>();
+        using var listener = events.Listen(added: true);
+        using var worker = new LibraryScanWorker(new RecordingScanQueue(), factory.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance,
+            factory.Services.GetRequiredService<LibraryWorkGate>(), events: events);
+
+        await worker.AnnounceAddedAsync(db, [library.Id], since, default);
+        await worker.AnnounceAddedAsync(db, [library.Id], since, default);
+
+        Assert.True(listener.Added.TryRead(out _));
+        Assert.False(listener.Added.TryRead(out _));
+    }
+
+    [Fact]
     public async Task ANewFilm_IsAnnouncedOnTheEventStream()
     {
         using var host = factory.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.AddSingleton<IMediaProbe>(new FixedProbe())));
@@ -762,6 +785,41 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
 
         await worker.StopAsync(default);
         Assert.True(found, "the try after the database's refusal should find the film");
+    }
+
+    [Fact]
+    public async Task AFilmSavedBeforeTheScanFailed_IsStillAnnounced_ByTheTryThatFinishes()
+    {
+        var busy = new BusyOnce("\"TraktHistoryHolds\""); // after the scan has saved the film
+        var probe = new FailingProbe(times: 0);
+        var (first, library, title) = await FilmToScanAsync(probe);
+        first.Dispose();
+        using var host = factory.WithWebHostBuilder(b => b.ConfigureTestServices(s =>
+        {
+            s.AddSingleton<IMediaProbe>(probe);
+            s.ConfigureDbContext<FlexarrDbContext>(o => o.AddInterceptors(busy));
+        }));
+        var events = host.Services.GetRequiredService<Flexarr.Api.Events.PlaybackEvents>();
+        using var listener = events.Listen(added: true);
+        var queue = new LibraryScanQueue();
+        busy.Arm();
+        await queue.EnqueueAsync(new LibraryScanRequest(title, FolderWatcher.Reason));
+        using var worker = new LibraryScanWorker(queue, host.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance,
+            host.Services.GetRequiredService<LibraryWorkGate>(), events: events) { RetryWatchedAfter = TimeSpan.FromMilliseconds(50) };
+        await worker.StartAsync(default);
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            var added = await listener.Added.ReadAsync(timeout.Token);
+            Assert.True(busy.Fired);
+            Assert.Equal(library.Id, added.Item.LibraryId);
+        }
+        finally
+        {
+            await worker.StopAsync(default);
+        }
+
+        Assert.False(listener.Added.TryRead(out _));
     }
 
     /// <summary>Takes note of what's queued.</summary>
