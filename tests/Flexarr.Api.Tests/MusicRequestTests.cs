@@ -720,6 +720,67 @@ public sealed class MusicRequestTests : IAsyncLifetime
         Assert.DoesNotContain(_sent, s => s.Request is "PUT /api/v1/artist/4" or "PUT /api/v1/artist/5"); // not added by a request; or nothing left to look for
     }
 
+    [Fact]
+    public async Task A_requested_album_Lidarr_has_never_searched_for_is_searched_for_once()
+    {
+        const string Scanned = """ "statistics":{"trackFileCount":0,"trackCount":9} """;
+        void Album(string id, int number, string rest) =>
+            _lidarr.Responses[$"GET /api/v1/album?foreignAlbumId={id}"] = $$"""[{"id":{{number}},"artistId":3,"title":"{{id}}","foreignAlbumId":"{{id}}",{{rest}}}]""";
+        Album("rg-waiting", 1, $""" "monitored":true,"releaseDate":"2020-01-01T00:00:00Z",{Scanned} """);
+        Album("rg-searched", 2, $""" "monitored":true,"lastSearchTime":"2026-01-01T00:00:00Z",{Scanned} """);
+        Album("rg-not-scanned", 3, """ "monitored":true,"statistics":{"trackFileCount":0,"trackCount":0} """);
+        Album("rg-unreleased", 4, $""" "monitored":true,"releaseDate":"2999-01-01T00:00:00Z",{Scanned} """);
+        Album("rg-unmonitored", 5, $""" "monitored":false,{Scanned} """);
+        Album("rg-downloading", 6, $""" "monitored":true,{Scanned} """);
+        Album("rg-has-files", 7, """ "monitored":true,"statistics":{"trackFileCount":9,"trackCount":9} """);
+        _lidarr.Responses["GET /api/v1/album?foreignAlbumId=rg-elsewhere"] = "[]";
+        _lidarr.Responses["GET /api/v1/queue?page=1&pageSize=200&includeArtist=true&includeAlbum=true"] =
+            """{"page":1,"pageSize":200,"totalRecords":1,"records":[{"id":5,"albumId":6,"artistId":3,"status":"downloading","size":100,"sizeleft":25}]}""";
+        await InDbAsync(async db =>
+        {
+            foreach (var id in new[] { "rg-waiting", "rg-searched", "rg-not-scanned", "rg-unreleased", "rg-unmonitored", "rg-downloading", "rg-has-files", "rg-elsewhere" })
+            {
+                db.MediaRequests.Add(new Core.Notifications.MediaRequest { ProfileId = "owner", Kind = MediaKind.Album, MusicBrainzId = id, Title = id, ArtistName = "Someone" });
+            }
+
+            return await db.SaveChangesAsync();
+        });
+        var retry = _server.Services.GetRequiredService<Endpoints.MusicRequests.MusicImportRetry>();
+
+        await retry.SweepAsync(CancellationToken.None);
+
+        var search = _sent.Single(s => s.Request == "POST /api/v1/command").Body!;
+        Assert.Equal("AlbumSearch", search["name"]!.GetValue<string>());
+        Assert.Equal([1], search["albumIds"]!.AsArray().Select(a => a!.GetValue<int>()));
+
+        // Lidarr has looked now: the next sweep leaves it alone.
+        Album("rg-waiting", 1, $""" "monitored":true,"lastSearchTime":"2026-01-01T00:00:00Z",{Scanned} """);
+        await retry.SweepAsync(CancellationToken.None);
+        Assert.Single(_sent, s => s.Request == "POST /api/v1/command");
+    }
+
+    [Fact]
+    public async Task An_album_the_artist_sweep_just_searched_for_is_not_searched_for_twice()
+    {
+        var artist = """{"id":3,"artistName":"Wet Leg","foreignArtistId":"artist-added","monitored":false}""";
+        _lidarr.Responses["GET /api/v1/artist"] = $"[{artist}]";
+        _lidarr.Responses["GET /api/v1/artist/3"] = artist;
+        _lidarr.Responses["PUT /api/v1/artist/3"] = artist;
+        var album = $$$"""{"id":9,"artistId":3,"title":"moisturizer","foreignAlbumId":"{{{Moisturizer}}}","monitored":true,"statistics":{"trackFileCount":0,"trackCount":9}}""";
+        _lidarr.Responses["GET /api/v1/album?artistId=3"] = $"[{album}]";
+        _lidarr.Responses[$"GET /api/v1/album?foreignAlbumId={Moisturizer}"] = $"[{album}]";
+        _lidarr.Responses["GET /api/v1/queue?page=1&pageSize=200&includeArtist=true&includeAlbum=true"] = """{"page":1,"pageSize":200,"totalRecords":0,"records":[]}""";
+        await InDbAsync(async db =>
+        {
+            db.MediaRequests.Add(new Core.Notifications.MediaRequest { ProfileId = "owner", Kind = MediaKind.Album, MusicBrainzId = Moisturizer, ArtistMusicBrainzId = "artist-added", AddedArtist = true, Title = "moisturizer", ArtistName = "Wet Leg" });
+            return await db.SaveChangesAsync();
+        });
+
+        await _server.Services.GetRequiredService<Endpoints.MusicRequests.MusicImportRetry>().SweepAsync(CancellationToken.None);
+
+        Assert.Single(_sent, s => s.Request == "POST /api/v1/command");
+    }
+
     private void LidarrAwaitsMoisturizer(string otherAlbums = "")
     {
         _lidarr.Responses["GET /api/v1/artist"] = $"[{WetLegInLidarr}]";
