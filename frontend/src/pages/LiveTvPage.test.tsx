@@ -720,6 +720,30 @@ describe('the Live TV guide', () => {
     expect(guideAsks(fetchMock)).toHaveLength(2)
   })
 
+  it('with no favourites, says so when every channel can’t be fetched, and Try again brings them', async () => {
+    let down = true
+    mockApi({
+      '/livetv/status': status,
+      '/livetv/channels': [],
+      '/livetv/guide': (_: unknown, url: URL) => {
+        if (url.searchParams.get('favourites') === 'true') return answer([])
+        if (down) throw new TypeError('Failed to fetch')
+        return answer(channels)
+      },
+    })
+    open()
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Couldn’t load the guide')
+    expect(screen.queryByText('Loading the guide')).toBeNull()
+
+    down = false
+    fireEvent.click(within(alert).getByRole('button', { name: 'Try again' }))
+    await waitFor(() => expect(document.querySelectorAll('.livetv-guide-row')).toHaveLength(20))
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByRole('button', { name: 'All channels' })).toHaveClass('active')
+  })
+
   it('on a server that sends every channel whatever it’s asked, still shows the favourites alone', async () => {
     mockApi({ '/livetv/status': status, '/livetv/channels': [], '/livetv/guide': answer(starred) })
     open()

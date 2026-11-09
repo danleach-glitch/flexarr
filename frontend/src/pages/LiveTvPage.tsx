@@ -493,10 +493,11 @@ const Guide = memo(function Guide({ refreshed }: { refreshed: number }) {
   const slots = Array.from({ length: hours * 2 }, (_, i) => new Date(from.getTime() + i * 30 * 60_000))
 
   const failure = failed && <PageError error={failed} message={t('Couldn’t load the guide: {error}', { error: failed.message })} onRetry={() => setVersion((v) => v + 1)} retrying={asking} />
-  // A guide already on screen stays there, with the failure above it.
-  if (failure && !guide) return failure
   // No favourites after all: on to every channel, still loading.
-  if (!guide || (!favouritesOnly && !hasAll && favouritesChosen === undefined)) return <PageLoading label={t('Loading the guide')} />
+  const nothingToShow = !guide || (!favouritesOnly && !hasAll && favouritesChosen === undefined)
+  // A guide already on screen stays there, with the failure above it.
+  if (failure && nothingToShow) return failure
+  if (nothingToShow) return <PageLoading label={t('Loading the guide')} />
   const description = selected && (selected.programme.description ?? descriptions[selected.programme.id])
   const rows = favouritesOnly ? guide.channels.filter((c) => c.isFavourite) : guide.channels
 
