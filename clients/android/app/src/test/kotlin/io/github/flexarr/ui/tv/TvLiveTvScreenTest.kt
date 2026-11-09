@@ -18,6 +18,7 @@ import io.github.flexarr.ui.components.LocalClient
 import io.github.flexarr.ui.components.LocalNavigator
 import kotlinx.coroutines.launch
 import mockwebserver3.MockResponse
+import mockwebserver3.SocketEffect
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -39,13 +40,17 @@ class TvLiveTvScreenTest {
     @Volatile private var channels = listOf(channel(1, "News"), channel(2, "Sport"))
     @Volatile private var finished = 4
     @Volatile private var extra = ""
+    @Volatile private var unreachable = false
+    @Volatile private var refusal: MockResponse? = null
     private val server = TestServer { request ->
         val path = request.url.encodedPath
         when {
             path.endsWith("/me") -> TestServer.json("""{"profileId":"main","method":"device","isAdmin":true}""")
             path.endsWith("/livetv/channels") -> TestServer.json(channels.joinToString(",", "[", "]"))
+            path.endsWith("/livetv/status") && unreachable -> MockResponse.Builder().onResponseStart(SocketEffect.CloseSocket()).build()
             path.endsWith("/livetv/status") -> TestServer.json("""{"configured":true,"channels":2,"refreshing":false,"refreshesFinished":$finished,"channelsWithoutListings":3$extra}""")
             path.endsWith("/livetv/guide") -> TestServer.json(object {}.javaClass.classLoader!!.getResource("live-guide.json")!!.readText())
+            path.endsWith("/livetv/refresh") && refusal != null -> refusal
             path.endsWith("/livetv/refresh") -> MockResponse.Builder().code(202).build().also { finished++ }
             else -> null
         }
@@ -96,6 +101,56 @@ class TvLiveTvScreenTest {
         press(Words.refreshGuide)
         server.waitUntil("the refresh") { model.liveTvRefreshesEnded == ended + 1 }
         settle()
+    }
+
+    /** Long enough for a problem to have been read, and the page's next look at the status. */
+    private fun nextLook() {
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(31))
+        rule.mainClock.advanceTimeBy(60_000)
+        settle()
+    }
+
+    private val cantReach = "Couldn’t reach the server. Make sure Flexarr is running and this device is on the same network."
+
+    @Test fun aPressThatNeverGotThere_staysThroughAFailedLook_andGoesWithAGoodOneThatFindsNothingChanged() {
+        show()
+        unreachable = true
+        refresh()
+        rule.onNodeWithText(cantReach).assertExists()
+        nextLook()
+        rule.onNodeWithText(cantReach).assertExists()
+        unreachable = false
+        nextLook()
+        rule.onNodeWithText(cantReach).assertDoesNotExist()
+    }
+
+    @Test fun aGoodLookStraightAfter_leavesTheProblemToBeRead() {
+        show()
+        unreachable = true
+        refresh()
+        unreachable = false
+        rule.mainClock.advanceTimeBy(60_000)
+        settle()
+        rule.onNodeWithText(cantReach).assertExists()
+        nextLook()
+        rule.onNodeWithText(cantReach).assertDoesNotExist()
+    }
+
+    @Test fun aRefusedPress_staysThroughGoodLooks_untilTheNextPress() {
+        show()
+        refusal = TestServer.json("""{"title":"Unlock first"}""", 403)
+        refresh()
+        rule.onNodeWithText("Unlock first").assertExists()
+        nextLook()
+        rule.onNodeWithText("Unlock first").assertExists()
+        // A scheduled refresh has been through: the status moves, and says nothing about the press.
+        finished++
+        nextLook()
+        rule.onNodeWithText("Unlock first").assertExists()
+        refusal = null
+        refresh()
+        rule.onNodeWithText("Unlock first").assertDoesNotExist()
+        rule.onNodeWithText(Words.guideRefreshed).assertExists()
     }
 
     @Test fun noFavourites_opensOnAllChannels_notTheEmptyPage() {

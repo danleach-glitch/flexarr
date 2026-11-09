@@ -4,6 +4,7 @@ import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.LiveTvRefreshOutcome
 import io.github.flexarr.following
 import io.github.flexarr.core.i18n.t
+import android.os.SystemClock
 import android.text.format.DateFormat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -41,6 +42,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -231,6 +233,9 @@ internal open class GuideKeeper(private val scope: CoroutineScope) {
 }
 
 /** Favourites' star: projected white, never gold. */
+/** How long a refresh's problem is up before a look at the status may take it away. */
+private const val REFRESH_PROBLEM_SEEN_FOR_MS = 30_000L
+
 private val StarColor = Flexarr.screen
 
 /** A programme set to record. */
@@ -251,6 +256,7 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
     var error by remember { mutableStateOf<String?>(null) }
     // How refreshing the guide went: one that worked says so in its button for a while, a problem lasts as long as it does.
     var refreshNote by remember { mutableStateOf<LiveTvRefreshOutcome?>(null) }
+    var refreshProblemSaidAt by remember { mutableLongStateOf(0L) }
     // The guide on screen, with what it was asked for and its ETag.
     var kept by remember { mutableStateOf<KeptGuide?>(null) }
     var upcoming by remember { mutableStateOf<Int?>(null) }
@@ -277,7 +283,11 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
     // What's on moves on: fetched again each minute while the screen is up.
     RepeatWhileShowing(60_000, model.credentials) {
         load()
-        if (model.isMainProfile) model.reloadLiveTvStatus()
+        // A press that failed never reached the status, so a good look that finds it unchanged is news too. Not straight
+        // after saying it, or a look that happens to be due would take it away before it's read.
+        if (model.isMainProfile && model.reloadLiveTvStatus() && SystemClock.elapsedRealtime() - refreshProblemSaidAt >= REFRESH_PROBLEM_SEEN_FOR_MS) {
+            refreshNote = refreshNote?.following(model.liveTvStatus)
+        }
     }
     LaunchedEffect(focusedCategory) {
         val resting = focusedCategory ?: return@LaunchedEffect
@@ -335,6 +345,7 @@ fun TvLiveTvScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
         val ended = model.takeLiveTvRefreshEnd()
         // Taking a while says itself, for as long as it does.
         ended?.let { refreshNote = it.takeUnless { outcome -> outcome.isTakingAWhile } }
+        if (ended?.isProblem == true) refreshProblemSaidAt = SystemClock.elapsedRealtime()
         if (model.liveTvRefreshesEnded != refreshesSeen) {
             refreshesSeen = model.liveTvRefreshesEnded
             // Ended too long ago to announce, but a red line doesn't outlast it.

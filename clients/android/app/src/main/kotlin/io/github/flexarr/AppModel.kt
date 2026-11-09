@@ -1623,7 +1623,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                 throw e
             } catch (e: Exception) {
                 if (this@AppModel.credentials != credentials) return@launch
-                LiveTvRefreshOutcome(refreshFailure(e), isProblem = true)
+                LiveTvRefreshOutcome(refreshFailure(e), isProblem = true, isRefusal = isRefusal(e))
             } finally {
                 if (liveTvRefreshFor === credentials) liveTvRefreshFor = null
             }
@@ -1632,14 +1632,17 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         }
     }
 
-    /** Live TV's status again, for how many channels have no listings: a look that fails leaves things as they were. */
-    suspend fun reloadLiveTvStatus() {
-        val credentials = credentials ?: return
-        val client = client ?: return
-        if (isKids) return
+    /**
+     * Live TV's status again, for how many channels have no listings: a look that fails leaves things as they were.
+     * False when the server wasn't heard from.
+     */
+    suspend fun reloadLiveTvStatus(): Boolean {
+        val credentials = credentials ?: return false
+        val client = client ?: return false
+        if (isKids) return false
         try {
-            val status = client.liveTvStatus() ?: return
-            if (this.credentials != credentials) return
+            val status = client.liveTvStatus() ?: return false
+            if (this.credentials != credentials) return false
             liveTvStatus = status
             if (isLiveTvRefreshTakingAWhile) {
                 if (status.refreshing) {
@@ -1658,9 +1661,11 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                     liveTvRefreshesEnded++
                 }
             }
+            return true
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (_: Exception) {
+            return false
         }
     }
 
@@ -2135,9 +2140,16 @@ internal data class MusicMarks(val asked: Set<String>, val undone: Set<String>) 
 
 /**
  * What to say about a Live TV refresh that ended. [isTakingAWhile]: given up on, not over. [sourcesNote]: said beside a
- * source's failure that wasn't asked about again this time.
+ * source's failure that wasn't asked about again this time. [isRefusal]: the server turned the press down, which no
+ * status says anything about, so it stands until the next press.
  */
-data class LiveTvRefreshOutcome(val words: String, val isProblem: Boolean = false, val isTakingAWhile: Boolean = false, val sourcesNote: String? = null) {
+data class LiveTvRefreshOutcome(
+    val words: String,
+    val isProblem: Boolean = false,
+    val isTakingAWhile: Boolean = false,
+    val sourcesNote: String? = null,
+    val isRefusal: Boolean = false,
+) {
     val worked: Boolean get() = !isProblem && !isTakingAWhile
 
     /** All of it, where there's one place to say it. */
@@ -2163,7 +2175,7 @@ internal fun liveTvRefreshOutcome(end: LiveTvRefreshEnd): LiveTvRefreshOutcome {
  * now, or goes (null). A refresh under way hasn't settled anything yet.
  */
 internal fun LiveTvRefreshOutcome.following(status: LiveTvStatus?): LiveTvRefreshOutcome? {
-    if (!isProblem || status == null || status.refreshing) return this
+    if (!isProblem || isRefusal || status == null || status.refreshing) return this
     return liveTvRefreshOutcome(LiveTvRefreshEnd(status)).takeIf { it.isProblem }
 }
 
@@ -2181,6 +2193,13 @@ internal class UnseenEnd<Who, End : Any>(private val keptMs: Long, private val n
 /** Why a Live TV refresh failed: the server's own words when it answered (a lapsed admin unlock, say). */
 internal fun refreshFailure(error: Exception): String =
     (error as? FlexarrException)?.message ?: t(Words.serverDidntAnswer)
+
+/** The server heard a refresh's press and turned it down, rather than being out of reach or falling over. */
+internal fun isRefusal(error: Exception): Boolean = when (error) {
+    is FlexarrException.Unreachable, is FlexarrException.UnexpectedResponse -> false
+    is FlexarrException.Http -> error.status < 500
+    else -> error is FlexarrException
+}
 
 /**
  * Why this device can't sign out, or null when it can: child lock is on ([AppModel.kidsLock], remembered offline too),

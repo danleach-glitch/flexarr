@@ -6,6 +6,7 @@ import io.github.flexarr.core.LiveTvStatus
 import io.github.flexarr.core.i18n.Words
 import kotlinx.coroutines.launch
 import mockwebserver3.MockResponse
+import mockwebserver3.SocketEffect
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -50,14 +51,14 @@ class LiveTvRefreshTest {
         server.waitUntil("the ask") { server.requestsTo("/livetv/refresh").size == asked + 1 }
     }
 
-    private fun lookAtStatus() {
-        var done = false
-        model.scope.launch {
-            model.reloadLiveTvStatus()
-            done = true
-        }
-        server.waitUntil("the look") { done }
+    private fun lookAtStatus(): Boolean {
+        var heard: Boolean? = null
+        model.scope.launch { heard = model.reloadLiveTvStatus() }
+        server.waitUntil("the look") { heard != null }
+        return heard!!
     }
+
+    private val noConnection get() = MockResponse.Builder().onResponseStart(SocketEffect.CloseSocket()).build()
 
     private fun pass(duration: Duration) = shadowOf(Looper.getMainLooper()).idleFor(duration)
 
@@ -227,6 +228,35 @@ class LiveTvRefreshTest {
         statusAnswer = TestServer.json(status())
         lookAtStatus()
         assertEquals(1, model.liveTvRefreshesEnded)
+    }
+
+    @Test fun aLook_saysWhetherTheServerWasHeardFrom() {
+        assertTrue(lookAtStatus())
+        statusAnswer = TestServer.json("{}", 502)
+        assertFalse(lookAtStatus())
+        statusAnswer = noConnection
+        assertFalse(lookAtStatus())
+        statusAnswer = MockResponse.Builder().code(404).build()
+        assertFalse("Nothing to go on: no Live TV there", lookAtStatus())
+    }
+
+    @Test fun aRefusedPress_standsWhateverTheStatusSays() {
+        refreshAnswer = TestServer.json("""{"title":"Unlock first"}""", 403)
+        refreshAndWait()
+        val said = model.takeLiveTvRefreshEnd()!!
+        assertEquals("Unlock first", said.words)
+        assertEquals(said, said.following(parsed()))
+        assertEquals(said, said.following(parsed(error = "Something else")))
+    }
+
+    @Test fun aPressThatDidntGetThere_isntARefusal() {
+        refreshAnswer = noConnection
+        refreshAndWait()
+        assertNull("Goes with a good look", model.takeLiveTvRefreshEnd()!!.following(parsed()))
+
+        refreshAnswer = TestServer.json("{}", 502)
+        refreshAndWait(ended = 2)
+        assertNull(model.takeLiveTvRefreshEnd()!!.following(parsed()))
     }
 
     private fun parsed(refreshing: Boolean = false, error: String? = null, downloadError: String? = null, skipped: Boolean = false) =
