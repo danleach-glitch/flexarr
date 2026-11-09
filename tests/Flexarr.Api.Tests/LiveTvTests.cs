@@ -961,8 +961,9 @@ public sealed class LiveTvTests : IDisposable
         var client = Client();
         await ConnectAsync(client);
         var folder = Directory.CreateDirectory(Path.Combine(_factory.DataDirectory, "languages")).FullName;
-        File.WriteAllText(Path.Combine(folder, "en-XA.json"), """
-            {"format":1,"code":"en-XA","name":"Pseudo (test)","direction":"ltr","version":7,"coverage":{"web":1},"messages":{
+        // A code of its own: what's loaded is shared across a test run, and LanguageEndpointTests has en-XA.
+        File.WriteAllText(Path.Combine(folder, "en-XB.json"), """
+            {"format":1,"code":"en-XB","name":"Pseudo (test)","direction":"ltr","version":7,"coverage":{"web":1},"messages":{
             "Flexarr can’t reach the Live TV source: {reason}":"⟦reach {reason}⟧",
             "The Live TV source didn’t answer in time.":"⟦late⟧",
             "The Live TV source refused the user name or password.":"⟦refused⟧",
@@ -985,7 +986,7 @@ public sealed class LiveTvTests : IDisposable
 
         // The one failure, read later by someone in another language.
         var other = Client();
-        other.DefaultRequestHeaders.AcceptLanguage.ParseAdd("en-XA");
+        other.DefaultRequestHeaders.AcceptLanguage.ParseAdd("en-XB");
         Assert.Equal(pseudo, (await other.GetFromJsonAsync<JsonElement>(Api("livetv/status"))).GetProperty("error").GetString());
 
         // Testing a connection in Settings says the same.
