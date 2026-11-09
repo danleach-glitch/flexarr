@@ -43,6 +43,8 @@ public sealed class MusicRequestTests : IAsyncLifetime
                 s.AddHttpClient<DeezerClient>().ConfigurePrimaryHttpMessageHandler(() => _deezer);
                 s.AddHttpClient(nameof(DeezerClient)).ConfigurePrimaryHttpMessageHandler(() => _deezer);
                 s.AddHttpClient<MusicBrainzClient>().ConfigurePrimaryHttpMessageHandler(() => _musicBrainz);
+                s.AddHttpContextAccessor();
+                s.AddSingleton<Microsoft.AspNetCore.Authentication.IClaimsTransformation, GuestWhenSaid>();
             });
         });
         _lidarr.OnRequest = r => _sent.Enqueue(($"{r.Method} {r.RequestUri!.AbsolutePath}", r.Content is null ? null : JsonNode.Parse(r.Content.ReadAsStringAsync().Result)));
@@ -1096,6 +1098,239 @@ public sealed class MusicRequestTests : IAsyncLifetime
         Assert.Contains(_sent, s => s.Request == "DELETE /api/v1/queue/5");
     }
 
+    /// <summary>A complete copy Lidarr won't import for scoring low, as Lidarr's queue puts it.</summary>
+    private void LidarrScoredMoisturizerLow()
+    {
+        LidarrAwaitsMoisturizer();
+        var queue = $$$"""
+            {"id":5,"albumId":9,"artistId":3,"title":"complete","downloadId":"complete","status":"completed","size":100,"sizeleft":0,"trackedDownloadStatus":"warning","trackedDownloadState":"importBlocked",
+             "statusMessages":[{"title":"complete","messages":["Album match is not close enough: 78.9% vs 80% [album, year]"]}],
+             "album":{"id":9,"artistId":3,"title":"moisturizer","foreignAlbumId":"{{{Moisturizer}}}","monitored":true} }
+            """;
+        _lidarr.Responses["GET /api/v1/queue?page=1&pageSize=200&includeArtist=true&includeAlbum=true"] = $$"""{"page":1,"pageSize":200,"totalRecords":1,"records":[{{queue}}]}""";
+        _lidarr.Responses["GET /api/v1/queue/details?albumIds=9"] = $"[{queue}]";
+    }
+
+    /// <summary>A copy still downloading.</summary>
+    private void LidarrIsDownloadingMoisturizer()
+    {
+        LidarrAwaitsMoisturizer();
+        var queue = $$$"""
+            {"id":5,"albumId":9,"artistId":3,"title":"going","downloadId":"going","status":"downloading","size":100,"sizeleft":50,"trackedDownloadStatus":"ok","trackedDownloadState":"downloading",
+             "album":{"id":9,"artistId":3,"title":"moisturizer","foreignAlbumId":"{{{Moisturizer}}}","monitored":true} }
+            """;
+        _lidarr.Responses["GET /api/v1/queue?page=1&pageSize=200&includeArtist=true&includeAlbum=true"] = $$"""{"page":1,"pageSize":200,"totalRecords":1,"records":[{{queue}}]}""";
+        _lidarr.Responses["GET /api/v1/queue/details?albumIds=9"] = $"[{queue}]";
+    }
+
+    private bool WroteToLidarr() => _sent.Any(s => s.Request == "POST /api/v1/command" || s.Request == "PUT /api/v1/album/monitor" || s.Request.StartsWith("DELETE", StringComparison.Ordinal));
+
+    private Endpoints.MusicRequests.MusicImportRetry Sweep => _server.Services.GetRequiredService<Endpoints.MusicRequests.MusicImportRetry>();
+
+    private Task<HttpResponseMessage> TryAgainAsync(string? token = null) => Client(token).PostAsJsonAsync(Api("/requests/music/retry"), new { musicBrainzId = Moisturizer });
+
+    [Fact]
+    public async Task TryAgain_LeavesACompleteCopyWhereItIs_AndJustSearches()
+    {
+        await MusicLibraryAsync();
+        LidarrScoredMoisturizerLow();
+        await AskedForMoisturizerAsync(addedArtist: false);
+        _sent.Clear();
+
+        var response = await TryAgainAsync();
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.DoesNotContain(_sent, s => s.Request.StartsWith("DELETE", StringComparison.Ordinal));
+        Assert.Contains(_sent, s => s.Request == "POST /api/v1/command");
+    }
+
+    [Fact]
+    public async Task TryAgain_OnAnAlbumThatIsntStuck_Says409_AndTouchesNothing()
+    {
+        await MusicLibraryAsync();
+        LidarrIsDownloadingMoisturizer();
+        await AskedForMoisturizerAsync(addedArtist: false);
+        _sent.Clear();
+
+        var response = await TryAgainAsync();
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Contains("isn’t stuck", (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("detail").GetString(), StringComparison.Ordinal);
+        Assert.False(WroteToLidarr());
+    }
+
+    [Fact]
+    public async Task TryAgain_PressedAgainTooSoon_Says409_AndSearchesOnce()
+    {
+        await MusicLibraryAsync();
+        LidarrGaveUpOnMoisturizer();
+        await AskedForMoisturizerAsync(addedArtist: false);
+        _sent.Clear();
+
+        var answers = await Task.WhenAll(TryAgainAsync(), TryAgainAsync());
+
+        Assert.Equal([HttpStatusCode.NoContent, HttpStatusCode.Conflict], answers.Select(a => a.StatusCode).Order());
+        Assert.Single(_sent, s => s.Request == "POST /api/v1/command");
+
+        // Once the wait's over it can be tried again.
+        Sweep.TryAgainEvery = TimeSpan.Zero;
+        Assert.Equal(HttpStatusCode.NoContent, (await TryAgainAsync()).StatusCode);
+    }
+
+    [Fact]
+    public async Task TryAgain_CountsAgainstTheDaysAsking()
+    {
+        await MusicLibraryAsync();
+        LidarrGaveUpOnMoisturizer();
+        await AskedForMoisturizerAsync(addedArtist: false);
+        Sweep.TryAgainEvery = TimeSpan.Zero;
+        for (var i = 0; i < Endpoints.MusicRequests.MusicRequestEndpoints.DailyLimit; i++)
+        {
+            Assert.Equal(HttpStatusCode.NoContent, (await TryAgainAsync()).StatusCode);
+        }
+
+        _sent.Clear();
+        var refused = await TryAgainAsync();
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, refused.StatusCode);
+        Assert.False(WroteToLidarr());
+    }
+
+    [Fact]
+    public async Task TryAgain_DoesntMonitorAnAlbumLidarrHasUnmonitored_AndForgetsOnlyThatAlbumsAnswers()
+    {
+        await MusicLibraryAsync();
+        LidarrGaveUpOnMoisturizer();
+        const string Other = "aaaaaaaa-0000-4000-8000-000000000001";
+        var moisturizer = _lidarr.Responses["GET /api/v1/album?foreignAlbumId=" + Moisturizer];
+        _lidarr.Responses["GET /api/v1/album?foreignAlbumId=" + Moisturizer] = moisturizer.Replace("\"monitored\":true", "\"monitored\":false", StringComparison.Ordinal);
+        _lidarr.Responses["GET /api/v1/album?foreignAlbumId=" + Other] = """[{"id":77,"artistId":3,"title":"Other","foreignAlbumId":"aaaaaaaa-0000-4000-8000-000000000001","monitored":true,"lastSearchTime":"2026-01-01T00:00:00Z","statistics":{"trackCount":5,"trackFileCount":0}}]""";
+        await AskedForMoisturizerAsync(addedArtist: false);
+        await InDbAsync(async db =>
+        {
+            db.MediaRequests.Add(new Core.Notifications.MediaRequest { ProfileId = "owner", Kind = MediaKind.Album, Title = "Other", ArtistName = "Wet Leg", MusicBrainzId = Other });
+            return await db.SaveChangesAsync();
+        });
+        await Sweep.SweepAsync(CancellationToken.None); // the other album is settled: it's been searched for
+        _lidarr.Requests.Clear();
+        _sent.Clear();
+
+        Assert.Equal(HttpStatusCode.NoContent, (await TryAgainAsync()).StatusCode);
+
+        Assert.DoesNotContain(_sent, s => s.Request == "PUT /api/v1/album/monitor");
+        Assert.Contains(_sent, s => s.Request == "POST /api/v1/command");
+
+        _lidarr.Requests.Clear();
+        await Sweep.SweepAsync(CancellationToken.None);
+        Assert.DoesNotContain(_lidarr.Requests, r => r.Contains("foreignAlbumId=" + Other, StringComparison.Ordinal)); // still settled
+    }
+
+    [Fact]
+    public async Task TryAgain_WhoseSearchFails_IsOwedOne_AndCanBePressedAgain()
+    {
+        await MusicLibraryAsync();
+        LidarrGaveUpOnMoisturizer();
+        await AskedForMoisturizerAsync(addedArtist: false);
+        _lidarr.Responses.TryRemove("POST /api/v1/command", out _); // Lidarr goes away between the blocklist and the search
+        _sent.Clear();
+
+        Assert.Equal(HttpStatusCode.BadGateway, (await TryAgainAsync()).StatusCode);
+
+        Assert.Contains(_sent, s => s.Request == "DELETE /api/v1/queue/5");
+        // The copy's gone from the queue now, so only what's owed can bring this back to mind.
+        _lidarr.Responses["GET /api/v1/queue?page=1&pageSize=200&includeArtist=true&includeAlbum=true"] = """{"page":1,"pageSize":200,"totalRecords":0,"records":[]}""";
+        _lidarr.Responses["GET /api/v1/queue/details?albumIds=9"] = "[]";
+        _lidarr.Responses["POST /api/v1/command"] = "{}";
+        _sent.Clear();
+        await Sweep.SweepAsync(CancellationToken.None);
+        Assert.Contains(_sent, s => s.Request == "POST /api/v1/command");
+
+        // A failed try didn't use up the turn: only the sweep's search just now holds it off.
+        Sweep.SearchAgainAfter = TimeSpan.Zero;
+        Assert.Equal(HttpStatusCode.NoContent, (await TryAgainAsync()).StatusCode);
+    }
+
+    [Fact]
+    public async Task TryAgain_ThatSucceeds_OwesNothing()
+    {
+        await MusicLibraryAsync();
+        LidarrGaveUpOnMoisturizer();
+        await AskedForMoisturizerAsync(addedArtist: false);
+        Assert.Equal(HttpStatusCode.NoContent, (await TryAgainAsync()).StatusCode);
+        _lidarr.Responses["GET /api/v1/queue?page=1&pageSize=200&includeArtist=true&includeAlbum=true"] = """{"page":1,"pageSize":200,"totalRecords":0,"records":[]}""";
+        _sent.Clear();
+
+        await Sweep.SweepAsync(CancellationToken.None);
+
+        Assert.DoesNotContain(_sent, s => s.Request == "POST /api/v1/command");
+    }
+
+    [Fact]
+    public async Task TryAgain_ForAGuest_IsRefused_AndTheirListDoesntOfferIt()
+    {
+        await MusicLibraryAsync();
+        LidarrGaveUpOnMoisturizer();
+        await AskedForMoisturizerAsync(addedArtist: false);
+        var guest = Client();
+        guest.DefaultRequestHeaders.Add(GuestWhenSaid.Header, "true");
+        _sent.Clear();
+
+        var response = await guest.PostAsJsonAsync(Api("/requests/music/retry"), new { musicBrainzId = Moisturizer });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.False(WroteToLidarr());
+        var today = DateTime.UtcNow.Date;
+        _lidarr.Responses["GET /api/v1/wanted/missing?page=1&pageSize=1000&includeArtist=false&monitored=true&sortKey=releaseDate&sortDirection=descending"] = $$"""
+            {"page":1,"pageSize":1000,"totalRecords":1,"records":[{"id":9,"artistId":3,"title":"moisturizer","foreignAlbumId":"{{Moisturizer}}","monitored":true}]}
+            """;
+        _lidarr.Responses[$"GET /api/v1/calendar?start={today:yyyy-MM-dd}&end={today.AddYears(1):yyyy-MM-dd}&unmonitored=false&includeArtist=false"] = "[]";
+        var mine = await Client().GetFromJsonAsync<JsonElement>(Api("/requests/music/requested"));
+        var theirs = await guest.GetFromJsonAsync<JsonElement>(Api("/requests/music/requested"));
+        Assert.True(mine.EnumerateArray().Single().GetProperty("canRetry").GetBoolean());
+        Assert.False(theirs.EnumerateArray().Single().GetProperty("canRetry").GetBoolean());
+    }
+
+    [Fact]
+    public async Task TryAgain_ForAProfileWithAnAgeLimit_IsRefused()
+    {
+        await MusicLibraryAsync();
+        LidarrGaveUpOnMoisturizer();
+        await AskedForMoisturizerAsync(addedArtist: false);
+        var created = await (await Client().PostAsJsonAsync(Api("/profiles"), new { name = $"Sam {Guid.NewGuid():N}"[..12], maxRatingAge = 12 })).Content.ReadFromJsonAsync<JsonElement>();
+        var id = created.GetProperty("id").GetString();
+        var token = (await (await Client().PostAsJsonAsync(Api($"/profiles/{id}/select"), new { })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString();
+        _sent.Clear();
+
+        var response = await TryAgainAsync(token);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.False(WroteToLidarr());
+    }
+
+    [Fact]
+    public async Task TryAgain_OnAnAlbumInALibraryTheProfileCantSee_SaysNothing_AndDoesNothing()
+    {
+        // Sam sees a music library, only not the one Lidarr keeps this artist in.
+        var theirs = await MusicLibraryAsync();
+        LidarrGaveUpOnMoisturizer();
+        await AskedForMoisturizerAsync(addedArtist: false);
+        var other = Directory.CreateDirectory(Path.Combine(_factory.MediaDirectory, $"other-{Guid.NewGuid():N}")).FullName;
+        await InDbAsync(async db =>
+        {
+            db.Libraries.Add(new Library { Name = $"Other {Guid.NewGuid():N}", Type = LibraryType.Music, Folders = [new LibraryFolder { Path = other }] });
+            return await db.SaveChangesAsync();
+        });
+        var created = await (await Client().PostAsJsonAsync(Api("/profiles"), new { name = $"Sam {Guid.NewGuid():N}"[..12], hiddenLibraryIds = new[] { theirs.Id } })).Content.ReadFromJsonAsync<JsonElement>();
+        var id = created.GetProperty("id").GetString();
+        var token = (await (await Client().PostAsJsonAsync(Api($"/profiles/{id}/select"), new { })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString();
+        _sent.Clear();
+
+        var response = await TryAgainAsync(token);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode); // the same as an album that doesn't exist
+        Assert.False(WroteToLidarr());
+    }
+
     [Fact]
     public async Task TryAgain_LeavesAnAlbumNobodyHasAnOpenRequestFor()
     {
@@ -1222,5 +1457,21 @@ internal sealed class FakeMusicBrainz : HttpMessageHandler
         var query = Uri.UnescapeDataString(request.RequestUri!.Query);
         var body = Releases.FirstOrDefault(r => query.Contains(r.Key.TrimStart('0'), StringComparison.Ordinal)).Value ?? """{"count":0,"releases":[]}""";
         return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") });
+    }
+}
+
+/// <summary>Signs a request in as a family guest, as an invite's sign-in does: by the claim, through the usual authentication.</summary>
+internal sealed class GuestWhenSaid(Microsoft.AspNetCore.Http.IHttpContextAccessor http) : Microsoft.AspNetCore.Authentication.IClaimsTransformation
+{
+    public const string Header = "X-Test-Guest";
+
+    public Task<System.Security.Claims.ClaimsPrincipal> TransformAsync(System.Security.Claims.ClaimsPrincipal principal)
+    {
+        if (http.HttpContext?.Request.Headers.ContainsKey(Header) == true && !principal.HasClaim(Flexarr.Api.Security.FlexarrClaims.Guest, "true"))
+        {
+            principal.AddIdentity(new System.Security.Claims.ClaimsIdentity([new(Flexarr.Api.Security.FlexarrClaims.Guest, "true")]));
+        }
+
+        return Task.FromResult(principal);
     }
 }

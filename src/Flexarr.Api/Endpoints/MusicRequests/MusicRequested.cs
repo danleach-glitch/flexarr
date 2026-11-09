@@ -25,11 +25,17 @@ public static class MusicRequested
     /// <summary>A request or unrequest changed what Lidarr is waiting for.</summary>
     public static void Forget(IMemoryCache cache) => Interlocked.Exchange(ref _changed, new CancellationTokenSource()).Cancel();
 
+    /// <param name="c">The services.</param>
     /// <param name="libraryFolders">Only artists in these folders (one library's Requested view); null for all.</param>
+    /// <param name="mayRetry">Not a guest: this profile's Try again would be heard.</param>
+    /// <param name="ct">Stops it.</param>
     /// <returns>Null when no Lidarr answered.</returns>
-    public static async Task<List<MusicRequestedDto>?> ListAsync(MusicRequestContext c, IReadOnlyList<string>? libraryFolders, CancellationToken ct)
+    public static async Task<List<MusicRequestedDto>?> ListAsync(MusicRequestContext c, IReadOnlyList<string>? libraryFolders, bool mayRetry, CancellationToken ct)
     {
         var owned = await c.OwnedAsync(ct);
+        // What Try again checks for. Whatever's listed here is in a folder this profile sees, or it wouldn't be.
+        var open = (mayRetry ? await c.Db.MediaRequests.AsNoTracking().Where(r => r.Kind == MediaKind.Album && r.FulfilledAt == null && r.MusicBrainzId != null).Select(r => r.MusicBrainzId!).ToListAsync(ct) : [])
+            .ToHashSet(StringComparer.Ordinal);
         var listed = new List<MusicRequestedDto>();
         // Every album Lidarr knows about, shown or not, so the open-request fallback below never lists it; and the
         // ones shown, so two Lidarrs' copies show once.
@@ -79,7 +85,7 @@ public static class MusicRequested
 
                 var (state, progress) = State(album, queued[album.Id].FirstOrDefault(), now);
                 listed.Add(new MusicRequestedDto(releaseGroup, album.Title, artist.ArtistName, artist.ForeignArtistId, Cover(lidarr, album) ?? Photo(lidarr, artist),
-                    album.ReleaseDate is { } d ? DateOnly.FromDateTime(d) : null, state, progress, owned.ArtistId(artist.ArtistName)));
+                    album.ReleaseDate is { } d ? DateOnly.FromDateTime(d) : null, state, progress, owned.ArtistId(artist.ArtistName), open.Contains(releaseGroup)));
             }
         }
 
@@ -117,9 +123,11 @@ public static class MusicRequested
                 if (placeable && !known.Contains(request.MusicBrainzId!) && shown.Add(request.MusicBrainzId!) && owned.AlbumId(request.ArtistName, request.Title) is null)
                 {
                     // An album Lidarr has unmonitored can still be in its queue, from the search the request started.
-                    var (state, progress) = queuedAlbums.TryGetValue(request.MusicBrainzId!, out var item) ? FromQueue(item) : ("searching", null);
+                    var inQueue = queuedAlbums.TryGetValue(request.MusicBrainzId!, out var item);
+                    var (state, progress) = inQueue ? FromQueue(item!) : ("searching", null);
+                    // Only one in Lidarr's queue is sure to be in Lidarr at all: Try again leaves one that isn't.
                     listed.Add(new MusicRequestedDto(request.MusicBrainzId!, request.Title ?? "", request.ArtistName ?? "", request.ArtistMusicBrainzId, null, null, state, progress,
-                        owned.ArtistId(request.ArtistName)));
+                        owned.ArtistId(request.ArtistName), inQueue && open.Contains(request.MusicBrainzId!)));
                 }
             }
         }

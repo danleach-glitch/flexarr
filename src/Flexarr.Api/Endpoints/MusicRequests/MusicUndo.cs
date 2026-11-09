@@ -126,7 +126,7 @@ public static partial class MusicUndo
 
             await DropDownloadsAsync(c, lidarr, lidarrAlbum.Id, ct);
             c.ForgetAlbums(lidarr, artist.Id);
-            retry.StartAfresh(lidarr, lidarrAlbum.Id); // asking again later gets its full share of tries
+            retry.StartAfresh(lidarr, lidarrAlbum.Id, new[] { releaseGroupId, lidarrAlbum.ForeignAlbumId }.OfType<string>().ToList()); // asking again later gets its full share of tries
         }
 
         var groups = new[] { releaseGroupId, found?.Album.ForeignAlbumId }.OfType<string>().Distinct().ToList();
@@ -156,11 +156,20 @@ public static partial class MusicUndo
     }
 
     /// <summary>
-    /// Tries an album that couldn't be imported again: its count of tries starts over, the copies Lidarr gave up on are
-    /// blocklisted (one shared with another album stays, as for an unrequest) and it's searched for. Only for an album
-    /// somebody has an open request for, so this can't set off a search for anything else. Nothing to do answers 204.
+    /// Tries a stuck album again: its count of tries starts over, the copies Lidarr gave up on for missing tracks are
+    /// blocklisted (a complete one that scored low stays for importing by hand, and one shared with another album stays, as
+    /// for an unrequest) and it's searched for. Only for an album somebody has an open request for, so this can't set off a
+    /// search for anything else, and only if it's stuck: a failed copy in the queue, or nothing in the queue and no files.
+    /// Nothing to do, or an album this profile can't see, answers 204; one that isn't stuck, or was tried just now, 409.
+    /// An album Lidarr has unmonitored stays so: a search for it by id doesn't ask.
     /// </summary>
-    public static async Task<IResult> RetryAsync(MusicRequestContext c, MusicUndoBody body, MusicImportRetry retry, ILogger logger, CancellationToken ct)
+    /// <param name="c">The services.</param>
+    /// <param name="body">Which album.</param>
+    /// <param name="retry">The sweep, which shares what's known about the album's tries.</param>
+    /// <param name="searched">Called once the indexers have been asked, which is what counts against the day's asking.</param>
+    /// <param name="logger">The log.</param>
+    /// <param name="ct">Stops it.</param>
+    public static async Task<IResult> RetryAsync(MusicRequestContext c, MusicUndoBody body, MusicImportRetry retry, Action searched, ILogger logger, CancellationToken ct)
     {
         if (await FindAskedAlbumAsync(c, body, logger, ct) is not { } asked)
         {
@@ -174,28 +183,53 @@ public static partial class MusicUndo
 
         var owned = await c.OwnedAsync(ct);
         var groups = new[] { asked.ReleaseGroupId, album.ForeignAlbumId }.OfType<string>().Distinct().ToList();
-        if (!owned.Sees(MusicMatcher.LocalPath(artist, c.Options.PathMappings))
-            || !await c.Db.MediaRequests.AnyAsync(r => r.Kind == MediaKind.Album && r.FulfilledAt == null && r.MusicBrainzId != null && groups.Contains(r.MusicBrainzId), ct))
+        var requested = await c.Db.MediaRequests.Where(r => r.Kind == MediaKind.Album && r.FulfilledAt == null && r.MusicBrainzId != null && groups.Contains(r.MusicBrainzId))
+            .Select(r => r.MusicBrainzId).FirstOrDefaultAsync(ct);
+        if (!owned.Sees(MusicMatcher.LocalPath(artist, c.Options.PathMappings)) || requested is null)
         {
             return Results.NoContent();
         }
 
-        retry.StartAfresh(lidarr, album.Id);
-        if (!album.Monitored)
-        {
-            await c.Client.SetAlbumsMonitoredAsync(lidarr, [album.Id], monitored: true, ct);
-        }
-
+        // Looked at before anything's changed: asking about an album that's fine must leave it as it was.
         var mine = await AlbumQueueAsync(c, lidarr, album.Id, ct);
         var failed = mine.Where(q => q.TrackedDownloadState is "importBlocked" or "importFailed").ToList();
-        var shared = await SharedDownloadsAsync(c, lidarr, album.Id, failed, ct);
-        foreach (var copy in failed.Where(q => q.DownloadId is null || !shared.Contains(q.DownloadId)))
+        var nothing = mine.Count == 0 && album.Statistics is not { TrackFileCount: > 0 };
+        if (failed.Count == 0 && !nothing)
         {
-            await c.Client.BlocklistFromQueueAsync(lidarr, copy.Id, ct);
+            return Problems.Of("That album isn’t stuck.", status: 409);
         }
 
-        await c.Client.SearchAlbumsAsync(lidarr, [album.Id], ct);
+        // With no failed copy, the last search's answer may simply not have come in yet.
+        if ((failed.Count == 0 && retry.SearchedLately(lidarr, album.Id)) || !retry.TakeTurn(lidarr, album.Id))
+        {
+            return Problems.Of("That album was tried just now. Try again in a few minutes.", status: 409);
+        }
+
+        var done = false;
+        try
+        {
+            retry.StartAfresh(lidarr, album.Id, groups);
+            var hopeless = failed.Where(MusicImportRetry.SaysTracksAreMissing).ToList();
+            var shared = await SharedDownloadsAsync(c, lidarr, album.Id, hopeless, ct);
+            foreach (var copy in hopeless.Where(q => q.DownloadId is null || !shared.Contains(q.DownloadId)))
+            {
+                await c.Client.BlocklistFromQueueAsync(lidarr, copy.Id, ct);
+                retry.OweSearch(lidarr, album.Id, requested); // should the search fail, nothing else will bring this back to mind
+            }
+
+            await c.Client.SearchAlbumsAsync(lidarr, [album.Id], ct);
+            done = true;
+        }
+        finally
+        {
+            if (!done)
+            {
+                retry.GiveBackTurn(lidarr, album.Id);
+            }
+        }
+
         retry.Searched(lidarr, album.Id);
+        searched();
         c.ForgetAlbums(lidarr, artist.Id);
         MusicMatcher.Forget(c.Cache, lidarr);
         MusicRequested.Forget(c.Cache);

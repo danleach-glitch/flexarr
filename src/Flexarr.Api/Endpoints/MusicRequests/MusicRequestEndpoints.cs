@@ -251,7 +251,7 @@ public static partial class MusicRequestEndpoints
 
         // Every album Lidarr is waiting for, with how far along each is.
         // Given a library, only artists in its folders (that library's Requested view).
-        music.MapGet("/requested", async (Guid? libraryId, MusicRequestContext c, CancellationToken ct) =>
+        music.MapGet("/requested", async (Guid? libraryId, MusicRequestContext c, CurrentProfile current, CancellationToken ct) =>
         {
             List<string>? folders = null;
             if (libraryId is { } id)
@@ -263,7 +263,7 @@ public static partial class MusicRequestEndpoints
                 }
             }
 
-            return await MusicRequested.ListAsync(c, folders, ct) is { } listed
+            return await MusicRequested.ListAsync(c, folders, !current.IsGuest, ct) is { } listed
                 ? Results.Ok(listed)
                 : Problems.Of("Lidarr isn’t answering. Try again later.", status: 502);
         });
@@ -282,8 +282,20 @@ public static partial class MusicRequestEndpoints
         // Try an album that couldn't be imported again, from the start: since 0.64.
         music.MapPost("/retry", async (MusicUndoBody body, MusicRequestContext c, MusicImportRetry retry, CurrentProfile current, ILoggerFactory loggers, CancellationToken ct) =>
         {
+            if (current.IsGuest)
+            {
+                return Problems.Of("Guests can’t undo music requests.", status: 403);
+            }
+
+            // It searches the indexers, as asking does, so it's counted the same.
+            if (await AskedTooMuchAsync(c, current, ct))
+            {
+                return Problems.Of("That’s a lot of music for one day. Try again tomorrow.", status: 429);
+            }
+
             var logger = loggers.CreateLogger("Flexarr.MusicRequests");
-            return UndoRefused(current, c.Cache) ?? Counted(current, c.Cache, await LidarrAsync(() => MusicUndo.RetryAsync(c, body, retry, logger, ct), logger, ct));
+            var asked = AskCount(current, c.Cache);
+            return await LidarrAsync(() => MusicUndo.RetryAsync(c, body, retry, () => Interlocked.Increment(ref asked.Value), logger, ct), logger, ct);
         });
 
         music.MapPost("/", async (MusicRequestBody body, MusicRequestContext c, CurrentProfile current, ILoggerFactory loggers, CancellationToken ct) =>
@@ -302,11 +314,8 @@ public static partial class MusicRequestEndpoints
             // Lidarr adds and downloads straight away, with no approval: a cap keeps one profile (or a script with its
             // key) from filling the disk. Asking again for the same album reuses its request but still searches the
             // indexers, so what's asked is counted too, not only the requests.
-            var since = DateTime.UtcNow.AddDays(-1);
             var asked = AskCount(current, c.Cache);
-            if (asked.Value >= DailyLimit
-                || await c.Db.MediaRequests.CountAsync(r => r.ProfileId == current.Id && (r.Kind == MediaKind.Album || r.Kind == MediaKind.Artist) && r.RequestedAt > since, ct)
-                >= DailyLimit)
+            if (await AskedTooMuchAsync(c, current, ct))
             {
                 return Problems.Of("That’s a lot of music for one day. Try again tomorrow.", status: 429);
             }
@@ -376,6 +385,14 @@ public static partial class MusicRequestEndpoints
         }
 
         return result;
+    }
+
+    /// <summary>Whether this profile has reached the day's asking: requests placed, asking again, and trying again.</summary>
+    private static async Task<bool> AskedTooMuchAsync(MusicRequestContext c, CurrentProfile current, CancellationToken ct)
+    {
+        var since = DateTime.UtcNow.AddDays(-1);
+        return AskCount(current, c.Cache).Value >= DailyLimit
+            || await c.Db.MediaRequests.CountAsync(r => r.ProfileId == current.Id && (r.Kind == MediaKind.Album || r.Kind == MediaKind.Artist) && r.RequestedAt > since, ct) >= DailyLimit;
     }
 
     /// <summary>The music requests this profile has placed in the last day, asking again included.</summary>

@@ -26,6 +26,15 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
 {
     private static readonly TimeSpan Every = TimeSpan.FromMinutes(5);
 
+    /// <summary>
+    /// How often one album can be tried again by hand. Each try searches the indexers, but a search, a download and a
+    /// refused import can all be over in a few minutes, so <see cref="SearchAgainAfter"/>'s hours would be too long to wait.
+    /// </summary>
+    internal TimeSpan TryAgainEvery { get; set; } = TimeSpan.FromMinutes(15);
+
+    /// <summary>When an album was last tried again by hand. A restart forgets, which only allows one more.</summary>
+    private readonly ConcurrentDictionary<string, DateTime> _triedAt = new(StringComparer.Ordinal);
+
     /// <summary>Copies rejected per album, so an album only ever posted incomplete isn't chased for good.</summary>
     internal const int MaxRetries = 3;
 
@@ -127,23 +136,68 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
 
     private sealed record AlbumAsked(string Album, string? ArtistItAdded, DateTime RequestedAt);
 
-    /// <summary>The album starts afresh: its request was taken back, or someone's asked for it to be tried again.</summary>
-    public void StartAfresh(ArrInstance lidarr, int albumId)
+    /// <summary>
+    /// The album starts afresh: its request was taken back, or someone's asked for it to be tried again. Only what's
+    /// remembered of this album goes: every other album's answers still stand, and asking Lidarr again is what they save.
+    /// </summary>
+    /// <param name="lidarr">The Lidarr that has it.</param>
+    /// <param name="albumId">Its id there.</param>
+    /// <param name="releaseGroups">The release groups it goes by, as requests name it.</param>
+    public void StartAfresh(ArrInstance lidarr, int albumId, IReadOnlyCollection<string> releaseGroups)
     {
         ArgumentNullException.ThrowIfNull(lidarr);
+        ArgumentNullException.ThrowIfNull(releaseGroups);
         _retries.TryRemove(Key(lidarr, albumId), out _);
         _searchedAt.TryRemove(Key(lidarr, albumId), out _);
         _searchOwed.TryRemove((lidarr.BaseUrl.ToString(), albumId), out _);
-        foreach (var settled in _settled.Keys.Where(k => k.StartsWith($"{lidarr.BaseUrl}|", StringComparison.Ordinal)).ToList())
+        var albums = $"{lidarr.BaseUrl}|album|";
+        var artists = $"{lidarr.BaseUrl}|artist|";
+        foreach (var settled in _settled.Keys.ToList())
         {
-            _settled.TryRemove(settled, out _);
+            // "…|album|<group>", or "…|artist|<artist>|<group>,<group>".
+            var mine = settled.StartsWith(albums, StringComparison.Ordinal) ? releaseGroups.Contains(settled[albums.Length..], StringComparer.Ordinal)
+                : settled.StartsWith(artists, StringComparison.Ordinal) && settled[(settled.LastIndexOf('|') + 1)..].Split(',').Any(g => releaseGroups.Contains(g, StringComparer.Ordinal));
+            if (mine)
+            {
+                _settled.TryRemove(settled, out _);
+            }
         }
+    }
+
+    /// <summary>
+    /// Takes this album's turn at being tried again by hand, or false if it's had one lately. Atomic, so two presses at once
+    /// are one search. A try that doesn't reach its search hands the turn back (see <see cref="GiveBackTurn"/>).
+    /// </summary>
+    public bool TakeTurn(ArrInstance lidarr, int albumId)
+    {
+        ArgumentNullException.ThrowIfNull(lidarr);
+        var now = DateTime.UtcNow;
+        foreach (var old in _triedAt.Where(t => now - t.Value >= TryAgainEvery).Select(t => t.Key).ToList())
+        {
+            _triedAt.TryRemove(old, out _);
+        }
+
+        return _triedAt.TryAdd(Key(lidarr, albumId), now);
+    }
+
+    public void GiveBackTurn(ArrInstance lidarr, int albumId)
+    {
+        ArgumentNullException.ThrowIfNull(lidarr);
+        _triedAt.TryRemove(Key(lidarr, albumId), out _);
+    }
+
+    /// <summary>A copy has been blocklisted, so nothing in Lidarr's queue will bring this album back to mind: the next sweep searches unless <see cref="Searched"/> says it's done.</summary>
+    public void OweSearch(ArrInstance lidarr, int albumId, string releaseGroup)
+    {
+        ArgumentNullException.ThrowIfNull(lidarr);
+        _searchOwed[(lidarr.BaseUrl.ToString(), albumId)] = releaseGroup;
     }
 
     /// <summary>A search made elsewhere: the sweep's first search for this album needn't repeat it.</summary>
     public void Searched(ArrInstance lidarr, int albumId)
     {
         ArgumentNullException.ThrowIfNull(lidarr);
+        _searchOwed.TryRemove((lidarr.BaseUrl.ToString(), albumId), out _);
         NoteSearched(lidarr, [albumId]);
     }
 
@@ -163,7 +217,7 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
         }
     }
 
-    private bool SearchedLately(ArrInstance lidarr, int albumId) =>
+    internal bool SearchedLately(ArrInstance lidarr, int albumId) =>
         _searchedAt.TryGetValue(Key(lidarr, albumId), out var at) && DateTime.UtcNow - at < SearchAgainAfter;
 
     private bool IsSettled(string key) => _settled.TryGetValue(key, out var until) && DateTime.UtcNow < until;
@@ -360,9 +414,11 @@ public sealed partial class MusicImportRetry(IServiceScopeFactory scopes, ILogge
         return searched;
     }
 
-    private static bool IsMissingTracks(ArrQueueItem item) =>
-        item.TrackedDownloadState == "importFailed"
-        && item.StatusMessages?.Any(s => s.Messages?.Any(m => m.Contains(MissingTracks, StringComparison.OrdinalIgnoreCase)) == true) == true;
+    private static bool IsMissingTracks(ArrQueueItem item) => item.TrackedDownloadState == "importFailed" && SaysTracksAreMissing(item);
+
+    /// <summary>What Lidarr said of a copy it wouldn't import: a complete one that scored low says no such thing, and stays.</summary>
+    internal static bool SaysTracksAreMissing(ArrQueueItem item) =>
+        item.StatusMessages?.Any(s => s.Messages?.Any(m => m.Contains(MissingTracks, StringComparison.OrdinalIgnoreCase)) == true) == true;
 
     [LoggerMessage(Level = LogLevel.Information, Message = "{Release} is missing tracks of {Album}: blocklisted it and searching again")]
     private static partial void LogRetrying(ILogger logger, string album, string? release);
