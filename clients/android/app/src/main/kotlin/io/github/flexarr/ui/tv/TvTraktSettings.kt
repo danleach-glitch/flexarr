@@ -198,6 +198,9 @@ internal fun TvTraktSettings(model: AppModel) {
                 trakt.problemAt(TraktSpot.Account)?.let { item { Problem(it) } }
             }
         }
+        if (trakt.loaded && !trakt.unreachable && status?.available == true) {
+            item { TvSettingsNote(TraktWords.NOTICE, Modifier.padding(top = 16.dp)) }
+        }
     }
 
     if (confirmDisconnect) {

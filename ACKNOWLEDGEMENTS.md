@@ -56,6 +56,7 @@ Flexarr isn't affiliated with or endorsed by any of them. The web app shows each
 ## Data and services
 
 - **[TMDB](https://www.themoviedb.org).** Film and TV artwork comes from TMDB's image service, and films Radarr doesn't know can be looked up with your own free TMDB key. This product uses the TMDB API but is not endorsed or certified by TMDB.
+- **[Trakt](https://trakt.tv).** Profiles can keep what they watch, where they're up to and their watchlist in step with their own Trakt account. Flexarr uses Trakt but is not endorsed or certified by Trakt.
 - **[TheTVDB](https://thetvdb.com).** TV metadata and artwork, by way of Sonarr.
 - **[TVmaze](https://www.tvmaze.com).** TV schedules, cast and episode details, and shows Sonarr doesn't know, from its [API](https://www.tvmaze.com/api), under CC BY-SA 4.0.
 - **[fanart.tv](https://fanart.tv).** Logos and artwork, by way of the *arr apps.

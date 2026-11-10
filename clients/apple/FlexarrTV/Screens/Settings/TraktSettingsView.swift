@@ -30,6 +30,7 @@ struct TraktSettingsView: View {
                 } else {
                     connect(status)
                 }
+                Text(TraktWords.notice).font(.system(size: 24)).foregroundStyle(Color.usher).padding(.top, 30)
             } else if loadFailed {
                 SettingsRow(title: t("Try again"), symbol: "arrow.clockwise", help: TraktWords.unreachable) {
                     Task { await load() }

@@ -69,6 +69,7 @@ export function TraktSection() {
       {s?.available && s.state === 'connected' && <History status={s} reload={reload} />}
       {s?.available && s.state === 'connected' && <Lists />}
       {s?.available && me?.isAdmin && <Profiles me={me.profileId} />}
+      {s?.available && <p className="muted field-hint">{t('Flexarr uses Trakt but is not endorsed or certified by Trakt.')}</p>}
     </section>
   )
 }

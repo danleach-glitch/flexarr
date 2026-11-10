@@ -165,6 +165,9 @@ fun TraktSettingsScreen(model: AppModel) {
                     }
                 }
             }
+            if (trakt.loaded && !trakt.unreachable && status?.available == true) {
+                item { Text(TraktWords.NOTICE, fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = Edge + 16.dp)) }
+            }
         }
     }
 

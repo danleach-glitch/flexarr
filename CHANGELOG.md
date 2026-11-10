@@ -2,6 +2,12 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Trakt
+
+- Settings › Trakt now says Flexarr uses Trakt but isn't endorsed or certified by it, and flexarr.io/privacy explains what Flexarr keeps when you connect Trakt and how Disconnect removes it.
+
 ## 0.64.0 · 9 November 2026
 
 ### Versions

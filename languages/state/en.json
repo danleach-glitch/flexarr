@@ -986,6 +986,7 @@
   "Flexarr stopped: {reason}": "a",
   "Flexarr syncs every few minutes by itself.": "an",
   "Flexarr takes {title}’s details from {source}, and nothing is added anywhere.": "w",
+  "Flexarr uses Trakt but is not endorsed or certified by Trakt.": "wan",
   "Flexarr waits, so you can leave this.": "wan",
   "Flexarr {version} is available": "w",
   "Flexarr’s Trakt app": "w",

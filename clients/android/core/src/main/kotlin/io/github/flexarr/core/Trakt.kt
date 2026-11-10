@@ -232,6 +232,9 @@ object TraktWords {
     val DISCONNECT_TEXT: String get() = t("What you’ve watched stays as it is, here and on Trakt.")
     val SYNCING: String get() = t("Syncing…")
 
+    /** The credit Trakt's API Use Policy asks for on the app's Trakt page. */
+    val NOTICE: String get() = t("Flexarr uses Trakt but is not endorsed or certified by Trakt.")
+
     /**
      * The server's own words for a call that failed (its problem details' `detail`, never the `title`), [UNREACHABLE]
      * when the server couldn't be reached at all, or [GENERIC_ERROR].

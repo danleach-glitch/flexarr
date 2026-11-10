@@ -128,13 +128,14 @@
             <li><a href="#lists-and-picks">Lists and picks</a></li>
             <li><a href="#if-something-s-wrong">If something&#39;s wrong</a></li>
             <li><a href="#your-own-trakt-app">Your own Trakt app</a></li>
+            <li><a href="#privacy">Privacy</a></li>
           </ol>
         </nav>
         <div class="prose">
 <p>Connect a profile to your <a href="https://trakt.tv" rel="noopener">Trakt</a> account and Flexarr keeps the two in step: what you watch, where you&#39;re up to, and your <a href="/guide/watchlist">watchlist</a>. Each profile connects its own account, and nothing is shared until that person connects.</p>
 <h2 id="connecting"><a class="anchor" href="#connecting" aria-hidden="true" tabindex="-1">#</a>Connecting</h2>
 <ol>
-<li>Open <strong>Settings › Trakt</strong> in the web app, on iPhone or iPad, or on the Apple TV.</li>
+<li>Open <strong>Settings › Trakt</strong> in the web app, on iPhone, iPad or Android, or on the Apple TV or Android TV.</li>
 <li>Choose <strong>Connect</strong>. Flexarr shows a code.</li>
 <li>On any phone or computer, go to <strong>trakt.tv/activate</strong> and enter the code. On a TV, scan the QR code to open that page on your phone. On iPhone, <strong>Copy code and open Trakt</strong> copies the code and opens the page; on the web, <strong>Copy code</strong>.</li>
 </ol>
@@ -215,7 +216,10 @@
 <p><strong>Disconnect</strong> in <strong>Settings › Trakt</strong> stops it all and makes Trakt forget Flexarr. What you&#39;ve watched stays as it is, in both places. Making a profile a kids profile, or removing it, disconnects it too.</p>
 <p><a href="/guide/backups">Backups</a> include each profile&#39;s Trakt sign-in. Restoring an older backup may mean connecting again, as Trakt replaces a sign-in each time it&#39;s renewed.</p>
 <h2 id="your-own-trakt-app"><a class="anchor" href="#your-own-trakt-app" aria-hidden="true" tabindex="-1">#</a>Your own Trakt app</h2>
-<p>Flexarr uses its own Trakt app, so there&#39;s nothing to set up. If you&#39;d rather use your own (Trakt only lets VIP members create one), the main profile can enter its <strong>Client ID</strong> and <strong>Client secret</strong> in <strong>Settings › Connections › Trakt</strong>. Everyone then connects again, as sign-ins belong to the app that gave them.</p>
+<p>Flexarr uses its own Trakt app, so there&#39;s nothing to set up. If you&#39;d rather use your own, the main profile can enter its <strong>Client ID</strong> and <strong>Client secret</strong> in <strong>Settings › Connections › Trakt</strong>. Trakt gives an app a Client secret only when you ask for one in its Production access request. Everyone then connects again, as sign-ins belong to the app that gave them.</p>
+<h2 id="privacy"><a class="anchor" href="#privacy" aria-hidden="true" tabindex="-1">#</a>Privacy</h2>
+<p>Your server keeps each connected profile&#39;s Trakt sign-in and sync state, and nothing leaves it except to Trakt. Signing in and renewing it go through Flexarr&#39;s relay, which stores nothing. The <a href="https://flexarr.io/privacy#trakt">privacy policy</a> has the details.</p>
+<p>Flexarr uses Trakt but is not endorsed or certified by Trakt.</p>
 
         </div>
         <nav class="pager" aria-label="More of the guide">

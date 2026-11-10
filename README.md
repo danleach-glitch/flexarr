@@ -128,3 +128,5 @@ Because it restricts commercial use, Flexarr is *source-available* rather than o
 ## 🙏 Acknowledgements
 
 Flexarr is built on many other projects: the \*arr apps it works with, FFmpeg, AetherEngine and more. They're all credited, with their licences, in [ACKNOWLEDGEMENTS.md](ACKNOWLEDGEMENTS.md).
+
+Flexarr uses Trakt but is not endorsed or certified by Trakt. This product uses the TMDB API but is not endorsed or certified by TMDB.
