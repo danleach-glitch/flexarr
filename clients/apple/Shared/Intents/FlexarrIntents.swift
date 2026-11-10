@@ -717,6 +717,42 @@ enum PlaybackAction: String, AppEnum {
     }
 }
 
+/// How far a spoken skip goes, and which way: a Siri phrase can't carry a number (nor two parameters), so "Skip
+/// forward 30 seconds in Flexarr" names one of these. Shortcuts can still give any number of seconds.
+enum SkipJump: String, AppEnum {
+    case forward10, forward15, forward30, forward60, forward90, forward120
+    case back10, back15, back30, back60, back90, back120
+
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Skip")
+    static let caseDisplayRepresentations: [SkipJump: DisplayRepresentation] = [
+        .forward10: DisplayRepresentation(title: "Forward 10 seconds", synonyms: ["Ahead 10 seconds"]),
+        .forward15: DisplayRepresentation(title: "Forward 15 seconds", synonyms: ["Ahead 15 seconds"]),
+        .forward30: DisplayRepresentation(title: "Forward 30 seconds", synonyms: ["Ahead 30 seconds"]),
+        .forward60: DisplayRepresentation(title: "Forward 1 minute", synonyms: ["Ahead 1 minute", "Forward a minute", "Forward 60 seconds"]),
+        .forward90: DisplayRepresentation(title: "Forward 90 seconds", synonyms: ["Ahead 90 seconds"]),
+        .forward120: DisplayRepresentation(title: "Forward 2 minutes", synonyms: ["Ahead 2 minutes", "Forward 120 seconds"]),
+        .back10: DisplayRepresentation(title: "Back 10 seconds", synonyms: ["Backward 10 seconds"]),
+        .back15: DisplayRepresentation(title: "Back 15 seconds", synonyms: ["Backward 15 seconds"]),
+        .back30: DisplayRepresentation(title: "Back 30 seconds", synonyms: ["Backward 30 seconds"]),
+        .back60: DisplayRepresentation(title: "Back 1 minute", synonyms: ["Back a minute", "Back 60 seconds"]),
+        .back90: DisplayRepresentation(title: "Back 90 seconds", synonyms: ["Backward 90 seconds"]),
+        .back120: DisplayRepresentation(title: "Back 2 minutes", synonyms: ["Back 120 seconds"]),
+    ]
+
+    var isForward: Bool { rawValue.hasPrefix("forward") }
+
+    var seconds: Int {
+        switch self {
+        case .forward10, .back10: 10
+        case .forward15, .back15: 15
+        case .forward30, .back30: 30
+        case .forward60, .back60: 60
+        case .forward90, .back90: 90
+        case .forward120, .back120: 120
+        }
+    }
+}
+
 /// "Pause Flexarr", "Skip intro in Flexarr", "Next episode in Flexarr", "Skip back in Flexarr": controls what's playing
 /// here or on the chosen device (the one Siri plays on, unless another's named). Says so when there's nothing to do
 /// (no intro showing, the last episode) or the TV (or server) is too old for it.
@@ -732,27 +768,37 @@ struct ControlPlaybackIntent: AppIntent {
     @Parameter(title: "Seconds", default: 10, controlStyle: .field, inclusiveRange: (5, 600))
     var seconds: Int
 
+    /// A skip Siri heard ("Skip forward 30 seconds in Flexarr"): set, it stands for the action and seconds above.
+    @Parameter(title: "Skip")
+    var jump: SkipJump?
+
     @Parameter(title: "On")
     var device: DeviceEntity?
 
     @Dependency private var model: AppModel
 
     static var parameterSummary: some ParameterSummary {
-        When(\.$action, .oneOf, [.back, .forward]) {
-            Summary("\(\.$action) \(\.$seconds) seconds on \(\.$device)")
+        When(\.$jump, .hasAnyValue) {
+            Summary("Skip \(\.$jump) on \(\.$device)")
         } otherwise: {
-            Summary("\(\.$action) on \(\.$device)")
+            When(\.$action, .oneOf, [.back, .forward]) {
+                Summary("\(\.$action) \(\.$seconds) seconds on \(\.$device)")
+            } otherwise: {
+                Summary("\(\.$action) on \(\.$device)")
+            }
         }
     }
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
+        let action = self.jump.map { $0.isForward ? PlaybackAction.forward : .back } ?? self.action
+        let seconds = self.jump?.seconds ?? self.seconds
         if action == .subtitlesOn || action == .subtitlesOff {
             return .result(dialog: IntentDialog(stringLiteral: try await SubtitlesIntent.change(on: action == .subtitlesOn, device: device, model: model)))
         }
         let target = Play.target(device)
-        let jump = Double(action == .back ? -seconds : seconds)
-        if target.isHere { return .result(dialog: IntentDialog(stringLiteral: here(jump))) }
+        let skip = Double(action == .back ? -seconds : seconds)
+        if target.isHere { return .result(dialog: IntentDialog(stringLiteral: here(action, skip))) }
         guard let client = model.client else { throw FlexarrIntentError.notConnected }
         do {
             switch action {
@@ -777,7 +823,7 @@ struct ControlPlaybackIntent: AppIntent {
                     guard playing.hasNext != false else { return .result(dialog: .shown(t("There’s no next episode."))) }
                     _ = try await client.control(device: target.id, .next)
                 default:
-                    try await client.skip(device: target.id, by: jump)
+                    try await client.skip(device: target.id, by: skip)
                 }
                 return .result(dialog: .shown(t("Done.")))
             }
@@ -790,7 +836,7 @@ struct ControlPlaybackIntent: AppIntent {
 
     /// Does it here, the title in the player or (skips and next) the music or podcast playing; says what came of it.
     @MainActor
-    private func here(_ jump: Double) -> String {
+    private func here(_ action: PlaybackAction, _ jump: Double) -> String {
         let player = model.player
         switch action {
         case .pause: player.isShowingTitle ? player.pause() : model.music.pause()
@@ -1172,6 +1218,10 @@ struct FlexarrShortcuts: AppShortcutsProvider {
                 "\(.applicationName) \(\.$action)",
                 "Ask \(.applicationName) to \(\.$action)",
                 "Use \(.applicationName) to \(\.$action)",
+                // A skip of a given length (Skip forward 30 seconds in Flexarr): a phrase can't carry a number.
+                "Skip \(\.$jump) in \(.applicationName)",
+                "Go \(\.$jump) in \(.applicationName)",
+                "\(.applicationName) skip \(\.$jump)",
             ],
             shortTitle: "Control playback",
             systemImageName: "playpause.fill"

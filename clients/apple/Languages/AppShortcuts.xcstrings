@@ -19,6 +19,9 @@
     "${applicationName} save ${title} for later": {
       "extractionState": "manual"
     },
+    "${applicationName} skip ${jump}": {
+      "extractionState": "manual"
+    },
     "Add ${podcast} to Up Next in ${applicationName}": {
       "extractionState": "manual"
     },
@@ -47,6 +50,9 @@
       "extractionState": "manual"
     },
     "Continue watching with ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Go ${jump} in ${applicationName}": {
       "extractionState": "manual"
     },
     "Night mode ${state} in ${applicationName}": {
@@ -122,6 +128,9 @@
       "extractionState": "manual"
     },
     "Shuffle episodes of ${title} in ${applicationName}": {
+      "extractionState": "manual"
+    },
+    "Skip ${jump} in ${applicationName}": {
       "extractionState": "manual"
     },
     "Turn ${state} night mode in ${applicationName}": {

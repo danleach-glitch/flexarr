@@ -1242,6 +1242,13 @@ final class AppModel {
         libraries = []
         forgetWatchlist()
         phase = .signedIn(credentials)
+        // The server just answered: wrongly offline (the network said there was none, say), back to normal now as a
+        // reconnect would, rather than at the next try (up to 5 minutes away).
+        if isOffline {
+            log.info("Back online: the server answered choosing a profile")
+            leaveOfflineMode()
+            invalidate()
+        }
         // A link that was waiting for this (or, if they chose someone else, whoever is watching now) goes ahead.
         linkProfile = nil
         if let link = afterProfileChoice {

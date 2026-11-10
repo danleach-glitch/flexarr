@@ -220,7 +220,11 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     var autoDownloadsOnWiFiOnly: Bool = UserDefaults.standard.object(forKey: "downloads.wifiOnly") as? Bool ?? true {
         didSet {
             UserDefaults.standard.set(autoDownloadsOnWiFiOnly, forKey: "downloads.wifiOnly")
-            if autoDownloadsOnWiFiOnly, !isOnWiFi { pauseWiFiOnlyTransfers() }
+            if !isOnWiFi {
+                // Off Wi-Fi now: on, transfers that mustn't use mobile data stop; off, ones made to wait for Wi-Fi start
+                // again under the new rule (books' files at the catch-up).
+                if autoDownloadsOnWiFiOnly { pauseWiFiOnlyTransfers() } else { restartTransfersWaitingForWiFi() }
+            }
             Task { await catchUp() }
         }
     }
@@ -282,7 +286,14 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         didSet { UserDefaults.standard.set(Array(unsentDeletes), forKey: "downloads.unsentDeletes") }
     }
     /// Where transfers paused for want of Wi-Fi, or cut off part-way, had got to, to carry on from there.
-    @ObservationIgnored private var resumeData: [String: Data] = [:]
+    @ObservationIgnored private var resumeData: [String: Resumable] = [:]
+
+    /// Where a transfer had got to, and whether it was made Wi-Fi only: resume data keeps its request's network rule,
+    /// so it's only used while that rule still holds (see `resumeData(for:wifiOnly:)`).
+    private struct Resumable {
+        let data: Data
+        let wifiOnly: Bool
+    }
 
     nonisolated static let folder: URL = {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -438,7 +449,12 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         let wifiCameBack = wifi && !isOnWiFi
         isOnline = online
         isOnWiFi = wifi
-        if !wifi { pauseWiFiOnlyTransfers() }
+        if !wifi {
+            pauseWiFiOnlyTransfers()
+            // Ones made Wi-Fi only before that was turned off would wait for Wi-Fi: started again with mobile data.
+            restartTransfersWaitingForWiFi()
+            resumeBooks()
+        }
         if cameBack || wifiCameBack { Task { await catchUp() } }
     }
 
@@ -466,17 +482,51 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         allTasks { tasks in
             for task in tasks {
                 guard let id = task.taskDescription, held.contains(id) || held.contains(String(id.split(separator: "#").first ?? "")), let download = task as? URLSessionDownloadTask else { continue }
+                let wifiOnly = Self.madeWiFiOnly(download)
                 download.cancel { data in
-                    Task { @MainActor in self.held(id, resumeData: data) }
+                    Task { @MainActor in self.held(id, resumeData: data, wifiOnly: wifiOnly) }
                 }
             }
         }
     }
 
+    /// Off Wi-Fi: films', episodes' and tracks' transfers made Wi-Fi only that no longer need be (the setting was
+    /// turned off since) would wait for Wi-Fi for ever, as a transfer's network rule can't change. Cancelled and back
+    /// to waiting, so the next look at the server starts them afresh with mobile data. Books' files: `startBookFiles`.
+    private func restartTransfersWaitingForWiFi() {
+        allTasks { tasks in
+            let stranded = tasks.filter { $0.state == .running || $0.state == .suspended }.filter(Self.madeWiFiOnly)
+                .compactMap { task in task.taskDescription.map { (task, $0) } }
+                .filter { Self.bookFile($0.1) == nil }
+            guard !stranded.isEmpty else { return }
+            Task { @MainActor in
+                for (task, id) in stranded {
+                    guard let download = self.all.first(where: { $0.id == id }), !download.isDownloaded, !self.isWiFiOnly(download) else { continue }
+                    task.cancel()
+                    self.resumeData[id] = nil
+                    self.held(id, resumeData: nil, wifiOnly: false)
+                }
+                if self.isOnline { self.poll() }
+            }
+        }
+    }
+
+    /// Whether a transfer was made never to use mobile data.
+    nonisolated private static func madeWiFiOnly(_ task: URLSessionTask) -> Bool {
+        (task.originalRequest ?? task.currentRequest)?.allowsCellularAccess == false
+    }
+
+    /// Where a transfer had got to, taken to carry on from: only when it was made under the network rule that holds
+    /// now. Made under the other, it's dropped and the transfer starts afresh.
+    private func resumeData(for name: String, wifiOnly: Bool) -> Data? {
+        guard let kept = resumeData.removeValue(forKey: name), kept.wifiOnly == wifiOnly else { return nil }
+        return kept.data
+    }
+
     /// A transfer stopped for want of Wi-Fi or cut off: back to waiting (the server still has it ready), to carry on
     /// later.
-    private func held(_ id: String, resumeData data: Data?) {
-        if let data { resumeData[id] = data }
+    private func held(_ id: String, resumeData data: Data?, wifiOnly: Bool) {
+        if let data { resumeData[id] = Resumable(data: data, wifiOnly: wifiOnly) }
         update(id) { if case .downloading = $0.state { $0.state = .preparing(1) } }
     }
 
@@ -572,7 +622,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         for id in candidates.subtracting(running) {
             guard let download = all.first(where: { $0.id == id }), case .downloading = download.state else { continue }
             log.info("Picking up a download the system dropped: \(download.item.title)")
-            held(id, resumeData: nil)
+            held(id, resumeData: nil, wifiOnly: false)
         }
     }
 
@@ -736,17 +786,30 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         let wifiOnly = isWiFiOnly(download)
         if wifiOnly, !isOnWiFi { return }
         allTasks { tasks in
-            let running = Set(tasks.compactMap(\.taskDescription))
+            // A transfer being cancelled isn't under way. One made Wi-Fi only before that was turned off would wait
+            // for Wi-Fi for ever off it (a transfer's network rule can't change): made again under the rule now.
+            let live = tasks.filter { $0.state == .running || $0.state == .suspended }
+            let stranded = live.filter { $0.taskDescription?.hasPrefix("\(id)#") == true && Self.madeWiFiOnly($0) && !wifiOnly }
+            let running = Set(live.compactMap(\.taskDescription))
             Task { @MainActor in
+                var restarted = Set<String>()
+                if !self.isOnWiFi {
+                    for task in stranded {
+                        guard let name = task.taskDescription else { continue }
+                        task.cancel()
+                        self.resumeData[name] = nil
+                        restarted.insert(name)
+                    }
+                }
                 for (index, file) in book.manifest.files.enumerated() where book.files[index] == nil {
                     let name = "\(id)#\(index)"
-                    guard !running.contains(name), var request = client.bookFileRequest(file) else { continue }
+                    guard !running.contains(name) || restarted.contains(name), var request = client.bookFileRequest(file) else { continue }
                     if wifiOnly {
                         request.allowsCellularAccess = false
                         request.allowsExpensiveNetworkAccess = false
                         request.allowsConstrainedNetworkAccess = false
                     }
-                    let task = self.resumeData.removeValue(forKey: name).map { self.transferSession.downloadTask(withResumeData: $0) }
+                    let task = self.resumeData(for: name, wifiOnly: wifiOnly).map { self.transferSession.downloadTask(withResumeData: $0) }
                         ?? self.transferSession.downloadTask(with: request)
                     task.taskDescription = name
                     task.resume()
@@ -895,7 +958,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
                 // Allowed on mobile data (Settings), but not in Low Data Mode.
                 request.allowsConstrainedNetworkAccess = false
             }
-            let task = resumeData.removeValue(forKey: remote.id).map { transferSession.downloadTask(withResumeData: $0) } ?? transferSession.downloadTask(with: request)
+            let task = resumeData(for: remote.id, wifiOnly: wifiOnly).map { transferSession.downloadTask(withResumeData: $0) } ?? transferSession.downloadTask(with: request)
             task.taskDescription = remote.id
             task.resume()
         case .removed where !local.isDownloaded:
@@ -1261,12 +1324,12 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         }
     }
 
-    fileprivate func bookFileStopped(_ id: String, file: Int, _ error: Error) {
+    fileprivate func bookFileStopped(_ id: String, file: Int, _ error: Error, wifiOnly: Bool) {
         guard let download = all.first(where: { $0.id == id }), !download.isDownloaded else { return }
         // Cut off part-way (or cancelled by the system with where it got to, the app swiped away): carried on from
         // there at the next catch-up.
         if let data = (error as NSError).userInfo[NSURLSessionDownloadTaskResumeData] as? Data {
-            resumeData["\(id)#\(file)"] = data
+            resumeData["\(id)#\(file)"] = Resumable(data: data, wifiOnly: wifiOnly)
             return
         }
         if (error as? URLError)?.code == .cancelled { return }
@@ -1303,15 +1366,16 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         if let download = all.first(where: { $0.id == id }) { fetchNext(after: download) }
     }
 
-    fileprivate func stopped(_ id: String, _ error: Error) {
-        if let (book, file) = Self.bookFile(id) { return bookFileStopped(book, file: file, error) }
+    /// `wifiOnly`: whether the transfer was made Wi-Fi only, kept with where it got to.
+    fileprivate func stopped(_ id: String, _ error: Error, wifiOnly: Bool = false) {
+        if let (book, file) = Self.bookFile(id) { return bookFileStopped(book, file: file, error, wifiOnly: wifiOnly) }
         guard let download = all.first(where: { $0.id == id }), !download.isDownloaded else { return }
         // Cut off part-way (the network went, a guest's tunnel slept with the phone locked, or the system cancelled it
         // when the app was swiped away): back to waiting, to carry on from where it got to once the server's in reach
         // again (the next catch-up, back in front). Checked before "cancelled", which is how the system reports a
         // transfer it stopped with the app.
         if let data = (error as NSError).userInfo[NSURLSessionDownloadTaskResumeData] as? Data {
-            held(id, resumeData: data)
+            held(id, resumeData: data, wifiOnly: wifiOnly)
             if isOnline { poll() }
             return
         }
@@ -1368,7 +1432,8 @@ extension DownloadStore: URLSessionDownloadDelegate {
 
     nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: (any Error)?) {
         guard let error, let id = task.taskDescription else { return }
-        MainActor.assumeIsolated { stopped(id, error) }
+        let wifiOnly = Self.madeWiFiOnly(task)
+        MainActor.assumeIsolated { stopped(id, error, wifiOnly: wifiOnly) }
     }
 
     nonisolated func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {

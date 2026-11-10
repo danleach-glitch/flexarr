@@ -16,6 +16,24 @@
     "As": {
       "extractionState": "manual"
     },
+    "Back 1 minute": {
+      "extractionState": "manual"
+    },
+    "Back 10 seconds": {
+      "extractionState": "manual"
+    },
+    "Back 15 seconds": {
+      "extractionState": "manual"
+    },
+    "Back 2 minutes": {
+      "extractionState": "manual"
+    },
+    "Back 30 seconds": {
+      "extractionState": "manual"
+    },
+    "Back 90 seconds": {
+      "extractionState": "manual"
+    },
     "Book": {
       "extractionState": "manual"
     },
@@ -29,6 +47,24 @@
       "extractionState": "manual"
     },
     "Dialogue boost": {
+      "extractionState": "manual"
+    },
+    "Forward 1 minute": {
+      "extractionState": "manual"
+    },
+    "Forward 10 seconds": {
+      "extractionState": "manual"
+    },
+    "Forward 15 seconds": {
+      "extractionState": "manual"
+    },
+    "Forward 2 minutes": {
+      "extractionState": "manual"
+    },
+    "Forward 30 seconds": {
+      "extractionState": "manual"
+    },
+    "Forward 90 seconds": {
       "extractionState": "manual"
     },
     "From the beginning": {
@@ -131,6 +167,9 @@
       "extractionState": "manual"
     },
     "Shuffle a show": {
+      "extractionState": "manual"
+    },
+    "Skip": {
       "extractionState": "manual"
     },
     "Skip back": {
