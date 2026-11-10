@@ -220,18 +220,23 @@ class SoundShaper : BaseAudioProcessor() {
 
     /** Renderers whose sound passes through this on its way to the speaker. */
     fun renderers(context: Context): RenderersFactory = object : DefaultRenderersFactory(context) {
-        override fun buildAudioSink(context: Context, enableFloatOutput: Boolean, enableAudioTrackPlaybackParams: Boolean): AudioSink =
-            DefaultAudioSink.Builder(context)
+        override fun buildAudioSink(context: Context, enableFloatOutput: Boolean, enableAudioTrackPlaybackParams: Boolean): AudioSink {
+            // Passed-through sound never reaches this processor, so while it has work to do (or Lossless surround is off)
+            // surround is decoded here. Decided as the player opens: a change applies from the next title. A builder given
+            // a context follows the output's own capabilities and ignores setAudioCapabilities, so decoding takes the
+            // builder without one.
+            @Suppress("DEPRECATION")
+            val builder = if (SoundSettings.current(context).decodesSurround) {
+                DefaultAudioSink.Builder().setAudioCapabilities(AudioCapabilities.DEFAULT_AUDIO_CAPABILITIES)
+            } else {
+                DefaultAudioSink.Builder(context)
+            }
+            return builder
                 .setEnableFloatOutput(enableFloatOutput)
                 .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
                 .setAudioProcessors(arrayOf(this@SoundShaper))
-                .apply {
-                    // Passed-through sound never reaches this processor, so while it has work to do (or Lossless surround
-                    // is off) surround is decoded here. Decided as the player opens: a change applies from the next title.
-                    @Suppress("DEPRECATION")
-                    if (SoundSettings.current(context).decodesSurround) setAudioCapabilities(AudioCapabilities.DEFAULT_AUDIO_CAPABILITIES)
-                }
                 .build()
+        }
     }
 
     companion object {

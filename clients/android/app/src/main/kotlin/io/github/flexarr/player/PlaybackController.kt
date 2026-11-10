@@ -75,6 +75,12 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     /** How far back and forward jump, in seconds (Settings › Playback). */
     val skipSeconds = PlayerSettings.skipSeconds(context)
 
+    /**
+     * Whether the screen is in front (or in the corner): a stream the server answers for after Home was pressed opens
+     * paused, rather than playing to nobody. Set by the screen.
+     */
+    var onScreen: () -> Boolean = { true }
+
     /** Dialogue boost, night mode and the speakers (Settings › Playback, or the audio menu), applied as the sound plays. */
     private val shaper = SoundShaper()
 
@@ -259,6 +265,10 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     /** This session's stream has played, so its stopping is a stream that dropped (recovered) rather than one that never worked. */
     private var hasPlayed = false
     private var lastRecovery = 0L
+
+    /** When the last seek was asked for, and the wait for its stream to come: see [watchSeekStall]. */
+    private var lastSeekAt = 0L
+    private var seekStall: Job? = null
     /** What was played before the current title in this sitting, for Previous episode (on shuffle, the server can't say). */
     private val trail = mutableListOf<ItemSummary>()
     /**
@@ -321,6 +331,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
             override fun onPlaybackStateChanged(state: Int) {
                 isBuffering = state == Player.STATE_BUFFERING
                 hasEnded = state == Player.STATE_ENDED
+                watchSeekStall(state)
                 // A stall soon after the first picture: its own entry beside the start's. Not a seek (Skip intro, say),
                 // which moves the place well past where playing alone would have got to.
                 if (state == Player.STATE_BUFFERING) firstFrame?.let { (at, position, playbackId) ->
@@ -712,7 +723,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         // Opened again at a speed the new stream wasn't started at (a converted film sped up before): the server hears it.
         tellSpeed(started, rate, known = started.speed ?: 1.0)
         // Asleep (End of episode stopped the last one): stay paused under the dim.
-        if (sleep.phase != VideoSleep.Phase.Asleep) player.play()
+        if (sleep.phase != VideoSleep.Phase.Asleep && onScreen()) player.play()
         lastReport = System.currentTimeMillis()
         ticker?.cancel()
         keepTicking()
@@ -977,7 +988,29 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         skipCounting = null
         player.seekTo((seconds * 1000).toLong())
         position = seconds
+        lastSeekAt = android.os.SystemClock.elapsedRealtime()
         keepTicking()
+    }
+
+    /**
+     * Buffering soon after a seek that doesn't end: a segment the server holds open after a long jump, say, which would
+     * otherwise wait for the connection to time out. After a while it's recovered like a stream that stopped.
+     */
+    private fun watchSeekStall(state: Int) {
+        if (state != Player.STATE_BUFFERING) {
+            seekStall?.cancel()
+            seekStall = null
+            return
+        }
+        if (seekStall?.isActive == true) return
+        if (android.os.SystemClock.elapsedRealtime() - lastSeekAt > SEEK_STALL_WINDOW_MS) return
+        val session = info?.sessionId ?: return
+        seekStall = scope.launch {
+            delay(SEEK_STALL_MS)
+            if (closed || isOpening || info?.sessionId != session) return@launch
+            if (player.playbackState != Player.STATE_BUFFERING || !player.playWhenReady) return@launch
+            recover(PlaybackException("Still buffering ${SEEK_STALL_MS / 1000} s after a seek", null, PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT))
+        }
     }
 
     /**
@@ -1552,6 +1585,9 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         private const val SUBTITLE_ID_PREFIX = "flexarr-subtitle:"
         // A stream that stops is asked for again 6 times, 3 s apart, at most once a minute, as on iPhone.
         private const val RECOVERY_INTERVAL_MS = 60_000L
+        /** A stall counts as the seek's when it starts within this of it, and is recovered after [SEEK_STALL_MS]. */
+        private const val SEEK_STALL_WINDOW_MS = 3_000L
+        private const val SEEK_STALL_MS = 20_000L
         private const val RECOVERY_ATTEMPTS = 6
         private const val RECOVERY_RETRY_MS = 3_000L
         /** Past this, Previous starts the title again before going to the one before. */

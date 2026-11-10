@@ -169,7 +169,9 @@ function apply(next: Pack) {
 function kept(code: string): (Pack & { etag?: string }) | null {
   try {
     const raw = localStorage.getItem(STORE + code)
-    return raw ? (JSON.parse(raw) as Pack & { etag?: string }) : null
+    const p = raw ? (JSON.parse(raw) as Pack & { etag?: string }) : null
+    // A damaged entry would break every word on every load: fetched afresh instead.
+    return p && typeof p.messages === 'object' && p.messages !== null ? p : null
   } catch {
     return null
   }

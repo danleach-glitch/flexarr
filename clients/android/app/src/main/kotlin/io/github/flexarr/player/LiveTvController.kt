@@ -56,6 +56,12 @@ class LiveTvController(context: Context, private val model: AppModel, val client
     /** How far back and forward jump in the rewind window, in seconds (Settings › Playback). */
     val skipSeconds = PlayerSettings.skipSeconds(context)
 
+    /**
+     * Whether the screen is in front (or in the corner): a stream the server answers for after Home was pressed opens
+     * paused, rather than playing to nobody. Set by the screen.
+     */
+    var onScreen: () -> Boolean = { true }
+
     /** Dialogue boost, night mode and the speakers, as for films: the phone's sound settings. */
     private val shaper = SoundShaper()
 
@@ -224,7 +230,7 @@ class LiveTvController(context: Context, private val model: AppModel, val client
         )
         player.prepare()
         // Asleep (the sleep timer ran out): stay paused under the dim.
-        if (sleep.phase != VideoSleep.Phase.Asleep) player.play()
+        if (sleep.phase != VideoSleep.Phase.Asleep && onScreen()) player.play()
         keepAlive(started.viewer)
         keepTicking()
     }

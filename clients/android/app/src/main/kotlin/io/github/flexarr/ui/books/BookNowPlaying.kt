@@ -108,6 +108,7 @@ import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
+import io.github.flexarr.ui.components.endsFormat
 import java.util.Date
 import io.github.flexarr.ui.theme.Tokens
 
@@ -371,7 +372,7 @@ private fun Scrubber(player: BookPlayer, chapters: List<BookChapter>, scrubbing:
             Text(Format.timestamp(shown - span.first), style = caption, modifier = Modifier.weight(1f))
             if (player.duration > 0) {
                 val left = (player.duration - player.position).coerceAtLeast(0.0) / rate
-                val ends = android.text.format.DateFormat.getTimeFormat(context).format(Date(System.currentTimeMillis() + (left * 1000).toLong()))
+                val ends = endsFormat(context).format(Date(System.currentTimeMillis() + (left * 1000).toLong()))
                 Text(if (wholeBook || chapters.isEmpty()) t("Ends {time}", "time" to ends) else t("Chapter"), style = caption)
             }
             Text("-" + Format.timestamp(((span.second - shown).coerceAtLeast(0.0)) / rate), style = caption, textAlign = TextAlign.End, modifier = Modifier.weight(1f))

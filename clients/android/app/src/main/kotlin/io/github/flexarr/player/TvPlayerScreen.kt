@@ -113,6 +113,20 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
         flashCount++
     }
 
+    // Held (left, right, fast-forward or rewind): the controls come up and the playhead moves, faster the longer it's
+    // held, with the picture there above it; OK goes there, as on the timeline. A single press still jumps.
+    fun moveOrSkip(forward: Boolean, held: Int) {
+        if (held == 0) return skip(if (forward) controller.skipSeconds else -controller.skipSeconds)
+        show()
+        val step = when {
+            held > 30 -> 60
+            held > 10 -> 30
+            else -> 10
+        }
+        val from = scrubTo ?: controller.position
+        scrubTo = (from + if (forward) step else -step).coerceIn(0.0, controller.duration.coerceAtLeast(0.0))
+    }
+
     // Put away, the next time they come it's on the timeline rather than the menu last used.
     LaunchedEffect(showing) { if (!showing && menuOpen == null) menuClosed = null }
     // Put away after a while of playing untouched, unless something's being done with them.
@@ -180,8 +194,8 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
                     KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> controller.togglePlayPause().let { show(); true }
                     KeyEvent.KEYCODE_MEDIA_PLAY -> controller.player.play().let { show(); true }
                     KeyEvent.KEYCODE_MEDIA_PAUSE -> controller.pause().let { show(); true }
-                    KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> skip(controller.skipSeconds).let { true }
-                    KeyEvent.KEYCODE_MEDIA_REWIND -> skip(-controller.skipSeconds).let { true }
+                    KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> moveOrSkip(forward = true, held = event.nativeKeyEvent.repeatCount).let { true }
+                    KeyEvent.KEYCODE_MEDIA_REWIND -> moveOrSkip(forward = false, held = event.nativeKeyEvent.repeatCount).let { true }
                     KeyEvent.KEYCODE_MEDIA_NEXT -> (controller.info?.next != null).also { if (it) controller.playNext() }
                     else -> false
                 }
@@ -196,6 +210,10 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
                 // The controls are up but focus is still on the picture (they came back with a channel change, say):
                 // the key goes to them rather than acting on the picture.
                 if (showing) {
+                    val code = event.nativeKeyEvent.keyCode
+                    val held = event.nativeKeyEvent.repeatCount
+                    // A held left or right that brought them up goes on moving until the timeline has focus.
+                    if (held > 0 && (code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT)) moveOrSkip(code == KeyEvent.KEYCODE_DPAD_RIGHT, held)
                     runCatching { timeline.requestFocus() }
                     return@onKeyEvent true
                 }
@@ -206,8 +224,8 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
                 }
                 when (event.nativeKeyEvent.keyCode) {
                     KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> controller.togglePlayPause().let { show(); true }
-                    KeyEvent.KEYCODE_DPAD_LEFT -> skip(-controller.skipSeconds).let { true }
-                    KeyEvent.KEYCODE_DPAD_RIGHT -> skip(controller.skipSeconds).let { true }
+                    KeyEvent.KEYCODE_DPAD_LEFT -> moveOrSkip(forward = false, held = event.nativeKeyEvent.repeatCount).let { true }
+                    KeyEvent.KEYCODE_DPAD_RIGHT -> moveOrSkip(forward = true, held = event.nativeKeyEvent.repeatCount).let { true }
                     // Up during a countdown: it stops, and the button takes focus for OK.
                     KeyEvent.KEYCODE_DPAD_UP -> (if (controller.countingDown && promptUp) controller.holdCountdown() else show()).let { true }
                     KeyEvent.KEYCODE_DPAD_DOWN -> show().let { true }

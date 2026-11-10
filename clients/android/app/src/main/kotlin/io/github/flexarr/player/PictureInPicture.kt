@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.graphics.Rect
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.util.Rational
@@ -73,6 +74,8 @@ internal class PictureInPicture(private val activity: ComponentActivity, private
                 // Android takes shapes between 1:2.39 and 2.39:1.
                 val ratio = (size.width * size.pixelWidthHeightRatio / size.height).coerceIn(1 / 2.39f, 2.39f)
                 setAspectRatio(Rational((ratio * 1000).toInt(), 1000))
+                // Where the picture sits on screen, so the move to the corner grows from it rather than from a crop.
+                sourceRect(ratio)?.let(::setSourceRectHint)
             }
             setActions(
                 listOf(
@@ -85,9 +88,25 @@ internal class PictureInPicture(private val activity: ComponentActivity, private
             )
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 setAutoEnterEnabled(playing)
-                setSeamlessResizeEnabled(true)
+                // Seamless resizing is for screens of text; a video's resize cross-fades instead.
+                setSeamlessResizeEnabled(false)
             }
         }.build()
+    }
+
+    /** The picture fitted to the screen, centred: the player shows it so. */
+    private fun sourceRect(ratio: Float): Rect? {
+        val view = activity.window.decorView
+        val width = view.width
+        val height = view.height
+        if (width <= 0 || height <= 0) return null
+        return if (width.toFloat() / height > ratio) {
+            val shown = (height * ratio).toInt()
+            Rect((width - shown) / 2, 0, (width + shown) / 2, height)
+        } else {
+            val shown = (width / ratio).toInt()
+            Rect(0, (height - shown) / 2, width, (height + shown) / 2)
+        }
     }
 
     private fun button(icon: Int, title: String, code: Int): RemoteAction {
@@ -111,7 +130,15 @@ internal class PictureInPicture(private val activity: ComponentActivity, private
 
     /** Before Android 12 there's no going there by itself: leaving the app while it plays does it here. */
     fun userLeaving() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S && source.isPlaying) enter()
+        if (!isSupported || !source.isPlaying) return
+        // Going there by itself: the controls go now, before the window shrinks, not once it's in the corner.
+        isActive = true
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) enter()
+    }
+
+    /** Back in front: the window wasn't opened after all (picture in picture is off for the app), or was opened out. */
+    fun resumed() {
+        isActive = activity.isInPictureInPictureMode
     }
 
     fun modeChanged(inPictureInPicture: Boolean) {

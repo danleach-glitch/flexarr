@@ -137,6 +137,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import io.github.flexarr.ui.components.endsFormat
 import java.util.Date
 import io.github.flexarr.ui.theme.Tokens
 
@@ -516,7 +517,7 @@ private fun Scrubber(player: PodcastPlayer, chapters: List<PodcastChapter>, scru
             if (duration > 0) {
                 // When it'll finish, at the speed it's playing.
                 val left = (duration - player.position).coerceAtLeast(0.0) / player.speed.coerceAtLeast(0.5)
-                val ends = android.text.format.DateFormat.getTimeFormat(context).format(Date(System.currentTimeMillis() + (left * 1000).toLong()))
+                val ends = endsFormat(context).format(Date(System.currentTimeMillis() + (left * 1000).toLong()))
                 Text(t("Ends {time}", "time" to ends), style = caption)
             }
             Text(if (duration > 0) "-" + Format.timestamp((duration - shown).coerceAtLeast(0.0)) else "", style = caption, textAlign = TextAlign.End, modifier = Modifier.weight(1f))

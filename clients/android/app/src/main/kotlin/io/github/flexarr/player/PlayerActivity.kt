@@ -18,6 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material.icons.filled.PictureInPictureAlt
 import android.graphics.Color as AndroidColor
 import android.os.Bundle
+import androidx.lifecycle.Lifecycle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -151,6 +152,7 @@ class PlayerActivity : ComponentActivity() {
         val model = appModel
         val client = model.client ?: return finish()
         val controller = PlaybackController(this, model, client, onClose = ::finish).also { controller = it }
+        controller.onScreen = { lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) || isInPictureInPictureMode }
         // A TV is the big screen already: no Chromecast and no corner window there.
         val tv = usesTvInterface
         val casting = Casting.shared?.takeIf { !tv }?.let { VideoCasting(this, controller, it) }.also { casting = it }
@@ -254,6 +256,17 @@ class PlayerActivity : ComponentActivity() {
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         pictureInPicture?.modeChanged(isInPictureInPictureMode)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        pictureInPicture?.resumed()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        // The bars come back with a sheet, the corner window or another app over it: hidden again on return.
+        if (hasFocus) WindowInsetsControllerCompat(window, window.decorView).hide(WindowInsetsCompat.Type.systemBars())
     }
 
     override fun onStop() {
