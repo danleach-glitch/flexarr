@@ -8,6 +8,20 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 - Settings › Trakt now says Flexarr uses Trakt but isn't endorsed or certified by it, and flexarr.io/privacy explains what Flexarr keeps when you connect Trakt and how Disconnect removes it.
 
+### Playback
+
+- On Android TV, holding left, right, fast-forward or rewind while the controls are hidden now moves through the film with the picture shown above the timeline, faster the longer you hold; OK goes there. A single press still jumps.
+- On Android and Android TV, Dolby Digital and Dolby Digital Plus sound is now decoded on the device whenever **Lossless surround** is off or dialogue boost, night mode or a speaker setting is on, so those settings work for Dolby sound too, rather than it going to your receiver untouched.
+- On Android, pressing Home while a film or channel is still opening no longer leaves it playing in the background.
+- On Android, playback that's still buffering 20 seconds after a jump now opens the stream again from that point, rather than waiting until the connection times out.
+- On Android phones, the status bar no longer comes back during playback after picture in picture, the channel list or another app, and the move into picture in picture grows from the picture itself, without the controls.
+- On Android, the **Ends** time for audiobooks and podcasts is shown in the app's language.
+- Siri can now skip forward or back by 15 or 30 seconds, a minute, 90 seconds or 2 minutes: "Skip forward 30 seconds in Flexarr".
+
+### Downloads
+
+- On iPhone, a download paused when Wi‑Fi dropped now carries on over mobile data once **Wi‑Fi only** is off, rather than waiting for Wi‑Fi.
+
 ## 0.64.0 · 9 November 2026
 
 ### Versions

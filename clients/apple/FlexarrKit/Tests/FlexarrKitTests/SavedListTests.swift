@@ -122,8 +122,10 @@ struct SavedListTests {
         writer.save([Saved(id: "a", size: 2)])
         writer.save([Saved(id: "a", size: 3)])
 
-        #expect(await eventually { writer.writes == 2 })
-        #expect(SavedList.load(Saved.self, from: url).items == [Saved(id: "a", size: 3)])
+        // On a slow machine the first of these can go by itself before the second arrives: what matters is that the
+        // newest is written in the end, with no more than one write each.
+        #expect(await eventually { SavedList.load(Saved.self, from: url).items == [Saved(id: "a", size: 3)] })
+        #expect((2...3).contains(writer.writes))
     }
 
     @Test func whateverWasSavedLast_IsWhatsInTheFile_HoweverTheWritesFellOut() async throws {

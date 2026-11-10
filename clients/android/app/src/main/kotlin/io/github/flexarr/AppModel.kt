@@ -1419,6 +1419,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         val credentials = credentials ?: return
         val held = heldParentPin?.takeIf { System.currentTimeMillis() < heldParentPinUntil }
         chose(credentials.client().selectProfile(profile.id, pin, parentPin ?: held), profiles)
+        // Chosen while thought offline: the server answered, so it's back, without waiting for the next retry.
+        if (serverUnreachable) checkConnection(knownReachable = true)
     }
 
     /**
