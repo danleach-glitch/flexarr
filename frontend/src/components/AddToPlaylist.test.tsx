@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mockApi } from '../test/mockApi'
 import { AddToPlaylistDialog, AddToPlaylistHost, openAddToPlaylist } from './AddToPlaylist'
@@ -52,7 +52,9 @@ describe('Add to playlist', () => {
     })
     render(<AddToPlaylistDialog item={{ id: 'album-1', title: '13' }} onClose={() => undefined} />)
 
-    expect(await screen.findByPlaceholderText('Name your first playlist')).toHaveFocus()
+    const name = await screen.findByPlaceholderText('Name your first playlist')
+    // Focus moves to it once the empty list has loaded, a moment after it appears.
+    await waitFor(() => expect(name).toHaveFocus())
     const create = screen.getByRole('button', { name: 'Create' })
     expect(create).toBeDisabled()
     fireEvent.change(screen.getByLabelText('New playlist'), { target: { value: ' Chill ' } })
