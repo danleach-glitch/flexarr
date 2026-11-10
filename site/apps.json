@@ -17,6 +17,19 @@
       ]
     },
     {
+      "id": "mac",
+      "kind": "server",
+      "name": "Server for Mac",
+      "icon": "apple",
+      "status": "available",
+      "version": "0.57.0",
+      "summary": "The Flexarr server as a Mac app: install it in one step, choose your media folders, and it runs from the menu bar, converting video with your Mac's graphics hardware. Free.",
+      "links": [
+        { "label": "Mac App Store", "href": "https://apps.apple.com/app/flexarr-server/id6827844952", "store": "apple" },
+        { "label": "Guide", "href": "/guide/install-macos" }
+      ]
+    },
+    {
       "id": "iphone",
       "kind": "player",
       "name": "iPhone and iPad",

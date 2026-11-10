@@ -5,7 +5,9 @@ description: Build Flexarr from source and run it natively on a Mac as a backgro
 
 On a Mac, Flexarr runs natively rather than in Docker. That way it can use the Mac's graphics hardware (Apple VideoToolbox) to convert video, which Docker on macOS can't. It works on Apple silicon and Intel Macs.
 
-A Mac app is coming to the Mac App Store. Until then, you build Flexarr from its source code with one command, which installs it as a background service that starts when you log in. It takes some time in Terminal, but you only do it once.
+The easiest way is **[Flexarr Server on the Mac App Store](https://apps.apple.com/app/flexarr-server/id6827844952)**, for Macs with Apple silicon: install it, open it, and it runs from the menu bar. You add your media folders from **Add library** in the web app, and it updates through the App Store.
+
+The rest of this page is the other way: building Flexarr from its source code with one command, which installs it as a background service that starts when you log in. It takes some time in Terminal, but you only do it once. It suits an Intel Mac, or a Mac you manage over SSH.
 
 > **Note** Prefer not to build anything? Docker Desktop for Mac runs the [Docker image](install-docker.md) too, but without VideoToolbox: video is converted on the processor.
 
