@@ -51,7 +51,7 @@
   <main>
     <a class="home" href="/">← Flexarr</a>
     <h1>Privacy Policy</h1>
-    <p class="updated">Last updated 29 October 2026</p>
+    <p class="updated">Last updated 10 November 2026</p>
 
     <p>Flexarr is a media server you run yourself, with apps for iPhone, iPad, Apple TV, Android and the web. This policy covers
     those apps, Flexarr Server for Mac and this website.</p>
@@ -89,6 +89,25 @@
     window, and you can remove a folder in Flexarr at any time. It goes online only for what Flexarr does: artwork and
     details for your media, podcasts, checking for a new version, notifications through the relay above, and the
     services you connect it to. Deleting the app and its folder removes everything.</p>
+
+    <h2 id="trakt">Trakt</h2>
+    <p>Trakt is off until someone connects their own Trakt account to their profile, in Settings › Trakt. Each
+    profile connects its own, and kids profiles can't. Once connected, the Flexarr server and Trakt exchange what that
+    person has watched, where they're up to, their watchlist and the lists they choose, so the two stay in step.</p>
+    <p>The server keeps that profile's Trakt sign-in (Trakt's access and refresh tokens), their Trakt username, when
+    it last synced, changes waiting to be sent, and the Trakt history of titles the server doesn't have yet, so they
+    arrive already marked watched. All of it stays on that server, under its owner's control, and is used only for
+    keeping that profile in step with Trakt.</p>
+    <p>Signing in, and renewing the sign-in each day, needs Flexarr's Trakt app secret, which can't ship inside
+    software everyone runs. So those calls go through the relay at flexarr.io, which adds the secret and passes them
+    to Trakt. The relay stores no tokens and logs nothing about them. To stop abuse it counts requests for up to an
+    hour, by a one-way hash of the address and of the code or token, and keeps nothing else. Vercel, which hosts it,
+    sees your server's address as any web host does. Everything else goes from your server straight to Trakt.</p>
+    <p><strong>Disconnect</strong> in Settings › Trakt makes Trakt forget Flexarr and deletes everything above from the
+    server: the sign-in, username, waiting changes, held history and Trakt lists. What you've watched stays as it is, here and on Trakt. To delete your data on
+    Trakt itself, use Trakt's own settings; Trakt handles it under the
+    <a href="https://trakt.tv/privacy">Trakt privacy policy</a>.</p>
+    <p>Flexarr uses Trakt but is not endorsed or certified by Trakt.</p>
 
     <h2>Optional error reports</h2>
     <p>A Flexarr server's owner can choose to send error reports to the developer, to help fix bugs. It's off unless

@@ -7,7 +7,7 @@ Connect a profile to your [Trakt](https://trakt.tv) account and Flexarr keeps th
 
 ## Connecting
 
-1. Open **Settings › Trakt** in the web app, on iPhone or iPad, or on the Apple TV.
+1. Open **Settings › Trakt** in the web app, on iPhone, iPad or Android, or on the Apple TV or Android TV.
 2. Choose **Connect**. Flexarr shows a code.
 3. On any phone or computer, go to **trakt.tv/activate** and enter the code. On a TV, scan the QR code to open that page on your phone. On iPhone, **Copy code and open Trakt** copies the code and opens the page; on the web, **Copy code**.
 
@@ -64,4 +64,10 @@ Everything a connected profile watches goes to Trakt, whichever library it's in,
 
 ## Your own Trakt app
 
-Flexarr uses its own Trakt app, so there's nothing to set up. If you'd rather use your own (Trakt only lets VIP members create one), the main profile can enter its **Client ID** and **Client secret** in **Settings › Connections › Trakt**. Everyone then connects again, as sign-ins belong to the app that gave them.
+Flexarr uses its own Trakt app, so there's nothing to set up. If you'd rather use your own, the main profile can enter its **Client ID** and **Client secret** in **Settings › Connections › Trakt**. Trakt gives an app a Client secret only when you ask for one in its Production access request. Everyone then connects again, as sign-ins belong to the app that gave them.
+
+## Privacy
+
+Your server keeps each connected profile's Trakt sign-in and sync state, and nothing leaves it except to Trakt. Signing in and renewing it go through Flexarr's relay, which stores nothing. The [privacy policy](https://flexarr.io/privacy#trakt) has the details.
+
+Flexarr uses Trakt but is not endorsed or certified by Trakt.

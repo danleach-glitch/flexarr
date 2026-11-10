@@ -45,6 +45,9 @@ struct TraktSettingsView: View {
                 } else {
                     connect(status)
                 }
+                if status.available {
+                    Section {} footer: { Text(TraktWords.notice) }
+                }
             } else if loadFailed {
                 Section {
                     Text(TraktWords.unreachable).foregroundStyle(Color.danger).listRowBackground(Color.seat)

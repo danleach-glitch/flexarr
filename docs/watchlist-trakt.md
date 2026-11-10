@@ -86,7 +86,7 @@ New endpoints only; nothing changes shape.
 
 ## Trakt specifics
 
-- **Tokens:** access tokens last 24 hours (since March 2025), so Flexarr refreshes them from `expires_in` instead of on a fixed schedule. A refresh that fails marks the connection *needs sign-in again*, and the person's Settings says so.
+- **Tokens:** access tokens last 7 days (24 hours from March 2025 until Trakt's October 2026 sign-in change), so Flexarr refreshes them from `expires_in` instead of on a fixed schedule. A refresh that fails marks the connection *needs sign-in again*, and the person's Settings says so.
 - **Device code:** it expires after 10 minutes. Flexarr polls at Trakt's `interval`, and the server does the polling, so the app can be closed.
 - **Rate limits:** about 1 write per second and 1,000 reads per 5 minutes. History goes in batches.
 - **Free accounts:** the watchlist is capped (100 in 2025; reportedly 250 since 2026). When Trakt says the list is full, that title stays in Flexarr, and Settings shows it plainly.

@@ -139,6 +139,8 @@ public enum TraktWords {
     public static var unavailable: String { t("Trakt isn’t available on this server.") }
     public static var failed: String { t("That didn’t work. Try again.") }
     public static var unreachable: String { t("Couldn’t reach the server.") }
+    /// The credit Trakt's API Use Policy asks for on the app's Trakt page.
+    public static var notice: String { t("Flexarr uses Trakt but is not endorsed or certified by Trakt.") }
 
     /// "Enter this code at trakt.tv/activate."
     public static func enterCode(at url: String) -> String {

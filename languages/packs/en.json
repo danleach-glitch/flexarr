@@ -985,6 +985,7 @@
  "Flexarr stopped: {reason}": "Flexarr stopped: {reason}",
  "Flexarr syncs every few minutes by itself.": "Flexarr syncs every few minutes by itself.",
  "Flexarr takes {title}’s details from {source}, and nothing is added anywhere.": "Flexarr takes {title}’s details from {source}, and nothing is added anywhere.",
+ "Flexarr uses Trakt but is not endorsed or certified by Trakt.": "Flexarr uses Trakt but is not endorsed or certified by Trakt.",
  "Flexarr waits, so you can leave this.": "Flexarr waits, so you can leave this.",
  "Flexarr {version} is available": "Flexarr {version} is available",
  "Flexarr’s Trakt app": "Flexarr’s Trakt app",
