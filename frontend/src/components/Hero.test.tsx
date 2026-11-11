@@ -1,11 +1,12 @@
 import { act, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { ItemSummary } from '../api/types'
 import { summary } from '../test/mockApi'
 import { AudioPlayerContext, type AudioPlayer } from '../hooks/audioPlayerContext'
 import { Hero } from './Hero'
 
-const items = [1, 2, 3].map((n) => summary({ id: `m${n}`, kind: 'Movie', title: `Film ${n}` }))
+const items = [1, 2, 3].map((n) => summary({ id: `m${n}`, kind: 'Movie', title: `Film ${n}` })) as unknown as ItemSummary[]
 const shownTitle = () => screen.getByRole('heading', { level: 1 }).textContent
 
 afterEach(() => {

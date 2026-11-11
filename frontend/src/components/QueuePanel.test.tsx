@@ -67,7 +67,7 @@ describe('the queue', () => {
     expect(player.removeFromQueue).toHaveBeenCalledWith(1)
     imageUrl.mockClear()
     rerender(
-      <AudioPlayerContext value={{ ...player, queue: tracks.filter((_, i) => i !== 1) }}>
+      <AudioPlayerContext value={{ ...player, queue: tracks.filter((_, i) => i !== 1) } as unknown as AudioPlayer}>
         <QueuePanel onClose={() => {}} />
       </AudioPlayerContext>,
     )
@@ -90,7 +90,7 @@ describe('the queue', () => {
     clear.focus()
     fireEvent.click(clear)
     expect(player.clearQueue).toHaveBeenCalled()
-    const empty = { ...player, queue: [tracks[0]] }
+    const empty = { ...player, queue: [tracks[0]] } as unknown as AudioPlayer
     rerender(
       <AudioPlayerContext value={empty}>
         <QueuePanel onClose={() => {}} />
