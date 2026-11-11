@@ -198,14 +198,43 @@ public static class TitleLinker
             AddGroup(groups, season.Select(s => s.Id));
         }
 
-        var episodes = rows.Where(r => r.Kind == MediaKind.Episode && r.ParentId is { } season && groups.ContainsKey(season) && (r.EpisodeNumber is not null || r.AirDate is not null))
-            .GroupBy(r => (Season: groups[r.ParentId!.Value], r.EpisodeNumber, End: r.EpisodeNumberEnd ?? r.EpisodeNumber, r.AirDate));
-        foreach (var episode in episodes.Where(e => e.Count() > 1).ToList())
+        var bySeason = rows.Where(r => r.Kind == MediaKind.Episode && r.ParentId is { } season && groups.ContainsKey(season) && (r.EpisodeNumber is not null || r.AirDate is not null))
+            .GroupBy(r => groups[r.ParentId!.Value]).ToList();
+        foreach (var season in bySeason)
         {
-            AddGroup(groups, episode.Select(e => e.Id));
+            foreach (var episode in EpisodeCopies(season).Where(e => e.Count > 1))
+            {
+                AddGroup(groups, episode);
+            }
         }
 
         return groups;
+    }
+
+    /// <summary>
+    /// A linked season's episodes, as the copies of each: by number when they have one, and an episode named only by its
+    /// date (a daily show's file, in a library that numbers it in the other) joins the numbered one that aired that day,
+    /// when only one did.
+    /// </summary>
+    private static List<List<Guid>> EpisodeCopies(IEnumerable<Row> season)
+    {
+        var numbered = season.Where(r => r.EpisodeNumber is not null).GroupBy(r => (r.EpisodeNumber, End: r.EpisodeNumberEnd ?? r.EpisodeNumber))
+            .Select(g => (Ids: g.Select(r => r.Id).ToList(), Dates: g.Select(r => r.AirDate).OfType<DateOnly>().ToHashSet())).ToList();
+        var copies = numbered.Select(n => n.Ids).ToList();
+        foreach (var dated in season.Where(r => r.EpisodeNumber is null).GroupBy(r => r.AirDate!.Value))
+        {
+            var aired = numbered.Where(n => n.Dates.Contains(dated.Key)).ToList();
+            if (aired.Count == 1)
+            {
+                aired[0].Ids.AddRange(dated.Select(r => r.Id));
+            }
+            else
+            {
+                copies.Add([.. dated.Select(r => r.Id)]);
+            }
+        }
+
+        return copies;
     }
 
     private static void AddGroup(Dictionary<Guid, Guid> groups, IEnumerable<Guid> ids)

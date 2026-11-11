@@ -208,6 +208,35 @@ public sealed class TitleLinkerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ADailyShowsEpisodeNamedByDate_LinksTheNumberedOneThatAiredThatDay()
+    {
+        var hd = Add(_hd, MediaKind.Series, "Daily", tvdb: "8");
+        var uhd = Add(_uhd, MediaKind.Series, "Daily", tvdb: "8");
+        await _db.SaveChangesAsync();
+        var hdSeason = Add(_hd, MediaKind.Season, "2026", parent: hd, season: 2026);
+        var uhdSeason = Add(_uhd, MediaKind.Season, "2026", parent: uhd, season: 2026);
+        await _db.SaveChangesAsync();
+        var numbered = Add(_hd, MediaKind.Episode, "41", parent: hdSeason, season: 2026, episode: 41);
+        numbered.AirDate = new DateOnly(2026, 3, 4);
+        var dated = Add(_uhd, MediaKind.Episode, "4 March", parent: uhdSeason, season: 2026);
+        dated.AirDate = new DateOnly(2026, 3, 4);
+        // Two that aired the same day: a file named by that date could be either.
+        var first = Add(_hd, MediaKind.Episode, "42", parent: hdSeason, season: 2026, episode: 42);
+        first.AirDate = new DateOnly(2026, 3, 5);
+        var second = Add(_hd, MediaKind.Episode, "43", parent: hdSeason, season: 2026, episode: 43);
+        second.AirDate = new DateOnly(2026, 3, 5);
+        var either = Add(_uhd, MediaKind.Episode, "5 March", parent: uhdSeason, season: 2026);
+        either.AirDate = new DateOnly(2026, 3, 5);
+        await LinkAsync();
+
+        Assert.NotNull(await GroupOf(numbered));
+        Assert.Equal(await GroupOf(numbered), await GroupOf(dated));
+        Assert.Null(await GroupOf(first));
+        Assert.Null(await GroupOf(second));
+        Assert.Null(await GroupOf(either));
+    }
+
+    [Fact]
     public async Task OnFirstLink_ACopyWatchedCounts_AndTheNewestPlaceWins()
     {
         var hd = Add(_hd, MediaKind.Movie, "Film", tmdb: "1");
