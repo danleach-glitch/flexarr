@@ -7,6 +7,7 @@ import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { useLibraries } from '../hooks/librariesContext'
 import { useSession } from '../hooks/sessionContext'
 import { NoticeHost } from './Notice'
+import { useConfirm } from '../hooks/useConfirm'
 import { ChevronsLeft, Close, Menu as MenuIcon, Playlist } from './icons'
 import { icon } from './icons.generated'
 import { libraryIcons } from './libraryIcons'
@@ -39,6 +40,7 @@ export function Layout() {
   const [scrolled, setScrolled] = useState(false)
   const [searching, setSearching] = useState(false)
   const [profileMenu, setProfileMenu] = useState(false)
+  const [ask, confirmDialog] = useConfirm()
   const [rail, setRail] = useState(initialRail)
   // Whether Podcasts has a place among the libraries (a profile can leave it out; Settings › Navigation).
   const [podcastsInSidebar, setPodcastsInSidebar] = useState(true)
@@ -240,8 +242,8 @@ export function Layout() {
                     <button
                       role="menuitem"
                       onClick={async () => {
-                        if (!confirm(t('Sign out of this browser? Signing in again takes the API key.'))) return
                         setProfileMenu(false)
+                        if (!(await ask({ title: t('Sign out of this browser? Signing in again takes the API key.'), confirmLabel: t('Sign out'), danger: true }))) return
                         // Whatever the server says, start again from the top: the sign-in page if it's needed.
                         await signOut().catch(() => undefined)
                         window.location.assign('/')
@@ -351,6 +353,7 @@ export function Layout() {
         <PairingPrompt />
         <Outlet />
         <NoticeHost />
+        {confirmDialog}
         <AddToCollectionHost />
         <AddToPlaylistHost />
       </main>

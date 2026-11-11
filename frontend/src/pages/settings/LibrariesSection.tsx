@@ -22,6 +22,7 @@ import { Film, Pencil, Picture, Refresh } from '../../components/icons'
 import { icon } from '../../components/icons.generated'
 import { libraryIcons } from '../../components/libraryIcons'
 import { useApi } from '../../hooks/useApi'
+import { useConfirm } from '../../hooks/useConfirm'
 import { libraryTypeLabel, relativeTime } from '../../lib/format'
 import { BookDetailsGroup } from './BookDetailsGroup'
 import { SaveStatus, SettingLink, SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
@@ -225,8 +226,10 @@ function LibraryRow({ library, onChange }: { library: Library; onChange: () => v
     }
   }
 
+  const [ask, confirmDialog] = useConfirm()
   async function remove() {
-    if (!confirm(t('Remove “{name}” from Flexarr? The files themselves stay where they are.', { name: library.name }))) return
+    const yes = await ask({ title: t('Remove “{name}” from Flexarr? The files themselves stay where they are.', { name: library.name }), confirmLabel: t('Remove library'), danger: true })
+    if (!yes) return
     await deleteLibrary(library.id)
     onChange()
   }
@@ -236,6 +239,7 @@ function LibraryRow({ library, onChange }: { library: Library; onChange: () => v
   const scanning = !!library.scan || !library.lastScannedAt
   return (
     <div className="library-row">
+      {confirmDialog}
       <div>
         {renaming ? (
           <RenameLibraryForm

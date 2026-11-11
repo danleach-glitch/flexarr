@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { Shell } from '../../App'
@@ -102,8 +102,6 @@ describe('Settings › Trakt', () => {
 
   it('asks before disconnecting', async () => {
     let disconnected = false
-    const ask = vi.fn(() => false)
-    vi.stubGlobal('confirm', ask)
     open({
       '/trakt/status': { ...base, state: 'connected', username: 'Dan', importedAt: new Date().toISOString() },
       'DELETE /trakt': () => {
@@ -114,8 +112,14 @@ describe('Settings › Trakt', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Disconnect' }))
 
-    expect(ask).toHaveBeenCalled()
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
     expect(disconnected).toBe(false)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Disconnect' }))
+    await waitFor(() => expect(disconnected).toBe(true))
   })
 
   it('says so when the server doesn’t answer, rather than showing nothing', async () => {

@@ -28,6 +28,7 @@ import { FolderPicker } from '../../components/FolderPicker'
 import { useApi } from '../../hooks/useApi'
 import { useChoosesOnMac } from '../../hooks/useChoosesOnMac'
 import { usePolling } from '../../hooks/usePolling'
+import { useConfirm } from '../../hooks/useConfirm'
 import { appLogos } from '../../lib/apps'
 import { OpenApp, SaveStatus, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
 import { errorText, useSettings } from './useSettings'
@@ -72,6 +73,7 @@ type Save = ReturnType<typeof useSettings>['save']
  */
 export function ConnectionsSection() {
   const { settings, save, saved, saveError, waiting } = useSettings()
+  const [ask, confirmDialog] = useConfirm()
   // Asked once the settings are in (and again after a save), not also while they load.
   const status = useApi((signal) => (settings ? getArrStatus(signal) : Promise.resolve(undefined)), [settings])
   const seerrStatus = useApi((signal) => (settings ? getRequestStatus(signal) : Promise.resolve(undefined)), [settings])
@@ -124,6 +126,7 @@ export function ConnectionsSection() {
   return (
     <ServerName value={settings.hostName}>
       <section>
+        {confirmDialog}
         <SettingsHeader title={t('Connections')}>
           {t('The apps Flexarr gets your titles from, and the ones that add requests, subtitles and Live TV.')}
         </SettingsHeader>
@@ -232,7 +235,7 @@ export function ConnectionsSection() {
             onSave={async (traktApp) => {
               // Trakt's sign-ins belong to the app that gave them: everyone connects again after a switch (a new secret for
               // the same app changes nothing for them).
-              if ((traktApp.clientId || null) !== (settings.traktApp?.clientId || null) && !confirm(t('Change the Trakt app? Everyone who connected to Trakt will need to connect again.'))) return
+              if ((traktApp.clientId || null) !== (settings.traktApp?.clientId || null) && !(await ask({ title: t('Change the Trakt app? Everyone who connected to Trakt will need to connect again.'), confirmLabel: t('Change app'), danger: true }))) return
               if (!(await save({ traktApp }))) return
               setOpen(undefined)
               window.dispatchEvent(new Event(TRAKT_CHANGED))
@@ -388,8 +391,10 @@ function ArrRow({
   }
 
   const statusText = test === 'testing' ? t('Testing…') : shown?.ok ? t('Connected, version {version}', { version: shown.version }) : shown ? shown.error : isNew ? notConnected(connection.kind) : t('Checking…')
+  const [ask, confirmDialog] = useConfirm()
   return (
     <div className="connection">
+      {confirmDialog}
       <ConnectionLine
         kind={draft.kind}
         name={draft.name || draft.kind}
@@ -435,9 +440,9 @@ function ArrRow({
           <div className="form-actions">
             {onRemove &&
               (others ? (
-                <IconButton label={t('Remove')} aria-label={t('Remove {name}', { name: connection.name })} icon={<icon.delete />} className="button quiet small icon danger-icon form-actions-start" onClick={() => confirm(t('Remove {name}?', { name: connection.name })) && onRemove()} />
+                <IconButton label={t('Remove')} aria-label={t('Remove {name}', { name: connection.name })} icon={<icon.delete />} className="button quiet small icon danger-icon form-actions-start" onClick={async () => (await ask({ title: t('Remove {name}?', { name: connection.name }), confirmLabel: t('Remove'), danger: true })) && onRemove()} />
               ) : (
-                <AsyncButton className="button danger small form-actions-start" aria-label={t('Disconnect {name}', { name: connection.name })} onClick={() => (confirm(t('Disconnect {name}? Its titles stay in your libraries.', { name: connection.name })) ? onRemove() : undefined)}>
+                <AsyncButton className="button danger small form-actions-start" aria-label={t('Disconnect {name}', { name: connection.name })} onClick={async () => ((await ask({ title: t('Disconnect {name}? Its titles stay in your libraries.', { name: connection.name }), confirmLabel: t('Disconnect'), danger: true })) ? onRemove() : undefined)}>
                   {t('Disconnect')}
                 </AsyncButton>
               ))}
@@ -505,8 +510,10 @@ function ServiceRow({
   const [baseUrl, setBaseUrl] = useState(service?.baseUrl ?? '')
   const [apiKey, setApiKey] = useState('')
   const [saving, setSaving] = useState(false)
+  const [ask, confirmDialog] = useConfirm()
   return (
     <div className="connection">
+      {confirmDialog}
       <ConnectionLine
         kind={kind}
         name={kind}
@@ -546,7 +553,7 @@ function ServiceRow({
           </div>
           <div className="form-actions">
             {service && (
-              <AsyncButton className="button danger small form-actions-start" aria-label={t('Disconnect {name}', { name: kind })} onClick={() => (confirm(removeWarning) ? onSave({ baseUrl: '' }) : undefined)}>
+              <AsyncButton className="button danger small form-actions-start" aria-label={t('Disconnect {name}', { name: kind })} onClick={async () => ((await ask({ title: removeWarning, confirmLabel: t('Disconnect'), danger: true })) ? onSave({ baseUrl: '' }) : undefined)}>
                 {t('Disconnect')}
               </AsyncButton>
             )}
@@ -591,8 +598,10 @@ function TmdbRow({
   const [saving, setSaving] = useState(false)
   const [test, setTest] = useState<{ ok: boolean; error: string | null }>()
   const status = test && !test.ok ? (test.error ?? t('TMDB didn’t accept the key')) : hasKey ? t('Key saved') : notConnected('tmdb')
+  const [ask, confirmDialog] = useConfirm()
   return (
     <div className="connection">
+      {confirmDialog}
       <ConnectionLine icon={<Film />} name="TMDB" ok={test ? test.ok : hasKey ? true : undefined} status={status} baseUrl="" connected={hasKey} open={open} onOpen={onOpen} />
       {open && (
         <form
@@ -645,7 +654,7 @@ function TmdbRow({
                 type="button"
                 className="button danger small form-actions-start"
                 aria-label={t('Disconnect TMDB')}
-                onClick={() => (confirm(t('Disconnect TMDB? Its key is forgotten, and movies already filled in keep their details.')) ? onSave('') : undefined)}
+                onClick={async () => ((await ask({ title: t('Disconnect TMDB? Its key is forgotten, and movies already filled in keep their details.'), confirmLabel: t('Disconnect'), danger: true })) ? onSave('') : undefined)}
               >
                 {t('Disconnect')}
               </AsyncButton>
@@ -779,8 +788,10 @@ function DispatcharrRow({
   const test = open && lastTest?.fields === fields ? lastTest.result : undefined
   const shown = test === 'testing' ? t('Testing…') : test ? (test.ok ? testSummary(test, test.keyTested) : test.error) : status
 
+  const [ask, confirmDialog] = useConfirm()
   return (
     <div className="connection">
+      {confirmDialog}
       <ConnectionLine kind="Dispatcharr" name="Dispatcharr" ok={test && test !== 'testing' ? test.ok : ok} status={shown} baseUrl={liveTv?.baseUrl ?? ''} connected={!!liveTv} open={open} onOpen={onOpen} />
       {open && (
         <form
@@ -846,8 +857,8 @@ function DispatcharrRow({
               <AsyncButton
                 type="button"
                 className="button danger small"
-                onClick={() =>
-                  confirm(t('Remove the admin API key? Refresh will stop having Dispatcharr download its guides first.'))
+                onClick={async () =>
+                  (await ask({ title: t('Remove the admin API key? Refresh will stop having Dispatcharr download its guides first.'), confirmLabel: t('Remove admin API key'), danger: true }))
                     ? onSave({ baseUrl: liveTv.baseUrl, username: liveTv.username, adminApiKey: '' }, t('Admin API key removed'))
                     : undefined
                 }
@@ -862,7 +873,7 @@ function DispatcharrRow({
                 type="button"
                 className="button danger small form-actions-start"
                 aria-label={t('Disconnect Dispatcharr')}
-                onClick={() => (confirm(t('Disconnect Dispatcharr? Live TV, its channels and everyone’s favourites go with it.')) ? onSave({ baseUrl: '' }, t('Live TV disconnected')) : undefined)}
+                onClick={async () => ((await ask({ title: t('Disconnect Dispatcharr? Live TV, its channels and everyone’s favourites go with it.'), confirmLabel: t('Disconnect'), danger: true })) ? onSave({ baseUrl: '' }, t('Live TV disconnected')) : undefined)}
               >
                 {t('Disconnect')}
               </AsyncButton>

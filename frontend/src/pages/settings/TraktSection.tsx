@@ -20,6 +20,7 @@ import { CopyButton } from '../../components/CopyButton'
 import { useSession } from '../../hooks/sessionContext'
 import { useApi } from '../../hooks/useApi'
 import { usePolling } from '../../hooks/usePolling'
+import { useConfirm } from '../../hooks/useConfirm'
 import { relativeTime } from '../../lib/format'
 import { webLink } from '../../lib/links'
 import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader, ToggleRow } from './shared'
@@ -141,6 +142,7 @@ function Connect({ status, reload }: { status: TraktStatus; reload: () => void }
 
 function Connected({ status, reload }: { status: TraktStatus; reload: () => void }) {
   const { error, act } = useAction(reload)
+  const [ask, confirmDialog] = useConfirm()
   const synced = status.lastSyncAt ? t('Synced {time}', { time: relativeTime(status.lastSyncAt) }) : t('Not synced yet')
   const queued = status.queued > 0 ? `\u2003${t('{count, number} waiting to send', { count: status.queued })}` : ''
   return (
@@ -152,12 +154,15 @@ function Connected({ status, reload }: { status: TraktStatus; reload: () => void
           </AsyncButton>
           <AsyncButton
             className="button danger"
-            onClick={() => (confirm(t('Disconnect Trakt? What you’ve watched stays as it is, here and on Trakt.')) ? act(disconnectTrakt) : undefined)}
+            onClick={async () =>
+              (await ask({ title: t('Disconnect Trakt? What you’ve watched stays as it is, here and on Trakt.'), confirmLabel: t('Disconnect'), danger: true })) ? act(disconnectTrakt) : undefined
+            }
           >
             {t('Disconnect')}
           </AsyncButton>
         </span>
       </SettingRow>
+      {confirmDialog}
       {status.watchlistFull && <SettingRow as="div" label={t('Trakt’s watchlist is full')} help={t('New titles stay on Flexarr’s list.')} />}
     </SettingsGroup>
   )
