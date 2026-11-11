@@ -95,6 +95,7 @@ public sealed partial class MarkerDetectionWorker(
         var detector = new MarkerDetector(options.CurrentValue.FfmpegPath, options.CurrentValue.FfprobePath);
         try
         {
+            using var quietly = DataVersion.Quietly();
             await DropEarlyChapterCreditsAsync(stoppingToken);
         }
         catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
@@ -106,7 +107,12 @@ public sealed partial class MarkerDetectionWorker(
         {
             try
             {
-                var worked = await RunOnceAsync(detector, stoppingToken);
+                bool worked;
+                using (DataVersion.Quietly()) // intros and credits found: nothing Home shows
+                {
+                    worked = await RunOnceAsync(detector, stoppingToken);
+                }
+
                 // Give way to viewers: analysis competes with playback (and subtitle extraction) for the disk.
                 var busy = Watched;
                 await Task.Delay(!worked ? TimeSpan.FromMinutes(10) : busy ? Pause : TimeSpan.FromSeconds(1), stoppingToken);

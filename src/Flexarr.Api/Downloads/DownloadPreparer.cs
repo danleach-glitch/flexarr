@@ -668,6 +668,7 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        using var quietly = DataVersion.Quietly(); // every few seconds, and nothing Home shows
         return await db.Downloads.IgnoreQueryFilters().Where(d => d.Id == id).ExecuteUpdateAsync(u => u.SetProperty(d => d.Progress, progress), ct) > 0;
     }
 

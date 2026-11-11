@@ -140,6 +140,58 @@ public sealed class HomeCacheTests : IDisposable
     }
 
     [Fact]
+    public async Task BookkeepingWrittenQuietly_KeepsTheVersion_ButTitlesAndWatchStateStillMoveIt()
+    {
+        var (library, films) = await SeedAsync();
+        Guid file;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var added = new MediaFile { MediaItemId = films[0], Path = $"/films/{Guid.NewGuid():N}.mkv" };
+            db.MediaFiles.Add(added);
+            await db.SaveChangesAsync();
+            file = added.Id;
+        }
+
+        // Intros found and loudness read: a save and a bulk update. Other writers in this process (background work
+        // starting up) can move the number too, so it's tried a few times.
+        var kept = false;
+        for (var i = 0; i < 20 && !kept; i++)
+        {
+            using var scope = factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var before = DataVersion.Current;
+            using (DataVersion.Quietly())
+            {
+                await db.MediaMarkers.Where(m => m.MediaFileId == file).ExecuteDeleteAsync();
+                db.MediaMarkers.Add(new MediaMarker { MediaFileId = file, Type = MarkerType.Intro, StartSeconds = 0, EndSeconds = 30 + i, Source = "chapters" });
+                await db.SaveChangesAsync();
+                await db.MediaFiles.Where(f => f.Id == file).ExecuteUpdateAsync(u => u.SetProperty(f => f.MarkersScannedAt, DateTime.UtcNow));
+            }
+
+            kept = DataVersion.Current == before;
+        }
+
+        Assert.True(kept);
+        Assert.False(DataVersion.IsQuiet); // only inside the scope
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            using var quietly = DataVersion.Quietly();
+            var before = DataVersion.Current;
+            db.PlaybackStates.Add(new PlaybackState { MediaItemId = films[1], PositionSeconds = 60, LastPlayedAt = DateTime.UtcNow });
+            await db.SaveChangesAsync();
+            Assert.True(DataVersion.Current > before, "watch state saved quietly didn't move it");
+
+            before = DataVersion.Current;
+            db.MediaItems.Add(new MediaItem { LibraryId = library, Kind = MediaKind.Movie, Title = "Quiet", SortTitle = "quiet" });
+            await db.SaveChangesAsync();
+            Assert.True(DataVersion.Current > before, "a title saved quietly didn't move it");
+        }
+    }
+
+    [Fact]
     public async Task EachProfile_IsKeptApart()
     {
         await SeedAsync();

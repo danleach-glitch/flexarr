@@ -133,6 +133,7 @@ public sealed partial class LoudnessBackfill(
             // Unless a scan has read the file again meanwhile.
             var json = loudness.ToJson();
             var modifiedAt = track.ModifiedAt;
+            using var quietly = DataVersion.Quietly(); // nothing Home shows
             await db.MediaFiles.IgnoreQueryFilters()
                 .Where(f => f.Id == track.Id && f.Loudness == null && f.ModifiedAt == modifiedAt)
                 .ExecuteUpdateAsync(u => u.SetProperty(f => f.Loudness, json), ct);
