@@ -63,7 +63,7 @@ internal fun DownloadedShowRow(model: AppModel, show: DownloadedShow, onOpen: ()
     val store = model.downloads
     var removing by remember { mutableStateOf(false) }
     Row(
-        Modifier.fillMaxWidth().pressable(onOpen, onLongClick = { removing = true }).padding(start = 12.dp, top = 10.dp, bottom = 10.dp, end = 8.dp),
+        Modifier.fillMaxWidth().pressable(onOpen, onLongClick = { removing = true }, onLongClickLabel = t("Remove downloads")).padding(start = 12.dp, top = 10.dp, bottom = 10.dp, end = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
