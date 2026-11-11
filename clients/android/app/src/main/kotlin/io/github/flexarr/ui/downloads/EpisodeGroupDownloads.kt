@@ -197,6 +197,9 @@ fun ShowDownloadAction(model: AppModel, show: ItemSummary, loadEpisodes: suspend
     val scope = rememberCoroutineScope()
     var episodes by remember(show.id) { mutableStateOf<List<ItemSummary>?>(null) }
     var loading by remember(show.id) { mutableStateOf(false) }
+    // Pressed, and finding the episodes before asking: further presses are ignored, so a second load can't ask again
+    // after the first question was answered. Set at once on the press, before anything is launched.
+    var busy by remember(show.id) { mutableStateOf(false) }
     val held = store.episodesOfShow(show.id)
 
     suspend fun load(): List<ItemSummary>? {
@@ -237,9 +240,21 @@ fun ShowDownloadAction(model: AppModel, show: ItemSummary, loadEpisodes: suspend
         label,
         groupDescription(state),
         onClick = {
-            when (state) {
-                is EpisodeGroupState.NotDownloaded -> scope.launch { load()?.let(group::confirmDownload) }
-                is EpisodeGroupState.Failed -> scope.launch { load()?.let(group::download) }
+            if (!busy && group.question == null) when (state) {
+                is EpisodeGroupState.NotDownloaded, is EpisodeGroupState.Failed -> {
+                    busy = true
+                    scope.launch {
+                        try {
+                            val found = load()
+                            // Asked only if nothing else is being asked meanwhile.
+                            if (found != null && group.question == null) {
+                                if (state is EpisodeGroupState.Failed) group.download(found) else group.confirmDownload(found)
+                            }
+                        } finally {
+                            busy = false
+                        }
+                    }
+                }
                 is EpisodeGroupState.Downloading -> group.question = GroupQuestion.Stop(target)
                 EpisodeGroupState.Downloaded -> group.question = GroupQuestion.Remove(target)
             }

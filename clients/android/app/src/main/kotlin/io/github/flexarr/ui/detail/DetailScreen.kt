@@ -40,6 +40,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -639,10 +641,31 @@ private fun SeasonPicker(seasons: List<ItemSummary>, selected: String?, onSeason
         return
     }
     val state = rememberLazyListState()
-    // The chosen season in view (once it's known: the show's next-up episode decides it).
+    // The chosen season fully in view, clear of the start and of the fade at the end, moving the row only as far as it
+    // must: when it's pressed, and once it's known (the show's next-up episode decides it).
     LaunchedEffect(selected) {
         val index = seasons.indexOfFirst { it.id == selected }
-        if (index >= 0 && state.layoutInfo.visibleItemsInfo.none { it.index == index && it.offset >= 0 }) state.animateScrollToItem(index)
+        if (index < 0) return@LaunchedEffect
+        // Offsets count from the end of the start padding; the clear room ends where the end padding (the fade) begins.
+        fun room() = state.layoutInfo.viewportEndOffset - state.layoutInfo.afterContentPadding
+        var pill = state.layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }
+        if (pill == null) {
+            // Out of sight: brought to the start, then (if it lay beyond the end) back to rest against the end.
+            val after = index > (state.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1)
+            state.scrollToItem(index)
+            pill = state.layoutInfo.visibleItemsInfo.firstOrNull { it.index == index } ?: return@LaunchedEffect
+            if (after) {
+                val back = pill.offset + pill.size - room()
+                if (back < 0) state.scrollBy(back.toFloat())
+            }
+            return@LaunchedEffect
+        }
+        val overStart = pill.offset
+        val overEnd = pill.offset + pill.size - room()
+        when {
+            overStart < 0 -> state.animateScrollBy(overStart.toFloat())
+            overEnd > 0 -> state.animateScrollBy(overEnd.coerceAtMost(overStart).toFloat())
+        }
     }
     // With the link beside them, the pills fade out before it (room for the last to scroll clear of the fade).
     val hasLink = season != null && season.item.id == selected && season.children.any { it.kind == MediaKind.Episode }
