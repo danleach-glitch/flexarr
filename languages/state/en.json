@@ -651,6 +651,7 @@
   "Couldn’t reach the server, at home or over Tailscale. Make sure Flexarr is running, and that Tailscale is connected on this device.": "a",
   "Couldn’t reach the server.": "wan",
   "Couldn’t reach the server. Make sure Flexarr is running and this device is on the same network.": "n",
+  "Couldn’t reach the server. The rest weren’t downloaded.": "n",
   "Couldn’t reach {app}.": "w",
   "Couldn’t refresh the Trakt sign-in.": "s",
   "Couldn’t refresh your watchlist": "n",

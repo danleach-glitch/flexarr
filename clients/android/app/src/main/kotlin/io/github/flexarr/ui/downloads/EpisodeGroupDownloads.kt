@@ -32,6 +32,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
+import io.github.flexarr.core.EpisodeBatchFailures
 import io.github.flexarr.core.EpisodeGroupRules
 import io.github.flexarr.core.EpisodeGroupState
 import io.github.flexarr.core.Format
@@ -116,8 +117,9 @@ internal class GroupDownloads(
 
     /**
      * Downloads every one of [episodes] not here or on its way (one that failed starts again), one after another, at the
-     * size chosen in Settings. Carries on past a failure and says what the first was at the end. Stop or Remove on a
-     * group holding these episodes ends it ([EpisodeBatches]).
+     * size chosen in Settings. Carries on past an episode the server refuses and says what the first failure was at the
+     * end, but gives up once the server can't be reached a few times in a row ([EpisodeBatchFailures]). Stop or Remove
+     * on a group holding these episodes ends it ([EpisodeBatches]).
      */
     fun download(episodes: List<ItemSummary>) {
         val store = model.downloads
@@ -127,26 +129,29 @@ internal class GroupDownloads(
         queueing = true
         val batch = EpisodeBatches.start(wanted.map { it.id }.toSet())
         model.scope.launch {
-            var first: String? = null
+            val failures = EpisodeBatchFailures()
             try {
                 for (episode in wanted) {
                     if (batch.halted) break
-                    try {
+                    val giveUp = try {
                         store.download(episode)
+                        failures.succeeded()
+                        false
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        first = first ?: (e.message ?: t("Couldn’t download this"))
+                        failures.failed(e, t("Couldn’t download this"))
                     }
                     // Stopped while this one was being asked for: it goes too.
                     if (batch.halted) entry(episode)?.let { store.delete(it.id) }
+                    if (giveUp) break
                 }
             } finally {
                 EpisodeBatches.end(batch)
                 queueing = false
             }
             if (batch.halted) return@launch
-            first?.let { question = GroupQuestion.Problem(it) }
+            failures.message?.let { question = GroupQuestion.Problem(it) }
         }
     }
 

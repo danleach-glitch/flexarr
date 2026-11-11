@@ -188,4 +188,29 @@ class EpisodeDownloadsTest {
         assertEquals(listOf(null, 1, 2), shows[1].seasons.map { it.first })
         assertEquals(listOf("c1", "c2"), shows[2].episodes.map { it.item.id })
     }
+
+    @Test
+    fun `a batch gives up after three requests in a row can't reach the server, not after refusals`() {
+        val unreachable = FlexarrException.Unreachable(java.io.IOException("timeout"))
+        val refused = FlexarrException.Http(404, "Gone")
+
+        val refusals = EpisodeBatchFailures()
+        repeat(10) { assertEquals(false, refusals.failed(refused, "x")) }
+        assertEquals("Gone", refusals.message)
+
+        val broken = EpisodeBatchFailures()
+        assertEquals(false, broken.failed(unreachable, "x"))
+        assertEquals(false, broken.failed(unreachable, "x"))
+        broken.succeeded()
+        assertEquals(false, broken.failed(unreachable, "x"))
+        assertEquals(false, broken.failed(FlexarrException.Http(503, null), "x"))
+        assertEquals(true, broken.failed(unreachable, "x"))
+        assertEquals(true, broken.gaveUp)
+
+        val mixed = EpisodeBatchFailures()
+        mixed.failed(unreachable, "x")
+        mixed.failed(unreachable, "x")
+        mixed.failed(refused, "x")
+        assertEquals(false, mixed.failed(unreachable, "x"))
+    }
 }
