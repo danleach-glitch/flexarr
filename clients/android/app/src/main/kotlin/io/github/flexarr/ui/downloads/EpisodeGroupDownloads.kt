@@ -22,6 +22,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -47,6 +48,7 @@ import io.github.flexarr.ui.theme.FlexarrIcons
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 // A show's or a season's episodes downloaded together, as on iPhone: Download on a show's page (every episode of every
@@ -242,16 +244,23 @@ fun ShowDownloadAction(model: AppModel, show: ItemSummary, loadEpisodes: suspend
     val held = store.episodesOfShow(show.id, copies)
     val lookup = store.episodeLookup(copies)
 
-    suspend fun load(): List<ItemSummary>? {
+    // The episodes, once. Only a press says when they couldn't be had: the load on opening the page is unasked, and
+    // without it the button goes by the downloads already here.
+    suspend fun load(pressed: Boolean): List<ItemSummary>? {
         episodes?.let { return it }
-        if (loading) return null
+        if (loading) {
+            // The page's own load is under way: a press waits for it, and tries again (saying why) if it failed.
+            if (!pressed) return null
+            snapshotFlow { loading }.first { !it }
+            return episodes ?: load(pressed)
+        }
         loading = true
         return try {
             loadEpisodes().episodesOnly().also { episodes = it }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            group.question = GroupQuestion.Problem(e.message ?: t("Couldn’t download this"))
+            if (pressed) group.question = GroupQuestion.Problem(e.message ?: t("Couldn’t download this"))
             null
         } finally {
             loading = false
@@ -260,7 +269,7 @@ fun ShowDownloadAction(model: AppModel, show: ItemSummary, loadEpisodes: suspend
 
     // Some of the show is here already: its episodes, so the button can say how far it's got.
     val hasAny = held.isNotEmpty()
-    LaunchedEffect(show.id, hasAny) { if (hasAny && episodes == null) load() }
+    LaunchedEffect(show.id, hasAny) { if (hasAny && episodes == null) load(pressed = false) }
 
     val known = episodes
     val entries: List<LocalDownload?> = known?.map(lookup) ?: held
@@ -285,7 +294,7 @@ fun ShowDownloadAction(model: AppModel, show: ItemSummary, loadEpisodes: suspend
                     busy = true
                     scope.launch {
                         try {
-                            val found = load()
+                            val found = load(pressed = true)
                             // Asked only if nothing else is being asked meanwhile.
                             if (found != null && group.question == null) {
                                 if (state is EpisodeGroupState.Failed) group.download(found) else group.confirmDownload(found)

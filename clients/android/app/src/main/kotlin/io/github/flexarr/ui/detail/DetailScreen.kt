@@ -30,8 +30,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -153,6 +156,9 @@ import java.util.UUID
 import io.github.flexarr.ui.theme.Tokens
 import io.github.flexarr.ui.theme.FlexarrIcons
 
+/** How many of a show's seasons its Download asks the server for at once. */
+private const val SEASONS_AT_ONCE = 4
+
 /**
  * Detail for a film, show or episode (a season opens its show with that season picked). The backdrop sits at the top,
  * washed in the title's ambient colour, with the actions and episodes beneath it.
@@ -250,9 +256,15 @@ fun DetailScreen(model: AppModel, id: String) {
     if (item?.kind == MediaKind.Artist) return ArtistScreen(model, id)
     val series = item?.let { if (it.kind == MediaKind.Series) it else loaded.ancestors.firstOrNull { a -> a.kind == MediaKind.Series } }
     val ambient = item?.let { glowColor(it.accentColor) } ?: Flexarr.silver
-    // A show's every episode, season by season (those already fetched for the page as they are), for its Download.
+    // A show's every episode, season by season (those already fetched for the page as they are), for its Download: the
+    // rest fetched a few at a time, side by side, rather than one after another.
     val allEpisodes: suspend () -> List<ItemSummary> = {
-        loaded?.children.orEmpty().flatMap { season -> (seasons[season.id] ?: client.item(season.id).also { seasons[season.id] = it }).children }
+        val gate = Semaphore(SEASONS_AT_ONCE)
+        coroutineScope {
+            loaded?.children.orEmpty().map { season ->
+                async { seasons[season.id] ?: gate.withPermit { client.item(season.id) }.also { seasons[season.id] = it } }
+            }.awaitAll()
+        }.flatMap { it.children }
     }
 
     CompositionLocalProvider(LocalPlayFrom provides pageToken) {
