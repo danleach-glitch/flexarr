@@ -999,8 +999,9 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         polling = Task { [weak self] in
             while let self, !Task.isCancelled {
                 // Ones waiting for Wi-Fi needn't be asked after until there is some.
+                // Only this profile's: another profile's can't be asked after with this sign-in.
                 let waiting = all.filter {
-                    guard case .preparing = $0.state else { return false }
+                    guard $0.profileId == profileId, case .preparing = $0.state else { return false }
                     return isOnWiFi || !isWiFiOnly($0)
                 }.sorted { $0.createdAt < $1.createdAt }
                 guard !waiting.isEmpty, let client else { break }
