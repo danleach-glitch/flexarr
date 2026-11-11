@@ -3399,6 +3399,21 @@ a.download-attention {
   color: var(--screen);
   font-size: var(--step--1);
   box-shadow: 0 8px 24px rgb(0 0 0 / 40%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.notice-close {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin: -4px -8px -4px 0;
+}
+
+.notice-close svg {
+  width: 16px;
+  height: 16px;
 }
 
 /* ---------- Page status: a page that's loading or couldn't load (PageStatus.tsx) ---------- */
