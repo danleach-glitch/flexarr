@@ -74,6 +74,48 @@ public sealed class ArtworkAccentTests : IAsyncLifetime
         Assert.Equal(2, covers.Requests);
     }
 
+    [Fact]
+    public async Task AnHttpsPictureBouncedToPlainHttp_IsAskedForAgainOverHttps()
+    {
+        var host = new BouncesOnce();
+        var images = new ImageCache(new HttpClient(host), new Settings(_dir), NullLogger<ImageCache>.Instance);
+
+        var path = await images.GetAsync("https://static.tvmaze.com/uploads/images/original_untouched/31/79212.jpg", null, default);
+
+        Assert.NotNull(path);
+        Assert.Equal(["https", "https"], host.Schemes);
+    }
+
+    [Theory]
+    [InlineData("https://static.tvmaze.com/a.jpg", "http://static.tvmaze.com/a.jpg", true)]
+    [InlineData("https://static.tvmaze.com/a.jpg", "http://evil.example/a.jpg", false)]
+    [InlineData("https://static.tvmaze.com/a.jpg", "http://static.tvmaze.com:8080/a.jpg", false)]
+    [InlineData("https://static.tvmaze.com/a.jpg", "https://static.tvmaze.com/b.jpg", false)]
+    public void OnlyASameSiteMoveToPlainHttp_IsADowngrade(string from, string to, bool downgrade) =>
+        Assert.Equal(downgrade, ImageCache.Downgrade(new Uri(from), new Uri(to)));
+
+    /// <summary>Like TVmaze now and then: the first request bounces to plain http, the next answers.</summary>
+    private sealed class BouncesOnce : HttpMessageHandler
+    {
+        public List<string> Schemes { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            lock (Schemes)
+            {
+                Schemes.Add(request.RequestUri!.Scheme);
+                if (Schemes.Count == 1)
+                {
+                    var bounce = new HttpResponseMessage(HttpStatusCode.MovedPermanently);
+                    bounce.Headers.Location = new UriBuilder(request.RequestUri) { Scheme = "http", Port = -1 }.Uri;
+                    return Task.FromResult(bounce);
+                }
+            }
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(Convert.FromBase64String(RedJpeg)) });
+        }
+    }
+
     private MetadataRefresher Refresher(HttpMessageHandler radarr, TimeSpan? goneFor = null)
     {
         var settings = new Settings(_dir);
