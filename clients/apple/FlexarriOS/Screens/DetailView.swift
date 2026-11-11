@@ -444,7 +444,14 @@ struct DetailView: View {
                             ForEach(seasonList) { season in
                                 Button { selectedSeasonID = season.id } label: { seasonPillLabel(season) }
                                     .buttonStyle(PillButtonStyle(selected: season.id == selectedSeasonID, ambient: ambient))
-                                    .id(season.id)
+                                    // What scrolls into view: the pill plus the margin before it and the fade after it,
+                                    // as scrollTo counts the row's very edge (under the fade) as in view.
+                                    .background {
+                                        Color.clear
+                                            .padding(.leading, -Layout.edge)
+                                            .padding(.trailing, -Self.pillFade)
+                                            .id(season.id)
+                                    }
                             }
                         }
                     }
