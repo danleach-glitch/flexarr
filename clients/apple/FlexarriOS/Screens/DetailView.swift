@@ -447,10 +447,10 @@ struct DetailView: View {
                                     .id(season.id)
                             }
                         }
-                        .padding(.leading, Layout.edge)
-                        // Room to scroll the last pill clear of the fade.
-                        .padding(.trailing, selectedSeason == nil ? Layout.edge : Self.pillFade)
                     }
+                    // Margins rather than padding, so scrolling a pill into view keeps it clear of the edge and the fade.
+                    .contentMargins(.leading, Layout.edge, for: .scrollContent)
+                    .contentMargins(.trailing, selectedSeason == nil ? Layout.edge : Self.pillFade, for: .scrollContent)
                     .scrollIndicators(.hidden)
                     // Pills running under the download link fade out rather than stop at a hard edge.
                     .mask {
@@ -460,7 +460,11 @@ struct DetailView: View {
                                 .frame(width: selectedSeason == nil ? 0 : Self.pillFade)
                         }
                     }
-                    .onAppear { if let selectedSeasonID { proxy.scrollTo(selectedSeasonID, anchor: .center) } }
+                    // The chosen season fully in view, moving the row no more than it takes.
+                    .onAppear { if let selectedSeasonID { proxy.scrollTo(selectedSeasonID) } }
+                    .onChange(of: selectedSeasonID) { _, id in
+                        if let id { withAnimation(.easeInOut(duration: 0.25)) { proxy.scrollTo(id) } }
+                    }
                 }
                     seasonDownloadLink
                 }
