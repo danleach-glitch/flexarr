@@ -24,16 +24,52 @@ struct DownloadedShow: Identifiable {
 }
 
 extension DownloadStore {
-    /// Downloaded (and downloading) episodes grouped by show, shows by name.
+    /// Downloaded (and downloading) episodes grouped by show, shows by name. Grouped and sorted again only when the
+    /// episodes here change, not on each step of a download's progress (`showsLayout`): read it once per redraw.
     var downloadedShows: [DownloadedShow] {
         let episodes = videoDownloads.filter { $0.item.kind == .episode }
+        let ids = episodes.map(\.id)
+        if let layout = showsLayout, layout.ids == ids {
+            let byId = Dictionary(episodes.map { ($0.id, $0) }) { first, _ in first }
+            return layout.shows.map { DownloadedShow(id: $0.id, title: $0.title, episodes: $0.episodeIds.compactMap { byId[$0] }) }
+        }
         let order: (LocalDownload) -> (Int, Int) = { ($0.item.seasonNumber ?? 0, $0.item.episodeNumber ?? 0) }
-        return Dictionary(grouping: episodes) { $0.item.seriesId ?? $0.item.seriesTitle ?? "" }
+        let shows = Dictionary(grouping: episodes) { $0.item.seriesId ?? $0.item.seriesTitle ?? "" }
             .map { key, list in
                 DownloadedShow(id: key, title: list.first?.item.seriesTitle ?? t("Episodes"),
                                episodes: list.sorted { order($0) < order($1) })
             }
             .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        showsLayout = (ids, shows.map { ($0.id, $0.title, $0.episodes.map(\.id)) })
+        return shows
+    }
+}
+
+/// A download's saved picture (the first of `names` there is), read and decoded off the main thread the first time,
+/// or `symbol` until then and when there's none.
+struct DownloadThumbnail: View {
+    @Environment(DownloadStore.self) private var store
+    let names: [String]
+    let symbol: String
+    @State private var loaded: PlatformImage?
+
+    var body: some View {
+        Group {
+            if let image = loaded ?? names.lazy.compactMap({ store.keptImage(named: $0) }).first {
+                Image(platformImage: image).resizable().scaledToFill()
+            } else {
+                Image(systemName: symbol).foregroundStyle(Color.usher)
+            }
+        }
+        .task(id: names) {
+            for name in names {
+                if let image = await store.preparedImage(named: name) {
+                    loaded = image
+                    return
+                }
+            }
+            loaded = nil
+        }
     }
 }
 
@@ -51,13 +87,7 @@ struct DownloadedShowRow: View {
             HStack(spacing: sizeClass == .regular ? 16 : 12) {
                 Color.seat
                     .frame(width: sizeClass == .regular ? 192 : 112, height: sizeClass == .regular ? 108 : 63)
-                    .overlay {
-                        if let image = show.episodes.lazy.compactMap({ store.image(named: $0.imageFileName) }).first {
-                            Image(platformImage: image).resizable().scaledToFill()
-                        } else {
-                            Image(systemName: Symbol.shows).foregroundStyle(Color.usher)
-                        }
-                    }
+                    .overlay { DownloadThumbnail(names: show.episodes.compactMap(\.imageFileName), symbol: Symbol.shows) }
                     .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                 VStack(alignment: .leading, spacing: 3) {
                     Text(show.title)
@@ -116,9 +146,9 @@ struct DownloadedShowView: View {
     @Environment(DownloadStore.self) private var store
     let showId: String
 
-    private var show: DownloadedShow? { store.downloadedShows.first { $0.id == showId } }
-
     var body: some View {
+        // Worked out once for the whole redraw.
+        let show = store.downloadedShows.first { $0.id == showId }
         Group {
             if let show {
                 List {
