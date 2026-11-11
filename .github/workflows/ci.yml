@@ -180,6 +180,12 @@ jobs:
           cache-dependency-path: clients/tunnel/go.sum
       - run: go vet ./...
       - run: go test ./...
+      # Known vulnerabilities the tunnel's code reaches, in Tailscale, its modules or Go itself (fixed by a newer `go`
+      # line in go.mod, which the apps' builds then fetch). Pinned by version, which Go's checksum database holds fixed.
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+          "$(go env GOPATH)/bin/govulncheck" ./...
 
   # scripts/release.sh signs the Mac builds of the CI run it picks; this checks it only ever picks the tag's own run.
   # Also the pin bot (scripts/pins), which writes the Apple packages' pinned commits into project.yml.
@@ -247,7 +253,7 @@ jobs:
         id: tunnel
         with:
           path: clients/tunnel/build/FlexarrTunnel.xcframework
-          key: tunnel-apple-${{ matrix.scheme }}-${{ hashFiles('clients/tunnel/**/*.go', 'clients/tunnel/go.sum', 'clients/tunnel/*.sh') }}
+          key: tunnel-apple-${{ matrix.scheme }}-${{ hashFiles('clients/tunnel/**/*.go', 'clients/tunnel/go.mod', 'clients/tunnel/go.sum', 'clients/tunnel/*.sh') }}
       - name: Build the tunnel
         if: matrix.scheme != '' && steps.tunnel.outputs.cache-hit != 'true'
         run: ../tunnel/build-apple.sh ${{ matrix.tunnel }}
