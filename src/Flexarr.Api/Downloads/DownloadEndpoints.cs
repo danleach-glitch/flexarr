@@ -15,6 +15,9 @@ namespace Flexarr.Api.Downloads;
 /// A download, with what the device needs to show and play it with no connection: the title, its markers (for Skip
 /// Intro) and the next episode (to fetch that one too). <paramref name="FileName"/> is what the file comes as once
 /// it's ready ("….mp4", or a track's "….mp3", "….flac" or "….m4a"), so the device keeps it under a name its player opens.
+/// While a download waits its turn or is being converted, asking after it (as the apps do every few seconds) leaves out
+/// <paramref name="Markers"/> (empty) and <paramref name="NextId"/> (null): the apps take those when it's Ready, and
+/// working them out (the show's next episode above all) for every waiting episode of a season was most of the cost.
 /// </summary>
 public sealed record DownloadDto(
     Guid Id,
@@ -97,7 +100,7 @@ public static class DownloadEndpoints
             var list = new List<DownloadDto>();
             foreach (var id in ids)
             {
-                if (await ToDtoAsync(db, playback, profile, id, ct) is { } dto)
+                if (await ToDtoAsync(db, playback, profile, id, complete: false, ct) is { } dto)
                 {
                     list.Add(dto);
                 }
@@ -138,7 +141,8 @@ public static class DownloadEndpoints
                 preparer.Wake();
             }
 
-            return Results.Ok(await ToDtoAsync(db, playback, profile, existing.Id, ct));
+            // Whole, ready or not: the apps keep the length (and the rest) from this first answer.
+            return Results.Ok(await ToDtoAsync(db, playback, profile, existing.Id, complete: true, ct));
         });
 
         // What a device kept: which titles this profile may still play from it (see OfflineCheckDto). A title kept
@@ -175,7 +179,7 @@ public static class DownloadEndpoints
         });
 
         group.MapGet("/{id:guid}", async (Guid id, FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, CancellationToken ct) =>
-            await ToDtoAsync(db, playback, profile, id, ct) is { } dto ? Results.Ok(dto) : Results.NotFound());
+            await ToDtoAsync(db, playback, profile, id, complete: false, ct) is { } dto ? Results.Ok(dto) : Results.NotFound());
 
         // The file itself, resumable (ranges), once it's ready.
         group.MapGet("/{id:guid}/file", async (Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
@@ -252,7 +256,11 @@ public static class DownloadEndpoints
         return files;
     }
 
-    private static async Task<DownloadDto?> ToDtoAsync(FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, Guid id, CancellationToken ct)
+    /// <param name="complete">
+    /// Markers and the next episode even before the download is ready; otherwise only once it is (see <see cref="DownloadDto"/>).
+    /// </param>
+    private static async Task<DownloadDto?> ToDtoAsync(FlexarrDbContext db, PlaybackService playback, CurrentProfile profile, Guid id, bool complete,
+        CancellationToken ct)
     {
         var download = await db.Downloads.AsNoTracking().FirstOrDefaultAsync(d => d.Id == id && d.ProfileId == profile.Id, ct);
         var item = download is null ? null : await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == download.MediaItemId, ct);
@@ -264,8 +272,9 @@ public static class DownloadEndpoints
         download.MediaItem = item;
 
         var summary = await db.MediaItems.Where(i => i.Id == item.Id).Summaries(profile.Id).FirstAsync(ct);
-        var file = await DownloadSource.ForAsync(db, item.Id, download.Quality, profile.Id, ct);
-        var next = await playback.NextEpisodeAsync(item, ct);
+        var whole = complete || download.Status == DownloadStatus.Ready;
+        var file = whole ? await DownloadSource.ForAsync(db, item.Id, download.Quality, profile.Id, ct) : null;
+        var next = whole ? await playback.NextEpisodeAsync(item, ct) : null;
         return new DownloadDto(download.Id, item.Id, download.Quality, download.Status, download.Progress, download.SizeBytes, download.Error, summary,
             file?.Markers.OrderBy(m => m.StartSeconds).Select(m => new MarkerDto(m.Type, m.StartSeconds, m.EndSeconds)).ToList() ?? [],
             file?.DurationSeconds ?? summary.DurationSeconds ?? (item.RuntimeMinutes ?? 0) * 60, next?.Id, download.CreatedAt,

@@ -1,5 +1,6 @@
 using Flexarr.Api.Configuration;
 using Flexarr.Core.Data;
+using Flexarr.Core.Media;
 using Flexarr.Streaming.Live;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -9,7 +10,8 @@ namespace Flexarr.Api.Playback;
 /// <summary>
 /// Keeps the cache folders from growing for ever: scrubbing previews of files no longer in the library, subtitles,
 /// keyframe indexes and channel logos not made again for a long while (their names include the file's path and time, so
-/// every replaced file leaves its old ones behind), and Live TV folders a crash left. Shortly after starting, then daily.
+/// every replaced file leaves its old ones behind), Live TV folders a crash left, and prepared downloads whose download
+/// has gone (deleted with its profile or title). Shortly after starting, then daily.
 /// </summary>
 public sealed partial class CacheJanitor(IServiceScopeFactory scopes, IOptionsMonitor<FlexarrOptions> options, LiveStreams live,
     ILogger<CacheJanitor> logger) : BackgroundService
@@ -19,6 +21,9 @@ public sealed partial class CacheJanitor(IServiceScopeFactory scopes, IOptionsMo
 
     /// <summary>Half-made scrubbing previews older than this were left by a run that stopped.</summary>
     private static readonly TimeSpan PartialKeptFor = TimeSpan.FromDays(1);
+
+    /// <summary>A file in the downloads folder this new is left alone: its download may be being saved as it's made.</summary>
+    internal static readonly TimeSpan DownloadGrace = TimeSpan.FromHours(1);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -73,6 +78,29 @@ public sealed partial class CacheJanitor(IServiceScopeFactory scopes, IOptionsMo
                 if (!known || abandoned)
                 {
                     deleted += Delete(entry);
+                }
+            }
+        }
+
+        // Prepared downloads: a file no download points at (nor one queued or being made, whose part file it may be) is
+        // left over. Their rows go with a deleted profile or title, and the files would take the space for good.
+        var downloads = Path.Combine(cache, "downloads");
+        if (Directory.Exists(downloads))
+        {
+            await using var scope = scopes.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var rows = await db.Downloads.IgnoreQueryFilters().AsNoTracking()
+                .Where(d => d.Status == DownloadStatus.Queued || d.Status == DownloadStatus.Preparing || d.FilePath != null)
+                .Select(d => new { d.Id, d.Status, d.FilePath }).ToListAsync(ct);
+            var underway = rows.Where(d => d.Status is DownloadStatus.Queued or DownloadStatus.Preparing).Select(d => d.Id).ToHashSet();
+            var kept = rows.Where(d => d.FilePath != null).Select(d => Path.GetFileName(d.FilePath!)).ToHashSet(StringComparer.Ordinal);
+            foreach (var file in Directory.EnumerateFiles(downloads))
+            {
+                var name = Path.GetFileName(file);
+                var wanted = kept.Contains(name) || (name.Length >= 32 && Guid.TryParseExact(name[..32], "N", out var id) && underway.Contains(id));
+                if (!wanted && DateTime.UtcNow - File.GetLastWriteTimeUtc(file) > DownloadGrace)
+                {
+                    deleted += Delete(file);
                 }
             }
         }

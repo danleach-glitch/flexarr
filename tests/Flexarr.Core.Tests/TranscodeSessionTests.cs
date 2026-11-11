@@ -388,6 +388,19 @@ public sealed class TranscodeSessionTests : IDisposable
     }
 
     [Fact]
+    public async Task EncodingCount_LeavesOutRepackagedStreams_SoundOnly_AndWarming()
+    {
+        await using var manager = Manager(limit: 0);
+        await manager.CreateAsync("a", "/in.mkv", 600, Plan);
+        await manager.CreateAsync("a", "/in.mkv", 600, Plan with { Repackage = new Flexarr.Streaming.Remux.Repackage([0, 4], "hvc1", "hvc1.2.4.L150.B0", null, "PQ", StripDolbyVision: false) });
+        await manager.CreateAsync("b", "/in.flac", 240, Plan with { VideoStreamIndex = -1 });
+        await manager.CreateAsync("c", "/in.mkv", 600, Plan, preparing: true);
+
+        Assert.Equal(3, manager.ActiveCount);
+        Assert.Equal(1, manager.EncodingCount);
+    }
+
+    [Fact]
     public async Task ARestartingStream_NeverEndsAnother_AndIsToldWhy()
     {
         await using var manager = Manager(limit: 2);

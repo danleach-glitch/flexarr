@@ -56,6 +56,12 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
     public int ActiveCount => _sessions.Values.Count(s => s.IsActive && !s.Warming);
 
     /// <summary>
+    /// Of <see cref="ActiveCount"/>, those converting the picture (<see cref="TranscodePlan.EncodesVideo"/>): a repackaged
+    /// stream or a song costs the machine next to nothing, so download preparation needn't stop for it.
+    /// </summary>
+    public int EncodingCount => _sessions.Values.Count(s => s.IsActive && !s.Warming && s.Plan.EncodesVideo);
+
+    /// <summary>
     /// Most transcodes one profile may hold once the server is full (0 = no limit): all but one of the server's, so
     /// one viewer (or one misbehaving client) can't keep everyone else out. While slots are free a profile may use them.
     /// </summary>
