@@ -201,14 +201,20 @@ struct ShowDownloadButton: View {
     let seasons: [ItemSummary]
     @State private var episodes: [ItemSummary]?
     @State private var loading = false
+    @State private var pressing = false
     @State private var question: GroupQuestion?
 
     var body: some View {
         let status = episodes.map { store.status(ofGroup: show.id, episodes: $0) }
         Button {
+            // Taken at once, before the episodes load: a second press while they did asked again, and that question
+            // came back after Cancel.
+            guard !pressing, question == nil else { return }
+            pressing = true
             Task {
+                defer { pressing = false }
                 if episodes == nil { await load() }
-                guard let episodes else { return }
+                guard let episodes, question == nil else { return }
                 GroupDownloadPress.press(store, group: show.id, episodes: episodes, confirmsFor: show.title,
                                          ask: { question = $0 }, onError: { question = .failed($0) })
             }
@@ -219,7 +225,7 @@ struct ShowDownloadButton: View {
                 if loading { ProgressView().frame(width: 22, height: 22) } else { DownloadStateIcon(state: status?.iconState) }
             }
         }
-        .disabled(loading)
+        .disabled(loading || pressing)
         .accessibilityLabel(status.map(accessibility) ?? t("Download show"))
         .modifier(GroupDownloadAlert(question: $question, group: show.id, episodes: episodes ?? []))
         .task(id: show.id) {
