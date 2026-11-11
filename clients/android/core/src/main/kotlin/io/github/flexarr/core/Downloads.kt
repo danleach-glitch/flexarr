@@ -280,6 +280,13 @@ object DownloadRules {
     fun quality(chosen: DownloadQuality, options: List<DownloadOption>?): DownloadQuality =
         if (chosen == DownloadQuality.Original && options?.firstOrNull { it.quality == DownloadQuality.Original }?.available == false) DownloadQuality.High else chosen
 
+    /**
+     * Asked for again, the server handed back download [held] this phone has already for [profileId] (made through a
+     * linked copy, say): it's kept as it is, its transfer carrying on, rather than started again from nothing. One that
+     * failed here starts again.
+     */
+    fun keepsHeld(held: LocalDownload?, profileId: String): Boolean = held != null && held.profileId == profileId && held.phase != LocalPhase.Failed
+
     /** A finished episode's next one, to fetch by itself: an episode with a next, not already here or on its way. */
     fun nextToFetch(download: LocalDownload, downloads: List<LocalDownload>): String? {
         if (download.item.kind != MediaKind.Episode || !download.isDownloaded) return null

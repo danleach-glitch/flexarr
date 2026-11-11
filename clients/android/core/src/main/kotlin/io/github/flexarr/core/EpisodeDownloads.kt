@@ -52,8 +52,18 @@ object EpisodeGroupRules {
     }
 
     /** The episodes Download asks for: those not here or on their way (one that failed is asked for again). */
-    fun toQueue(episodes: List<ItemSummary>, entry: (String) -> LocalDownload?): List<ItemSummary> =
-        episodes.filter { episode -> entry(episode.id).let { it == null || it.phase == LocalPhase.Failed } }
+    fun toQueue(episodes: List<ItemSummary>, entry: (ItemSummary) -> LocalDownload?): List<ItemSummary> =
+        episodes.filter { episode -> entry(episode).let { it == null || it.phase == LocalPhase.Failed } }
+
+    /**
+     * Of [downloads], the one of [episode] made through a linked copy of its show or season ([copies], their ids): the
+     * same episode of another copy, as the server hands back the download it has through any copy of a title.
+     */
+    fun throughCopies(episode: ItemSummary, downloads: List<LocalDownload>, copies: Set<String>): LocalDownload? =
+        if (copies.size < 2) null
+        else downloads.firstOrNull { held ->
+            held.item.kind == MediaKind.Episode && (held.item.seriesId in copies || held.item.parentId in copies) && held.item.sameEpisode(episode)
+        }
 
     /** What Stop downloads deletes: everything not yet here (on its way, or failed); what's here stays. */
     fun toStop(downloads: List<LocalDownload>): List<LocalDownload> = downloads.filter { !it.isDownloaded }

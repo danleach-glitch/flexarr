@@ -95,7 +95,34 @@ class EpisodeDownloadsTest {
     fun queuesWhatIsNeitherHereNorOnItsWayAndRetriesFailures() {
         val episodes = listOf(episode("here"), episode("coming"), episode("failed"), episode("new"))
         val downloads = listOf(download("here", LocalPhase.Downloaded), download("coming", LocalPhase.Downloading), download("failed", LocalPhase.Failed)).associateBy { it.item.id }
-        assertEquals(listOf("failed", "new"), EpisodeGroupRules.toQueue(episodes) { downloads[it] }.map { it.id })
+        assertEquals(listOf("failed", "new"), EpisodeGroupRules.toQueue(episodes) { downloads[it.id] }.map { it.id })
+    }
+
+    @Test
+    fun findsAnEpisodeDownloadedThroughALinkedCopyOfTheShow() {
+        // The 4K copy's S1E2 was downloaded; the 1080p copy's page asks after its own S1E2.
+        val held = listOf(download(episode("4k-s1e2", number = 2, seriesId = "show-4k"), LocalPhase.Downloading))
+        val wanted = episode("hd-s1e2", number = 2, seriesId = "show-hd")
+        assertEquals("d-4k-s1e2", EpisodeGroupRules.throughCopies(wanted, held, setOf("show-hd", "show-4k"))?.id)
+        // Another episode, a show that isn't a copy, or no linked copies at all: none.
+        assertEquals(null, EpisodeGroupRules.throughCopies(episode("hd-s1e3", number = 3, seriesId = "show-hd"), held, setOf("show-hd", "show-4k")))
+        assertEquals(null, EpisodeGroupRules.throughCopies(wanted, held, setOf("show-hd", "other")))
+        assertEquals(null, EpisodeGroupRules.throughCopies(wanted, held, setOf("show-hd")))
+    }
+
+    @Test
+    fun findsAnEpisodeDownloadedThroughALinkedCopyOfTheSeason() {
+        val held = listOf(download(episode("4k-s1e2", number = 2, seriesId = "show-4k").copy(parentId = "season-4k"), LocalPhase.Downloaded))
+        assertEquals("d-4k-s1e2", EpisodeGroupRules.throughCopies(episode("hd-s1e2", number = 2, seriesId = "show-hd"), held, setOf("season-hd", "season-4k"))?.id)
+    }
+
+    @Test
+    fun aDownloadTheServerHandsBackIsKeptUnlessItFailedHereOrIsAnotherProfiles() {
+        assertEquals(true, DownloadRules.keepsHeld(download("a", LocalPhase.Downloading), "p"))
+        assertEquals(true, DownloadRules.keepsHeld(download("a", LocalPhase.Downloaded), "p"))
+        assertEquals(false, DownloadRules.keepsHeld(download("a", LocalPhase.Failed), "p"))
+        assertEquals(false, DownloadRules.keepsHeld(download("a", LocalPhase.Downloading), "someone else"))
+        assertEquals(false, DownloadRules.keepsHeld(null, "p"))
     }
 
     @Test

@@ -35,6 +35,7 @@ import io.github.flexarr.core.DownloadQuality
 import io.github.flexarr.core.DownloadRules
 import io.github.flexarr.core.DownloadedShow
 import io.github.flexarr.core.DownloadedShows
+import io.github.flexarr.core.EpisodeGroupRules
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.ItemSummary
@@ -288,8 +289,19 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         prefs.edit { keys.forEach { remove(it) } }
     }
 
-    /** This profile's downloads of a show's episodes, whatever their state. */
-    fun episodesOfShow(showId: String): List<LocalDownload> = downloads.filter { it.item.kind == MediaKind.Episode && it.item.seriesId == showId }
+    /** This profile's downloads of a show's episodes, whatever their state: through any of its linked [copies] too. */
+    fun episodesOfShow(showId: String, copies: Collection<String> = emptyList()): List<LocalDownload> =
+        downloads.filter { it.item.kind == MediaKind.Episode && (it.item.seriesId == showId || it.item.seriesId in copies) }
+
+    /**
+     * Finds a show's or season's episodes' downloads: each one's own, or one made through the same episode of a linked
+     * copy of the show or season ([copies], their ids, as the page's details give them).
+     */
+    fun episodeLookup(copies: Collection<String>): (ItemSummary) -> LocalDownload? {
+        val ids = copies.toSet()
+        val held = if (ids.size < 2) emptyList() else downloads.filter { it.item.kind == MediaKind.Episode }
+        return { episode -> entry(episode.id) ?: EpisodeGroupRules.throughCopies(episode, held, ids) }
+    }
 
     /** Podcast episodes, newest first. */
     val podcastEpisodes: List<LocalDownload> get() = downloads.filter { it.isPodcastEpisode }.sortedByDescending { it.item.addedAt }
@@ -582,6 +594,9 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         }
         val remote = client.requestDownload(itemId, quality)
         if (!automatic) offerNotifications()
+        // The server handed back a download this phone holds already (made through a linked copy of the title): it
+        // carries on as it is, rather than being replaced and its transfer started again from nothing.
+        if (DownloadRules.keepsHeld(byId(remote.id), profileId)) return
         // A few asked for by hand come down at once; the rest of a whole show waits its turn ([TransferQueue]).
         val waits = !automatic && TransferQueue.waits(profileId, all.filterNot { it.id == remote.id })
         val local = LocalDownload(
