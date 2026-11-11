@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import {
+  ApiError,
   clearRecentSearches,
   forgetRecentItem,
   forgetSearch,
@@ -21,6 +22,7 @@ import {
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { useModal } from '../hooks/useModal'
 import { authorsLine, isBook } from '../lib/books'
+import { errorText } from '../lib/errorText'
 import { episodeCode, year } from '../lib/format'
 import { itemLink, libraryGenreLink } from '../lib/links'
 import { musicLink } from '../lib/musicLinks'
@@ -239,9 +241,12 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(false)
   // The last query the library was asked for: until it's this one, "nothing matches" would be a guess.
   const [asked, setAsked] = useState('')
+  // Why the library didn't answer the query it was asked (shown with Try again), and a press of Try again.
+  const [failed, setFailed] = useState<{ query: string; message: string } | null>(null)
+  const [attempt, setAttempt] = useState(0)
   // What's outside the library, for the query it was found for (it arrives after the library's own results).
   const [outside, setOutside] = useState<{ query: string; results: Result[] }>({ query: '', results: [] })
-  const services = useRef<Promise<{ titles: boolean; music: boolean }>>(null)
+  const services = useRef<Promise<{ titles: boolean; music: boolean }> | null>(null)
   const navigate = useNavigate()
   const player = useAudioPlayer()
   const input = useRef<HTMLInputElement>(null)
@@ -270,16 +275,22 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
       search(q, controller.signal)
         .then((r) => {
           setFound(flatten(r))
+          setFailed(null)
           setActive(0)
         })
-        .catch(() => undefined)
+        .catch((e: unknown) => {
+          if (controller.signal.aborted) return
+          // Not "nothing matches", and not what an earlier query found either.
+          setFound([])
+          setFailed({ query: q, message: errorText(e) })
+        })
         .finally(() => setLoading(false))
     }, searchDelay(q))
     return () => {
       clearTimeout(timer)
       controller.abort()
     }
-  }, [query])
+  }, [query, attempt])
 
   // Seerr and Deezer are slower, so they're asked once typing settles, and only where they're set up.
   useEffect(() => {
@@ -287,10 +298,16 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
     if (q.length < 2) return
     const controller = new AbortController()
     const timer = setTimeout(async () => {
+      // A check that got no answer (null) isn't kept: the next search asks again, rather than the palette taking the
+      // service as not set up until it's closed. A refusal is an answer (not set up here, or not on this server).
+      const known = (e: unknown) => (e instanceof ApiError && e.status < 500 ? false : null)
       services.current ??= Promise.all([
-        getRequestStatus().then((s) => s.configured).catch(() => false),
-        getMusicRequestStatus().then((s) => s?.configured === true).catch(() => false),
-      ]).then(([titles, music]) => ({ titles, music }))
+        getRequestStatus().then((s) => s.configured, known),
+        getMusicRequestStatus().then((s) => s?.configured === true, known),
+      ]).then(([titles, music]) => {
+        if (titles === null || music === null) services.current = null
+        return { titles: titles === true, music: music === true }
+      })
       const can = await services.current
       if (!can.titles && !can.music) return
       const [titles, music] = await Promise.all([
@@ -404,7 +421,21 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
           <kbd>{t('esc')}</kbd>
         </label>
         <div className="palette-results" id="search-results" role="listbox">
-          {query.trim() && asked === query.trim() && !loading && results.length === 0 && <p className="palette-empty">{t('Nothing in your library matches “{query}”.', { query: query.trim() })}</p>}
+          {query.trim() && failed?.query === query.trim() && !loading && (
+            <div className="palette-empty" role="alert">
+              <p className="error">{failed.message}</p>
+              <button
+                className="button quiet small"
+                onClick={() => {
+                  setAttempt((n) => n + 1)
+                  input.current?.focus()
+                }}
+              >
+                {t('Try again')}
+              </button>
+            </div>
+          )}
+          {query.trim() && asked === query.trim() && failed?.query !== query.trim() && !loading && results.length === 0 && <p className="palette-empty">{t('Nothing in your library matches “{query}”.', { query: query.trim() })}</p>}
           {groups.map(([group, items], g) => (
             <div key={group} role="group" aria-label={group}>
               {!query.trim() && g === 0 ? (
