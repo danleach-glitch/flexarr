@@ -300,7 +300,7 @@ struct LiveGuideView: View {
             do {
                 try await action(client)
             } catch {
-                notice = error.localizedDescription
+                notice = ConnectionError(error).message
             }
             await load(force: true)
         }

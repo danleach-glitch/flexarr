@@ -358,7 +358,7 @@ struct LiveGuideGrid: View {
             do {
                 try await action(client)
             } catch {
-                notice = error.localizedDescription
+                notice = ConnectionError(error).message
             }
             onRecordingsChanged?()
         }

@@ -396,7 +396,7 @@ struct LiveTvView: View {
                     ? t("{title} clashes with recordings already on the list: every stream is wanted then, so it won’t record unless one of them comes off.", ["title": programme.title])
                     : t("{title} will be recorded. Recordings, at the top, lists what’s set.", ["title": programme.title])
             } catch {
-                notice = error.localizedDescription
+                notice = ConnectionError(error).message
             }
         }
     }
