@@ -803,17 +803,25 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         return fetchImage(path, "${safeName(download.id)}.jpg", if (download.isPodcastEpisode) 400 else 600, client)
     }
 
-    /** Saves the picture at [path] as [name] in the downloads folder; null when there's none to be had. */
+    /**
+     * Saves the picture at [path] as [name] in the downloads folder; null when there's none to be had. It comes into a
+     * file of its own first and takes its name only once it's all here, so a dropped connection never leaves half a
+     * picture that counts as present (and is never fetched again).
+     */
     private suspend fun fetchImage(path: String?, name: String, width: Int, client: FlexarrClient): String? {
         val url = client.imageUrl(path, width) ?: return null
         return withContext(Dispatchers.IO) {
+            val target = fileIn(folder, name) ?: return@withContext null
+            // A name of its own, as two tracks of an album could fetch its cover at once.
+            val partial = runCatching { File.createTempFile("image-", ".image-part", folder) }.getOrNull() ?: return@withContext null
             runCatching {
                 FlexarrClient.sharedHttp.newCall(Request.Builder().url(url).build()).execute().use { response ->
                     if (!response.isSuccessful) return@runCatching null
-                    fileIn(folder, name)!!.outputStream().use { response.body.byteStream().copyTo(it) }
+                    partial.outputStream().use { response.body.byteStream().copyTo(it) }
+                    if (!partial.renameTo(target)) return@runCatching null
                     name
                 }
-            }.getOrNull()
+            }.getOrNull().also { if (it == null) partial.delete() }
         }
     }
 
