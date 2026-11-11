@@ -338,7 +338,7 @@ const readmeStatus = {
   development: '🛠️ In development',
   planned: '🗓️ Planned',
 };
-const md = s => String(s).replace(/\|/g, '\\|');
+const md = s => String(s).replace(/[\\|]/g, '\\$&');
 const absolute = href => (href.startsWith('/') ? `https://flexarr.io${href}` : href);
 const row = p => {
   const links = (p.links ?? []).map(l => `[${md(l.label)}](${absolute(l.href)})`).join(' · ');
