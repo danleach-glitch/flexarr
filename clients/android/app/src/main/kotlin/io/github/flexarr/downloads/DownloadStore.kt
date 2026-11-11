@@ -33,6 +33,8 @@ import io.github.flexarr.core.CollectionRules
 import io.github.flexarr.core.CollectionStatus
 import io.github.flexarr.core.DownloadQuality
 import io.github.flexarr.core.DownloadRules
+import io.github.flexarr.core.DownloadedShow
+import io.github.flexarr.core.DownloadedShows
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.ItemSummary
@@ -244,12 +246,11 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     /** Films only: a kind this app doesn't know (from a newer server) isn't filed under them. */
     val films: List<LocalDownload> get() = downloads.filter { it.item.kind == MediaKind.Movie }
 
-    /** Episodes by show, in episode order; the shows by name. */
-    val shows: List<Pair<String, List<LocalDownload>>>
-        get() = downloads.filter { it.item.kind == MediaKind.Episode }
-            .groupBy { it.item.seriesTitle ?: t("Episodes") }
-            .map { (show, episodes) -> show to episodes.sortedWith(compareBy({ it.item.seasonNumber ?: 0 }, { it.item.episodeNumber ?: 0 })) }
-            .sortedBy { it.first }
+    /** Episodes by show (by its id, or its name from servers that don't send one), in episode order; the shows by name. */
+    val shows: List<DownloadedShow> get() = DownloadedShows.group(downloads, t("Episodes"))
+
+    /** This profile's downloads of a show's episodes, whatever their state. */
+    fun episodesOfShow(showId: String): List<LocalDownload> = downloads.filter { it.item.kind == MediaKind.Episode && it.item.seriesId == showId }
 
     /** Podcast episodes, newest first. */
     val podcastEpisodes: List<LocalDownload> get() = downloads.filter { it.isPodcastEpisode }.sortedByDescending { it.item.addedAt }

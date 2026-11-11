@@ -91,7 +91,7 @@ import kotlinx.coroutines.launch
 // The iPhone app's DownloadsView: everything downloaded (or on its way), playable with no connection; and the download
 // button a title's page and a podcast episode's row carry.
 
-/** Films, then each show's episodes, then albums and playlists, then podcast episodes, with the space they take. */
+/** Films, then shows (each opening its episodes), then albums and playlists, then podcast episodes, with the space they take. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DownloadsScreen(model: AppModel) {
@@ -101,6 +101,9 @@ fun DownloadsScreen(model: AppModel) {
     // A downloaded album or playlist opens over the list, and Back returns to it.
     var opened by rememberSaveable { mutableStateOf<String?>(null) }
     opened?.let { id -> return OfflineCollectionScreen(model, id, onBack = { opened = null }) }
+    // So does a show's episodes.
+    var openedShow by rememberSaveable { mutableStateOf<String?>(null) }
+    openedShow?.let { key -> return DownloadedShowScreen(model, key, onBack = { openedShow = null }) }
     RoomBackground(ambient = null) {
         Column {
             PageTitle(t(Words.downloads))
@@ -125,7 +128,7 @@ fun DownloadsScreen(model: AppModel) {
             ) {
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
                     section(t(Words.movies), store.films) { DownloadRow(model, it) }
-                    store.shows.forEach { (show, episodes) -> section(show, episodes) { DownloadRow(model, it) } }
+                    section(t(Words.shows), store.shows) { DownloadedShowRow(model, it, onOpen = { openedShow = it.key }) }
                     section(t(Words.music), store.musicCollections) { CollectionRow(model, it, onOpen = { opened = it.id }) }
                     section(t(Words.audiobooks), model.bookDownloads.books) { BookDownloadRow(model, it) }
                     section(t(Words.podcasts), store.podcastEpisodes) { PodcastDownloadRow(model, it) }
@@ -155,7 +158,7 @@ private fun <T> LazyListScope.section(title: String, downloads: List<T>, row: @C
 
 /** A film or episode: its picture, title and what it's doing; tapping plays it once it's here. */
 @Composable
-private fun DownloadRow(model: AppModel, download: LocalDownload) {
+internal fun DownloadRow(model: AppModel, download: LocalDownload) {
     val context = LocalContext.current
     DownloadListRow(
         model,
@@ -389,31 +392,19 @@ fun DownloadAction(model: AppModel, item: ItemSummary, modifier: Modifier = Modi
         download.phase == LocalPhase.Downloaded -> t("Downloaded")
         else -> t("Couldn’t download")
     }
-    Box(modifier) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .pressable({
-                    when {
-                        download == null -> start()
-                        download.phase == LocalPhase.Failed -> problem = download.failure ?: t("Couldn’t download this")
-                        else -> removing = true
-                    }
-                })
-                .semantics { contentDescription = downloadDescription(download, waiting) },
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Box(Modifier.size(48.dp).clip(CircleShape).background(Flexarr.screen.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
-                DownloadStateIcon(download, waiting, progress = download?.let(store::progress) ?: 0.0)
+    DownloadActionFace(
+        label,
+        downloadDescription(download, waiting),
+        onClick = {
+            when {
+                download == null -> start()
+                download.phase == LocalPhase.Failed -> problem = download.failure ?: t("Couldn’t download this")
+                else -> removing = true
             }
-            androidx.compose.foundation.text.BasicText(
-                label,
-                style = androidx.compose.ui.text.TextStyle(fontWeight = FontWeight.Medium, color = Flexarr.usher, textAlign = androidx.compose.ui.text.style.TextAlign.Center, fontSize = 12.sp),
-                maxLines = 1,
-                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 12.sp),
-            )
-        }
+        },
+        modifier,
+    ) {
+        DownloadStateIcon(download, waiting, progress = download?.let(store::progress) ?: 0.0)
     }
     if (removing && download != null) {
         AlertDialog(
@@ -446,28 +437,67 @@ fun DownloadAction(model: AppModel, item: ItemSummary, modifier: Modifier = Modi
     }
 }
 
+/** A round download action under Play, with its name underneath: [icon] in the circle, [label] below. */
+@Composable
+internal fun DownloadActionFace(label: String, description: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: @Composable () -> Unit) {
+    Box(modifier) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .pressable(onClick)
+                .semantics { contentDescription = description },
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Box(Modifier.size(48.dp).clip(CircleShape).background(Flexarr.screen.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) { icon() }
+            androidx.compose.foundation.text.BasicText(
+                label,
+                style = androidx.compose.ui.text.TextStyle(fontWeight = FontWeight.Medium, color = Flexarr.usher, textAlign = androidx.compose.ui.text.style.TextAlign.Center, fontSize = 12.sp),
+                maxLines = 1,
+                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 12.sp),
+            )
+        }
+    }
+}
+
 /**
  * A podcast episode's download: an arrow, a ring while it comes, a tick once it's here. Tapping downloads it (as it is,
  * over any connection, since it was asked for); tapping one on its way or here offers to stop or delete it.
  */
 @Composable
 fun EpisodeDownloadButton(model: AppModel, episodeId: String, title: String) {
+    DownloadIconButton(model, episodeId, title, ringWhilePreparing = true) { model.downloads.downloadEpisode(episodeId) }
+}
+
+/**
+ * The download icon on an episode's row in a show's season list: the same state, and the same taps, as Download on the
+ * episode's own page (at the size chosen in Settings). Tapping it never opens or plays the episode.
+ */
+@Composable
+fun TitleDownloadButton(model: AppModel, item: ItemSummary) {
+    DownloadIconButton(model, item.id, item.title, ringWhilePreparing = false) { model.downloads.download(item) }
+}
+
+/** An icon that downloads a title ([start]), and once it's on its way or here offers to stop or remove it; failed, says why. */
+@Composable
+private fun DownloadIconButton(model: AppModel, itemId: String, title: String, ringWhilePreparing: Boolean, start: suspend () -> Unit) {
     val store = model.downloads
-    val download = store.entry(episodeId)
+    val download = store.entry(itemId)
     val waiting = download?.let(store::isWaitingForWiFi) ?: false
     var removing by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
+    val begin = { model.scope.launch { runCatching { start() }.onFailure { problem = it.message ?: t("Couldn’t download this") } } }
     Box(
         Modifier.minimumInteractiveComponentSize().size(40.dp).pressable({
             when {
-                download == null -> model.scope.launch { runCatching { store.downloadEpisode(episodeId) }.onFailure { problem = it.message } }
-                download.phase == LocalPhase.Failed -> problem = download.failure
+                download == null -> begin()
+                download.phase == LocalPhase.Failed -> problem = download.failure ?: t("Couldn’t download this")
                 else -> removing = true
             }
         }).semantics { contentDescription = "${downloadDescription(download, waiting)}: $title" },
         contentAlignment = Alignment.Center,
     ) {
-        DownloadStateIcon(download, waiting, size = 20.dp, progress = download?.let(model.downloads::progress) ?: 0.0, ringWhilePreparing = true)
+        DownloadStateIcon(download, waiting, size = 20.dp, progress = download?.let(store::progress) ?: 0.0, ringWhilePreparing = ringWhilePreparing)
     }
     if (removing && download != null) {
         AlertDialog(
@@ -491,7 +521,7 @@ fun EpisodeDownloadButton(model: AppModel, episodeId: String, title: String) {
                 TextButton(onClick = {
                     problem = null
                     download?.let { store.delete(it.id) }
-                    model.scope.launch { runCatching { store.downloadEpisode(episodeId) } }
+                    begin()
                 }) { Text(t("Try again"), color = Flexarr.screen) }
             },
             dismissButton = { TextButton(onClick = { problem = null }) { Text(t(Words.cancel), color = Flexarr.screen) } },

@@ -1,0 +1,106 @@
+package io.github.flexarr.core
+
+import org.junit.Assert.assertEquals
+import org.junit.Test
+
+class EpisodeDownloadsTest {
+    private fun episode(id: String, season: Int? = 1, number: Int = 1, seriesId: String? = "show", seriesTitle: String? = "Show") = ItemSummary(
+        id = id,
+        libraryId = "tv",
+        kind = MediaKind.Episode,
+        title = id,
+        seasonNumber = season,
+        episodeNumber = number,
+        childCount = 0,
+        artwork = Artwork(),
+        userData = UserData(0.0, false, 0),
+        seriesId = seriesId,
+        seriesTitle = seriesTitle,
+    )
+
+    private fun download(item: ItemSummary, phase: LocalPhase, progress: Double = 0.0, failure: String? = null) = LocalDownload(
+        id = "d-${item.id}",
+        profileId = "p",
+        quality = DownloadQuality.Medium,
+        item = item,
+        phase = phase,
+        progress = progress,
+        failure = failure,
+        fileName = if (phase == LocalPhase.Downloaded) "d-${item.id}.mp4" else null,
+    )
+
+    private fun download(id: String, phase: LocalPhase, progress: Double = 0.0, failure: String? = null) = download(episode(id), phase, progress, failure)
+
+    @Test
+    fun nothingAskedForIsNotDownloadedWithEveryEpisodeMissing() {
+        assertEquals(EpisodeGroupState.NotDownloaded(3), EpisodeGroupRules.state(listOf(null, null, null)))
+    }
+
+    @Test
+    fun someHereAndTheRestNotStartedIsNotDownloadedCountingOnlyTheMissing() {
+        assertEquals(EpisodeGroupState.NotDownloaded(2), EpisodeGroupRules.state(listOf(download("a", LocalPhase.Downloaded), null, null)))
+    }
+
+    @Test
+    fun allHereIsDownloaded() {
+        assertEquals(EpisodeGroupState.Downloaded, EpisodeGroupRules.state(listOf(download("a", LocalPhase.Downloaded), download("b", LocalPhase.Downloaded))))
+    }
+
+    @Test
+    fun allHereIsNotDownloadedWhileTheFullListIsUnknown() {
+        assertEquals(EpisodeGroupState.NotDownloaded(0), EpisodeGroupRules.state(listOf(download("a", LocalPhase.Downloaded)), known = false))
+    }
+
+    @Test
+    fun anyOnTheirWayIsDownloadingOutOfTheWholeGroup() {
+        val episodes = listOf(download("a", LocalPhase.Downloaded), download("b", LocalPhase.Downloading, 0.5), download("c", LocalPhase.Preparing), null)
+        assertEquals(EpisodeGroupState.Downloading(1, 4, 1.5 / 4), EpisodeGroupRules.state(episodes))
+        // A transfer under way counts as far as it's really got.
+        assertEquals(EpisodeGroupState.Downloading(1, 4, 1.9 / 4), EpisodeGroupRules.state(episodes) { if (it.id == "d-b") 0.9 else it.progress })
+    }
+
+    @Test
+    fun aFailureWinsAsOnIPhone() {
+        val episodes = listOf(download("a", LocalPhase.Downloaded), download("b", LocalPhase.Failed, failure = "No room"), download("c", LocalPhase.Preparing))
+        assertEquals(EpisodeGroupState.Failed("No room"), EpisodeGroupRules.state(episodes))
+    }
+
+    @Test
+    fun queueingIsDownloadingBeforeAnythingIsAskedFor() {
+        assertEquals(EpisodeGroupState.Downloading(0, 2, 0.0), EpisodeGroupRules.state(listOf(null, null), queueing = true))
+    }
+
+    @Test
+    fun queuesWhatIsNeitherHereNorOnItsWayAndRetriesFailures() {
+        val episodes = listOf(episode("here"), episode("coming"), episode("failed"), episode("new"))
+        val downloads = listOf(download("here", LocalPhase.Downloaded), download("coming", LocalPhase.Downloading), download("failed", LocalPhase.Failed)).associateBy { it.item.id }
+        assertEquals(listOf("failed", "new"), EpisodeGroupRules.toQueue(episodes) { downloads[it] }.map { it.id })
+    }
+
+    @Test
+    fun stoppingKeepsWhatIsHere() {
+        val downloads = listOf(download("here", LocalPhase.Downloaded), download("coming", LocalPhase.Downloading), download("ready", LocalPhase.Preparing), download("failed", LocalPhase.Failed))
+        assertEquals(listOf("coming", "ready", "failed"), EpisodeGroupRules.toStop(downloads).map { it.item.id })
+        assertEquals(listOf("failed"), EpisodeGroupRules.failed(downloads).map { it.item.id })
+    }
+
+    @Test
+    fun groupsEpisodesByShowInSeasonThenEpisodeOrder() {
+        val downloads = listOf(
+            download(episode("b2", season = 2, number = 1, seriesId = "b", seriesTitle = "Bravo"), LocalPhase.Downloaded),
+            download(episode("b1", season = 1, number = 3, seriesId = "b", seriesTitle = "Bravo"), LocalPhase.Downloaded),
+            download(episode("a1", seriesId = "a", seriesTitle = "alpha"), LocalPhase.Downloading),
+            // No id from an older server: grouped by name.
+            download(episode("c1", seriesId = null, seriesTitle = "Charlie"), LocalPhase.Downloaded),
+            download(episode("c2", number = 2, seriesId = null, seriesTitle = "Charlie"), LocalPhase.Downloaded),
+            // No season number: with the specials, first.
+            download(episode("b0", season = null, number = 1, seriesId = "b", seriesTitle = "Bravo"), LocalPhase.Downloaded),
+        )
+        val shows = DownloadedShows.group(downloads, untitled = "Episodes")
+        assertEquals(listOf("alpha", "Bravo", "Charlie"), shows.map { it.title })
+        assertEquals(listOf("a", "b", "Charlie"), shows.map { it.key })
+        assertEquals(listOf("b0", "b1", "b2"), shows[1].episodes.map { it.item.id })
+        assertEquals(listOf(null, 1, 2), shows[1].seasons.map { it.first })
+        assertEquals(listOf("c1", "c2"), shows[2].episodes.map { it.item.id })
+    }
+}
