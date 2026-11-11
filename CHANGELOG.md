@@ -34,6 +34,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 - Deleting one of two linked copies always goes through the app that holds it, and is refused rather than guessed when that can't be told.
 - Daily shows named by date in one library and by episode number in the other now link.
+- Cast photos from TVmaze that sometimes came up blank now load.
 - Scans of a few new episodes, and deletes, no longer recheck every title in the library, and an unreadable album cover is retried once a day rather than on every scan.
 
 ### Apple apps
