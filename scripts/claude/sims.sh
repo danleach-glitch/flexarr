@@ -6,7 +6,7 @@
 # derived-data folders (each is 5–7 GB, so one per branch filled the disk): a build takes a free folder, preferring
 # the one this branch used last so it builds incrementally, and only waits when every folder is busy.
 #
-#   sims.sh ios | tv          UDID of this branch's simulator, created and booted if needed
+#   sims.sh ios | ipad | tv   UDID of this branch's simulator, created and booted if needed
 #   sims.sh android           adb serial of this branch's emulator, booted if needed
 #   sims.sh with-dd CMD...    run CMD holding a derived-data folder, exported as $DD (build and install inside it)
 #   sims.sh stop              shut down this branch's simulators and emulator
@@ -26,6 +26,8 @@ AVD="${FLEXARR_AVD:-Flexarr_Phone}"
 # The simulators every branch's copy is modelled on (same device type and OS).
 IOS_BASE="iPhone Air"
 TV_BASE="Apple TV 4K (Flexarr)"
+# The iPad has no shared base simulator: it's this device type on the iPhone base's iOS.
+IPAD_TYPE="com.apple.CoreSimulator.SimDeviceType.iPad-Air-11-inch-M4"
 mkdir -p "$STATE"
 
 branch() {
@@ -95,11 +97,15 @@ sys.exit("no simulator named " + name)' "$1"
 
 apple_sim() {
   local kind="$1" base name udid
-  [ "$kind" = ios ] && { base="$IOS_BASE"; name="Flexarr iPhone ($(branch))"; } \
-                    || { base="$TV_BASE"; name="Flexarr TV ($(branch))"; }
+  case "$kind" in
+    ios) base="$IOS_BASE"; name="Flexarr iPhone ($(branch))" ;;
+    ipad) base="$IOS_BASE"; name="Flexarr iPad ($(branch))" ;;
+    *) base="$TV_BASE"; name="Flexarr TV ($(branch))" ;;
+  esac
   udid=$(udid_named "$name")
   if [ -z "$udid" ]; then
     read -r type runtime < <(base_of "$base")
+    [ "$kind" = ipad ] && type="$IPAD_TYPE"
     udid=$(xcrun simctl create "$name" "$type" "$runtime")
   fi
   xcrun simctl bootstatus "$udid" -b >/dev/null 2>&1 || true
@@ -148,7 +154,7 @@ android() {
 
 stop_key() {
   local key="$1" name udid serial
-  for name in "Flexarr iPhone ($key)" "Flexarr TV ($key)"; do
+  for name in "Flexarr iPhone ($key)" "Flexarr iPad ($key)" "Flexarr TV ($key)"; do
     udid=$(udid_named "$name"); [ -n "$udid" ] && xcrun simctl shutdown "$udid" 2>/dev/null && echo "shut down $name"
   done
   serial=$(cat "$STATE/$key.android" 2>/dev/null || true)
@@ -169,7 +175,7 @@ prune() {
   local live key name udid lock i f
   live=$(live_keys)
   while IFS=$'\t' read -r udid name; do
-    key="${name#Flexarr iPhone (}"; key="${key#Flexarr TV (}"; key="${key%)}"
+    key="${name#Flexarr iPhone (}"; key="${key#Flexarr iPad (}"; key="${key#Flexarr TV (}"; key="${key%)}"
     grep -qxF "$key" <<<"$live" && continue
     xcrun simctl shutdown "$udid" 2>/dev/null || true
     xcrun simctl delete "$udid" && echo "deleted $name"
@@ -177,7 +183,7 @@ prune() {
 import json, re, sys
 for devs in json.load(sys.stdin)["devices"].values():
     for d in devs:
-        if re.fullmatch(r"Flexarr (iPhone|TV) \(.+\)", d["name"]):
+        if re.fullmatch(r"Flexarr (iPhone|iPad|TV) \(.+\)", d["name"]):
             print(d["udid"] + "\t" + d["name"])')
   for f in "$STATE"/*.android "$STATE"/*.slot; do
     [ -e "$f" ] || continue
@@ -200,7 +206,7 @@ for devs in json.load(sys.stdin)["devices"].values():
 }
 
 list() {
-  xcrun simctl list devices | grep -E "Flexarr (iPhone|TV) \(" | sed 's/^ *//' || true
+  xcrun simctl list devices | grep -E "Flexarr (iPhone|iPad|TV) \(" | sed 's/^ *//' || true
   for f in "$STATE"/*.android; do [ -e "$f" ] && echo "$(basename "${f%.android}"): $(cat "$f")"; done
   for i in $(seq 1 "$SLOTS"); do
     local dir; dir=$(slot_dir "$i")
@@ -210,7 +216,7 @@ list() {
 }
 
 case "${1:-}" in
-  ios|tv) apple_sim "$1" ;;
+  ios|ipad|tv) apple_sim "$1" ;;
   android) android ;;
   with-dd) shift; with_dd "$@" ;;
   stop) stop_key "$(branch)" ;;
