@@ -270,6 +270,8 @@ describe('ids in paths', () => {
     expect(paths[0]).toBe(`/api/v1/livetv/channels/${encodeURIComponent(crafted)}/watch`)
     expect(paths[1]).toMatch(/^\/api\/v1\/items\/[^/]+\/progress$/)
     expect(paths[2]).toMatch(/^\/api\/v1\/playback\/[^/]+$/)
+    // The stop carries the CSRF header, as every other request does (a rewriting proxy may drop Origin).
+    expect(new Headers(fetchMock.mock.calls[2][1]?.headers).get('X-Requested-With')).toBe('flexarr')
   })
 
   it('leaves an ordinary id as it is', async () => {
