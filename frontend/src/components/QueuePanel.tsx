@@ -5,24 +5,46 @@ import { ChevronDown, ChevronUp, Close, Grip } from './icons'
 import { t, Words } from '../i18n'
 
 /**
+ * Keys for the queue's entries that stay with a track when others move or go: its id, and which time it appears in the
+ * queue (a track can be queued twice). Not its place, so removing an early track doesn't redraw every row after it.
+ */
+function queueKeys(queue: readonly ItemSummary[]): string[] {
+  const seen = new Map<string, number>()
+  return queue.map((track) => {
+    const n = seen.get(track.id) ?? 0
+    seen.set(track.id, n + 1)
+    return `${track.id}#${n}`
+  })
+}
+
+/**
  * The queue, above the now-playing bar: what's playing and what's to come. Upcoming tracks can be dragged into a new
- * order (or moved with the arrow buttons from the keyboard), removed, or cleared in one go. Escape or a click
- * elsewhere closes it.
+ * order (or moved with the arrow buttons from the keyboard), removed, or cleared in one go (with Undo). Escape or a
+ * click elsewhere closes it.
  */
 export function QueuePanel({ onClose, style }: { onClose: () => void; style?: CSSProperties }) {
   const player = useAudioPlayer()
   const panel = useRef<HTMLElement>(null)
-  const [dragging, setDragging] = useState<number | null>(null)
-  const [over, setOver] = useState<number | null>(null)
-  // After a move, focus goes with the track to its new row (which React renders afresh).
-  const focusAfter = useRef<{ index: number; dir: 'up' | 'down' } | null>(null)
+  const [dragging, setDragging] = useState<string | null>(null)
+  const [over, setOver] = useState<string | null>(null)
+  /** The tracks Clear took away, for Undo, until something else is queued. */
+  const [cleared, setCleared] = useState<ItemSummary[]>()
+  // After a move or a removal, focus goes to the row (by its entry key) that React renders afresh; or to Close.
+  const focusAfter = useRef<{ key: string; dir: 'up' | 'down' } | { key: string; dir: 'track' } | 'close' | null>(null)
 
   const current = player.current
-  const upcoming = player.queue.slice(player.index + 1).map((track, i) => ({ track, index: player.index + 1 + i }))
+  const keys = useMemo(() => queueKeys(player.queue), [player.queue])
+  const upcoming = player.queue.slice(player.index + 1).map((track, i) => ({ track, key: keys[player.index + 1 + i] }))
+  const undoable = cleared !== undefined && upcoming.length === 0
 
   useEffect(() => {
     panel.current?.querySelector<HTMLElement>('button')?.focus()
   }, [])
+
+  // Something queued after a Clear: there's no going back to before it.
+  useEffect(() => {
+    if (upcoming.length > 0) setCleared(undefined)
+  }, [upcoming.length])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -47,7 +69,15 @@ export function QueuePanel({ onClose, style }: { onClose: () => void; style?: CS
     const want = focusAfter.current
     if (!want) return
     focusAfter.current = null
-    const row = panel.current?.querySelector<HTMLElement>(`[data-queue-index="${want.index}"]`)
+    if (want === 'close') {
+      panel.current?.querySelector<HTMLButtonElement>('.queue-close')?.focus()
+      return
+    }
+    const row = panel.current?.querySelector<HTMLElement>(`[data-queue-key="${CSS.escape(want.key)}"]`)
+    if (want.dir === 'track') {
+      row?.querySelector<HTMLButtonElement>('.queue-track')?.focus()
+      return
+    }
     const same = row?.querySelector<HTMLButtonElement>(`.queue-move-${want.dir}`)
     const other = row?.querySelector<HTMLButtonElement>(want.dir === 'up' ? '.queue-move-down' : '.queue-move-up')
     ;(same && !same.disabled ? same : other)?.focus()
@@ -55,55 +85,84 @@ export function QueuePanel({ onClose, style }: { onClose: () => void; style?: CS
 
   // The player as of the last render: the rows get one unchanging set of actions (`rowActions`) that use it, so a drag
   // step or the player moving on redraws only the rows whose own props changed, however long the queue.
-  const latest = useRef(player)
+  const latest = useRef({ player, keys })
   const drag = useRef({ dragging, over })
   useLayoutEffect(() => {
-    latest.current = player
+    latest.current = { player, keys }
     drag.current = { dragging, over }
   })
   const rowActions = useMemo<QueueRowActions>(() => {
+    /** An upcoming entry's place in the queue now (-1 when it's gone). */
+    const indexOf = (key: string) => {
+      const { player, keys } = latest.current
+      return keys.indexOf(key, player.index + 1)
+    }
     const end = () => {
       setDragging(null)
       setOver(null)
     }
     return {
-      skipTo: (at) => latest.current.skipTo(at),
-      move: (from, to, dir) => {
-        latest.current.moveInQueue(from, to)
-        focusAfter.current = { index: to, dir }
+      skipTo: (key) => {
+        const at = indexOf(key)
+        if (at >= 0) latest.current.player.skipTo(at)
       },
-      remove: (at) => latest.current.removeFromQueue(at),
-      dragStart: (at, track, e) => {
-        setDragging(at)
-        drag.current.dragging = at
+      move: (key, dir) => {
+        const at = indexOf(key)
+        if (at < 0) return
+        latest.current.player.moveInQueue(at, dir === 'up' ? at - 1 : at + 1)
+        focusAfter.current = { key, dir }
+      },
+      remove: (key) => {
+        const { player, keys } = latest.current
+        const at = indexOf(key)
+        if (at < 0) return
+        // Focus goes to the track after it, or before it when it was the last; to Close when none is left.
+        const next = keys[at + 1] ?? (at - 1 > player.index ? keys[at - 1] : undefined)
+        focusAfter.current = next ? { key: next, dir: 'track' } : 'close'
+        player.removeFromQueue(at)
+      },
+      dragStart: (key, track, e) => {
+        setDragging(key)
+        drag.current.dragging = key
         e.dataTransfer.effectAllowed = 'move'
         e.dataTransfer.setData('text/plain', track.title)
       },
-      dragOver: (at, e) => {
+      dragOver: (key, e) => {
         if (drag.current.dragging === null) return
         e.preventDefault()
         e.dataTransfer.dropEffect = 'move'
-        setOver(at)
+        setOver(key)
       },
-      dragLeave: (at) => setOver((o) => (o === at ? null : o)),
-      drop: (at, e) => {
+      dragLeave: (key) => setOver((o) => (o === key ? null : o)),
+      drop: (key, e) => {
         e.preventDefault()
-        const from = drag.current.dragging
-        if (from !== null && from !== at) latest.current.moveInQueue(from, at)
+        const from = drag.current.dragging === null ? -1 : indexOf(drag.current.dragging)
+        const to = indexOf(key)
+        if (from >= 0 && to >= 0 && from !== to) latest.current.player.moveInQueue(from, to)
         end()
       },
       dragEnd: end,
     }
   }, [])
 
+  const clear = () => {
+    setCleared(upcoming.map((u) => u.track))
+    player.clearQueue()
+  }
+  const undo = () => {
+    if (cleared) player.playNext(cleared)
+    setCleared(undefined)
+  }
+
   return (
     <section id="queue-panel" ref={panel} className="queue-panel" role="dialog" aria-label={t('Queue')} style={style}>
       <header className="queue-head">
         <h2>{t('Queue')}</h2>
-        <button className="button quiet small" onClick={player.clearQueue} disabled={upcoming.length === 0}>
-          {t('Clear')}
+        {/* One button, so focus stays on it from Clear to Undo and back. */}
+        <button className="button quiet small" onClick={undoable ? undo : clear} disabled={!undoable && upcoming.length === 0}>
+          {undoable ? t('Undo') : t('Clear')}
         </button>
-        <button className="icon-button" aria-label={t('Close queue')} onClick={onClose}>
+        <button className="icon-button queue-close" aria-label={t('Close queue')} onClick={onClose}>
           <Close />
         </button>
       </header>
@@ -123,15 +182,15 @@ export function QueuePanel({ onClose, style }: { onClose: () => void; style?: CS
           <p className="queue-empty muted">{t('Nothing next. “Play next” or “Add to queue” on a track puts it here.')}</p>
         ) : (
           <ol className="queue-list">
-            {upcoming.map(({ track, index: at }, k) => (
+            {upcoming.map(({ track, key }, k) => (
               <QueueRow
-                key={`${track.id}-${at}`}
+                key={key}
+                entry={key}
                 track={track}
-                at={at}
                 first={k === 0}
                 last={k === upcoming.length - 1}
-                dragging={dragging === at}
-                over={over === at}
+                dragging={dragging === key}
+                over={over === key}
                 actions={rowActions}
               />
             ))}
@@ -142,15 +201,15 @@ export function QueuePanel({ onClose, style }: { onClose: () => void; style?: CS
   )
 }
 
-/** What an upcoming track's row can have done to it, by its place in the queue. */
+/** What an upcoming track's row can have done to it, by its entry key (`queueKeys`). */
 interface QueueRowActions {
-  skipTo(at: number): void
-  move(from: number, to: number, dir: 'up' | 'down'): void
-  remove(at: number): void
-  dragStart(at: number, track: ItemSummary, e: DragEvent): void
-  dragOver(at: number, e: DragEvent): void
-  dragLeave(at: number): void
-  drop(at: number, e: DragEvent): void
+  skipTo(entry: string): void
+  move(entry: string, dir: 'up' | 'down'): void
+  remove(entry: string): void
+  dragStart(entry: string, track: ItemSummary, e: DragEvent): void
+  dragOver(entry: string, e: DragEvent): void
+  dragLeave(entry: string): void
+  drop(entry: string, e: DragEvent): void
   dragEnd(): void
 }
 
@@ -169,18 +228,18 @@ function QueueTrackFace({ track }: { track: ItemSummary }) {
   )
 }
 
-/** One upcoming track, drawn again only when something of its own changes (see `rowActions`). */
+/** One upcoming track, drawn again only when something of its own changes (see `rowActions`); its place isn't a prop. */
 const QueueRow = memo(function QueueRow({
+  entry,
   track,
-  at,
   first,
   last,
   dragging,
   over,
   actions,
 }: {
+  entry: string
   track: ItemSummary
-  at: number
   first: boolean
   last: boolean
   dragging: boolean
@@ -189,29 +248,29 @@ const QueueRow = memo(function QueueRow({
 }) {
   return (
     <li
-      data-queue-index={at}
+      data-queue-key={entry}
       className={['queue-item', dragging && 'dragging', over && 'drag-over'].filter(Boolean).join(' ')}
       draggable
-      onDragStart={(e) => actions.dragStart(at, track, e)}
-      onDragOver={(e) => actions.dragOver(at, e)}
-      onDragLeave={() => actions.dragLeave(at)}
-      onDrop={(e) => actions.drop(at, e)}
+      onDragStart={(e) => actions.dragStart(entry, track, e)}
+      onDragOver={(e) => actions.dragOver(entry, e)}
+      onDragLeave={() => actions.dragLeave(entry)}
+      onDrop={(e) => actions.drop(entry, e)}
       onDragEnd={actions.dragEnd}
     >
       <span className="queue-grip" aria-hidden="true">
         <Grip />
       </span>
-      <button className="queue-track" onClick={() => actions.skipTo(at)} aria-label={t('Play {title} now', { title: track.title })}>
+      <button className="queue-track" onClick={() => actions.skipTo(entry)} aria-label={t('Play {title} now', { title: track.title })}>
         <QueueTrackFace track={track} />
       </button>
       <span className="queue-actions">
-        <button className="icon-button queue-move-up" aria-label={t('Move {title} up', { title: track.title })} disabled={first} onClick={() => actions.move(at, at - 1, 'up')}>
+        <button className="icon-button queue-move-up" aria-label={t('Move {title} up', { title: track.title })} disabled={first} onClick={() => actions.move(entry, 'up')}>
           <ChevronUp />
         </button>
-        <button className="icon-button queue-move-down" aria-label={t('Move {title} down', { title: track.title })} disabled={last} onClick={() => actions.move(at, at + 1, 'down')}>
+        <button className="icon-button queue-move-down" aria-label={t('Move {title} down', { title: track.title })} disabled={last} onClick={() => actions.move(entry, 'down')}>
           <ChevronDown />
         </button>
-        <button className="icon-button" aria-label={t('Remove {title} from the queue', { title: track.title })} onClick={() => actions.remove(at)}>
+        <button className="icon-button" aria-label={t('Remove {title} from the queue', { title: track.title })} onClick={() => actions.remove(entry)}>
           <Close />
         </button>
       </span>
