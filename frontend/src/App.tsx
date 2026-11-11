@@ -47,6 +47,7 @@ import './styles/podcasts.css'
 import './styles/livetv.css'
 import './styles/books.css'
 import { setServerTitle } from './lib/serverTitle'
+import { errorText } from './lib/errorText'
 
 // The player (with hls.js) and settings load on demand to keep the first page light.
 /**
@@ -287,7 +288,7 @@ export default function App() {
             setSetupInstall(install)
             setState({ kind: 'unauthorized', setupOpen: open })
           })
-        } else setState({ kind: 'error', message: error instanceof Error ? error.message : String(error) })
+        } else setState({ kind: 'error', message: errorText(error) })
       })
     return () => controller.abort()
   }, [attempt])
@@ -304,7 +305,7 @@ export default function App() {
     signIn(key)
       .then(() => setAttempt((n) => n + 1))
       .catch((error: unknown) =>
-        setState(error instanceof UnauthorizedError ? { kind: 'unauthorized', wrongKey: true } : { kind: 'error', message: error instanceof Error ? error.message : String(error) }),
+        setState(error instanceof UnauthorizedError ? { kind: 'unauthorized', wrongKey: true } : { kind: 'error', message: errorText(error) }),
       )
   }
 

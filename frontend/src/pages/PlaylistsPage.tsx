@@ -1,8 +1,8 @@
+import { errorText } from '../lib/errorText'
 import { memo, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type FormEvent, type MouseEvent, type ReactNode } from 'react'
 import { PageError, PageLoading } from '../components/PageStatus'
 import { Link, useNavigate, useParams } from 'react-router'
 import {
-  ApiError,
   createPlaylist,
   deletePlaylist,
   getPlaylist,
@@ -49,7 +49,7 @@ export function PlaylistsPage({ heading }: { heading?: ReactNode }) {
       const created = await createPlaylist(name.trim())
       navigate(`/playlist/${created.id}`)
     } catch (err) {
-      setError(err instanceof ApiError && err.messages[0] ? err.messages[0] : String(err))
+      setError(errorText(err))
       setSaving(false)
     }
   }
@@ -149,7 +149,7 @@ export function PlaylistPage() {
       await work()
       reload()
     } catch (e) {
-      setMessage(e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e))
+      setMessage(errorText(e))
       reload()
     }
   }
@@ -162,7 +162,7 @@ export function PlaylistPage() {
     moved.splice(to, 0, entry)
     setOrder(moved)
     void movePlaylistEntry(summary.id, entry.entryId, to).catch((e: unknown) => {
-      setMessage(e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e))
+      setMessage(errorText(e))
       reload()
     })
   }
@@ -291,7 +291,7 @@ export function PlaylistPage() {
               navigate('/playlists', { replace: true })
             } catch (e) {
               setDeleting(false)
-              setMessage(e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e))
+              setMessage(errorText(e))
             }
           }}
         >

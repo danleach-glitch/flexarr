@@ -1,3 +1,4 @@
+import { errorText } from '../../lib/errorText'
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import {
@@ -210,7 +211,7 @@ function ProfileForm({
       else if (picture === null && profile?.image) await removeProfileImage(saved.id)
       onDone()
     } catch (err) {
-      setErrors(err instanceof ApiError && err.messages.length ? err.messages : [String(err)])
+      setErrors(err instanceof ApiError && err.messages.length ? err.messages : [errorText(err)])
     } finally {
       setSaving(false)
     }

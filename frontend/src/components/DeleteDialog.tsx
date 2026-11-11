@@ -1,3 +1,4 @@
+import { errorText } from '../lib/errorText'
 import { useState } from 'react'
 import { ApiError, deleteItem, getDeletion, type ItemSummary } from '../api/client'
 import { useApi } from '../hooks/useApi'
@@ -43,7 +44,7 @@ export function DeleteDialog({ item, onDeleted, onClose }: { item: ItemSummary; 
       await deleteItem(item.id, (plan.data?.copies?.length ?? 0) > 1)
       onDeleted()
     } catch (e) {
-      setError(e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e))
+      setError(errorText(e))
       setBusy(false)
       plan.reload() // Some copies may have gone: it lists what's left, and deleting again finishes the job.
     }

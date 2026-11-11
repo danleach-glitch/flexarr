@@ -1,5 +1,6 @@
+import { errorText } from '../lib/errorText'
 import { useEffect, useState, type FormEvent } from 'react'
-import { addToCollection, ApiError, createCollection, getItemCollections, removeFromCollection, type ItemCollection } from '../api/client'
+import { addToCollection, createCollection, getItemCollections, removeFromCollection, type ItemCollection } from '../api/client'
 import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
 import { AsyncButton } from './AsyncButton'
@@ -43,7 +44,7 @@ function AddToCollectionDialog({ item, onClose }: { item: { id: string; title: s
       await work()
       setVersion((v) => v + 1)
     } catch (e) {
-      setError(e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e))
+      setError(errorText(e))
     }
   }
 
@@ -56,7 +57,7 @@ function AddToCollectionDialog({ item, onClose }: { item: { id: string; title: s
       await (now ? addToCollection(c.id, item.id) : removeFromCollection(c.id, item.id))
     } catch (e) {
       setTicked((t) => ({ ...t, [c.id]: !now }))
-      setError(e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e))
+      setError(errorText(e))
     }
   }
 

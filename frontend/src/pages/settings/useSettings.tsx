@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { ApiError, getSettings, saveSettings } from '../../api/client'
+import { getSettings, saveSettings } from '../../api/client'
 import { AsyncButton } from '../../components/AsyncButton'
 import { useApi } from '../../hooks/useApi'
 import { t } from '../../i18n'
 
-/** What went wrong, in the server's words when it gave some. */
-export const errorText = (e: unknown) => (e instanceof ApiError && e.messages.length ? e.messages.join(' ') : e instanceof Error ? e.message : String(e))
+import { errorText } from '../../lib/errorText'
+
+export { errorText }
 
 /** The server's settings, and saving them: what was saved, or why it wasn't. */
 export function useSettings() {

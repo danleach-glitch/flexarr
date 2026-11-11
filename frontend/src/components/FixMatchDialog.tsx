@@ -1,3 +1,4 @@
+import { errorText } from '../lib/errorText'
 import { useState, type FormEvent } from 'react'
 import { ApiError, fixBookMatch, fixMatch, getItem, imageUrl, resetMatch, searchBookMatches, searchMatches, type BookMatch, type MatchCandidate, type MediaKind } from '../api/client'
 import { formatDuration } from '../lib/format'
@@ -60,7 +61,7 @@ function TitleMatchDialog({ item, onFixed, onClose }: Props) {
       onFixed()
       onClose()
     } catch (e) {
-      setError(e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e))
+      setError(errorText(e))
       setBusy(false)
     }
   }
@@ -190,7 +191,7 @@ function BookMatchDialog({ item, onFixed, onClose }: Props) {
       onFixed()
       onClose()
     } catch (e) {
-      setError(e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e))
+      setError(errorText(e))
       setBusy(false)
     }
   }

@@ -1,6 +1,6 @@
+import { errorText } from '../../lib/errorText'
 import { useState } from 'react'
 import {
-  ApiError,
   browseFilesystem,
   chooseFolderOnMac,
   getPlexSource,
@@ -53,7 +53,7 @@ export function ImportSection() {
     try {
       setResult(await importFromPlex(chosen, source.data?.path ?? undefined, target ?? profiles.data?.find((p) => p.isMain)?.id))
     } catch (e) {
-      setError(e instanceof ApiError && e.messages.length ? e.messages[0] : String(e))
+      setError(errorText(e))
     } finally {
       setBusy(false)
     }
@@ -164,7 +164,7 @@ function PlexPictures({ path }: { path?: string }) {
     try {
       setResult(await importPlexAvatars(path))
     } catch (e) {
-      setError(e instanceof ApiError && e.messages.length ? e.messages[0] : String(e))
+      setError(errorText(e))
     } finally {
       setBusy(false)
     }

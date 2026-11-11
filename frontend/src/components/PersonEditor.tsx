@@ -1,3 +1,4 @@
+import { errorText } from '../lib/errorText'
 import { useEffect, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
 import { ApiError, getPersonCandidates, updatePerson, uploadPersonImage, type Person, type PersonUpdate } from '../api/client'
 import { useApi } from '../hooks/useApi'
@@ -126,7 +127,7 @@ export function PersonEditor({ person, onSaved, onClose }: { person: Person; onS
         setPicked(undefined)
         setBroken(new Set())
         reload()
-      } else setError(err instanceof ApiError && err.messages[0] ? err.messages[0] : String(err))
+      } else setError(errorText(err))
       setSaving(false)
     }
   }

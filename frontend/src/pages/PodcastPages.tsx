@@ -1,3 +1,4 @@
+import { errorText } from '../lib/errorText'
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
 import { PageError, PageLoading } from '../components/PageStatus'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
@@ -139,7 +140,7 @@ function PodcastsHome() {
       )
       changed()
     } catch (e) {
-      setImporting(e instanceof Error ? e.message : String(e))
+      setImporting(errorText(e))
     } finally {
       setAdding(false)
     }
@@ -520,7 +521,7 @@ function AddFeed({ url }: { url: string }) {
       const podcast = await addPodcast({ feedUrl: url })
       navigate(`/podcasts/${podcast.id}`)
     } catch (error) {
-      setState({ adding: false, error: error instanceof Error ? error.message : String(error) })
+      setState({ adding: false, error: errorText(error) })
     }
   }
   return (
@@ -563,7 +564,7 @@ function DirectoryCard({ podcast, rank }: { podcast: DirectoryPodcast; rank?: nu
       const added = await addPodcast({ iTunesId: podcast.iTunesId })
       navigate(`/podcasts/${added.id}`)
     } catch (error) {
-      setState({ opening: false, error: error instanceof ApiError ? error.message : String(error) })
+      setState({ opening: false, error: errorText(error) })
     }
   }
   return (

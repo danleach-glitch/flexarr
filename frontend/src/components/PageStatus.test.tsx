@@ -12,6 +12,12 @@ describe('PageStatus', () => {
     expect(retry).toHaveBeenCalledOnce()
   })
 
+  it('says the server didn’t answer, not the browser’s words, when nothing came back', () => {
+    render(<PageError error={new TypeError('Failed to fetch')} onRetry={vi.fn()} />)
+    expect(screen.getByRole('alert')).toHaveTextContent('Flexarr didn’t answer. Try again.')
+    expect(screen.getByRole('alert')).not.toHaveTextContent('Failed to fetch')
+  })
+
   it('leaves Try again out when the thing is gone', () => {
     render(<PageError error={new ApiError(404, 'Not Found', [])} message="That playlist isn’t here any more." onRetry={vi.fn()} />)
     expect(screen.getByRole('alert')).toHaveTextContent('That playlist isn’t here any more.')

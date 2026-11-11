@@ -1,5 +1,6 @@
+import { errorText } from '../lib/errorText'
 import { useState, type FormEvent } from 'react'
-import { ApiError, editBook, type ItemDetail } from '../api/client'
+import { editBook, type ItemDetail } from '../api/client'
 import { useModal } from '../hooks/useModal'
 import { AsyncButton } from './AsyncButton'
 import { NameList } from './NameList'
@@ -63,7 +64,7 @@ export function BookEditor({ detail, onSaved, onClose }: { detail: ItemDetail; o
       onSaved()
       onClose()
     } catch (err) {
-      setError(err instanceof ApiError && err.messages[0] ? err.messages[0] : String(err))
+      setError(errorText(err))
       setSaving(false)
     }
   }

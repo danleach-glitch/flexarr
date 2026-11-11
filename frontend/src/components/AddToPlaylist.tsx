@@ -1,5 +1,6 @@
+import { errorText } from '../lib/errorText'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { addToPlaylist, ApiError, createPlaylist, getPlaylists, type PlaylistSummary } from '../api/client'
+import { addToPlaylist, createPlaylist, getPlaylists, type PlaylistSummary } from '../api/client'
 import { useApi } from '../hooks/useApi'
 import { AsyncButton, IconButton } from './AsyncButton'
 import { Close } from './icons'
@@ -56,7 +57,7 @@ export function AddToPlaylistDialog({ item, onClose }: { item: PlaylistAddition;
       setMessage(await work())
       setVersion((v) => v + 1)
     } catch (e) {
-      setError(e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e))
+      setError(errorText(e))
     } finally {
       setBusy(undefined)
     }
