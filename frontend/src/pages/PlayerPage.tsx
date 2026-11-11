@@ -52,7 +52,7 @@ import { skipAt, skipCancelled, skipFresh, skipPressed, skipSeeked, type SkipNow
 import { NEXT_EPISODE_COUNTDOWN_SECONDS, nextEpisodeTiming, upNextAt, upNextAtEnd, upNextFresh, upNextMoved, type UpNextState } from '../lib/upNext'
 import { dialogueBoostChoices, isShaping, nightModeChoices, readSoundSettings, shapingFor, speakerChoices, timeOfDay, unshaped, useSoundSettings, useSoundShaping, writeSoundSettings } from '../lib/soundSettings'
 import { detectProfile, prefersNativeHls } from '../lib/profile'
-import { prepareVideo, rememberCopyingFailed, startVideo, wasCopyAsked } from '../lib/copiedVideo'
+import { prepareVideo, rememberCopyingFailed, startVideo, streamBadge, wasCopyAsked } from '../lib/copiedVideo'
 import { EARLY_STALL_MS, reportEarlyStall, reportStart, type StartTiming } from '../lib/startTiming'
 import { drop as dropPrepared, getReady, holds as holdsPrepared, take as takePrepared } from '../lib/preparedPlayback'
 import { extended, FADE_SECONDS, minutesLeft, secondsLeft, sleepChoices, sleepLabel, STILL_WATCHING_SECONDS, type SleepTimer } from '../lib/sleepTimer'
@@ -238,7 +238,7 @@ export function PlayerPage() {
   const [muted, setMuted] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
   const [chrome, setChrome] = useState(true)
-  const [menu, setMenu] = useState<'subtitles' | 'audio' | 'quality' | 'speed' | 'sleep' | null>(null)
+  const [menu, setMenu] = useState<'subtitles' | 'audio' | 'quality' | 'speed' | 'sleep' | 'more' | null>(null)
   const [quality, setQuality] = useState<Quality>('auto')
   const [subtitleKey, setSubtitleKey] = useState<string | null>(null)
   // Embedded subtitles are extracted on first use, which can take a little while for large files.
@@ -497,7 +497,7 @@ export function PlayerPage() {
       copyAsked.current = true
       return false
     }
-    rememberCopyingFailed()
+    rememberCopyingFailed(info?.item.id)
     void restartHere({ noCopy: true, audioStreamIndex: info?.selectedAudioIndex ?? undefined, subtitleKey: subtitleKey ?? 'off' })
     return true
   }
@@ -1356,6 +1356,78 @@ export function PlayerPage() {
     return () => window.removeEventListener('keydown', onKey)
   })
 
+  // ---------- The secondary controls' menus: each beside its own button, or all in one ⋯ on a phone
+
+  const qualityName = quality === 'auto' ? (info?.method === 'DirectPlay' ? t('Original') : t('Auto')) : `${quality}p`
+  const canPip = 'pictureInPictureEnabled' in document && document.pictureInPictureEnabled
+  const canAirPlay = 'webkitShowPlaybackTargetPicker' in HTMLVideoElement.prototype
+  const pictureInPicture = () => {
+    setMenu(null)
+    void video.current?.requestPictureInPicture?.()
+  }
+  const airPlay = () => {
+    setMenu(null)
+    ;(video.current as unknown as { webkitShowPlaybackTargetPicker: () => void } | null)?.webkitShowPlaybackTargetPicker()
+  }
+  const speedColumn = (
+    <div className="player-menu-column">
+      <h3>{t('Speed')}</h3>
+      {speeds.map((s) => (
+        <MenuItem key={s} selected={s === speed} onClick={() => chooseSpeed(s)}>
+          {s === 1 ? t('Normal') : speedLabel(s)}
+        </MenuItem>
+      ))}
+      {info?.item.kind === 'Episode' && <p className="player-menu-note muted">{t('Kept for this show.')}</p>}
+    </div>
+  )
+  const qualityColumns = (
+    <>
+      <div className="player-menu-column">
+        <h3>{t('Quality')}</h3>
+        {qualities.map((q) => (
+          <MenuItem key={q.value} selected={q.value === quality} onClick={() => chooseQuality(q.value)}>
+            {q.value === 'auto' ? t(q.label) : q.label}
+          </MenuItem>
+        ))}
+      </div>
+      <div className="player-menu-column">
+        <h3>{t('While watching')}</h3>
+        <MenuItem toggle selected={preferences.autoPlayNext} onClick={() => togglePreference('autoPlayNext')}>
+          {t(Words.autoPlayNext)}
+        </MenuItem>
+        <MenuItem toggle selected={preferences.skipIntros} onClick={() => togglePreference('skipIntros')}>
+          {t('Skip intros')}
+        </MenuItem>
+        <MenuItem toggle selected={preferences.skipRecaps} onClick={() => togglePreference('skipRecaps')}>
+          {t('Skip recaps')}
+        </MenuItem>
+        <MenuItem toggle selected={preferences.skipCredits} onClick={() => togglePreference('skipCredits')}>
+          {t(Words.skipCredits)}
+        </MenuItem>
+      </div>
+    </>
+  )
+  const sleepColumn = (
+    <div className="player-menu-column">
+      <h3>{t('Sleep timer')}</h3>
+      {sleepChoices(sleepWhat).map((choice, i, all) => (
+        <MenuItem
+          key={choice.label}
+          // The last choice waits for the end.
+          selected={i === all.length - 1 ? !!sleep && 'endOfEpisode' in sleep : false}
+          onClick={() => chooseSleep(choice.start())}
+        >
+          {choice.label}
+        </MenuItem>
+      ))}
+      {sleep && (
+        <button className="player-menu-item" onClick={() => chooseSleep(null)}>
+          {t('Turn off')}
+        </button>
+      )}
+    </div>
+  )
+
   // ---------- Render
 
   const item = info?.item
@@ -1445,10 +1517,9 @@ export function PlayerPage() {
             )}
           </div>
         )}
-        {info?.transcodeSummary && (
+        {info && streamBadge(info) && (
           <span className="player-badge" title={info.reasons.join('\n')}>
-            {/* A copied picture ("Original H.264, repackaged") isn't converted, so it isn't called that. */}
-            {/^Original\b/.test(info.transcodeSummary) ? info.transcodeSummary : t('Converting: {summary}', { summary: info.transcodeSummary })}
+            {streamBadge(info)}
           </span>
         )}
       </header>
@@ -1508,7 +1579,6 @@ export function PlayerPage() {
           <button
             className="skip-pill-skip"
             onClick={pressSkip}
-            autoFocus
             style={{ '--fill': `${(skipCounting?.progress ?? 0) * 100}%` } as CSSProperties}
           >
             <span className="skip-pill-label">{skipLabel}</span>
@@ -1584,10 +1654,11 @@ export function PlayerPage() {
           <button className="icon-button" onClick={toggle} aria-label={playing ? t('Pause') : t(Words.play)}>
             {playing ? <icon.pause /> : <icon.play />}
           </button>
-          <button className="icon-button" onClick={() => seekBy(-10)} aria-label={t('Back 10 seconds')}>
+          {/* Phones drop ±10 (the arrow keys and a tap on the bar do it) and fold the secondary controls into ⋯. */}
+          <button className="icon-button player-wide-only" onClick={() => seekBy(-10)} aria-label={t('Back 10 seconds')}>
             <Replay10 />
           </button>
-          <button className="icon-button" onClick={() => seekBy(10)} aria-label={t('Forward 10 seconds')}>
+          <button className="icon-button player-wide-only" onClick={() => seekBy(10)} aria-label={t('Forward 10 seconds')}>
             <Forward10 />
           </button>
           <button className="icon-button" onClick={playPrevious} aria-label={t('Previous')}>
@@ -1752,7 +1823,7 @@ export function PlayerPage() {
           </div>
           )}
 
-          <div className="menu-anchor">
+          <div className="menu-anchor player-wide-only">
             <button
               className={speed !== 1 ? 'player-quality active' : 'player-quality'}
               aria-expanded={menu === 'speed'}
@@ -1763,58 +1834,28 @@ export function PlayerPage() {
             </button>
             {menu === 'speed' && (
               <div className="player-menu" role="menu">
-                <div className="player-menu-column">
-                  <h3>{t('Speed')}</h3>
-                  {speeds.map((s) => (
-                    <MenuItem key={s} selected={s === speed} onClick={() => chooseSpeed(s)}>
-                      {s === 1 ? t('Normal') : speedLabel(s)}
-                    </MenuItem>
-                  ))}
-                  {info?.item.kind === 'Episode' && <p className="player-menu-note muted">{t('Kept for this show.')}</p>}
-                </div>
+                {speedColumn}
               </div>
             )}
           </div>
 
-          <div className="menu-anchor">
+          <div className="menu-anchor player-wide-only">
             <button
               className="player-quality"
               aria-expanded={menu === 'quality'}
-              aria-label={t('Quality: {quality}', { quality: quality === 'auto' ? (info?.method === 'DirectPlay' ? t('Original') : t('Auto')) : `${quality}p` })}
+              aria-label={t('Quality: {quality}', { quality: qualityName })}
               onClick={() => setMenu(menu === 'quality' ? null : 'quality')}
             >
-              {quality === 'auto' ? (info?.method === 'DirectPlay' ? t('Original') : t('Auto')) : `${quality}p`}
+              {qualityName}
             </button>
             {menu === 'quality' && (
               <div className="player-menu" role="menu">
-                <div className="player-menu-column">
-                  <h3>{t('Quality')}</h3>
-                  {qualities.map((q) => (
-                    <MenuItem key={q.value} selected={q.value === quality} onClick={() => chooseQuality(q.value)}>
-                      {q.value === 'auto' ? t(q.label) : q.label}
-                    </MenuItem>
-                  ))}
-                </div>
-                <div className="player-menu-column">
-                  <h3>{t('While watching')}</h3>
-                  <MenuItem toggle selected={preferences.autoPlayNext} onClick={() => togglePreference('autoPlayNext')}>
-                    {t(Words.autoPlayNext)}
-                  </MenuItem>
-                  <MenuItem toggle selected={preferences.skipIntros} onClick={() => togglePreference('skipIntros')}>
-                    {t('Skip intros')}
-                  </MenuItem>
-                  <MenuItem toggle selected={preferences.skipRecaps} onClick={() => togglePreference('skipRecaps')}>
-                    {t('Skip recaps')}
-                  </MenuItem>
-                  <MenuItem toggle selected={preferences.skipCredits} onClick={() => togglePreference('skipCredits')}>
-                    {t(Words.skipCredits)}
-                  </MenuItem>
-                </div>
+                {qualityColumns}
               </div>
             )}
           </div>
 
-          <div className="menu-anchor">
+          <div className="menu-anchor player-wide-only">
             <button
               className={sleep ? 'icon-button player-sleep active' : 'icon-button player-sleep'}
               aria-expanded={menu === 'sleep'}
@@ -1831,41 +1872,57 @@ export function PlayerPage() {
             </button>
             {menu === 'sleep' && (
               <div className="player-menu" role="menu">
-                <div className="player-menu-column">
-                  <h3>{t('Sleep timer')}</h3>
-                  {sleepChoices(sleepWhat).map((choice, i, all) => (
-                    <MenuItem
-                      key={choice.label}
-                      // The last choice waits for the end.
-                      selected={i === all.length - 1 ? !!sleep && 'endOfEpisode' in sleep : false}
-                      onClick={() => chooseSleep(choice.start())}
-                    >
-                      {choice.label}
-                    </MenuItem>
-                  ))}
-                  {sleep && (
-                    <button className="player-menu-item" onClick={() => chooseSleep(null)}>
-                      {t('Turn off')}
-                    </button>
-                  )}
-                </div>
+                {sleepColumn}
               </div>
             )}
           </div>
 
-          {'pictureInPictureEnabled' in document && document.pictureInPictureEnabled && (
-            <button className="icon-button" aria-label={t('Picture in picture')} onClick={() => void video.current?.requestPictureInPicture?.()}>
+          {/* A phone's ⋯: speed, quality, the sleep timer, picture in picture and AirPlay, in one menu. */}
+          <div className="menu-anchor player-narrow-only">
+            <button
+              className="icon-button"
+              aria-label={t('More options')}
+              aria-expanded={menu === 'more'}
+              onClick={() => setMenu(menu === 'more' ? null : 'more')}
+            >
+              <icon.more />
+            </button>
+            {menu === 'more' && (
+              <div className="player-menu" role="menu">
+                {speedColumn}
+                {qualityColumns}
+                {sleepColumn}
+                {(canPip || canAirPlay) && (
+                  <div className="player-menu-column">
+                    {canPip && (
+                      <button className="player-menu-item" onClick={pictureInPicture}>
+                        {t('Picture in picture')}
+                      </button>
+                    )}
+                    {canAirPlay && (
+                      <button className="player-menu-item" onClick={airPlay}>
+                        {t('AirPlay')}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {canPip && (
+            <button className="icon-button player-wide-only" aria-label={t('Picture in picture')} onClick={pictureInPicture}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <rect x="3" y="5" width="18" height="14" rx="2" />
                 <rect x="12" y="11" width="7" height="6" rx="1" fill="currentColor" />
               </svg>
             </button>
           )}
-          {'webkitShowPlaybackTargetPicker' in HTMLVideoElement.prototype && (
+          {canAirPlay && (
             <button
-              className="icon-button"
+              className="icon-button player-wide-only"
               aria-label={t('AirPlay')}
-              onClick={() => (video.current as unknown as { webkitShowPlaybackTargetPicker: () => void }).webkitShowPlaybackTargetPicker()}
+              onClick={airPlay}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <path d="M5 17H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-1" />

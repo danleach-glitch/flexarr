@@ -53,13 +53,26 @@ describe('PIN pad', () => {
     fireEvent.click(screen.getByRole('button', { name: '2' }))
     expect(screen.getByLabelText('PIN')).toHaveValue('12')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Erase' }))
     expect(screen.getByLabelText('PIN')).toHaveValue('1')
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Erase' }))
     expect(screen.getByLabelText('PIN')).toHaveValue('')
     expect(screen.getByRole('heading', { name: 'Enter Kids’s PIN' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Erase' }))
+    expect(await screen.findByRole('heading', { name: 'Choose a profile' })).toBeInTheDocument()
+  })
+
+  it('names the main profile in one sentence', () => {
+    render(<ProfilePicker profiles={[main, kids]} onChosen={() => {}} />)
+    expect(screen.getByRole('button', { name: /^Dan, main profile/ })).toBeInTheDocument()
+  })
+
+  it('has a Back to see, for a touch screen', async () => {
+    render(<ProfilePicker profiles={[main, kids]} onChosen={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: /Kids/ }))
+    fireEvent.click(screen.getByRole('button', { name: '1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
     expect(await screen.findByRole('heading', { name: 'Choose a profile' })).toBeInTheDocument()
   })
 

@@ -172,6 +172,8 @@ struct SettingsRow: View {
             }
         }
         .buttonStyle(SettingsRowStyle(destructive: destructive))
+        // The choice that's made says so to VoiceOver, not only with its check.
+        .accessibilityAddTraits(accessory == .checkmark ? .isSelected : [])
         .focused($focused)
         .onChange(of: focused) { _, now in if now { showHelp(rowHelp) } }
         .onChange(of: rowHelp) { _, help in if focused { showHelp(help) } }

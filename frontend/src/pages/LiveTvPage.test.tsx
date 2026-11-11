@@ -788,6 +788,60 @@ describe('the Live TV guide', () => {
     expect(times.mock.calls.length).toBeLessThanOrEqual(12 + 2)
   })
 
+  it('redraws no line on a tick of the clock, only those whose programme changed, and moves on an hour later', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      vi.setSystemTime(start + 10 * 60_000)
+      // The first channel's first programme ends a minute into the next tick; the others' run the full hour.
+      const list = channels.map((c, i) =>
+        i === 0 ? { ...c, programmes: [{ ...c.programmes[0], end: new Date(start + 10.5 * 60_000).toISOString() }, ...c.programmes.slice(1)] } : c,
+      )
+      const fetchMock = mockApi({
+        '/livetv/status': { configured: true, channels: 20, refreshing: false, refreshedAt: null, error: null, rewindMinutes: 0 },
+        '/livetv/guide': (_: unknown, url: URL) => ({
+          from: url.searchParams.get('from'),
+          until: new Date(start + 6 * hour).toISOString(),
+          channels: url.searchParams.get('favourites') === 'true' ? [] : list,
+        }),
+        '/livetv/channels': [],
+      })
+      render(
+        <MemoryRouter initialEntries={['/livetv?view=guide']}>
+          <LiveTvPage />
+        </MemoryRouter>,
+      )
+      await waitFor(() => expect(document.querySelectorAll('.livetv-guide-row')).toHaveLength(20))
+      const times = vi.mocked(livetv.programmeTime)
+
+      // The first channel's first programme ended: its line alone (six programmes) is drawn again.
+      times.mockClear()
+      await act(() => vi.advanceTimersByTimeAsync(30_000))
+      expect(times.mock.calls.length).toBeLessThanOrEqual(6)
+      expect(screen.getByRole('button', { name: /Show 1\.1/ })).toHaveClass('past')
+
+      // Nothing started or ended: nothing drawn again.
+      times.mockClear()
+      await act(() => vi.advanceTimersByTimeAsync(30_000))
+      expect(times.mock.calls).toHaveLength(0)
+
+      // An hour on, the guide starts on the half hour before now and is fetched for it.
+      const froms = () =>
+        fetchMock.mock.calls
+          .map(([input]) => new URL(String(input), 'http://localhost'))
+          .filter((u) => u.pathname === '/api/v1/livetv/guide')
+          .map((u) => u.searchParams.get('from'))
+      expect(froms().every((f) => f === new Date(start).toISOString())).toBe(true)
+      vi.setSystemTime(start + hour + 5 * 60_000)
+      await act(() => vi.advanceTimersByTimeAsync(30_000))
+      await waitFor(() => expect(froms().at(-1)).toBe(new Date(start + hour).toISOString()))
+      // The programme that's over before the new start isn't drawn.
+      await waitFor(() => expect(screen.queryByRole('button', { name: /Show 2\.1/ })).toBeNull())
+      expect(screen.getByRole('button', { name: /Show 2\.2/ })).toHaveClass('now')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   const status = { configured: true, channels: 20, refreshing: false, refreshedAt: null, error: null, rewindMinutes: 0 }
   const answer = (list: typeof channels) => ({ from: new Date(start).toISOString(), until: new Date(start + 6 * hour).toISOString(), channels: list })
   const starred = channels.map((c, i) => ({ ...c, isFavourite: i < 2 }))

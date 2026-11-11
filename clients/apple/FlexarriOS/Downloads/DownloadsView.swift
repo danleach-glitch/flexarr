@@ -82,13 +82,7 @@ struct DownloadRow: View {
                 Color.seat
                     // Bigger on an iPad or a Mac, where the row has the room.
                     .frame(width: sizeClass == .regular ? 192 : 112, height: sizeClass == .regular ? 108 : 63)
-                    .overlay {
-                        if let image = store.image(named: download.imageFileName) {
-                            Image(platformImage: image).resizable().scaledToFill()
-                        } else {
-                            Image(systemName: "film").foregroundStyle(Color.usher)
-                        }
-                    }
+                    .overlay { DownloadThumbnail(names: download.imageFileName.map { [$0] } ?? [], symbol: "film") }
                     .overlay(alignment: .bottom) {
                         if download.isDownloaded, download.finishedAt == nil, download.durationSeconds > 0, download.position > 30 {
                             ProgressBar(value: download.position / download.durationSeconds).padding(5)
@@ -162,13 +156,7 @@ private struct PodcastDownloadRow: View {
             HStack(spacing: sizeClass == .regular ? 16 : 12) {
                 Color.seat
                     .frame(width: sizeClass == .regular ? 96 : 63, height: sizeClass == .regular ? 96 : 63)
-                    .overlay {
-                        if let image = store.image(named: download.imageFileName) {
-                            Image(platformImage: image).resizable().scaledToFill()
-                        } else {
-                            Image(systemName: isBook ? "book.fill" : "mic.fill").foregroundStyle(Color.usher)
-                        }
-                    }
+                    .overlay { DownloadThumbnail(names: download.imageFileName.map { [$0] } ?? [], symbol: isBook ? "book.fill" : "mic.fill") }
                     .overlay(alignment: .bottom) {
                         if download.isDownloaded, download.finishedAt == nil, download.durationSeconds > 0, download.position > 0 {
                             ProgressBar(value: min(1, download.position / download.durationSeconds)).padding(5)

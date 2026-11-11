@@ -84,8 +84,9 @@ struct LiveTvView: View {
             }
         }
         .background(RoomBackground(ambient: nil))
-        // What's on moves on: fetched again each minute while the screen is up.
-        .task {
+        // What's on moves on: fetched again each minute while the screen is up (not under another, nor in the background,
+        // where music can keep the app alive).
+        .whileShown {
             while !Task.isCancelled {
                 // A channel plays over this screen rather than replacing it.
                 if !model.liveTv.isWatching {
@@ -98,15 +99,15 @@ struct LiveTvView: View {
         // The guide: looked at every five minutes and fetched again once it's old, a recording has started or ended
         // since (its mark changes), or it wasn't had: a fetch that failed is tried again at the next look. Also as the
         // channels arrive, the category changes (Favourites has only its own) and the window moves towards its end.
-        .task {
+        .whileShown {
             while !Task.isCancelled {
                 await loadGuide(countsUpcoming: true)
                 try? await Task.sleep(for: .seconds(300))
             }
         }
         // Rows with no way into them: sooner than the next look.
-        .task(id: guideIsShort && guideProblem != nil) {
-            guard guideIsShort, guideProblem != nil else { return }
+        .task(id: guideIsShort && guideProblem != nil && isVisible && scenePhase == .active) {
+            guard guideIsShort, guideProblem != nil, isVisible, scenePhase == .active else { return }
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(30))
                 if !Task.isCancelled { await loadGuide() }

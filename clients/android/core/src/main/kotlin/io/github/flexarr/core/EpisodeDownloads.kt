@@ -95,6 +95,45 @@ object EpisodeGroupRules {
     fun groupsHolding(episodes: List<ItemSummary>): Set<String> = episodes.flatMap { listOfNotNull(it.seriesId, it.parentId) }.toSet()
 }
 
+/**
+ * What went wrong while a show's or a season's episodes were asked of the server one by one: the first failure's reason
+ * (said at the end), and whether to give up. A refusal of one episode (gone, not allowed) leaves the rest to carry on,
+ * but [MOST_UNREACHABLE] requests in a row that couldn't reach the server stop the batch, rather than each of hundreds
+ * waiting out its timeout.
+ */
+class EpisodeBatchFailures {
+    /** The first failure's reason, or what stopped the batch once it gave up. */
+    var message: String? = null
+        private set
+    var gaveUp = false
+        private set
+    private var unreachableInARow = 0
+
+    /** One episode was asked for. */
+    fun succeeded() {
+        unreachableInARow = 0
+    }
+
+    /** One episode couldn't be asked for, because of [error]: true when the batch should stop here. */
+    fun failed(error: Throwable, fallback: String): Boolean {
+        if (message == null) message = error.message ?: fallback
+        unreachableInARow = if (isOutOfReach(error)) unreachableInARow + 1 else 0
+        if (unreachableInARow >= MOST_UNREACHABLE) {
+            gaveUp = true
+            message = t("Couldn’t reach the server. The rest weren’t downloaded.")
+        }
+        return gaveUp
+    }
+
+    companion object {
+        const val MOST_UNREACHABLE = 3
+
+        /** Nothing answered, or only a proxy in front of a server that's down. */
+        fun isOutOfReach(error: Throwable): Boolean =
+            error is FlexarrException.Unreachable || (error is FlexarrException.Http && error.status in 502..504)
+    }
+}
+
 /** A show's episodes on the Downloads screen: its name, and its downloads by season then episode. */
 data class DownloadedShow(
     /** The show's id, or its name when the server didn't say (servers before seriesId). */

@@ -35,6 +35,15 @@ public sealed partial class MetadataRefresher(
 {
     private static readonly TimeSpan StaleAfter = TimeSpan.FromDays(7);
     private static readonly TimeSpan RetryUnmatchedAfter = TimeSpan.FromDays(1);
+
+    /// <summary>
+    /// Covers that couldn't be read (without Lidarr), by item and the cover's address, and when to try again: a day on,
+    /// not every scan. Kept in memory, so a restart tries each once more.
+    /// </summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<(Guid Item, string Cover), DateTime> UnreadCovers = new();
+
+    /// <summary>More unreadable covers remembered than this and the list starts again, so it can't grow without end.</summary>
+    private const int MostUnreadCovers = 10_000;
     private const int MaxCast = 24;
 
     /// <summary>The source of a film's or show's details when they came from searching for its folder's name.</summary>
@@ -601,18 +610,40 @@ public sealed partial class MetadataRefresher(
                         && (scanned == null || scanned.Contains(i.Id)))))
             .ToListAsync(ct).ConfigureAwait(false);
         var unread = 0;
+        var now = DateTime.UtcNow;
         foreach (var item in items)
         {
+            // Asked for afresh (a forced refresh) it's tried whatever happened last time.
+            if (!everything && !forced.Contains(item.Id) && UnreadCovers.TryGetValue((item.Id, item.PosterUrl!), out var retryAt) && retryAt > now)
+            {
+                unread++;
+                continue;
+            }
+
             string? accent;
             try
             {
                 accent = await images.ReadAccentColorAsync(item.PosterUrl!, ct).ConfigureAwait(false);
             }
-            catch (Exception ex) when (ex is ImageCacheBusyException or ImageNotReadException)
+            catch (ImageCacheBusyException)
             {
                 unread++;
                 continue; // not looked at: the next refresh tries again
             }
+            catch (ImageNotReadException)
+            {
+                // Looked at and unreadable: not again until tomorrow, though a scan comes every 12 hours.
+                if (UnreadCovers.Count >= MostUnreadCovers)
+                {
+                    UnreadCovers.Clear();
+                }
+
+                UnreadCovers[(item.Id, item.PosterUrl!)] = now + RetryUnmatchedAfter;
+                unread++;
+                continue;
+            }
+
+            UnreadCovers.TryRemove((item.Id, item.PosterUrl!), out _);
 
             if (accent != item.AccentColor || item.MetadataUpdatedAt is null)
             {

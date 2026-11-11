@@ -106,7 +106,7 @@ final class TrickplayPreviews {
     }()
 
     nonisolated private static func loadSheet(_ url: URL) async -> PlatformImage? {
-        guard let (data, response) = try? await sheetSession.data(from: url),
+        guard let (data, response) = try? await sheetSession.data(for: GuestTunnelToken.request(url)),
               (response as? HTTPURLResponse)?.statusCode == 200,
               let image = PlatformImage(data: data) else { return nil }
         return await image.preparedForDisplay()

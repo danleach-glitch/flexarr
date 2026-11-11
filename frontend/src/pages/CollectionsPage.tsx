@@ -26,8 +26,9 @@ import { RequestButton } from '../components/RequestButton'
 import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
 import { usePlay } from '../hooks/usePlay'
+import { useConfirm } from '../hooks/useConfirm'
 import { t, Words } from '../i18n'
-import '../styles/settings.lazy.css'
+import '../styles/shared.lazy.css'
 
 /** All collections: suggestions to add, then yours, the household's and the franchises Radarr knows. */
 export function CollectionsPage() {
@@ -176,6 +177,7 @@ export function CollectionPage() {
   const [message, setMessage] = useState<string>()
   const navigate = useNavigate()
   const play = usePlay()
+  const [ask, confirmDialog] = useConfirm()
   const reload = () => {
     setOrder(undefined)
     setVersion((v) => v + 1)
@@ -218,6 +220,7 @@ export function CollectionPage() {
 
   return (
     <article className="collection-page">
+      {confirmDialog}
       {data.backdrop && (
         <div className="collection-backdrop" aria-hidden="true">
           <img {...backdropSources(data.backdrop)} alt="" />
@@ -269,17 +272,18 @@ export function CollectionPage() {
                 label={c.kind === 'Franchise' ? t('Hide') : c.kind === 'TraktList' ? t('Remove') : t(Words.delete)}
                 icon={c.kind === 'Franchise' ? <EyeOff /> : <icon.delete />}
                 className="button quiet icon danger-icon"
-                onClick={() => {
-                  if (
-                    !confirm(
+                onClick={async () => {
+                  const yes = await ask({
+                    title:
                       c.kind === 'Franchise'
                         ? t('Hide {name}? It won’t come back with the next sync.', { name: c.name })
                         : c.kind === 'TraktList'
                           ? t('Stop showing {name}? It stays on Trakt.', { name: c.name })
                           : t('Delete {name}? The titles stay in your library.', { name: c.name }),
-                    )
-                  )
-                    return
+                    confirmLabel: c.kind === 'Franchise' ? t('Hide') : c.kind === 'TraktList' ? t('Remove') : t('Delete collection'),
+                    danger: true,
+                  })
+                  if (!yes) return
                   return deleteCollection(c.id).then(() => navigate('/collections', { replace: true }))
                 }}
               />

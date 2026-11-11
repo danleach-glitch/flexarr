@@ -363,7 +363,8 @@ public sealed partial class LibraryScanWorker(
 
         // A whole library was scanned (at startup, twice a day, after the connections change): first save any mapping its
         // titles make certain, so the refresh below can link them to Sonarr, Radarr or Lidarr.
-        if (targets.Any(t => t.Library.Folders.Any(f => PathComparison.IsUnder(f.Path, t.Scope))))
+        var whole = targets.Any(t => t.Library.Folders.Any(f => PathComparison.IsUnder(f.Path, t.Scope)));
+        if (whole)
         {
             try
             {
@@ -397,7 +398,8 @@ public sealed partial class LibraryScanWorker(
         // A film or show that came back under a new folder only has its TMDB/TVDB id once Radarr or Sonarr matched it.
         await WatchHistoryCarryOver.CarryOverAsync(db, ct);
         await TraktHolds.ApplyAsync(db, ct);
-        await TitleLinker.LinkAsync(db, ct);
+        // A whole folder relinks everything; a folder or file in one (the folder watcher, a webhook) only what's in it.
+        await TitleLinker.LinkAsync(db, whole ? null : await InScopeAsync(db, targets.Select(t => t.Scope), ct), ct);
 
         // Not when there's more to see: the next try at it isn't to be taken for a scan that's already been.
         var again = incomplete || unread;
@@ -412,6 +414,26 @@ public sealed partial class LibraryScanWorker(
         }
 
         return again;
+    }
+
+    /// <summary>
+    /// The items a scan of <paramref name="scopes"/> (folders or files) could have changed: those with files there, gone
+    /// or not, and those whose own folder is there. LIKE matches regardless of case, and its wildcards only ever find more.
+    /// </summary>
+    internal static async Task<List<Guid>> InScopeAsync(FlexarrDbContext db, IEnumerable<string> scopes, CancellationToken ct)
+    {
+        var items = new List<Guid>();
+        foreach (var scope in scopes.Distinct(StringComparer.Ordinal))
+        {
+            var folder = scope.TrimEnd('/');
+            var under = folder + "/%";
+            items.AddRange(await db.MediaFiles.IgnoreQueryFilters().AsNoTracking().Where(f => EF.Functions.Like(f.Path, folder) || EF.Functions.Like(f.Path, under))
+                .Select(f => f.MediaItemId).ToListAsync(ct));
+            items.AddRange(await db.MediaItems.IgnoreQueryFilters().AsNoTracking().Where(i => i.Path != null && (EF.Functions.Like(i.Path, folder) || EF.Functions.Like(i.Path, under)))
+                .Select(i => i.Id).ToListAsync(ct));
+        }
+
+        return [.. items.Distinct()];
     }
 
     /// <summary>

@@ -116,9 +116,9 @@ struct LiveTvView: View {
         }
         #endif
         // What's on moves on: fetched again each minute while the screen is up.
-        // Only while the app is in front: with music keeping it alive in the background, it would go on asking.
-        .task(id: scenePhase == .active) {
-            guard scenePhase == .active else { return }
+        // Only while it's on screen and the app is in front: with music keeping it alive in the background, or a screen
+        // pushed over it, it would go on asking.
+        .whileShown {
             while !Task.isCancelled {
                 // A channel plays over this screen rather than replacing it.
                 if !model.liveTv.isWatching {
@@ -396,7 +396,7 @@ struct LiveTvView: View {
                     ? t("{title} clashes with recordings already on the list: every stream is wanted then, so it won’t record unless one of them comes off.", ["title": programme.title])
                     : t("{title} will be recorded. Recordings, at the top, lists what’s set.", ["title": programme.title])
             } catch {
-                notice = error.localizedDescription
+                notice = ConnectionError(error).message
             }
         }
     }

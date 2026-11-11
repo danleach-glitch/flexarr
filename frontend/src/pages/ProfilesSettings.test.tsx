@@ -156,13 +156,14 @@ describe('Profile menu', () => {
       '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
       'DELETE /session': undefined,
     })
-    vi.stubGlobal('confirm', () => true)
     const assign = vi.fn()
     vi.stubGlobal('location', { ...window.location, assign })
 
     renderAt('/')
     fireEvent.click(await screen.findByRole('button', { name: 'Profile: Kids' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Sign out of this browser' }))
+    // Asked first, in the app's own dialog.
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Sign out' }))
 
     await vi.waitFor(() => expect(assign).toHaveBeenCalledWith('/'))
     expect(fetchMock.mock.calls.some(([input, init]) => String(input).endsWith('/session') && init?.method === 'DELETE')).toBe(true)

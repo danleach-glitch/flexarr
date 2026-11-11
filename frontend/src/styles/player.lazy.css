@@ -744,3 +744,43 @@
     bottom: 120px;
   }
 }
+
+/* The phones' ⋯, which holds speed, quality, sleep, picture in picture and AirPlay there. */
+.player-narrow-only {
+  display: none;
+}
+
+/* Phones, and windows up to 680 px (where the full row, with picture in picture and AirPlay, would run off): Play,
+   Previous, Next, Subtitles, Audio, ⋯ and Full screen in one row (7 × 44 px and the gaps fit the 343 px a 375 px phone
+   leaves), with the time on its own line above them. ±10 goes (the arrow keys and the bar do it). Measured in Chrome at
+   320–760 px. */
+@media (max-width: 680px) {
+  .player-wide-only {
+    display: none;
+  }
+
+  .player-narrow-only {
+    display: block;
+  }
+
+  .player-buttons {
+    flex-wrap: wrap;
+    gap: 2px;
+  }
+
+  .player-time {
+    order: -1;
+    flex-basis: 100%;
+    margin: 0 0 2px;
+    font-size: var(--step--1);
+  }
+
+  .player-controls {
+    padding-top: 64px;
+  }
+
+  .skip-pill,
+  .up-next {
+    bottom: 136px;
+  }
+}

@@ -56,21 +56,95 @@ public sealed class ArtworkAccentTests : IAsyncLifetime
         Assert.False(Directory.Exists(Path.Combine(_dir, "images")) && Directory.EnumerateFiles(Path.Combine(_dir, "images"), "*", SearchOption.AllDirectories).Any());
     }
 
-    private MetadataRefresher Refresher(HttpMessageHandler radarr)
+    [Fact]
+    public async Task AnAlbumCoverThatCantBeRead_IsntFetchedAgainEveryScan()
     {
-        var settings = new Settings(_dir);
-        return new MetadataRefresher(_db, new ArrClient(new HttpClient(radarr)), new TvMazeClient(new HttpClient(radarr)),
-            new ImageCache(new HttpClient(radarr), settings, NullLogger<ImageCache>.Instance), settings, NullLogger<MetadataRefresher>.Instance);
+        var music = new Library { Name = "Music", Type = LibraryType.Music };
+        _db.Libraries.Add(music);
+        _db.MediaItems.Add(new MediaItem { LibraryId = music.Id, Kind = MediaKind.Album, Title = "Album", SortTitle = "album", PosterUrl = $"https://covers.test/{Guid.NewGuid():N}.jpg" });
+        await _db.SaveChangesAsync();
+        var covers = new Missing();
+
+        // The image cache itself would wait five minutes; this is about the next scan, hours later.
+        await Refresher(covers, goneFor: TimeSpan.Zero).RefreshLibraryAsync(music, force: false, default);
+        await Refresher(covers, goneFor: TimeSpan.Zero).RefreshLibraryAsync(music, force: false, default);
+        Assert.Equal(1, covers.Requests);
+
+        await Refresher(covers, goneFor: TimeSpan.Zero).RefreshLibraryAsync(music, force: true, default); // asked for: tried again
+        Assert.Equal(2, covers.Requests);
     }
 
-    private sealed class Settings(string cache) : IMetadataSettings
+    [Fact]
+    public async Task AnHttpsPictureBouncedToPlainHttp_IsAskedForAgainOverHttps()
+    {
+        var host = new BouncesOnce();
+        var images = new ImageCache(new HttpClient(host), new Settings(_dir, "false"), NullLogger<ImageCache>.Instance); // No ffmpeg: the picture is kept as it came.
+
+        var path = await images.GetAsync("https://static.tvmaze.com/uploads/images/original_untouched/31/79212.jpg", null, default);
+
+        Assert.NotNull(path);
+        Assert.Equal(["https", "https"], host.Schemes);
+    }
+
+    [Theory]
+    [InlineData("https://static.tvmaze.com/a.jpg", "http://static.tvmaze.com/a.jpg", true)]
+    [InlineData("https://static.tvmaze.com/a.jpg", "http://evil.example/a.jpg", false)]
+    [InlineData("https://static.tvmaze.com/a.jpg", "http://static.tvmaze.com:8080/a.jpg", false)]
+    [InlineData("https://static.tvmaze.com/a.jpg", "https://static.tvmaze.com/b.jpg", false)]
+    public void OnlyASameSiteMoveToPlainHttp_IsADowngrade(string from, string to, bool downgrade) =>
+        Assert.Equal(downgrade, ImageCache.Downgrade(new Uri(from), new Uri(to)));
+
+    /// <summary>Like TVmaze now and then: the first request bounces to plain http, the next answers.</summary>
+    private sealed class BouncesOnce : HttpMessageHandler
+    {
+        public List<string> Schemes { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            lock (Schemes)
+            {
+                Schemes.Add(request.RequestUri!.Scheme);
+                if (Schemes.Count == 1)
+                {
+                    var bounce = new HttpResponseMessage(HttpStatusCode.MovedPermanently);
+                    bounce.Headers.Location = new UriBuilder(request.RequestUri) { Scheme = "http", Port = -1 }.Uri;
+                    return Task.FromResult(bounce);
+                }
+            }
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(Convert.FromBase64String(RedJpeg)) });
+        }
+    }
+
+    private MetadataRefresher Refresher(HttpMessageHandler radarr, TimeSpan? goneFor = null)
+    {
+        var settings = new Settings(_dir);
+        var images = new ImageCache(new HttpClient(radarr), settings, NullLogger<ImageCache>.Instance);
+        images.GoneFor = goneFor ?? images.GoneFor;
+        return new MetadataRefresher(_db, new ArrClient(new HttpClient(radarr)), new TvMazeClient(new HttpClient(radarr)),
+            images, settings, NullLogger<MetadataRefresher>.Instance);
+    }
+
+    /// <summary>Answers 404 to everything, and counts.</summary>
+    private sealed class Missing : HttpMessageHandler
+    {
+        public int Requests;
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref Requests);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+        }
+    }
+
+    private sealed class Settings(string cache, string ffmpeg = "ffmpeg") : IMetadataSettings
     {
         public IReadOnlyList<ArrInstance> ArrInstances { get; } =
             [new ArrInstance { Name = "Radarr", Kind = ArrKind.Radarr, BaseUrl = new Uri("http://radarr.test"), ApiKey = "key" }];
 
         public IReadOnlyList<PathMapping> PathMappings { get; } = [];
         public string CacheDirectory => cache;
-        public string FfmpegPath => "ffmpeg";
+        public string FfmpegPath => ffmpeg;
     }
 
     /// <summary>Radarr with one film, whose poster is wherever it says.</summary>

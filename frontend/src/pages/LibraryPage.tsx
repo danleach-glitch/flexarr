@@ -15,6 +15,7 @@ import { libraryGenreLink } from '../lib/links'
 import { onDemand } from '../lib/onDemand'
 import { useLibraries } from '../hooks/librariesContext'
 import { useApi } from '../hooks/useApi'
+import { useScrollHints } from '../hooks/useScrollHints'
 import { useWatchedChanges } from '../hooks/watched'
 import { LibraryRequested } from './LibraryRequested'
 import { AlphaPicker, AlphaRail, ShowEarlier, ShowMore, useLibraryGrid } from './libraryGrid'
@@ -96,6 +97,8 @@ const hasGenres = (library: Library) => library.type === 'Movies' || library.typ
 
 function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all' | 'albums' | 'genres' | 'playlists' | 'requested' }) {
   const current = (v: typeof view) => (view === v ? 'page' : undefined)
+  // On a phone the views scroll: the edge with more beyond it fades, and the open one is scrolled to.
+  const row = useScrollHints<HTMLElement>(view)
   // Requested is there when the library's kind can be asked for (music through Lidarr, films and shows through Seerr).
   // The status is cached, so every view asking is cheap.
   const music = library.type === 'Music'
@@ -105,7 +108,7 @@ function ViewSwitch({ library, view }: { library: Library; view: 'browse' | 'all
     [music, requestable],
   )
   return (
-    <nav className="view-switch" aria-label={t('{name} views', { name: library.name })}>
+    <nav ref={row} className="view-switch" aria-label={t('{name} views', { name: library.name })}>
       <Link to={`/library/${library.id}`} aria-current={current('browse')}>
         {t(Words.browse)}
       </Link>

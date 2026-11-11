@@ -8,10 +8,10 @@ import { Close, RecordDot, Stop } from '../components/icons'
 import { icon } from '../components/icons.generated'
 import { useApi } from '../hooks/useApi'
 import { usePolling } from '../hooks/usePolling'
+import { useConfirm } from '../hooks/useConfirm'
 import { formatSize } from '../lib/format'
 import { programmeTime } from '../lib/livetv'
 import { locale, t, Words } from '../i18n'
-import '../styles/settings.lazy.css'
 import '../styles/livetv.lazy.css'
 
 const day = { format: (d: Date) => d.toLocaleDateString(locale(), { weekday: 'short', day: 'numeric', month: 'short' }) }
@@ -37,6 +37,7 @@ export default function LiveRecordings() {
     }
     setVersion((v) => v + 1)
   }
+  const [ask, confirmDialog] = useConfirm()
 
   const data = recordings.data
   if (recordings.error && !data) return <p className="error">{t('Couldn’t load the recordings: {error}', { error: recordings.error.message })}</p>
@@ -44,6 +45,7 @@ export default function LiveRecordings() {
 
   return (
     <div className="recordings">
+      {confirmDialog}
       <p className="muted recordings-summary">
         {data.folder && <>{t.rich('Recordings go to {folder}', { folder: <code>{data.folder}</code> })}{'\u2003'}</>}
         {data.freeBytes != null && <>{t('{size} free', { size: formatSize(data.freeBytes) })}{'\u2003'}</>}
@@ -119,7 +121,10 @@ export default function LiveRecordings() {
                     label={r.state === 'completed' ? t(Words.delete) : t('Clear')}
                     icon={r.state === 'completed' ? <icon.delete /> : <Close />}
                     className={r.state === 'completed' ? 'button quiet small icon danger-icon' : undefined}
-                    onClick={() => (r.state !== 'completed' || window.confirm(t('Delete the recording of {title}?', { title: r.title }))) && act(() => removeRecording(r.id))}
+                    onClick={async () =>
+                      (r.state !== 'completed' || (await ask({ title: t('Delete the recording of {title}?', { title: r.title }), confirmLabel: t('Delete recording'), danger: true }))) &&
+                      act(() => removeRecording(r.id))
+                    }
                   />
                 </div>
               </li>

@@ -532,10 +532,18 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
             if ((int)response.StatusCode is >= 300 and < 400 && response.Headers.Location is { } location)
             {
                 var next = location.IsAbsoluteUri ? location : new Uri(uri, location);
+                // TVmaze's picture host now and then bounces https to the same address over plain http: ask again
+                // over https rather than give up (or follow it off https).
+                var downgrade = Downgrade(uri, next);
+                if (downgrade)
+                {
+                    next = new UriBuilder(next) { Scheme = Uri.UriSchemeHttps, Port = -1 }.Uri;
+                }
+
                 if (hops >= MaxRedirects || !MayFollow(uri, next))
                 {
-                    LogRedirectRefused(remoteUrl, next.ToString());
-                    job.RetryAfter = GoneFor;
+                    LogRedirectRefused(remoteUrl, location.ToString());
+                    job.RetryAfter = downgrade ? UnavailableFor : GoneFor;
                     return false;
                 }
 
@@ -607,6 +615,11 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
         SameSite(from, to)
         || (PlainHttps(to) && KnownRedirects.Any(r => string.Equals(from.Host, r.From, StringComparison.OrdinalIgnoreCase)
             && string.Equals(Site(to.Host), r.ToSite, StringComparison.OrdinalIgnoreCase)));
+
+    /// <summary>Whether a redirect only moves an https address on the same site to plain http.</summary>
+    internal static bool Downgrade(Uri from, Uri to) =>
+        from.Scheme == Uri.UriSchemeHttps && to.Scheme == Uri.UriSchemeHttp && to.IsDefaultPort && to.HostNameType == UriHostNameType.Dns
+        && string.Equals(Site(from.Host), Site(to.Host), StringComparison.OrdinalIgnoreCase);
 
     private static bool PlainHttps(Uri to) => to.Scheme == Uri.UriSchemeHttps && to.HostNameType == UriHostNameType.Dns && to.IsDefaultPort;
 

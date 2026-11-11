@@ -33,6 +33,8 @@ struct DetailView: View {
     @State private var showingVersions = false
     @State private var subtitleSearchFile: SubtitleSearchFile?
     @State private var savedSubtitles: String?
+    /// A version chosen here that the server didn't take: said in an alert of its own.
+    @State private var versionProblem: String?
     /// Said once the search has gone (an alert can't come up while the search is still leaving).
     @State private var subtitlesJustSaved: String?
     @Environment(\.scenePhase) private var scenePhase
@@ -104,6 +106,9 @@ struct DetailView: View {
             }
         }
         .alert(savedSubtitles ?? "", isPresented: Binding(get: { savedSubtitles != nil }, set: { if !$0 { savedSubtitles = nil } })) {
+            Button(t("OK"), role: .cancel) {}
+        }
+        .alert(versionProblem ?? "", isPresented: Binding(get: { versionProblem != nil }, set: { if !$0 { versionProblem = nil } })) {
             Button(t("OK"), role: .cancel) {}
         }
         .task(id: model.refreshToken) {
@@ -303,25 +308,17 @@ struct DetailView: View {
                         }
                     }
                 }
-                .confirmationDialog(t(Words.version), isPresented: $showingVersions, titleVisibility: .visible) {
-                    let versions = detail?.versions ?? []
-                    let chosen = versions.first(where: \.chosen)
-                    Button(chosen == nil ? "✓ \(t(Words.automatic))" : t(Words.automatic)) {
-                        chooseVersion(item, nil)
-                    }
-                    ForEach(versions) { version in
-                        let name = version.name(among: versions)
-                        Button(version.chosen ? "✓ \(name)" : name) {
-                            chooseVersion(item, version.fileId)
-                        }
-                    }
+                .fullScreenCover(isPresented: $showingVersions) {
+                    VersionChoiceView(versions: detail?.versions ?? [], choose: { chooseVersion(item, $0) },
+                                      close: { showingVersions = false })
+                        .presentationBackground(Color.black.opacity(0.45))
                 }
         }
     }
 
     private func chooseVersion(_ item: ItemSummary, _ fileId: String?) {
         Task {
-            if await !model.chooseVersion(item, fileId: fileId) { savedSubtitles = t("That didn’t work. Try again.") }
+            if await !model.chooseVersion(item, fileId: fileId) { versionProblem = t("That didn’t work. Try again.") }
         }
     }
 

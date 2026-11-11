@@ -1128,7 +1128,7 @@ export function dropStream(sessionId: string) {
 
 export function stopPlayback(sessionId: string) {
   clearApiCache()
-  return fetch(`/api/v1/playback/${seg(sessionId)}`, { method: 'DELETE', keepalive: true }).catch(() => undefined)
+  return fetch(`/api/v1/playback/${seg(sessionId)}`, { method: 'DELETE', headers: authHeaders(), keepalive: true }).catch(() => undefined)
 }
 
 export const getSettings = (signal?: AbortSignal) => cachedGet<Settings>('/settings', signal)

@@ -155,7 +155,10 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   const moreButton = useRef<HTMLButtonElement>(null)
   const versions = detail.versions ?? []
   const chosenVersion = versions.find((v) => v.chosen)?.fileId ?? null
-  if (versions.length > 1) more.push({ label: t(Words.version), run: () => setVersionAt(moreAt) })
+  const chosen = versions.find((v) => v.fileId === chosenVersion)
+  if (versions.length > 1) {
+    more.push({ label: t('Version: {name}', { name: chosen ? versionName(chosen, versions) : t(Words.automatic) }), run: () => setVersionAt(moreAt) })
+  }
   // A child's profile has no collections and doesn't find subtitles.
   if ((item.kind === 'Movie' || item.kind === 'Series') && !kids) more.push({ label: t('Add to collection…'), run: () => openAddToCollection(item) })
   if (detail.canSearchSubtitles && !kids) more.push({ label: t('Search for subtitles…'), run: () => setFindingSubtitles(true) })
@@ -252,7 +255,8 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
             ]}
           />
           {detail.overview && <Overview text={detail.overview} />}
-          <div className="detail-actions">
+          {/* title-actions: on a phone, Play spelled out and the rest as labelled icons under it (detail.css). */}
+          <div className="detail-actions title-actions">
             {playTarget && (
               <button
                 className="button"
@@ -281,7 +285,8 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
             )}
             {!kids && (
               <AsyncButton className="button quiet" aria-pressed={item.userData.watched} onClick={toggleWatched}>
-                {item.userData.watched ? <icon.isWatched /> : <icon.watched />} {item.userData.watched ? t('Watched') : t(Words.markAsWatched)}
+                {/* A toggle: the tick fills, the name stays (docs/design.md). */}
+                {item.userData.watched ? <icon.isWatched /> : <icon.watched />} {t('Watched')}
               </AsyncButton>
             )}
             {detail.onWatchlist != null && !kids && <WatchlistButton titleKey={{ libraryItemId: item.id }} title={item.title} on={detail.onWatchlist} />}
@@ -298,6 +303,10 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
                 }}
               >
                 <icon.more />
+                {/* Named under its icon on a phone, like the actions beside it. */}
+                <span className="title-action-label" aria-hidden="true">
+                  {t('More')}
+                </span>
               </button>
             )}
             {moreAt && <Menu label={t('More for {title}', { title: item.title })} at={moreAt} actions={more} onClose={() => setMoreAt(null)} focusBack={moreButton} />}
@@ -544,7 +553,7 @@ function FileInfo({ files, versions, itemId, kind }: { files: MediaFile[]; versi
   const count = files.length + elsewhere.length
   return (
     <details className="file-info">
-      <summary>{count > 1 ? t('{count} files on disk', { count }) : t('File and stream details')}</summary>
+      <summary>{count > 1 ? t('{count, plural, one {# file on disk} other {# files on disk}}', { count }) : t('File and stream details')}</summary>
       {elsewhere.map((v) => (
         <div key={v.fileId} className="file">
           <p>{[versionName(v, versions), v.videoCodec?.toUpperCase(), v.audioCodec?.toUpperCase(), formatSize(v.size)].filter(Boolean).join(', ')}</p>

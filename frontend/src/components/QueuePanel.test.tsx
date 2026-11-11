@@ -55,6 +55,69 @@ describe('the queue', () => {
     expect(container.querySelector('.drag-over')).toBeNull()
   })
 
+  it('redraws none of the rows after a track that goes, and hands focus to the next one', () => {
+    const player = { current: tracks[0], queue: tracks, index: 0, playing: true, removeFromQueue: vi.fn() } as unknown as AudioPlayer
+    const { container, rerender, getByRole } = render(
+      <AudioPlayerContext value={player}>
+        <QueuePanel onClose={() => {}} />
+      </AudioPlayerContext>,
+    )
+    const third = getByRole('button', { name: 'Play Track 3 now' })
+    fireEvent.click(getByRole('button', { name: 'Remove Track 2 from the queue' }))
+    expect(player.removeFromQueue).toHaveBeenCalledWith(1)
+    imageUrl.mockClear()
+    rerender(
+      <AudioPlayerContext value={{ ...player, queue: tracks.filter((_, i) => i !== 1) } as unknown as AudioPlayer}>
+        <QueuePanel onClose={() => {}} />
+      </AudioPlayerContext>,
+    )
+    // The same rows, kept: only Track 3, now first (its Move up goes), is drawn again, not the 37 after it.
+    expect(upcomingDrawn()).toBe(1)
+    expect(container.querySelectorAll('.queue-list > li')).toHaveLength(38)
+    expect(getByRole('button', { name: 'Play Track 3 now' })).toBe(third)
+    expect(document.activeElement).toBe(third)
+  })
+
+  it('hands focus to Close when the last track goes, and undoes a Clear', () => {
+    const queue = tracks.slice(0, 2)
+    const player = { current: tracks[0], queue, index: 0, playing: true, removeFromQueue: vi.fn(), clearQueue: vi.fn(), playNext: vi.fn() } as unknown as AudioPlayer
+    const { rerender, getByRole } = render(
+      <AudioPlayerContext value={player}>
+        <QueuePanel onClose={() => {}} />
+      </AudioPlayerContext>,
+    )
+    const clear = getByRole('button', { name: 'Clear' })
+    clear.focus()
+    fireEvent.click(clear)
+    expect(player.clearQueue).toHaveBeenCalled()
+    const empty = { ...player, queue: [tracks[0]] } as unknown as AudioPlayer
+    rerender(
+      <AudioPlayerContext value={empty}>
+        <QueuePanel onClose={() => {}} />
+      </AudioPlayerContext>,
+    )
+    // The same button, now Undo, keeps focus.
+    expect(clear).toHaveTextContent('Undo')
+    expect(clear).toBeEnabled()
+    expect(document.activeElement).toBe(clear)
+    fireEvent.click(clear)
+    expect(player.playNext).toHaveBeenCalledWith([tracks[1]])
+    rerender(
+      <AudioPlayerContext value={player}>
+        <QueuePanel onClose={() => {}} />
+      </AudioPlayerContext>,
+    )
+    expect(clear).toHaveTextContent('Clear')
+
+    fireEvent.click(getByRole('button', { name: 'Remove Track 2 from the queue' }))
+    rerender(
+      <AudioPlayerContext value={empty}>
+        <QueuePanel onClose={() => {}} />
+      </AudioPlayerContext>,
+    )
+    expect(document.activeElement).toBe(getByRole('button', { name: 'Close queue' }))
+  })
+
   it('redraws none of the upcoming tracks when the player pauses', () => {
     const player = { current: tracks[0], queue: tracks, index: 0, playing: true, moveInQueue: vi.fn() } as unknown as AudioPlayer
     const { rerender } = render(

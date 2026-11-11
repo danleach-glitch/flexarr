@@ -32,4 +32,29 @@ public class StreamSummaryTests
 
         Assert.Equal("1080p H.264 at 8 Mbps, HDR converted to SDR", PlaybackService.Summary(plan, file));
     }
+
+    [Theory]
+    [InlineData(VideoRange.Hdr10, false, false, "HDR10", false)]
+    [InlineData(VideoRange.DolbyVision, true, false, "DolbyVision", true)]
+    [InlineData(VideoRange.DolbyVision, true, true, "HDR10", true)]
+    [InlineData(VideoRange.Sdr, false, false, "SDR", false)]
+    public void RepackagedVideo_IsDescribedInFields_AsTheSummarySaysIt(VideoRange range, bool hdr10Plus, bool stripDolbyVision, string expected, bool plus)
+    {
+        var plan = new TranscodePlan(0, 1, 3840, 2160, 0, ToneMap: false, CopyAudio: false, AudioChannels: 8, BurnSubtitle: null, LosslessAudio: true)
+        {
+            Repackage = new Repackage([0], "hvc1", "hvc1.2.4.L153.B0", null, "PQ", stripDolbyVision),
+        };
+        var file = new MediaFile { Path = "/m.mkv", VideoCodec = "hevc", VideoRange = range, Hdr10Plus = hdr10Plus };
+
+        Assert.Equal(new StreamSummaryDto(true, "hevc", expected, plus, null, null, false, true, 8), PlaybackService.StreamOf(plan, file));
+    }
+
+    [Fact]
+    public void ConvertedVideo_IsDescribedInFields()
+    {
+        var plan = new TranscodePlan(0, 1, 1920, 1080, 8_000_000, ToneMap: true, CopyAudio: true, AudioChannels: 6, BurnSubtitle: null);
+        var file = new MediaFile { Path = "/m.mkv", VideoCodec = "hevc", VideoRange = VideoRange.Hdr10, Hdr10Plus = true };
+
+        Assert.Equal(new StreamSummaryDto(false, "h264", null, false, 1080, 8_000_000, true, false, null), PlaybackService.StreamOf(plan, file));
+    }
 }

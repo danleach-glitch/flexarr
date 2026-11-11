@@ -576,6 +576,13 @@ export const Shield = (p: IconProps) => (
     <path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V6L12 3Z" />
   </svg>
 )
+/** The PIN pad's erase key: a key-shaped arrow with an ✕. */
+export const Backspace = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M21 5H9l-6 7 6 7h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1Z" />
+    <path d="m12.5 9.5 5 5M17.5 9.5l-5 5" />
+  </svg>
+)
 export const Padlock = (p: IconProps) => (
   <svg {...base} {...p}>
     <rect x="5" y="11" width="14" height="10" rx="2" />

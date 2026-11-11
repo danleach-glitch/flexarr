@@ -28,6 +28,7 @@ import { Crown, Pencil } from '../../components/icons'
 import { icon } from '../../components/icons.generated'
 import { Avatar } from '../../components/ProfilePicker'
 import { useApi } from '../../hooks/useApi'
+import { useConfirm } from '../../hooks/useConfirm'
 import { usePreviewUrl } from '../../hooks/usePreviewUrl'
 import { freeColour, profileColours } from '../../lib/profileColours'
 import { ageLimitText, ratingSteps } from '../../lib/ratings'
@@ -55,9 +56,11 @@ export function ProfilesSection() {
     setEditing(undefined)
     setVersion((v) => v + 1)
   }
+  const [ask, confirmDialog] = useConfirm()
 
   return (
     <section>
+      {confirmDialog}
       <SettingsHeader
         title={t('Profiles')}
         action={
@@ -126,7 +129,10 @@ export function ProfilesSection() {
                     aria-label={t('Remove {name}', { name: p.name })}
                     icon={<icon.delete />}
                     className="button quiet small icon danger-icon"
-                    onClick={() => confirm(t('Remove {name}’s profile? Their watch history goes with it.', { name: p.name })) && deleteProfile(p.id).then(reload)}
+                    onClick={async () =>
+                      (await ask({ title: t('Remove {name}’s profile? Their watch history goes with it.', { name: p.name }), confirmLabel: t('Remove profile'), danger: true })) &&
+                      deleteProfile(p.id).then(reload)
+                    }
                   />
                 )}
               </span>

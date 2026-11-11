@@ -72,7 +72,7 @@ describe('copied video', () => {
     expect(wasCopyAsked(info)).toBe(true)
   })
 
-  it('asks the old way once copying failed in this browser, and when told to', async () => {
+  it('asks the old way for a title that failed, for every title once two have, and when told to', async () => {
     const first = await fresh()
     const sent: PlaybackRequest[] = []
     const start = async (request: PlaybackRequest) => {
@@ -82,15 +82,50 @@ describe('copied video', () => {
     await first.startVideo({ itemId: 'm1' }, start, false)
     expect(sent.pop()?.profile.fmp4).toBeUndefined()
 
-    first.rememberCopyingFailed()
+    // One failure: only that title.
+    first.rememberCopyingFailed('m1')
+    await first.startVideo({ itemId: 'm1' }, start)
+    expect(sent.pop()?.profile.fmp4).toBeUndefined()
     await first.startVideo({ itemId: 'm2' }, start)
+    expect(sent.pop()?.profile.fmp4).toBe(true)
+
+    // The same title again isn't a second title.
+    first.rememberCopyingFailed('m1')
+    expect(first.copyingFailed('m3')).toBe(false)
+
+    first.rememberCopyingFailed('m2')
+    await first.startVideo({ itemId: 'm3' }, start)
     expect(sent.pop()?.profile.fmp4).toBeUndefined()
 
     // Remembered by the browser, for later visits.
     const later = await fresh()
     expect(later.copyingFailed()).toBe(true)
-    await later.startVideo({ itemId: 'm2' }, start)
+    await later.startVideo({ itemId: 'm4' }, start)
     expect(sent.pop()?.profile.fmp4).toBeUndefined()
+  })
+
+  it('forgets failures after a week', async () => {
+    const { copyingFailed, rememberCopyingFailed, COPY_FAILED_FOR_MS } = await fresh()
+    const now = Date.now()
+    vi.spyOn(Date, 'now').mockReturnValue(now)
+    rememberCopyingFailed('m1')
+    rememberCopyingFailed('m2')
+    expect(copyingFailed('m5')).toBe(true)
+    vi.spyOn(Date, 'now').mockReturnValue(now + COPY_FAILED_FOR_MS + 1)
+    expect(copyingFailed('m1')).toBe(false)
+    expect(copyingFailed()).toBe(false)
+  })
+
+  it('reads the old lone time as one failure, and lets it expire', async () => {
+    localStorage.setItem('flexarr.copiedVideoFailed', String(Date.now()))
+    const { copyingFailed, rememberCopyingFailed, COPY_FAILED_FOR_MS } = await fresh()
+    expect(copyingFailed('m1')).toBe(false)
+    rememberCopyingFailed('m1')
+    expect(copyingFailed('m2')).toBe(true)
+
+    localStorage.setItem('flexarr.copiedVideoFailed', String(Date.now() - COPY_FAILED_FOR_MS - 1))
+    const later = await fresh()
+    expect(later.copyingFailed('m1')).toBe(false)
   })
 
   it('still remembers a failure for the visit when the browser keeps nothing', async () => {
@@ -101,8 +136,36 @@ describe('copied video', () => {
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('blocked')
     })
-    expect(copyingFailed()).toBe(false)
-    rememberCopyingFailed()
-    expect(copyingFailed()).toBe(true)
+    expect(copyingFailed('m1')).toBe(false)
+    rememberCopyingFailed('m1')
+    expect(copyingFailed('m1')).toBe(true)
+  })
+})
+
+describe('stream badge', () => {
+  const stream = { videoCopied: true, videoCodec: 'hevc', dynamicRange: 'DolbyVision', hdr10Plus: true, height: null, videoBitrate: null, toneMapped: false, losslessAudio: false, audioChannels: null }
+
+  it('words the fields, whatever the English summary says', async () => {
+    const { streamBadge } = await fresh()
+    expect(streamBadge(answer({ transcodeSummary: 'Anything', stream }))).toBe('Original HEVC (Dolby Vision, HDR10+), repackaged')
+    expect(streamBadge(answer({ stream: { ...stream, videoCodec: 'h264', dynamicRange: 'SDR', hdr10Plus: false, losslessAudio: true, audioChannels: 8 } })))
+      .toBe('Original H.264, repackaged, lossless FLAC 7.1 sound')
+    expect(streamBadge(answer({ stream: { ...stream, videoCopied: false, videoCodec: 'h264', dynamicRange: null, height: 1080, videoBitrate: 8_000_000, toneMapped: true } })))
+      .toBe('Converting: 1080p H.264 at 8 Mbps, HDR converted to SDR')
+  })
+
+  it('falls back on the summary from older servers', async () => {
+    const { streamBadge } = await fresh()
+    expect(streamBadge(answer())).toBe('Original H.264, repackaged')
+    expect(streamBadge(answer({ transcodeSummary: '720p H.264 at 3 Mbps' }))).toBe('Converting: 720p H.264 at 3 Mbps')
+    expect(streamBadge(answer({ transcodeSummary: null }))).toBeNull()
+  })
+
+  it('takes a copied HEVC picture from the fields over the summary', async () => {
+    playsHevcAndFlac()
+    const { startVideo } = await fresh()
+    const start = vi.fn(async () => answer({ transcodeSummary: 'Copie HEVC', stream }))
+    await startVideo({ itemId: 'm1' }, start)
+    expect(start).toHaveBeenCalledTimes(2) // asked again the old way
   })
 })

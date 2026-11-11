@@ -397,10 +397,10 @@ final class PlaybackController: NSObject {
             // No title: browsing isn't watching.
             log.info("Got ready ahead of Play", ["playbackId": ready.playbackId])
             #if canImport(AetherEngine)
-            // The same URL the engine will open, with no headers, as it opens it: anything else isn't adopted.
+            // The same URL and headers the engine will open it with (the guest tunnel's token, else none): anything else isn't adopted.
             if prewarmBytes, Self.usesEngine, ready.method == .directPlay, let url = client.url(for: ready.url) {
                 self.warmPrewarmed = true
-                _ = await AetherEngine.prewarm(url: url)
+                _ = await AetherEngine.prewarm(url: url, httpHeaders: GuestTunnelToken.headers(for: url))
             }
             #endif
             return stream
@@ -1231,7 +1231,7 @@ final class PlaybackController: NSObject {
     /// Why the server ended this transcode for another viewer, if it did: its playlist answers 410 with the reason.
     /// Gives up after a few seconds, so a server that's hung doesn't keep the player waiting.
     private static func takenOverReason(sessionId: String, baseURL: URL) async -> String? {
-        var request = URLRequest(url: baseURL.appending(path: "api/v1/playback/\(sessionId)/main.m3u8"))
+        var request = GuestTunnelToken.request(baseURL.appending(path: "api/v1/playback/\(sessionId)/main.m3u8"))
         request.timeoutInterval = 5
         guard let (data, response) = try? await URLSession.shared.data(for: request),
               (response as? HTTPURLResponse)?.statusCode == 410 else { return nil }
@@ -1278,10 +1278,10 @@ final class PlaybackController: NSObject {
             log.info("Next episode ready: \(ready.item.title)", ["playbackId": ready.playbackId])
             prepared = (request, ready, Date())
             #if canImport(AetherEngine)
-            // The same URL the engine will open, with no headers, as it opens it: anything else isn't adopted.
+            // The same URL and headers the engine will open it with (the guest tunnel's token, else none): anything else isn't adopted.
             if Self.usesEngine, ready.method == .directPlay, let url = client.url(for: ready.url) {
                 nextPrewarmed = true
-                let report = await AetherEngine.prewarm(url: url)
+                let report = await AetherEngine.prewarm(url: url, httpHeaders: GuestTunnelToken.headers(for: url))
                 log.debug("Next episode warmed: \(report.retainedBytes) bytes\(report.declined.map { " (\($0))" } ?? "")", ["playbackId": ready.playbackId])
             }
             #endif

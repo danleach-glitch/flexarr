@@ -171,6 +171,23 @@ public class MacAppPinResetTests
         return new { nonce = Convert.ToBase64String(nonce), @sealed = Convert.ToBase64String(box) };
     }
 
+    [Fact]
+    public void AReplay_WithItsNonceSpelledDifferently_IsRefused()
+    {
+        var host = new MacAppHost(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Flexarr:MacApp:Port"] = "1", ["Flexarr:MacApp:Token"] = Token,
+        }).Build());
+        var now = DateTimeOffset.UtcNow;
+        var sent = System.Text.Json.JsonSerializer.SerializeToElement(Seal(Token, "2468", now));
+        var nonce = sent.GetProperty("nonce").GetString()!;
+        var box = sent.GetProperty("sealed").GetString()!;
+
+        Assert.Equal("2468", host.OpenPinReset(nonce, box, now));
+        Assert.Null(host.OpenPinReset(" " + nonce, box, now)); // base64 decoding skips the space: the same nonce
+        Assert.Null(host.OpenPinReset(nonce[..4] + "\n" + nonce[4..], box, now));
+    }
+
     private static HttpClient From(WebApplicationFactory<Program> app, string peer)
     {
         var client = app.CreateClient();

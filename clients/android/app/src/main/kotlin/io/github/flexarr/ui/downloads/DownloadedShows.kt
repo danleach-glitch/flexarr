@@ -63,7 +63,7 @@ internal fun DownloadedShowRow(model: AppModel, show: DownloadedShow, onOpen: ()
     val store = model.downloads
     var removing by remember { mutableStateOf(false) }
     Row(
-        Modifier.fillMaxWidth().pressable(onOpen, onLongClick = { removing = true }).padding(start = 12.dp, top = 10.dp, bottom = 10.dp, end = 8.dp),
+        Modifier.fillMaxWidth().pressable(onOpen, onLongClick = { removing = true }, onLongClickLabel = t("Remove downloads")).padding(start = 12.dp, top = 10.dp, bottom = 10.dp, end = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -85,7 +85,7 @@ internal fun DownloadedShowRow(model: AppModel, show: DownloadedShow, onOpen: ()
                 // A Download show still asking for episodes stops too, or they'd come back as Downloading.
                 EpisodeBatches.halt(show.episodes.map { it.item.id }.toSet())
                 store.forgetStarted(EpisodeGroupRules.groupsHolding(show.episodes.map { it.item }))
-                show.episodes.forEach { store.delete(it.id) }
+                store.removeAll(show.episodes.map { it.id })
             },
             onDismiss = { removing = false },
         )

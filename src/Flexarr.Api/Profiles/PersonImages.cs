@@ -24,8 +24,12 @@ public sealed class PersonImages(IOptionsMonitor<FlexarrOptions> options, Profil
     public bool Missing(Core.Media.Person person)
     {
         ArgumentNullException.ThrowIfNull(person);
-        return person.PhotoSource == Core.Media.PersonSources.Upload && !File.Exists(PathFor(person.Id));
+        return Missing(person.Id, person.PhotoSource);
     }
+
+    /// <inheritdoc cref="Missing(Core.Media.Person)"/>
+    public bool Missing(Guid personId, string? photoSource) =>
+        photoSource == Core.Media.PersonSources.Upload && !File.Exists(PathFor(personId));
 
     /// <summary>Converts any image ffmpeg can read; false if it isn't one.
     public Task<bool> SaveAsync(Guid personId, Stream image, CancellationToken ct) => converter.SaveSquareAsync(PathFor(personId), Size, image, ct);

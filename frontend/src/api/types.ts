@@ -502,6 +502,26 @@ export interface Marker {
   end: number
 }
 
+/** What a converted or repackaged stream carries (PlaybackInfo.stream). */
+export interface StreamSummary {
+  /** The picture is the file's own, repackaged; false when it's converted. */
+  videoCopied: boolean
+  /** "hevc" or "h264". */
+  videoCodec: string
+  /** A copied picture's: "DolbyVision", "HDR10", "HLG" or "SDR". */
+  dynamicRange: string | null
+  hdr10Plus: boolean
+  /** A converted picture's height, in pixels. */
+  height: number | null
+  /** A converted picture's bit rate, in bits per second. */
+  videoBitrate: number | null
+  /** A converted picture's HDR was turned into SDR. */
+  toneMapped: boolean
+  /** The sound is converted to lossless FLAC, with this many channels. */
+  losslessAudio: boolean
+  audioChannels: number | null
+}
+
 export interface PlaybackInfo {
   sessionId: string
   /** A short hash of the session id, for lining logs up (absent from older servers). */
@@ -523,7 +543,10 @@ export interface PlaybackInfo {
   next: ItemSummary | null
   /** The episode before this one, in order (null on shuffle, and from servers before it existed). */
   previous?: ItemSummary | null
+  /** The stream, as the server says it in English ("Original HEVC (HDR10), repackaged"); null when the file plays as it is. */
   transcodeSummary: string | null
+  /** The same as fields, to word in the language shown. Absent from servers before 0.66. */
+  stream?: StreamSummary | null
   shuffle?: boolean
   preferences?: PlaybackPreferences | null
   /** This title's subtitles are shown this many seconds later (earlier when negative). */

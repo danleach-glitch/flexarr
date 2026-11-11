@@ -95,6 +95,8 @@ final class GuestTunnel: @unchecked Sendable {
         try? folder.setResourceValues(values)
         Self.restoreIdentity(into: folder)
         FlexarrTunnelSetPreferredPort(Int32(Self.preferredPort))
+        // Only this app's requests (which carry this launch's token) get through, not another app's on this device.
+        GuestTunnelToken.current.withCString { FlexarrTunnelSetClientToken(UnsafeMutablePointer(mutating: $0)) }
         let port = folder.path.withCString { dir in
             info.hostname.withCString { host in
                 (authKey ?? "").withCString { key in
@@ -119,6 +121,7 @@ final class GuestTunnel: @unchecked Sendable {
         // Its key is spent now: trying the same invite again (a sign-in that didn't go through) uses this identity.
         if authKey?.isEmpty == false { UserDefaults.standard.set(Self.identity(info), forKey: Self.identityKey) }
         lock.withLock { running = (info.target, Int(port)) }
+        GuestTunnelToken.tunnel(listeningOn: Int(port))
         return URL(string: "http://127.0.0.1:\(port)")!
     }
 
@@ -154,7 +157,8 @@ final class GuestTunnel: @unchecked Sendable {
     /// returned to know it's done.
     @discardableResult
     func stop(forget: Bool = false) -> Task<Void, Never> {
-        lock.withLock {
+        GuestTunnelToken.tunnel(listeningOn: nil)
+        return lock.withLock {
             running = nil
             starting = nil
             startingTarget = nil

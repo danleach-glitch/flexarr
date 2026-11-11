@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { getRadio, getTracks, imageUrl, imageWidths, type ItemSummary } from '../api/client'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
@@ -79,12 +79,31 @@ export function Hero({ items, overviews, resume, resumes, top }: {
   const resuming = resumes ? resumes[item?.id ?? ''] : index === 0 ? resume : undefined
   const episode = resuming?.kind === 'Episode' ? episodeHeading(resuming) : undefined
 
+  // Rotates only while it can be seen: not in a hidden tab, nor scrolled out of sight (each turn loads a backdrop).
+  const section = useRef<HTMLElement>(null)
+  const [tabHidden, setTabHidden] = useState(() => typeof document !== 'undefined' && document.hidden)
+  const [offscreen, setOffscreen] = useState(false)
+  useEffect(() => {
+    const onVisibility = () => setTabHidden(document.hidden)
+    document.addEventListener('visibilitychange', onVisibility)
+    const node = section.current
+    let observer: IntersectionObserver | undefined
+    if (node && typeof IntersectionObserver !== 'undefined') {
+      observer = new IntersectionObserver(([entry]) => setOffscreen(!entry.isIntersecting))
+      observer.observe(node)
+    }
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      observer?.disconnect()
+    }
+  }, [])
+
   useEffect(() => {
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    if (items.length < 2 || paused || reduced) return
+    if (items.length < 2 || paused || reduced || tabHidden || offscreen) return
     const timer = setInterval(() => setShown((s) => ({ index: (s.index + 1) % items.length, previous: s.index })), ROTATE_MS)
     return () => clearInterval(timer)
-  }, [items.length, paused])
+  }, [items.length, paused, tabHidden, offscreen])
 
   if (!item) return null
   const music = item.kind === 'Album' || item.kind === 'Artist'
@@ -93,6 +112,7 @@ export function Hero({ items, overviews, resume, resumes, top }: {
 
   return (
     <section
+      ref={section}
       className={book ? 'hero hero-book' : 'hero'}
       style={style}
       aria-roledescription="carousel"

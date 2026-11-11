@@ -96,6 +96,7 @@ public sealed partial class MetadataRefreshWorker(IServiceScopeFactory scopes, L
             }
 
             using var entered = await gate.EnterAsync(ct);
+            var tickStarted = DateTime.UtcNow;
             await using var scope = scopes.CreateAsyncScope();
             var refresher = scope.ServiceProvider.GetRequiredService<MetadataRefresher>();
             try
@@ -118,7 +119,10 @@ public sealed partial class MetadataRefreshWorker(IServiceScopeFactory scopes, L
                     var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
                     await WatchHistoryCarryOver.CarryOverAsync(db, ct);
                     await TraktHolds.ApplyAsync(db, ct);
-                    await TitleLinker.LinkAsync(db, ct);
+                    // Only what this tick looked up (and their copies): their ids and numbers are all that changed.
+                    var touched = await db.MediaItems.IgnoreQueryFilters().AsNoTracking()
+                        .Where(i => i.LibraryId == library.Id && i.MetadataUpdatedAt >= tickStarted).Select(i => i.Id).ToListAsync(ct);
+                    await TitleLinker.LinkAsync(db, touched, ct);
                 }
             }
             catch (Exception ex) when (!ct.IsCancellationRequested)

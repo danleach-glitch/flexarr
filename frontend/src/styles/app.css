@@ -1989,7 +1989,17 @@ kbd {
 }
 
 .pin-keys .pin-delete {
-  font-size: var(--step-0);
+  display: grid;
+  place-items: center;
+}
+
+.pin-keys .pin-delete svg {
+  width: 26px;
+  height: 26px;
+}
+
+.pin-back {
+  margin-top: 4px;
 }
 
 /* Holds its height, so the keys don't jump when "Checking…" or an error comes and goes. */
@@ -2382,6 +2392,19 @@ a.upcoming-row:hover strong {
     max-width: 100%;
     overflow-x: auto;
     scrollbar-width: none;
+  }
+
+  /* More beyond an edge (useScrollHints): that edge fades, so it's plain the views scroll. */
+  .view-switch[data-more-end] {
+    mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+  }
+
+  .view-switch[data-more-start] {
+    mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent);
+  }
+
+  .view-switch[data-more-start][data-more-end] {
+    mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent);
   }
 }
 
@@ -3389,6 +3412,21 @@ a.download-attention {
   color: var(--screen);
   font-size: var(--step--1);
   box-shadow: 0 8px 24px rgb(0 0 0 / 40%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.notice-close {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin: -4px -8px -4px 0;
+}
+
+.notice-close svg {
+  width: 16px;
+  height: 16px;
 }
 
 /* ---------- Page status: a page that's loading or couldn't load (PageStatus.tsx) ---------- */

@@ -7,6 +7,8 @@ import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { useLibraries } from '../hooks/librariesContext'
 import { useSession } from '../hooks/sessionContext'
 import { NoticeHost } from './Notice'
+import { useConfirm } from '../hooks/useConfirm'
+import { trapTab } from '../hooks/useModal'
 import { ChevronsLeft, Close, Menu as MenuIcon, Playlist } from './icons'
 import { icon } from './icons.generated'
 import { libraryIcons } from './libraryIcons'
@@ -39,6 +41,7 @@ export function Layout() {
   const [scrolled, setScrolled] = useState(false)
   const [searching, setSearching] = useState(false)
   const [profileMenu, setProfileMenu] = useState(false)
+  const [ask, confirmDialog] = useConfirm()
   const [rail, setRail] = useState(initialRail)
   // Whether Podcasts has a place among the libraries (a profile can leave it out; Settings › Navigation).
   const [podcastsInSidebar, setPodcastsInSidebar] = useState(true)
@@ -130,13 +133,23 @@ export function Layout() {
     }
   }
 
-  // The drawer closes on Escape and takes focus while it's open, so the keyboard starts in it.
+  // The drawer closes on Escape and takes focus while it's open, so the keyboard starts in it; Tab stays in it, as in a
+  // dialog. Closed, focus goes back to the menu button rather than staying on a link slid out of sight.
+  const menuButton = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     if (!drawer) return
-    sidebar.current?.querySelector<HTMLElement>('.sidebar-nav a')?.focus()
-    const close = (e: KeyboardEvent) => e.key === 'Escape' && setDrawer(false)
-    document.addEventListener('keydown', close)
-    return () => document.removeEventListener('keydown', close)
+    const drawn = sidebar.current
+    drawn?.querySelector<HTMLElement>('.sidebar-nav a')?.focus()
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDrawer(false)
+      else if (drawn) trapTab(drawn, e)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      const focused = document.activeElement
+      if (!focused || focused === document.body || drawn?.contains(focused)) menuButton.current?.focus()
+    }
   }, [drawer])
 
   useEffect(() => {
@@ -181,7 +194,7 @@ export function Layout() {
       {/* Over the page, beside the sidebar: search, settings and the profile on the right. Phones add the menu that
           slides the sidebar in, and the wordmark. */}
       <header className={scrolled ? 'topbar solid' : 'topbar'}>
-        <button className="icon-button topbar-menu" aria-label={t('Menu')} aria-expanded={drawer} aria-controls="sidebar" onClick={() => setDrawer(true)}>
+        <button ref={menuButton} className="icon-button topbar-menu" aria-label={t('Menu')} aria-expanded={drawer} aria-controls="sidebar" onClick={() => setDrawer(true)}>
           <MenuIcon />
         </button>
         <Link to="/" className="wordmark topbar-wordmark" aria-label={t('Flexarr home')}>
@@ -240,8 +253,8 @@ export function Layout() {
                     <button
                       role="menuitem"
                       onClick={async () => {
-                        if (!confirm(t('Sign out of this browser? Signing in again takes the API key.'))) return
                         setProfileMenu(false)
+                        if (!(await ask({ title: t('Sign out of this browser? Signing in again takes the API key.'), confirmLabel: t('Sign out'), danger: true }))) return
                         // Whatever the server says, start again from the top: the sign-in page if it's needed.
                         await signOut().catch(() => undefined)
                         window.location.assign('/')
@@ -351,6 +364,7 @@ export function Layout() {
         <PairingPrompt />
         <Outlet />
         <NoticeHost />
+        {confirmDialog}
         <AddToCollectionHost />
         <AddToPlaylistHost />
       </main>

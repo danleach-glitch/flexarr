@@ -117,7 +117,8 @@ public sealed class MacAppHost(IConfiguration configuration)
                     usedNonces.Remove(old);
                 }
 
-                if (!usedNonces.TryAdd(nonce, now))
+                // By the bytes, not the text: base64 decoding skips whitespace, so a padded copy of the text would be new.
+                if (!usedNonces.TryAdd(Convert.ToBase64String(salt), now))
                 {
                     return null;
                 }

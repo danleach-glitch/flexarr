@@ -23,15 +23,30 @@ public static class TitleLinker
 
     private static readonly SemaphoreSlim OneAtATime = new(1, 1);
 
+    /// <summary>Most rounds of following ids from title to title in a scoped pass before it looks at everything instead.</summary>
+    private const int MostRounds = 8;
+
     /// <summary>Returns how many items' links changed.</summary>
-    public static async Task<int> LinkAsync(FlexarrDbContext db, CancellationToken ct)
+    public static Task<int> LinkAsync(FlexarrDbContext db, CancellationToken ct) => LinkAsync(db, null, ct);
+
+    /// <summary>Returns how many items' links changed.</summary>
+    /// <param name="db">The database.</param>
+    /// <param name="touched">
+    /// Items whose copies may have changed (films, shows, or their seasons and episodes): only their titles, every title
+    /// sharing an id or a link with those, and any copy left on its own are looked at, which links them as a whole pass
+    /// would. Null for a whole pass (at startup, after a full scan).
+    /// </param>
+    /// <param name="ct">Stops it.</param>
+    public static async Task<int> LinkAsync(FlexarrDbContext db, IReadOnlyCollection<Guid>? touched, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(db);
 
         await OneAtATime.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            var rows = await RowsAsync(db, ct).ConfigureAwait(false);
+            var rows = touched is null ? null : await ScopedRowsAsync(db, touched, ct).ConfigureAwait(false);
+            var scoped = rows is not null;
+            rows ??= await RowsAsync(db, null, ct).ConfigureAwait(false);
             var missing = await db.MediaItems.IgnoreQueryFilters().AsNoTracking()
                 .Where(i => i.MissingSince != null && i.LinkGroupId != null).Select(i => i.Id).ToListAsync(ct).ConfigureAwait(false);
 
@@ -42,7 +57,22 @@ public static class TitleLinker
                 return 0;
             }
 
-            var known = await db.TitleGroups.Select(g => g.Id).ToListAsync(ct).ConfigureAwait(false);
+            // A scoped pass knows only the groups it looked at: the others aren't its to add or remove.
+            List<Guid> known;
+            if (scoped)
+            {
+                var looked = wanted.Values.Concat(rows.Select(r => r.LinkGroupId).OfType<Guid>()).Distinct().ToList();
+                known = [];
+                foreach (var chunk in looked.Chunk(IdsPerStatement))
+                {
+                    known.AddRange(await db.TitleGroups.Where(g => chunk.Contains(g.Id)).Select(g => g.Id).ToListAsync(ct).ConfigureAwait(false));
+                }
+            }
+            else
+            {
+                known = await db.TitleGroups.Select(g => g.Id).ToListAsync(ct).ConfigureAwait(false);
+            }
+
             var added = wanted.Values.Distinct().Except(known).Select(id => new TitleGroup { Id = id }).ToList();
             db.TitleGroups.AddRange(added);
             await db.SaveChangesAsync(ct).ConfigureAwait(false);
@@ -81,7 +111,9 @@ public static class TitleLinker
             var used = wanted.Values.ToHashSet();
             foreach (var chunk in known.Where(id => !used.Contains(id)).Chunk(IdsPerStatement))
             {
-                await db.TitleGroups.Where(g => chunk.Contains(g.Id)).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+                // In a scoped pass, never one something it didn't look at still has: deleting it would unlink that.
+                await db.TitleGroups.Where(g => chunk.Contains(g.Id) && (!scoped || !db.MediaItems.IgnoreQueryFilters().Any(i => i.LinkGroupId == g.Id)))
+                    .ExecuteDeleteAsync(ct).ConfigureAwait(false);
             }
 
             CatalogVersion.Bump();
@@ -98,10 +130,13 @@ public static class TitleLinker
     /// Every film and show, and only the seasons and episodes that could have copies or already have a link: a library
     /// with no second copies never reads its episodes.
     /// </summary>
-    private static async Task<List<Row>> RowsAsync(FlexarrDbContext db, CancellationToken ct)
+    /// <param name="db">The database.</param>
+    /// <param name="titles">The films and shows to look at, and only their seasons and episodes; null for all of them.</param>
+    /// <param name="ct">Stops it.</param>
+    private static async Task<List<Row>> RowsAsync(FlexarrDbContext db, List<Row>? titles, CancellationToken ct)
     {
         var items = db.MediaItems.IgnoreQueryFilters().AsNoTracking().Where(i => i.MissingSince == null);
-        var rows = await items.Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series).Select(AsRow).ToListAsync(ct).ConfigureAwait(false);
+        var rows = titles ?? await items.Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series).Select(AsRow).ToListAsync(ct).ConfigureAwait(false);
 
         var shows = Groups(rows).Keys.Intersect(rows.Where(r => r.Kind == MediaKind.Series).Select(r => r.Id)).ToList();
         rows.AddRange(await ChildrenAsync(items, MediaKind.Season, shows, ct).ConfigureAwait(false));
@@ -109,8 +144,98 @@ public static class TitleLinker
         rows.AddRange(await ChildrenAsync(items, MediaKind.Episode, seasons, ct).ConfigureAwait(false));
 
         // Whatever else is linked now, which may need unlinking.
-        rows.AddRange(await items.Where(i => i.LinkGroupId != null && (i.Kind == MediaKind.Season || i.Kind == MediaKind.Episode)).Select(AsRow).ToListAsync(ct).ConfigureAwait(false));
+        if (titles is null)
+        {
+            rows.AddRange(await items.Where(i => i.LinkGroupId != null && (i.Kind == MediaKind.Season || i.Kind == MediaKind.Episode)).Select(AsRow).ToListAsync(ct).ConfigureAwait(false));
+        }
+        else
+        {
+            foreach (var chunk in titles.Where(r => r.Kind == MediaKind.Series).Select(r => r.Id).ToList().Chunk(IdsPerStatement))
+            {
+                rows.AddRange(await items.Where(i => i.LinkGroupId != null && i.ParentId != null
+                        && ((i.Kind == MediaKind.Season && chunk.Contains(i.ParentId.Value)) || (i.Kind == MediaKind.Episode && i.Parent!.ParentId != null && chunk.Contains(i.Parent.ParentId.Value))))
+                    .Select(AsRow).ToListAsync(ct).ConfigureAwait(false));
+            }
+        }
+
         return rows.DistinctBy(r => r.Id).ToList();
+    }
+
+    /// <summary>
+    /// The rows a scoped pass looks at: the titles of <paramref name="touched"/>, those of any copy left on its own (its
+    /// other went without a scan of its folder), and, round by round, every title sharing an id or a link with one
+    /// already in, so each title's copies are all there to be grouped as a whole pass would. Null when that keeps
+    /// growing: then a whole pass it is.
+    /// </summary>
+    private static async Task<List<Row>?> ScopedRowsAsync(FlexarrDbContext db, IReadOnlyCollection<Guid> touched, CancellationToken ct)
+    {
+        var all = db.MediaItems.IgnoreQueryFilters().AsNoTracking();
+        var items = all.Where(i => i.MissingSince == null);
+        var titles = items.Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series);
+
+        // Each touched item's title, gone or not, and the links it and its title had.
+        var next = new HashSet<Guid>();
+        var groups = new HashSet<Guid>();
+        foreach (var chunk in touched.Distinct().Chunk(IdsPerStatement))
+        {
+            foreach (var seed in await all.Where(i => chunk.Contains(i.Id))
+                .Select(i => new { Title = i.Parent!.ParentId ?? i.ParentId ?? i.Id, i.LinkGroupId, TitleGroup = i.Parent!.Parent!.LinkGroupId ?? i.Parent!.LinkGroupId })
+                .ToListAsync(ct).ConfigureAwait(false))
+            {
+                next.Add(seed.Title);
+                groups.UnionWith(new[] { seed.LinkGroupId, seed.TitleGroup }.OfType<Guid>());
+            }
+        }
+
+        // Links down to one item: what's left of a title, season or episode whose other copy has gone.
+        var alone = await items.Where(i => i.LinkGroupId != null).GroupBy(i => i.LinkGroupId!.Value).Where(g => g.Count() < 2).Select(g => g.Key).ToListAsync(ct).ConfigureAwait(false);
+        foreach (var chunk in alone.Chunk(IdsPerStatement))
+        {
+            next.UnionWith(await items.Where(i => i.LinkGroupId != null && chunk.Contains(i.LinkGroupId.Value))
+                .Select(i => i.Parent!.ParentId ?? i.ParentId ?? i.Id).ToListAsync(ct).ConfigureAwait(false));
+        }
+
+        var rows = new Dictionary<Guid, Row>();
+        var asked = new HashSet<Guid>();
+        for (var round = 0; next.Count > 0 || groups.Count > 0; round++)
+        {
+            if (round == MostRounds)
+            {
+                return null;
+            }
+
+            var found = new List<Row>();
+            foreach (var chunk in next.Chunk(IdsPerStatement))
+            {
+                found.AddRange(await titles.Where(i => chunk.Contains(i.Id)).Select(AsRow).ToListAsync(ct).ConfigureAwait(false));
+            }
+
+            asked.UnionWith(groups);
+            foreach (var chunk in groups.Chunk(IdsPerStatement))
+            {
+                found.AddRange(await titles.Where(i => i.LinkGroupId != null && chunk.Contains(i.LinkGroupId.Value)).Select(AsRow).ToListAsync(ct).ConfigureAwait(false));
+            }
+
+            var fresh = found.Where(r => rows.TryAdd(r.Id, r)).ToList();
+            next = [];
+            async Task SharingAsync(Func<Row, string?> key, Func<string[], IQueryable<MediaItem>> sharing)
+            {
+                // A full pass matches ids ignoring case ("tt0123", "TT0123"); SQL's IN doesn't, so ask for both spellings.
+                foreach (var chunk in fresh.Select(key).Where(id => !string.IsNullOrEmpty(id))
+                    .SelectMany(id => new[] { id!, id!.ToLowerInvariant(), id!.ToUpperInvariant() }).Distinct(StringComparer.Ordinal).Chunk(IdsPerStatement))
+                {
+                    next.UnionWith((await sharing(chunk).Select(i => i.Id).ToListAsync(ct).ConfigureAwait(false)).Where(id => !rows.ContainsKey(id)));
+                }
+            }
+
+            await SharingAsync(r => r.TmdbId, chunk => titles.Where(i => i.TmdbId != null && chunk.Contains(i.TmdbId))).ConfigureAwait(false);
+            await SharingAsync(r => r.TvdbId, chunk => titles.Where(i => i.TvdbId != null && chunk.Contains(i.TvdbId))).ConfigureAwait(false);
+            await SharingAsync(r => r.TvMazeId, chunk => titles.Where(i => i.TvMazeId != null && chunk.Contains(i.TvMazeId))).ConfigureAwait(false);
+            await SharingAsync(r => r.ImdbId, chunk => titles.Where(i => i.ImdbId != null && chunk.Contains(i.ImdbId))).ConfigureAwait(false);
+            groups = [.. fresh.Select(r => r.LinkGroupId).OfType<Guid>().Where(g => !asked.Contains(g))];
+        }
+
+        return await RowsAsync(db, [.. rows.Values], ct).ConfigureAwait(false);
     }
 
     private static async Task<List<Row>> ChildrenAsync(IQueryable<MediaItem> items, MediaKind kind, List<Guid> parents, CancellationToken ct)
@@ -198,14 +323,43 @@ public static class TitleLinker
             AddGroup(groups, season.Select(s => s.Id));
         }
 
-        var episodes = rows.Where(r => r.Kind == MediaKind.Episode && r.ParentId is { } season && groups.ContainsKey(season) && (r.EpisodeNumber is not null || r.AirDate is not null))
-            .GroupBy(r => (Season: groups[r.ParentId!.Value], r.EpisodeNumber, End: r.EpisodeNumberEnd ?? r.EpisodeNumber, r.AirDate));
-        foreach (var episode in episodes.Where(e => e.Count() > 1).ToList())
+        var bySeason = rows.Where(r => r.Kind == MediaKind.Episode && r.ParentId is { } season && groups.ContainsKey(season) && (r.EpisodeNumber is not null || r.AirDate is not null))
+            .GroupBy(r => groups[r.ParentId!.Value]).ToList();
+        foreach (var season in bySeason)
         {
-            AddGroup(groups, episode.Select(e => e.Id));
+            foreach (var episode in EpisodeCopies(season).Where(e => e.Count > 1))
+            {
+                AddGroup(groups, episode);
+            }
         }
 
         return groups;
+    }
+
+    /// <summary>
+    /// A linked season's episodes, as the copies of each: by number when they have one, and an episode named only by its
+    /// date (a daily show's file, in a library that numbers it in the other) joins the numbered one that aired that day,
+    /// when only one did.
+    /// </summary>
+    private static List<List<Guid>> EpisodeCopies(IEnumerable<Row> season)
+    {
+        var numbered = season.Where(r => r.EpisodeNumber is not null).GroupBy(r => (r.EpisodeNumber, End: r.EpisodeNumberEnd ?? r.EpisodeNumber))
+            .Select(g => (Ids: g.Select(r => r.Id).ToList(), Dates: g.Select(r => r.AirDate).OfType<DateOnly>().ToHashSet())).ToList();
+        var copies = numbered.Select(n => n.Ids).ToList();
+        foreach (var dated in season.Where(r => r.EpisodeNumber is null).GroupBy(r => r.AirDate!.Value))
+        {
+            var aired = numbered.Where(n => n.Dates.Contains(dated.Key)).ToList();
+            if (aired.Count == 1)
+            {
+                aired[0].Ids.AddRange(dated.Select(r => r.Id));
+            }
+            else
+            {
+                copies.Add([.. dated.Select(r => r.Id)]);
+            }
+        }
+
+        return copies;
     }
 
     private static void AddGroup(Dictionary<Guid, Guid> groups, IEnumerable<Guid> ids)

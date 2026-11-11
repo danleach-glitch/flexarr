@@ -70,7 +70,7 @@ export function DeleteDialog({ item, onDeleted, onClose }: { item: ItemSummary; 
                         {f}
                       </code>
                     ))}
-                    {c.files.length > 5 && <div className="muted">{t('and {count} more', { count: c.files.length - 5 })}</div>}
+                    {c.files.length > 5 && <div className="muted">{t('{count, plural, one {and # more} other {and # more}}', { count: c.files.length - 5 })}</div>}
                   </li>
                 ))}
               </ul>
@@ -108,7 +108,7 @@ export function DeleteDialog({ item, onDeleted, onClose }: { item: ItemSummary; 
                       <code className="confirm-dialog-path">{f}</code>
                     </li>
                   ))}
-                  {plan.data.files.length > 20 && <li>{t('and {count} more', { count: plan.data.files.length - 20 })}</li>}
+                  {plan.data.files.length > 20 && <li>{t('{count, plural, one {and # more} other {and # more}}', { count: plan.data.files.length - 20 })}</li>}
                 </ul>
               )}
               <p>{t('Folders it leaves empty go too. You can’t undo this.')}</p>

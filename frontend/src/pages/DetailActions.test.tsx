@@ -17,7 +17,9 @@ describe('Detail page actions', () => {
     await screen.findByRole('button', { name: /Resume from 32:10/ })
     const actions = screen.getByRole('button', { name: /Resume from/ }).closest('.detail-actions') as HTMLElement
     const names = Array.from(actions.querySelectorAll('button')).map((b) => b.getAttribute('aria-label') ?? b.textContent?.trim())
-    expect(names.slice(0, 4)).toEqual(['Resume from 32:10', 'Start over', 'Trailer', 'Mark as watched'])
+    expect(names.slice(0, 4)).toEqual(['Resume from 32:10', 'Start over', 'Trailer', 'Watched'])
+    // Watched is a toggle: its name stays, its state is pressed or not.
+    expect(screen.getByRole('button', { name: 'Watched' })).toHaveAttribute('aria-pressed', 'false')
     expect(names.at(-1)).toBe('More actions')
   })
 

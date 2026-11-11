@@ -727,7 +727,7 @@ extension FlexarrClient {
     /// address carries the sign-in: a file elsewhere (an absolute address in the manifest) gets no request at all.
     public func bookFileRequest(_ file: BookFile) -> URLRequest? {
         guard let url = url(for: file.url), isServer(url) else { return nil }
-        var request = URLRequest(url: url)
+        var request = GuestTunnelToken.request(url)
         if let apiKey, !apiKey.isEmpty { request.setValue(apiKey, forHTTPHeaderField: "X-Api-Key") }
         if let profileToken, !profileToken.isEmpty { request.setValue(profileToken, forHTTPHeaderField: "X-Flexarr-Profile") }
         if let deviceType = Self.deviceType { request.setValue(deviceType, forHTTPHeaderField: "X-Flexarr-Device") }

@@ -1092,7 +1092,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
 
     @discardableResult
     private func fetchImage(at path: String?, named name: String, width: Int = 500) async -> String? {
-        guard let url = client?.imageURL(path, width: width), let (data, _) = try? await URLSession.shared.data(from: url), PlatformImage(data: data) != nil else {
+        guard let url = client?.imageURL(path, width: width), let (data, _) = try? await URLSession.shared.data(for: GuestTunnelToken.request(url)), PlatformImage(data: data) != nil else {
             return nil
         }
         try? data.write(to: Self.folder.appending(path: name))
@@ -1321,6 +1321,29 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         cache.countLimit = 120
         return cache
     }()
+
+    /// A saved picture if it's been read already: never touches the disk, so a row can draw it straight away.
+    func keptImage(named name: String?) -> PlatformImage? {
+        name.flatMap { images.object(forKey: $0 as NSString) }
+    }
+
+    /// A saved picture, read and decoded off the main thread the first time (then kept), so a list's first scroll
+    /// doesn't stall on it.
+    func preparedImage(named name: String?) async -> PlatformImage? {
+        guard let name else { return nil }
+        if let kept = keptImage(named: name) { return kept }
+        let path = Self.folder.appending(path: name).path(percentEncoded: false)
+        let image = await Task.detached(priority: .userInitiated) { () async -> PlatformImage? in
+            guard let image = PlatformImage(contentsOfFile: path) else { return nil }
+            return await image.preparedForDisplay()
+        }.value
+        if let image { images.setObject(image, forKey: name as NSString) }
+        return image
+    }
+
+    /// Downloads › Shows as last worked out: the episodes' ids it was from, and each show's id, title and episodes'
+    /// ids in order (`downloadedShows`). Progress changes the episodes but not this, so it's looked up, not redone.
+    @ObservationIgnored var showsLayout: (ids: [String], shows: [(id: String, title: String, episodeIds: [String])])?
 
     /// A saved picture, by the name a download or collection holds.
     func image(named name: String?) -> PlatformImage? {

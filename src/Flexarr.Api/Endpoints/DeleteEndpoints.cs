@@ -138,10 +138,24 @@ public static partial class DeleteEndpoints
 
                 failures.Add($"{library}: {Loc.T("Couldn’t check which app holds it ({status}).", new { status = (int?)ex.StatusCode ?? 0 })}");
             }
+            catch (OwnerUnclearException)
+            {
+                // An app may still want it, and the one on its record holds another copy: either way of deleting could be wrong.
+                if (copies.Count == 1)
+                {
+                    return Problems.Of("Couldn’t tell which app holds it. Check the path mappings in Settings, then try again. Nothing was deleted.", status: StatusCodes.Status409Conflict);
+                }
+
+                failures.Add($"{library}: {Loc.T("Couldn’t tell which app holds it.")}");
+                status = StatusCodes.Status409Conflict;
+            }
         }
 
-        // What's left, if anything, has no copies to be linked to now.
-        await Flexarr.Core.Scanning.TitleLinker.LinkAsync(db, ct);
+        // What's left of a linked title, if anything, may have no copies to be linked to now: only it is looked at.
+        if (copies.Any(c => c.LinkGroupId is not null))
+        {
+            await Flexarr.Core.Scanning.TitleLinker.LinkAsync(db, [.. copies.Select(c => c.Id)], ct);
+        }
         return failures.Count == 0 ? Results.NoContent()
             : Problems.Of("Deleted {done} of {total} copies. {failures}", new { done, total = copies.Count, failures = string.Join(" ", failures) }, status: status);
     }
@@ -170,7 +184,7 @@ public static partial class DeleteEndpoints
             {
                 (instance, arrId) = await OwnerAsync(db, copy, options, arr, lists, ct);
             }
-            catch (HttpRequestException)
+            catch (Exception ex) when (ex is HttpRequestException or OwnerUnclearException)
             {
                 // Can't ask now: what's on record will do for a preview. The delete asks again, and says if it can't.
                 (instance, arrId) = Manager(copy, options);
@@ -233,7 +247,7 @@ public static partial class DeleteEndpoints
                 }
             }
 
-            return (null, null);
+            return await RecordedOwnerAsync(db, copy, options, lists, ct);
         }
 
         foreach (var sonarr in options.Arr.Where(a => a.Kind == ArrKind.Sonarr))
@@ -252,11 +266,77 @@ public static partial class DeleteEndpoints
             var episode = (await arr.GetEpisodesAsync(sonarr, series.Id, ct)).FirstOrDefault(e => copy.EpisodeNumber is null
                 ? airDate is not null && e.AirDate == airDate // A daily show's file is named by its date.
                 : e.SeasonNumber == copy.SeasonNumber && e.EpisodeNumber == copy.EpisodeNumber);
-            return episode is null ? (null, null) : (sonarr, episode.Id);
+            if (episode is not null)
+            {
+                return (sonarr, episode.Id);
+            }
+
+            // This Sonarr has the show but not this episode by its number or date: its own record will do if it's
+            // this Sonarr's. Otherwise Sonarr can't delete it either, so its file goes from disk, as it always has.
+            return Manager(copy, options) is { Instance: { } recorded, ArrId: not null } own && recorded.Name == sonarr.Name ? own : (null, null);
         }
 
-        return (null, null);
+        return await RecordedOwnerAsync(db, copy, options, lists, ct);
     }
+
+    /// <summary>
+    /// The app on a copy's own record, for when no app's folders hold its files (a path mapping missing, say). None if
+    /// that app no longer has it. A record whose folder holds another copy's files is that copy's (metadata's TMDB
+    /// fallback names the same one for both), and deleting through it would take the wrong copy: then it's unclear.
+    /// </summary>
+    private static async Task<(ArrInstance? Instance, int? ArrId)> RecordedOwnerAsync(FlexarrDbContext db, MediaItem copy, FlexarrOptions options, ArrLists lists, CancellationToken ct)
+    {
+        var (instance, arrId) = Manager(copy, options);
+        if (instance is null)
+        {
+            return (null, null);
+        }
+
+        string? folder;
+        if (copy.Kind == MediaKind.Movie)
+        {
+            var movie = (await lists.MoviesAsync(instance, ct)).FirstOrDefault(m => m.Id == arrId);
+            if (movie is null)
+            {
+                return (null, null); // That Radarr no longer has it.
+            }
+
+            folder = movie.Path;
+        }
+        else
+        {
+            var seriesId = copy.Kind == MediaKind.Series ? arrId : copy.Parent?.Parent?.ArrId;
+            if (seriesId is null)
+            {
+                return (instance, arrId); // Nothing to check it against.
+            }
+
+            var series = (await lists.SeriesAsync(instance, ct)).FirstOrDefault(s => s.Id == seriesId);
+            if (series is null)
+            {
+                return (null, null); // That Sonarr no longer has the show.
+            }
+
+            folder = series.Path;
+        }
+
+        if (copy.LinkGroupId is { } group && folder is not null)
+        {
+            var mapped = PathMapper.Map(folder, options.PathMappings);
+            var others = await db.MediaFiles.AsNoTracking().IgnoreQueryFilters()
+                .Where(f => f.MediaItemId != copy.Id && (f.MediaItem!.LinkGroupId == group || f.MediaItem.Parent!.Parent!.LinkGroupId == group))
+                .Select(f => f.Path).ToListAsync(ct);
+            if (others.Any(p => PathComparison.IsUnder(p, mapped)))
+            {
+                throw new OwnerUnclearException();
+            }
+        }
+
+        return (instance, arrId);
+    }
+
+    /// <summary>No app's folders hold a copy, and the app on its record holds another copy's, or a Sonarr that has its show can't find the episode.</summary>
+    private sealed class OwnerUnclearException : Exception;
 
     /// <summary>Each Radarr's and Sonarr's whole list, fetched once for all the copies a request looks through.</summary>
     private sealed class ArrLists(ArrClient arr)

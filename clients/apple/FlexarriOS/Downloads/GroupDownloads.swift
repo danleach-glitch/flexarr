@@ -52,14 +52,23 @@ enum GroupDownloadStatus: Equatable {
     }
 }
 
+/// A Download show or season stopped because the server didn't answer several episodes in a row.
+private struct BatchUnanswered: LocalizedError {
+    var errorDescription: String? { t("Couldn’t reach the server.") }
+}
+
 extension DownloadStore {
+    /// Episodes in a row the server doesn't answer at all before a batch gives up on the rest.
+    static let unansweredLimit = 3
+
     /// Each episode's download state here (nil: not downloaded), in order.
     func states(of episodes: [ItemSummary]) -> [LocalDownload.State?] {
         episodes.map { entry(for: $0.id)?.state }
     }
 
     /// Downloads every one of these not already here or on its way (a failed one starts again), one after another,
-    /// so the server queues them in order. Carries on past a failure and throws the first one at the end.
+    /// so the server queues them in order. Carries on past a failure and throws the first one at the end, but stops
+    /// once the server hasn't answered `unansweredLimit` in a row.
     /// Stopping them (`delete(episodes:)`) ends the batch too, so the rest aren't asked for after the stop. They're all
     /// asked for as the profile that started it: once someone else is watching, the batch ends.
     func download(all episodes: [ItemSummary]) async throws {
@@ -67,12 +76,27 @@ extension DownloadStore {
         let ids = Set(episodes.map(\.id))
         stoppedEpisodeIds.subtract(ids)
         var firstError: Error?
+        var unanswered = 0
         for episode in episodes {
             guard stoppedEpisodeIds.isDisjoint(with: ids), isStill(owner) else { return }
             if let existing = entry(for: episode.id) {
                 if case .failed = existing.state { delete(existing.id) } else { continue }
             }
-            do { try await download(itemId: episode.id, as: owner) } catch { firstError = firstError ?? error }
+            do {
+                try await download(itemId: episode.id, as: owner)
+                unanswered = 0
+            } catch {
+                firstError = firstError ?? error
+                // The server not answering at all (rather than turning one episode down) ends the batch after a few in
+                // a row: each waits out its own timeout, and a long show would otherwise go on for hours.
+                let proxyDown: Bool = {
+                    if case .http(let status, _) = error as? FlexarrClientError { return (502...504).contains(status) }
+                    return false
+                }() // A proxy in front of a server that's down, as Android counts it.
+                let noAnswer = FlexarrClient.couldNotConnect(error) || (error as? FlexarrClientError) == .unreachable || proxyDown
+                unanswered = noAnswer ? unanswered + 1 : 0
+                if unanswered >= Self.unansweredLimit { throw BatchUnanswered() }
+            }
             // Someone else is watching now (or no one: signed out): the rest aren’t theirs to ask for.
             guard isStill(owner) else { return }
             // Stopped while the server was being asked: this one arrived after the stop.

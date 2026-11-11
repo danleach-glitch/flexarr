@@ -12,16 +12,41 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - With 4K and 1080p copies linked, a downloaded show is listed once, and an episode already coming through the other copy isn't downloaded again.
 - On iPhone, switching profile part-way through **Download show** no longer downloads the rest into the new profile; removing a show from Downloads stops its download; a show with one failed episode still shows its progress and **Stop**; and **Download Season** sits on its own line under the season pills.
 - Prepared download files the server no longer needs are now cleaned up.
+- **Download show** and **Download season** stop after a few episodes in a row can't reach the server, and say so, instead of trying for hours.
+- On Android, opening a show page no longer pops up "Couldn't download this" on its own, and removing a downloaded show is quicker.
+- On iPhone, Downloads › Shows scrolls more smoothly with many episodes.
 
 ### Web
 
 - When the server doesn't answer, pages and dialogs say so in your language rather than showing "Failed to fetch", and an action that fails now says why instead of doing nothing.
 - Search says when the server didn't answer, with **Try again**, rather than "Nothing in your library matches".
 - Settings › Overview no longer says nobody's watching right above something that's getting ready to play.
+- The player's controls fit a phone: speed, quality, sleep timer, picture in picture and AirPlay sit together under ⋯.
+- **Skip intro** no longer takes over the space bar, and keyboard focus lands where it should after choosing a version, closing the phone menu or removing from the queue. Clearing the queue can be undone.
+- On phones, the film and show page's buttons sit on one row with labels under the icons, and the library tabs show when there are more to scroll to.
+- The PIN pad has a visible **Back**, notices stay longer and can be closed, sign-in errors are read out by screen readers, and removing a profile or disconnecting asks in Flexarr's own dialog.
+- ⋯ › Version says which version is chosen, and **Watched** keeps its name when pressed.
+- The TV guide moves forward with the time and redraws less.
+- When one title fails to play its original picture, only that title falls back for a week, rather than the browser turning it off for good.
+- The stream badge in the player now shows in your language.
+
+### Libraries
+
+- Deleting one of two linked copies always goes through the app that holds it, and is refused rather than guessed when that can't be told.
+- Daily shows named by date in one library and by episode number in the other now link.
+- Cast photos from TVmaze that sometimes came up blank now load.
+- Scans of a few new episodes, and deletes, no longer recheck every title in the library, and an unreadable album cover is retried once a day rather than on every scan.
+
+### Apple apps
+
+- A failed version choice shows its own message rather than appearing in the subtitles banner, and VoiceOver says which choice is selected.
+- Live TV and the guide stop checking for updates while they're off screen.
 
 ### Privacy and security
 
 - On iPhone, a download only resumes against your home server's address once that server has confirmed it's yours.
+- Family guests' iPhone and Apple TV apps now lock their private connection to the app itself, as Android already does.
+- The Mac app's Reset admin PIN link can't be reused.
 
 ## 0.65.0 · 11 November 2026
 

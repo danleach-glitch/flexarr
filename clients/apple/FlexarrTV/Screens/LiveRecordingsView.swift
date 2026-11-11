@@ -74,7 +74,8 @@ struct LiveRecordingsView: View {
                 StatusView(state: .loading)
             }
         }
-        .task {
+        // Only while it's on screen and the app is in front (music can keep it alive in the background).
+        .whileShown {
             while !Task.isCancelled {
                 await load()
                 try? await Task.sleep(for: .seconds(30))

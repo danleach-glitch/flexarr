@@ -62,20 +62,24 @@ describe('Dispatcharr’s admin API key', () => {
   })
 
   it('asks before removing a saved key, then removes it with an empty one', async () => {
-    const asked = vi.fn(() => false)
-    vi.stubGlobal('confirm', asked)
     const sent = setUp()
     const form = await openForm()
     const remove = within(form).getByRole('button', { name: 'Remove admin API key' })
     expect(remove).toHaveClass('danger')
 
+    // Asked in the app's own dialog, with a red, named final button.
     fireEvent.click(remove)
-    expect(asked).toHaveBeenCalledOnce()
+    let dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
     expect(sent).toHaveLength(0)
     expect(screen.getByRole('form', { name: 'Edit Dispatcharr' })).toBeInTheDocument()
 
-    asked.mockReturnValue(true)
     fireEvent.click(remove)
+    dialog = await screen.findByRole('alertdialog')
+    const confirm = within(dialog).getByRole('button', { name: 'Remove admin API key' })
+    expect(confirm).toHaveClass('danger')
+    fireEvent.click(confirm)
     await waitFor(() => expect(sent.at(-1)?.liveTv?.adminApiKey).toBe(''))
   })
 

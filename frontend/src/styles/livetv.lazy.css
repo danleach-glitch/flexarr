@@ -277,6 +277,9 @@
 .livetv-guide-row {
   height: 64px;
   border-bottom: 1px solid var(--room);
+  /* Hundreds of lines of positioned programmes: the browser draws only those near the screen (the height is fixed, so
+     nothing jumps). */
+  content-visibility: auto;
 }
 
 .livetv-guide-channel {

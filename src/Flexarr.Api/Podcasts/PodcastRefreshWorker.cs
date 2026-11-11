@@ -70,7 +70,13 @@ public sealed partial class PodcastRefreshWorker(IServiceScopeFactory scopes, Po
                 // Each in a scope of its own, so one feed's thousands of episodes don't stay tracked for the next.
                 await using var feedScope = scopes.CreateAsyncScope();
                 var library = feedScope.ServiceProvider.GetRequiredService<PodcastLibrary>();
-                var added = await library.RefreshAsync(id, ct);
+                // A feed checked and found the same is bookkeeping; new episodes (titles) still move the data version.
+                int added;
+                using (DataVersion.Quietly())
+                {
+                    added = await library.RefreshAsync(id, ct);
+                }
+
                 if (added > 0)
                 {
                     LogNewEpisodes(id, added);

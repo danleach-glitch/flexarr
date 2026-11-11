@@ -653,7 +653,9 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
         ChangeTracker.DetectChanges();
         ChangeTracker.AutoDetectChangesEnabled = false;
         var catalog = CatalogVersion.Touches(ChangeTracker);
-        var changes = ChangeTracker.HasChanges();
+        // In a quiet scope (bookkeeping), only titles and watch state move the data version.
+        var changes = ChangeTracker.HasChanges() && (!DataVersion.IsQuiet || catalog
+            || ChangeTracker.Entries<PlaybackState>().Any(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted));
         try
         {
             await MirrorWatchStateAsync(cancellationToken);

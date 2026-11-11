@@ -75,7 +75,7 @@ actor ImageLoader {
         if away, let kept = KeptArtwork.data(for: home) { return kept }
         let session = away ? awaySession : URLSession.shared
         for attempt in 0..<3 {
-            guard let (data, response) = try? await session.data(from: url),
+            guard let (data, response) = try? await session.data(for: GuestTunnelToken.request(url)),
                   let http = response as? HTTPURLResponse else { return nil }
             if http.statusCode == 200 {
                 if away { KeptArtwork.keep(data, from: http, as: home) }
@@ -109,7 +109,7 @@ actor ImageLoader {
     }
 
     func data(_ url: URL) async -> Data? {
-        try? await URLSession.shared.data(from: url).0
+        try? await URLSession.shared.data(for: GuestTunnelToken.request(url)).0
     }
 }
 

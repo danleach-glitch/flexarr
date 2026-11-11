@@ -16,8 +16,8 @@ import {
 } from '../api/client'
 import { usePinLockout } from '../hooks/usePinLockout'
 import { AsyncButton } from './AsyncButton'
-import { Crown, Padlock } from './icons'
-import { t, Words } from '../i18n'
+import { Backspace, Crown, Padlock } from './icons'
+import { t } from '../i18n'
 
 export function Avatar({ profile, size = 40 }: { profile: Pick<Profile, 'name' | 'color'> & { image?: string | null }; size?: number }) {
   return (
@@ -280,8 +280,8 @@ export function ProfilePicker({
                 {d}
               </button>
             ))}
-            <button type="button" className="pin-delete" onClick={erase}>
-              {t(Words.delete)}
+            <button type="button" className="pin-delete" onClick={erase} aria-label={t('Erase')} title={t('Erase')}>
+              <Backspace />
             </button>
             <button type="button" disabled={locked} onClick={() => press('0')}>
               0
@@ -290,6 +290,10 @@ export function ProfilePicker({
               {t('Go')}
             </AsyncButton>
           </div>
+          {/* Back to the profiles, there to see on a touch screen (Escape does it from a keyboard). */}
+          <button type="button" className="button quiet small pin-back" onClick={() => ask(undefined)}>
+            {t('Back')}
+          </button>
         </form>
       ) : (
         <>
@@ -306,10 +310,15 @@ export function ProfilePicker({
                       </span>
                     )}
                   </span>
-                  <span>
-                    {p.name}
-                    {p.isMain && <span className="visually-hidden">{t(', main profile')}</span>}
-                  </span>
+                  {p.isMain ? (
+                    // Read out whole ("Dan, main profile"), so a language can put the words where it needs them.
+                    <span>
+                      <span aria-hidden="true">{p.name}</span>
+                      <span className="visually-hidden">{t('{name}, main profile', { name: p.name })}</span>
+                    </span>
+                  ) : (
+                    <span>{p.name}</span>
+                  )}
                   {asksPin(p) && <span className="muted profile-locked">{t('Needs a PIN')}</span>}
                 </AsyncButton>
               </li>

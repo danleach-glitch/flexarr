@@ -36,6 +36,28 @@ function renderAt(path: string) {
 
 const niceGuys = summary({ id: 'm1', title: 'The Nice Guys', year: 2016, resolution: '1080p', communityRating: 7.4, contentRating: 'R' })
 
+describe('the phone drawer', () => {
+  it('keeps Tab inside while open, and hands focus back to Menu when it closes', async () => {
+    mockApi({ '/system/status': status, '/libraries': [movies], '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 } })
+    renderAt('/')
+    const menu = await screen.findByRole('button', { name: 'Menu' })
+    menu.focus()
+    fireEvent.click(menu)
+    const drawer = document.getElementById('sidebar')!
+    expect(drawer).toContainElement(document.activeElement as HTMLElement)
+
+    // Shift-Tab from the drawer's first control goes round to its last, not to the page behind.
+    const first = drawer.querySelector<HTMLElement>('a, button')!
+    first.focus()
+    fireEvent.keyDown(first, { key: 'Tab', shiftKey: true })
+    expect(drawer).toContainElement(document.activeElement as HTMLElement)
+    expect(document.activeElement).not.toBe(first)
+
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    await waitFor(() => expect(menu).toHaveFocus())
+  })
+})
+
 describe('App', () => {
   it('shows the featured hero and rows on the home page', async () => {
     mockApi({
@@ -624,7 +646,10 @@ describe('App', () => {
     fireEvent.change(await screen.findByLabelText('API key'), { target: { value: 'nope' } })
     fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
 
-    expect(await screen.findByText("That isn’t the right key.")).toBeInTheDocument()
+    // Said out loud, and the field marked wrong and pointed at why.
+    expect(await screen.findByRole('alert')).toHaveTextContent('That isn’t the right key.')
+    expect(screen.getByLabelText('API key')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByLabelText('API key')).toHaveAccessibleDescription('That isn’t the right key.')
   })
 
   it('trades a key stored by an earlier version for a session, then forgets it', async () => {
@@ -2157,8 +2182,8 @@ describe('Library grid', () => {
     await screen.findByRole('link', { name: 'Film 209' })
     fireEvent.click(screen.getByRole('link', { name: 'Film 003' }))
     // Marking it watched is a change, which clears cached answers; the grid's own state is kept apart.
-    fireEvent.click(await screen.findByRole('button', { name: /Mark as watched/ }))
-    expect(await screen.findByRole('button', { name: /Watched/ })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(await screen.findByRole('button', { name: 'Watched', pressed: false }))
+    expect(await screen.findByRole('button', { name: 'Watched', pressed: true })).toBeInTheDocument()
 
     const scrolls = vi.mocked(window.scrollTo)
     scrolls.mockClear()
