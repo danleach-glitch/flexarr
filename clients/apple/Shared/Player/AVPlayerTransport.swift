@@ -38,7 +38,7 @@ final class AVPlayerTransport: NSObject, PlayerTransport {
         self.startAt = startAt
         pendingSeek = startAt
         wantedSubtitleKey = subtitleKey
-        item = AVPlayerItem(asset: .flexarr(url))
+        item = AVPlayerItem(asset: AVURLAsset.flexarr(url))
         // Rates other than 1× keep the pitch, like Apple's player.
         item.audioTimePitchAlgorithm = .spectral
         player = AVPlayer(playerItem: item)
