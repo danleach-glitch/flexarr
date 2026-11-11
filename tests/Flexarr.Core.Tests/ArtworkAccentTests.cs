@@ -78,7 +78,7 @@ public sealed class ArtworkAccentTests : IAsyncLifetime
     public async Task AnHttpsPictureBouncedToPlainHttp_IsAskedForAgainOverHttps()
     {
         var host = new BouncesOnce();
-        var images = new ImageCache(new HttpClient(host), new Settings(_dir), NullLogger<ImageCache>.Instance);
+        var images = new ImageCache(new HttpClient(host), new Settings(_dir, "false"), NullLogger<ImageCache>.Instance); // No ffmpeg: the picture is kept as it came.
 
         var path = await images.GetAsync("https://static.tvmaze.com/uploads/images/original_untouched/31/79212.jpg", null, default);
 
@@ -137,14 +137,14 @@ public sealed class ArtworkAccentTests : IAsyncLifetime
         }
     }
 
-    private sealed class Settings(string cache) : IMetadataSettings
+    private sealed class Settings(string cache, string ffmpeg = "ffmpeg") : IMetadataSettings
     {
         public IReadOnlyList<ArrInstance> ArrInstances { get; } =
             [new ArrInstance { Name = "Radarr", Kind = ArrKind.Radarr, BaseUrl = new Uri("http://radarr.test"), ApiKey = "key" }];
 
         public IReadOnlyList<PathMapping> PathMappings { get; } = [];
         public string CacheDirectory => cache;
-        public string FfmpegPath => "ffmpeg";
+        public string FfmpegPath => ffmpeg;
     }
 
     /// <summary>Radarr with one film, whose poster is wherever it says.</summary>
