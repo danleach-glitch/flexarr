@@ -220,7 +220,9 @@ public static class TitleLinker
             next = [];
             async Task SharingAsync(Func<Row, string?> key, Func<string[], IQueryable<MediaItem>> sharing)
             {
-                foreach (var chunk in fresh.Select(key).Where(id => !string.IsNullOrEmpty(id)).Select(id => id!).Distinct().Chunk(IdsPerStatement))
+                // A full pass matches ids ignoring case ("tt0123", "TT0123"); SQL's IN doesn't, so ask for both spellings.
+                foreach (var chunk in fresh.Select(key).Where(id => !string.IsNullOrEmpty(id))
+                    .SelectMany(id => new[] { id!, id!.ToLowerInvariant(), id!.ToUpperInvariant() }).Distinct(StringComparer.Ordinal).Chunk(IdsPerStatement))
                 {
                     next.UnionWith((await sharing(chunk).Select(i => i.Id).ToListAsync(ct).ConfigureAwait(false)).Where(id => !rows.ContainsKey(id)));
                 }
