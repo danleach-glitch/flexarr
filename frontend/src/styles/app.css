@@ -2393,6 +2393,19 @@ a.upcoming-row:hover strong {
     overflow-x: auto;
     scrollbar-width: none;
   }
+
+  /* More beyond an edge (useScrollHints): that edge fades, so it's plain the views scroll. */
+  .view-switch[data-more-end] {
+    mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+  }
+
+  .view-switch[data-more-start] {
+    mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent);
+  }
+
+  .view-switch[data-more-start][data-more-end] {
+    mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent);
+  }
 }
 
 /* ---------- Coming soon: a row per day ---------- */
