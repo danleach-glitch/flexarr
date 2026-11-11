@@ -52,6 +52,12 @@ struct LocalDownload: Codable, Identifiable, Hashable {
     var createdAt = Date()
     /// A book: its files, fetched one by one under this one entry (whose `fileName` is their folder).
     var book: LocalBook?
+    /// Other titles this was asked for as: a linked copy's (a 1080p episode's, say), whose download the server found
+    /// already made through this one. It's found under those ids too, so the copy counts as here.
+    var askedAs: [String]?
+
+    /// Its own id, or one it was asked for as (see `askedAs`).
+    func isDownload(of itemId: String) -> Bool { item.id == itemId || askedAs?.contains(itemId) == true }
 
     var isDownloaded: Bool { state == .downloaded && fileName != nil }
 }
@@ -72,7 +78,7 @@ struct LocalBook: Codable, Hashable {
 extension LocalDownload {
     private enum CodingKeys: String, CodingKey {
         case id, profileId, quality, item, markers, durationSeconds, nextId, state, sizeBytes, fileName, remoteFileName
-        case imageFileName, position, finishedAt, unsent, automatic, manual, createdAt, book
+        case imageFileName, position, finishedAt, unsent, automatic, manual, createdAt, book, askedAs
     }
 
     init(from decoder: Decoder) throws {
@@ -96,6 +102,7 @@ extension LocalDownload {
         manual = try c.decodeIfPresent(Bool.self, forKey: .manual)
         createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         book = try? c.decodeIfPresent(LocalBook.self, forKey: .book)
+        askedAs = try? c.decodeIfPresent([String].self, forKey: .askedAs)
     }
 }
 
@@ -381,8 +388,11 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         collections.filter { $0.profileId == profileId }.sorted { $0.createdAt > $1.createdAt }
     }
 
+    /// This profile's download of a title: its own, or else one the server found already made through a linked copy
+    /// (`askedAs`).
     func entry(for itemId: String) -> LocalDownload? {
         all.first { $0.profileId == profileId && $0.item.id == itemId }
+            ?? all.first { $0.profileId == profileId && $0.askedAs?.contains(itemId) == true }
     }
 
     /// A title's download, made through whichever of its linked copies.
@@ -419,6 +429,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         var seen = Set<String>(), here = Set<String>()
         for download in all where download.profileId == profileId {
             if seen.insert(download.item.id).inserted, download.isDownloaded { here.insert(download.item.id) }
+            if download.isDownloaded, let others = download.askedAs { here.formUnion(others) }
         }
         if here != downloadedIds { downloadedIds = here }
     }
@@ -776,9 +787,19 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             delete(existing.id)
         }
         let remote = try await client.requestDownload(itemId, quality: quality)
+        // Already asked for, through a linked copy (or by another press meanwhile): the one here is kept as it is (a
+        // transfer under way carries on rather than starting again from nothing), and found under this id too.
+        if let held = all.first(where: { $0.id == remote.id && $0.profileId == profileId }) {
+            let failed = if case .failed = held.state { true } else { false }
+            if !failed {
+                if !held.isDownload(of: itemId) { update(held.id) { $0.askedAs = ($0.askedAs ?? []) + [itemId] } }
+                return
+            }
+        }
         var local = LocalDownload(id: remote.id, profileId: profileId, quality: quality, item: remote.item, markers: remote.markers,
                                   durationSeconds: remote.durationSeconds, nextId: remote.nextId, state: .preparing(remote.progress),
                                   sizeBytes: remote.sizeBytes, automatic: automatic, manual: automatic ? nil : true)
+        if remote.item.id != itemId { local.askedAs = [itemId] }
         all.removeAll { $0.id == remote.id }
         all.append(local)
         save()
