@@ -475,7 +475,8 @@ fun EpisodeDownloadButton(model: AppModel, episodeId: String, title: String) {
  */
 @Composable
 fun TitleDownloadButton(model: AppModel, item: ItemSummary) {
-    DownloadIconButton(model, item.id, item.title, ringWhilePreparing = false) { model.downloads.download(item) }
+    // A ring from the start: getting ready is part of the wait here, as it is for a podcast episode.
+    DownloadIconButton(model, item.id, item.title, ringWhilePreparing = true) { model.downloads.download(item) }
 }
 
 /** An icon that downloads a title ([start]), and once it's on its way or here offers to stop or remove it; failed, says why. */

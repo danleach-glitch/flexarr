@@ -42,6 +42,7 @@ import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.FlexarrIcons
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 // A show's or a season's episodes downloaded together, as on iPhone: Download on a show's page (every episode of every
@@ -72,20 +73,30 @@ private object EpisodeBatches {
 }
 
 /** What Stop or Remove acts on: the downloads (worked out when it's answered), and every episode of the group. */
-internal class GroupTarget(val downloads: () -> List<LocalDownload>, val episodeIds: () -> Set<String>)
+internal class GroupTarget(val downloads: () -> List<LocalDownload>, val episodes: () -> List<ItemSummary>)
 
-/** What a group's taps do, and the questions they ask: download what's missing, stop what's coming, remove what's here. */
+/** The one question a group's control can be asking. */
+internal sealed interface GroupQuestion {
+    /** "Download 12 episodes of Severance?", with the episodes it would ask for. */
+    data class Confirm(val episodes: List<ItemSummary>) : GroupQuestion
+    data class Stop(val target: GroupTarget) : GroupQuestion
+    data class Remove(val target: GroupTarget) : GroupQuestion
+    data class Problem(val message: String) : GroupQuestion
+}
+
+/**
+ * What a group's taps do, and the questions they ask: download what's missing, stop what's coming, remove what's here.
+ * [groupId] is the show's or season's id, remembered as started ([io.github.flexarr.downloads.DownloadStore.markStarted])
+ * once its Download is pressed. One question shows at a time, from one place ([Dialogs]).
+ */
 @Stable
-internal class GroupDownloads(private val model: AppModel, private val showTitle: String? = null) {
+internal class GroupDownloads(private val model: AppModel, private val groupId: String, private val showTitle: String? = null) {
     /** Episodes are still being asked of the server. */
     var queueing by mutableStateOf(false)
         private set
-    var problem by mutableStateOf<String?>(null)
-    /** "Download 12 episodes of Severance?", with the episodes it would ask for. */
-    var confirming by mutableStateOf<List<ItemSummary>?>(null)
-    /** "Stop these downloads?" or "Remove these downloads?", and what they'd act on. */
-    var stopping by mutableStateOf<GroupTarget?>(null)
-    var removing by mutableStateOf<GroupTarget?>(null)
+    var question by mutableStateOf<GroupQuestion?>(null)
+
+    val started: Boolean get() = model.downloads.isStarted(groupId)
 
     /**
      * Downloads every one of [episodes] not here or on its way (one that failed starts again), one after another, at the
@@ -96,6 +107,7 @@ internal class GroupDownloads(private val model: AppModel, private val showTitle
         val store = model.downloads
         val wanted = EpisodeGroupRules.toQueue(episodes, store::entry)
         if (wanted.isEmpty()) return
+        store.markStarted(groupId)
         queueing = true
         val batch = EpisodeBatches.start(wanted.map { it.id }.toSet())
         model.scope.launch {
@@ -118,52 +130,51 @@ internal class GroupDownloads(private val model: AppModel, private val showTitle
                 queueing = false
             }
             if (batch.halted) return@launch
-            first?.let { problem = it }
+            first?.let { question = GroupQuestion.Problem(it) }
         }
     }
 
     /** Downloading [episodes] once asked: "Download 12 episodes of Severance?", counting only those it would fetch. */
     fun confirmDownload(episodes: List<ItemSummary>) {
         val wanted = EpisodeGroupRules.toQueue(episodes, model.downloads::entry)
-        if (wanted.isNotEmpty()) confirming = wanted
+        if (wanted.isNotEmpty()) question = GroupQuestion.Confirm(wanted)
+    }
+
+    /**
+     * Stop (only what isn't here yet) or Remove (everything): ends any batch still asking for these episodes, forgets
+     * every group holding them as started, and deletes. Run after the question has gone, so it closes on the first tap.
+     */
+    private fun end(target: GroupTarget, onlyUnfinished: Boolean) {
+        val store = model.downloads
+        // Posted, not run at once (the app's scope is immediate), so the dialog has gone first.
+        model.scope.launch(Dispatchers.Main) {
+            val downloads = target.downloads()
+            val episodes = (target.episodes() + downloads.map { it.item }).distinctBy { it.id }
+            EpisodeBatches.halt(episodes.map { it.id }.toSet())
+            store.forgetStarted(EpisodeGroupRules.groupsHolding(episodes) + groupId)
+            (if (onlyUnfinished) EpisodeGroupRules.toStop(downloads) else downloads).forEach { store.delete(it.id) }
+        }
     }
 
     @Composable
     fun Dialogs() {
-        val store = model.downloads
-        confirming?.let { episodes ->
-            AlertDialog(
-                onDismissRequest = { confirming = null },
-                title = { Text(t("Download {count, plural, one {# episode} other {# episodes}} of {show}?", "count" to episodes.size, "show" to showTitle.orEmpty())) },
-                confirmButton = { TextButton(onClick = { confirming = null; download(episodes) }) { Text(t(Words.download), color = Flexarr.screen) } },
-                dismissButton = { TextButton(onClick = { confirming = null }) { Text(t(Words.cancel), color = Flexarr.screen) } },
+        val dismiss = { question = null }
+        when (val asking = question) {
+            null -> Unit
+            is GroupQuestion.Confirm -> AlertDialog(
+                onDismissRequest = dismiss,
+                title = { Text(t("Download {count, plural, one {# episode} other {# episodes}} of {show}?", "count" to asking.episodes.size, "show" to showTitle.orEmpty())) },
+                confirmButton = { TextButton(onClick = { dismiss(); download(asking.episodes) }) { Text(t(Words.download), color = Flexarr.screen) } },
+                dismissButton = { TextButton(onClick = dismiss) { Text(t(Words.cancel), color = Flexarr.screen) } },
                 containerColor = Flexarr.seat,
             )
-        }
-        stopping?.let { target ->
-            StopDownloadsDialog(
-                onStop = {
-                    EpisodeBatches.halt(target.episodeIds())
-                    EpisodeGroupRules.toStop(target.downloads()).forEach { store.delete(it.id) }
-                },
-                onDismiss = { stopping = null },
-            )
-        }
-        removing?.let { target ->
-            RemoveDownloadsDialog(
-                onRemove = {
-                    EpisodeBatches.halt(target.episodeIds())
-                    target.downloads().forEach { store.delete(it.id) }
-                },
-                onDismiss = { removing = null },
-            )
-        }
-        problem?.let { message ->
-            AlertDialog(
-                onDismissRequest = { problem = null },
+            is GroupQuestion.Stop -> StopDownloadsDialog(onStop = { end(asking.target, onlyUnfinished = true) }, onDismiss = dismiss)
+            is GroupQuestion.Remove -> RemoveDownloadsDialog(onRemove = { end(asking.target, onlyUnfinished = false) }, onDismiss = dismiss)
+            is GroupQuestion.Problem -> AlertDialog(
+                onDismissRequest = dismiss,
                 title = { Text(t("Couldn’t download this")) },
-                text = { Text(message) },
-                confirmButton = { TextButton(onClick = { problem = null }) { Text(t("OK"), color = Flexarr.screen) } },
+                text = { Text(asking.message) },
+                confirmButton = { TextButton(onClick = dismiss) { Text(t("OK"), color = Flexarr.screen) } },
                 containerColor = Flexarr.seat,
             )
         }
@@ -182,7 +193,7 @@ private fun List<ItemSummary>.episodesOnly() = filter { it.kind == MediaKind.Epi
 @Composable
 fun ShowDownloadAction(model: AppModel, show: ItemSummary, loadEpisodes: suspend () -> List<ItemSummary>, modifier: Modifier = Modifier) {
     val store = model.downloads
-    val group = remember(show.id) { GroupDownloads(model, showTitle = show.title) }
+    val group = remember(show.id) { GroupDownloads(model, show.id, showTitle = show.title) }
     val scope = rememberCoroutineScope()
     var episodes by remember(show.id) { mutableStateOf<List<ItemSummary>?>(null) }
     var loading by remember(show.id) { mutableStateOf(false) }
@@ -197,7 +208,7 @@ fun ShowDownloadAction(model: AppModel, show: ItemSummary, loadEpisodes: suspend
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            group.problem = e.message ?: t("Couldn’t download this")
+            group.question = GroupQuestion.Problem(e.message ?: t("Couldn’t download this"))
             null
         } finally {
             loading = false
@@ -210,10 +221,10 @@ fun ShowDownloadAction(model: AppModel, show: ItemSummary, loadEpisodes: suspend
 
     val known = episodes
     val entries: List<LocalDownload?> = known?.map { store.entry(it.id) } ?: held
-    val state = EpisodeGroupRules.state(entries, queueing = group.queueing || loading, known = known != null, progress = store::progress)
+    val state = EpisodeGroupRules.state(entries, started = group.started, queueing = group.queueing || loading, known = known != null, progress = store::progress)
     // Everything of the show here: its episodes' downloads, and any the list no longer has.
     val all = { (known.orEmpty().mapNotNull { store.entry(it.id) } + store.episodesOfShow(show.id)).distinctBy { it.id } }
-    val target = GroupTarget(all) { (known.orEmpty().map { it.id } + store.episodesOfShow(show.id).map { it.item.id }).toSet() }
+    val target = GroupTarget(all) { known.orEmpty() + store.episodesOfShow(show.id).map { it.item } }
 
     val label = when (state) {
         // Not the plain word: beside "Play S2E3" it would read as downloading that episode.
@@ -229,8 +240,8 @@ fun ShowDownloadAction(model: AppModel, show: ItemSummary, loadEpisodes: suspend
             when (state) {
                 is EpisodeGroupState.NotDownloaded -> scope.launch { load()?.let(group::confirmDownload) }
                 is EpisodeGroupState.Failed -> scope.launch { load()?.let(group::download) }
-                is EpisodeGroupState.Downloading -> group.stopping = target
-                EpisodeGroupState.Downloaded -> group.removing = target
+                is EpisodeGroupState.Downloading -> group.question = GroupQuestion.Stop(target)
+                EpisodeGroupState.Downloaded -> group.question = GroupQuestion.Remove(target)
             }
         },
         modifier,
@@ -248,11 +259,11 @@ fun ShowDownloadAction(model: AppModel, show: ItemSummary, loadEpisodes: suspend
 @Composable
 fun SeasonDownloadLink(model: AppModel, season: ItemSummary, episodes: List<ItemSummary>, modifier: Modifier = Modifier) {
     val store = model.downloads
-    val group = remember(season.id) { GroupDownloads(model) }
+    val group = remember(season.id) { GroupDownloads(model, season.id) }
     val list = episodes.episodesOnly()
     if (list.isEmpty()) return
-    val state = EpisodeGroupRules.state(list.map { store.entry(it.id) }, queueing = group.queueing, progress = store::progress)
-    val here = GroupTarget({ list.mapNotNull { store.entry(it.id) } }) { list.map { it.id }.toSet() }
+    val state = EpisodeGroupRules.state(list.map { store.entry(it.id) }, started = group.started, queueing = group.queueing, progress = store::progress)
+    val here = GroupTarget({ list.mapNotNull { store.entry(it.id) } }) { list }
     val label = when (state) {
         is EpisodeGroupState.NotDownloaded -> t("Download {season}", "season" to season.title)
         is EpisodeGroupState.Downloading -> t("Downloading {season}", "season" to season.title)
@@ -264,8 +275,8 @@ fun SeasonDownloadLink(model: AppModel, season: ItemSummary, episodes: List<Item
             .pressable({
                 when (state) {
                     is EpisodeGroupState.NotDownloaded, is EpisodeGroupState.Failed -> group.download(list)
-                    is EpisodeGroupState.Downloading -> group.stopping = here
-                    EpisodeGroupState.Downloaded -> group.removing = here
+                    is EpisodeGroupState.Downloading -> group.question = GroupQuestion.Stop(here)
+                    EpisodeGroupState.Downloaded -> group.question = GroupQuestion.Remove(here)
                 }
             })
             .semantics { contentDescription = label }

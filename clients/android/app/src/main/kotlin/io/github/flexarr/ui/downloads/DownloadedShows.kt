@@ -79,7 +79,15 @@ internal fun DownloadedShowRow(model: AppModel, show: DownloadedShow, onOpen: ()
         }
         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = Flexarr.usher)
     }
-    if (removing) RemoveDownloadsDialog(onRemove = { show.episodes.forEach { store.delete(it.id) } }, onDismiss = { removing = false })
+    if (removing) {
+        RemoveDownloadsDialog(
+            onRemove = {
+                store.forgetStarted(EpisodeGroupRules.groupsHolding(show.episodes.map { it.item }))
+                show.episodes.forEach { store.delete(it.id) }
+            },
+            onDismiss = { removing = false },
+        )
+    }
 }
 
 @Composable

@@ -71,6 +71,27 @@ class EpisodeDownloadsTest {
     }
 
     @Test
+    fun aGroupNobodyStartedSaysOnlyDownloadOrDownloaded() {
+        val coming = listOf(download("a", LocalPhase.Downloading, 0.5), download("b", LocalPhase.Failed, failure = "No room"), null)
+        assertEquals(EpisodeGroupState.NotDownloaded(3), EpisodeGroupRules.state(coming, started = false))
+        // All here, however they came, is downloaded.
+        assertEquals(EpisodeGroupState.Downloaded, EpisodeGroupRules.state(listOf(download("a", LocalPhase.Downloaded)), started = false))
+        // While it's being asked for, it's on its way.
+        assertEquals(EpisodeGroupState.Downloading(0, 1, 0.0), EpisodeGroupRules.state(listOf(null), started = false, queueing = true))
+    }
+
+    @Test
+    fun allHereWinsOverAStartedGroupsState() {
+        assertEquals(EpisodeGroupState.Downloaded, EpisodeGroupRules.state(listOf(download("a", LocalPhase.Downloaded)), queueing = true))
+    }
+
+    @Test
+    fun forgetsEveryGroupHoldingTheEpisodes() {
+        val episodes = listOf(episode("a").copy(parentId = "s1"), episode("b").copy(parentId = "s2"), episode("c", seriesId = null))
+        assertEquals(setOf("show", "s1", "s2"), EpisodeGroupRules.groupsHolding(episodes))
+    }
+
+    @Test
     fun queuesWhatIsNeitherHereNorOnItsWayAndRetriesFailures() {
         val episodes = listOf(episode("here"), episode("coming"), episode("failed"), episode("new"))
         val downloads = listOf(download("here", LocalPhase.Downloaded), download("coming", LocalPhase.Downloading), download("failed", LocalPhase.Failed)).associateBy { it.item.id }

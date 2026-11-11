@@ -19,20 +19,24 @@ sealed interface EpisodeGroupState {
 
 object EpisodeGroupRules {
     /**
-     * What a group's [episodes] (each one's download, null for one never asked for) add up to, as on iPhone: a failure
-     * first (tapping tries again); then, with anything on its way, how many of the whole group are here and how far it
-     * has got on average; then all here. [queueing] counts as on its way while episodes are still being asked of the
-     * server (or the list of them fetched). [known] is false while only the downloads are known and not the full list of
-     * episodes: then it can't be all here.
+     * What a group's [episodes] (each one's download, null for one never asked for) add up to, as on iPhone: all here is
+     * downloaded, however they came. Otherwise only a group someone [started] (or is [queueing]: its episodes still being
+     * asked of the server, or the list of them fetched) says more, so downloading one episode doesn't turn its show or
+     * season into "Downloading": a failure first (tapping tries again); then, with anything on its way, how many of the
+     * whole group are here and how far it has got on average. [known] is false while only the downloads are known and
+     * not the full list of episodes: then it can't be all here.
      */
     fun state(
         episodes: List<LocalDownload?>,
+        started: Boolean = true,
         queueing: Boolean = false,
         known: Boolean = true,
         progress: (LocalDownload) -> Double = { it.progress },
     ): EpisodeGroupState {
-        episodes.firstOrNull { it?.phase == LocalPhase.Failed }?.let { return EpisodeGroupState.Failed(it.failure ?: t("Couldn’t download this")) }
         val done = episodes.count { it?.isDownloaded == true }
+        if (known && episodes.isNotEmpty() && done == episodes.size) return EpisodeGroupState.Downloaded
+        if (!started && !queueing) return EpisodeGroupState.NotDownloaded(episodes.size - done)
+        episodes.firstOrNull { it?.phase == LocalPhase.Failed }?.let { return EpisodeGroupState.Failed(it.failure ?: t("Couldn’t download this")) }
         if (queueing || episodes.any { it?.isPending == true }) {
             val fractions = episodes.map {
                 when {
@@ -44,7 +48,6 @@ object EpisodeGroupRules {
             }
             return EpisodeGroupState.Downloading(done, episodes.size, if (fractions.isEmpty()) 0.0 else fractions.average())
         }
-        if (known && episodes.isNotEmpty() && done == episodes.size) return EpisodeGroupState.Downloaded
         return EpisodeGroupState.NotDownloaded(episodes.size - done)
     }
 
@@ -57,6 +60,12 @@ object EpisodeGroupRules {
 
     /** What Try again asks for again. */
     fun failed(downloads: List<LocalDownload>): List<LocalDownload> = downloads.filter { it.phase == LocalPhase.Failed }
+
+    /**
+     * The started groups Stop or Remove on [episodes] forgets: every group holding one of them, its show and its season
+     * (a show's Stop forgets its seasons; a season's forgets its show).
+     */
+    fun groupsHolding(episodes: List<ItemSummary>): Set<String> = episodes.flatMap { listOfNotNull(it.seriesId, it.parentId) }.toSet()
 }
 
 /** A show's episodes on the Downloads screen: its name, and its downloads by season then episode. */

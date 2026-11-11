@@ -249,6 +249,44 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     /** Episodes by show (by its id, or its name from servers that don't send one), in episode order; the shows by name. */
     val shows: List<DownloadedShow> get() = DownloadedShows.group(downloads, t("Episodes"))
 
+    /**
+     * Shows and seasons (by id) whose Download someone pressed, for each profile: only those say how far they've got,
+     * so downloading one episode doesn't turn its show or season into "Downloading". Stop or Remove forgets them.
+     */
+    private var startedGroups: Map<String, Set<String>> by mutableStateOf(emptyMap())
+
+    private fun startedKey(profile: String) = "$STARTED_GROUPS-$profile"
+
+    private fun startedFor(profile: String): Set<String> =
+        startedGroups[profile] ?: prefs.getStringSet(startedKey(profile), emptySet())!!.toSet()
+
+    /** Someone pressed this show's or season's Download (as this profile). */
+    fun isStarted(groupId: String): Boolean = profileId?.let { groupId in startedFor(it) } == true
+
+    fun markStarted(groupId: String) {
+        val profile = profileId ?: model.currentProfile?.id ?: return
+        setStarted(profile, startedFor(profile) + groupId)
+    }
+
+    /** Stop or Remove on a group: it, and every other group of these ids, no longer counts as started. */
+    fun forgetStarted(groupIds: Set<String>) {
+        val profile = profileId ?: return
+        val now = startedFor(profile)
+        if (now.any { it in groupIds }) setStarted(profile, now - groupIds)
+    }
+
+    private fun setStarted(profile: String, ids: Set<String>) {
+        startedGroups = startedGroups + (profile to ids)
+        prefs.edit { putStringSet(startedKey(profile), ids) }
+    }
+
+    /** Every download went: no group counts as started any more. */
+    private fun forgetAllStarted() {
+        startedGroups = emptyMap()
+        val keys = prefs.all.keys.filter { it.startsWith("$STARTED_GROUPS-") }
+        prefs.edit { keys.forEach { remove(it) } }
+    }
+
     /** This profile's downloads of a show's episodes, whatever their state. */
     fun episodesOfShow(showId: String): List<LocalDownload> = downloads.filter { it.item.kind == MediaKind.Episode && it.item.seriesId == showId }
 
@@ -882,6 +920,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     /** Every download goes (Settings' Delete all). What was watched offline is sent first, while it can be. */
     fun deleteAll() {
         model.bookDownloads.deleteAll()
+        forgetAllStarted()
         if (!loaded) clearedBeforeLoad = true
         val client = currentClient
         val pending = all.mapNotNull { download -> download.unsent?.let { download.item.id to it } }
@@ -920,6 +959,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         profileId = null
         unsentDeletes = emptySet()
         prefs.edit { remove(PROFILE).remove(KEPT_FOR) }
+        forgetAllStarted()
         this.client = null
         return scope.launch {
             if (client == null) return@launch
@@ -1008,6 +1048,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         private const val ASKED_NOTIFICATIONS = "askedNotifications"
         private const val DECLINED = "declinedEpisodes"
         private const val UNSENT_DELETES = "unsentDeletes"
+        private const val STARTED_GROUPS = "startedGroups"
         /** The server whose downloads were kept when it refused this device's sign-in. */
         private const val KEPT_FOR = "keptFor"
         private const val WORK_TAG = "flexarr-download"
