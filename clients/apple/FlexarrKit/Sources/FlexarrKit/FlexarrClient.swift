@@ -1232,7 +1232,7 @@ public struct FlexarrClient: Sendable {
     }
 
     /// The address didn't answer at all (as opposed to answering with an error or the request being cancelled).
-    static func couldNotConnect(_ error: Error) -> Bool {
+    public static func couldNotConnect(_ error: Error) -> Bool {
         guard let error = error as? URLError else { return false }
         switch error.code {
         case .cannotFindHost, .dnsLookupFailed, .cannotConnectToHost, .networkConnectionLost, .timedOut,
