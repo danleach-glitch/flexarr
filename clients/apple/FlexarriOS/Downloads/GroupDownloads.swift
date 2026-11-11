@@ -5,18 +5,16 @@ import SwiftUI
 enum GroupDownloadStatus: Equatable {
     /// Some (or all) aren't here or on their way, and nothing is coming down.
     case notStarted(missing: Int)
-    /// Some are on their way: how far the group has got on average, and how many are here.
-    case downloading(fraction: Double, done: Int, total: Int)
+    /// Some are on their way: how far the group has got on average, how many are here, and how many failed meanwhile
+    /// (while any is still coming, the group shows its progress and can be stopped, whatever failed).
+    case downloading(fraction: Double, done: Int, total: Int, failed: Int)
     /// Every one is here.
     case downloaded
-    /// One failed (the first one's reason).
-    case failed(String)
+    /// Nothing is on its way and some failed: the first one's reason, and how many.
+    case failed(String, count: Int)
 
     init(_ states: [LocalDownload.State?]) {
-        if let failure = states.lazy.compactMap({ state -> String? in if case .failed(let reason) = state { reason } else { nil } }).first {
-            self = .failed(failure)
-            return
-        }
+        let failures = states.compactMap { state -> String? in if case .failed(let reason) = state { reason } else { nil } }
         let done = states.filter { $0 == .downloaded }.count
         let inFlight = states.contains { state in
             switch state {
@@ -32,7 +30,10 @@ enum GroupDownloadStatus: Equatable {
                 default: 0
                 }
             }
-            self = .downloading(fraction: fractions.reduce(0, +) / Double(max(1, fractions.count)), done: done, total: states.count)
+            self = .downloading(fraction: fractions.reduce(0, +) / Double(max(1, fractions.count)), done: done, total: states.count,
+                                failed: failures.count)
+        } else if let failure = failures.first {
+            self = .failed(failure, count: failures.count)
         } else if done == states.count, !states.isEmpty {
             self = .downloaded
         } else {
@@ -44,9 +45,9 @@ enum GroupDownloadStatus: Equatable {
     var iconState: LocalDownload.State? {
         switch self {
         case .notStarted: nil
-        case .downloading(let fraction, _, _): .downloading(fraction)
+        case .downloading(let fraction, _, _, _): .downloading(fraction)
         case .downloaded: .downloaded
-        case .failed(let reason): .failed(reason)
+        case .failed(let reason, _): .failed(reason)
         }
     }
 }
@@ -118,8 +119,11 @@ extension DownloadStore {
 /// The one question a group's download control is asking.
 private enum GroupQuestion {
     case confirm(count: Int, show: String)
-    case stop
+    /// Some are still on their way (and `failed` couldn't download meanwhile).
+    case stop(failed: Int)
     case remove
+    /// Nothing's on its way and some couldn't download: the first one's reason, and how many.
+    case retry(String, count: Int)
     case failed(String)
 
     var title: String {
@@ -127,6 +131,7 @@ private enum GroupQuestion {
         case .confirm(let count, let show): t("Download {count, plural, one {# episode} other {# episodes}} of {show}?", ["count": count, "show": show])
         case .stop: t("Stop these downloads?")
         case .remove: t("Remove these downloads?")
+        case .retry(_, let count): t("Couldn’t download {count, plural, one {# episode} other {# episodes}}", ["count": count])
         case .failed: t("Couldn’t download this")
         }
     }
@@ -134,7 +139,7 @@ private enum GroupQuestion {
 
 /// What pressing a group's download control does, with its questions in one alert (several alerts on one view
 /// fought, so Stop took more than one press): download what's missing (a whole show asks first, with the count),
-/// stop what's on its way, remove what's here, or try a failure again.
+/// stop what's on its way (or try what failed meanwhile again), remove what's here, or try the failures again.
 @MainActor
 private enum GroupDownloadPress {
     static func press(_ store: DownloadStore, group: String, episodes: [ItemSummary], confirmsFor show: String?,
@@ -142,8 +147,8 @@ private enum GroupDownloadPress {
         switch store.status(ofGroup: group, episodes: episodes) {
         case .notStarted(let missing):
             if let show { ask(.confirm(count: missing, show: show)) } else { start(store, group: group, episodes: episodes, onError: onError) }
-        case .failed: start(store, group: group, episodes: episodes, onError: onError)
-        case .downloading: ask(.stop)
+        case .failed(let reason, let count): ask(.retry(reason, count: count))
+        case .downloading(_, _, _, let failed): ask(.stop(failed: failed))
         case .downloaded: ask(.remove)
         }
     }
@@ -173,18 +178,40 @@ private struct GroupDownloadAlert: ViewModifier {
                     }
                 }
                 Button(t(Words.cancel), role: .cancel) {}
-            case .stop:
+            case .stop(let failed):
                 // After the alert has gone, so it closes on the first press.
                 Button(t("Stop downloads"), role: .destructive) { later { store.delete(episodes: episodes, unfinishedOnly: true) } }
+                if failed > 0 {
+                    // Only the ones that failed: the rest are still coming.
+                    Button(t("Try again")) { tryAgain(failedOnly: true) }
+                }
                 Button(t(Words.cancel), role: .cancel) {}
             case .remove:
                 Button(t("Remove downloads"), role: .destructive) { later { store.delete(episodes: episodes, unfinishedOnly: false) } }
+                Button(t(Words.cancel), role: .cancel) {}
+            case .retry:
+                Button(t("Try again")) { tryAgain(failedOnly: false) }
                 Button(t(Words.cancel), role: .cancel) {}
             case .failed:
                 Button(t("OK"), role: .cancel) {}
             }
         } message: { asked in
-            if case .failed(let message) = asked { Text(message) }
+            switch asked {
+            case .failed(let message), .retry(let message, _): Text(message)
+            case .stop(let failed) where failed > 0:
+                Text(t("{count, plural, one {# episode} other {# episodes}} couldn’t download.", ["count": failed]))
+            default: EmptyView()
+            }
+        }
+    }
+
+    /// The ones that failed start again (and, unless `failedOnly`, any others missing).
+    private func tryAgain(failedOnly: Bool) {
+        let again = failedOnly ? episodes.filter { episode in
+            if case .failed = store.entry(for: episode.id)?.state { true } else { false }
+        } : episodes
+        GroupDownloadPress.start(store, group: group, episodes: again) { message in
+            Task { @MainActor in question = .failed(message) }
         }
     }
 
@@ -254,7 +281,9 @@ struct ShowDownloadButton: View {
 
     private func label(_ status: GroupDownloadStatus?) -> String {
         switch status {
-        case .downloading(_, let done, let total): t("{done} of {total}", ["done": done, "total": total])
+        case .downloading(_, let done, let total, let failed) where failed > 0:
+            t("{done} of {total}, {failed} failed", ["done": done, "total": total, "failed": failed])
+        case .downloading(_, let done, let total, _): t("{done} of {total}", ["done": done, "total": total])
         case .downloaded: t("Downloaded")
         case .failed: t("Couldn’t download")
         // "Show", so it isn't taken for downloading the episode Play is about to play.
@@ -264,7 +293,7 @@ struct ShowDownloadButton: View {
 
     private func accessibility(_ status: GroupDownloadStatus) -> String {
         switch status {
-        case .downloading(let fraction, _, _): t("Downloading, {percent}%", ["percent": Int(fraction * 100)])
+        case .downloading(let fraction, _, _, _): t("Downloading, {percent}%", ["percent": Int(fraction * 100)])
         case .downloaded: t("Downloaded")
         case .failed: t("Couldn’t download")
         case .notStarted: t("Download show")
@@ -272,7 +301,7 @@ struct ShowDownloadButton: View {
     }
 }
 
-/// "Download Season 2" beside the season pills: every episode in the season, straight away.
+/// "Download Season 2" under the season pills: every episode in the season, straight away.
 struct SeasonDownloadLink: View {
     @Environment(DownloadStore.self) private var store
     let season: ItemDetail

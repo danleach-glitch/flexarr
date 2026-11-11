@@ -85,7 +85,7 @@ struct DownloadedShowRow: View {
     @ViewBuilder private var status: some View {
         let count = t("{count, plural, one {# episode} other {# episodes}}", ["count": show.episodes.count])
         switch GroupDownloadStatus(show.episodes.map(\.state)) {
-        case .downloading(let fraction, _, _):
+        case .downloading(let fraction, _, _, _):
             VStack(alignment: .leading, spacing: 4) {
                 caption(count)
                 ProgressView(value: fraction).tint(.silver)
@@ -95,7 +95,7 @@ struct DownloadedShowRow: View {
                 DownloadedMark()
                 caption([count, formatBytes(show.episodes.compactMap(\.sizeBytes).reduce(0, +))].joined(separator: "  "))
             }
-        case .failed(let message):
+        case .failed(let message, _):
             VStack(alignment: .leading, spacing: 3) {
                 caption(count)
                 Text(message).font(.caption).foregroundStyle(Color.danger).lineLimit(1)
