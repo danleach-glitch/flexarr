@@ -89,7 +89,11 @@ extension DownloadStore {
                 firstError = firstError ?? error
                 // The server not answering at all (rather than turning one episode down) ends the batch after a few in
                 // a row: each waits out its own timeout, and a long show would otherwise go on for hours.
-                let noAnswer = FlexarrClient.couldNotConnect(error) || (error as? FlexarrClientError) == .unreachable
+                let proxyDown: Bool = {
+                    if case .http(let status, _) = error as? FlexarrClientError { return (502...504).contains(status) }
+                    return false
+                }() // A proxy in front of a server that's down, as Android counts it.
+                let noAnswer = FlexarrClient.couldNotConnect(error) || (error as? FlexarrClientError) == .unreachable || proxyDown
                 unanswered = noAnswer ? unanswered + 1 : 0
                 if unanswered >= Self.unansweredLimit { throw BatchUnanswered() }
             }
