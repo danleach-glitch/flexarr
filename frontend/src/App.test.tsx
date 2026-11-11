@@ -2157,8 +2157,8 @@ describe('Library grid', () => {
     await screen.findByRole('link', { name: 'Film 209' })
     fireEvent.click(screen.getByRole('link', { name: 'Film 003' }))
     // Marking it watched is a change, which clears cached answers; the grid's own state is kept apart.
-    fireEvent.click(await screen.findByRole('button', { name: /Mark as watched/ }))
-    expect(await screen.findByRole('button', { name: /Watched/ })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(await screen.findByRole('button', { name: 'Watched', pressed: false }))
+    expect(await screen.findByRole('button', { name: 'Watched', pressed: true })).toBeInTheDocument()
 
     const scrolls = vi.mocked(window.scrollTo)
     scrolls.mockClear()

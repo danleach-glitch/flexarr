@@ -98,6 +98,49 @@
   }
 }
 
+.title-action-label {
+  display: none;
+}
+
+/* A phone: Play (or Resume) spelled out across the row, and the rest as icons with their names under them, as the apps
+   have them, in one line rather than three. */
+@media (max-width: 520px) {
+  .title-actions {
+    gap: 8px 2px;
+  }
+
+  .title-actions > .button:not(.quiet) {
+    flex: 1 0 100%;
+  }
+
+  .title-actions > .button.quiet,
+  .title-actions > .button.quiet.icon {
+    flex: 1 1 0;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    width: auto;
+    min-height: 0;
+    padding: 8px 2px;
+    border-color: transparent;
+    background: transparent;
+    backdrop-filter: none;
+    font-size: var(--step--1);
+    font-weight: 600;
+    line-height: 1.15;
+    white-space: normal;
+  }
+
+  .title-actions > .button.quiet svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .title-actions .title-action-label {
+    display: inline;
+  }
+}
+
 .detail-actions [aria-pressed='true'] svg {
   color: var(--ambient);
 }

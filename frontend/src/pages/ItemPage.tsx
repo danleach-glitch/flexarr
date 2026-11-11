@@ -255,7 +255,8 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
             ]}
           />
           {detail.overview && <Overview text={detail.overview} />}
-          <div className="detail-actions">
+          {/* title-actions: on a phone, Play spelled out and the rest as labelled icons under it (detail.css). */}
+          <div className="detail-actions title-actions">
             {playTarget && (
               <button
                 className="button"
@@ -284,7 +285,8 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
             )}
             {!kids && (
               <AsyncButton className="button quiet" aria-pressed={item.userData.watched} onClick={toggleWatched}>
-                {item.userData.watched ? <icon.isWatched /> : <icon.watched />} {item.userData.watched ? t('Watched') : t(Words.markAsWatched)}
+                {/* A toggle: the tick fills, the name stays (docs/design.md). */}
+                {item.userData.watched ? <icon.isWatched /> : <icon.watched />} {t('Watched')}
               </AsyncButton>
             )}
             {detail.onWatchlist != null && !kids && <WatchlistButton titleKey={{ libraryItemId: item.id }} title={item.title} on={detail.onWatchlist} />}
@@ -301,6 +303,10 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
                 }}
               >
                 <icon.more />
+                {/* Named under its icon on a phone, like the actions beside it. */}
+                <span className="title-action-label" aria-hidden="true">
+                  {t('More')}
+                </span>
               </button>
             )}
             {moreAt && <Menu label={t('More for {title}', { title: item.title })} at={moreAt} actions={more} onClose={() => setMoreAt(null)} focusBack={moreButton} />}
