@@ -200,6 +200,8 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     /// downloaded?" (a card's mark) isn't drawn again on every step of a transfer's progress: it changes only when a
     /// download arrives, goes, or the profile changes.
     private(set) var downloadedIds: Set<String> = []
+    /// Episodes whose season's or show's download was stopped: a batch still asking for them gives up (GroupDownloads).
+    var stoppedEpisodeIds: Set<String> = []
     /// Collections whose tracks are still being asked of the server (observed, so a collection whose requests were
     /// cut short shows as failed as soon as they stop).
     private var queueing: Set<String> = []

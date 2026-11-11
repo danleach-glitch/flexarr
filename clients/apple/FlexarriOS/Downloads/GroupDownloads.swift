@@ -59,19 +59,30 @@ extension DownloadStore {
 
     /// Downloads every one of these not already here or on its way (a failed one starts again), one after another,
     /// so the server queues them in order. Carries on past a failure and throws the first one at the end.
+    /// Stopping them (`delete(episodes:)`) ends the batch too, so the rest aren't asked for after the stop.
     func download(all episodes: [ItemSummary]) async throws {
+        let ids = Set(episodes.map(\.id))
+        stoppedEpisodeIds.subtract(ids)
         var firstError: Error?
         for episode in episodes {
+            guard stoppedEpisodeIds.isDisjoint(with: ids) else { return }
             if let existing = entry(for: episode.id) {
                 if case .failed = existing.state { delete(existing.id) } else { continue }
             }
             do { try await download(itemId: episode.id) } catch { firstError = firstError ?? error }
+            // Stopped while the server was being asked: this one arrived after the stop.
+            if !stoppedEpisodeIds.isDisjoint(with: ids) {
+                if let late = entry(for: episode.id), !late.isDownloaded { delete(late.id) }
+                return
+            }
         }
         if let firstError { throw firstError }
     }
 
-    /// Deletes these episodes' downloads: all of them, or only those still on their way.
+    /// Deletes these episodes' downloads: all of them, or only those still on their way. Any batch still asking for
+    /// them stops.
     func delete(episodes: [ItemSummary], unfinishedOnly: Bool) {
+        stoppedEpisodeIds.formUnion(episodes.map(\.id))
         for episode in episodes {
             guard let download = entry(for: episode.id) else { continue }
             if unfinishedOnly && download.isDownloaded { continue }
