@@ -1,3 +1,4 @@
+import { errorText } from '../lib/errorText'
 import { useState } from 'react'
 import { ApiError, audibleChapters, saveChapters, unlockFirst, type BookChapter } from '../api/client'
 import { useModal } from '../hooks/useModal'
@@ -76,9 +77,7 @@ export function ChapterEditor({
       setError(
         e instanceof ApiError && e.status === 404 && !e.messages[0]
           ? t('This server can’t edit chapters yet.')
-          : e instanceof ApiError && e.messages[0]
-            ? e.messages[0]
-            : String(e),
+          : errorText(e),
       )
     } finally {
       setBusy(false)
@@ -96,7 +95,7 @@ export function ChapterEditor({
       setLeaving(false)
       setDrafts(draftsOf(chapters).map((d, i) => ({ ...d, key: Math.max(-1, ...drafts.map((x) => x.key)) + 1 + i })))
     } catch (e) {
-      setError(e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e))
+      setError(errorText(e))
     } finally {
       setBusy(false)
     }

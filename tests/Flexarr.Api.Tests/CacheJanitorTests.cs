@@ -58,6 +58,50 @@ public sealed class CacheJanitorTests : IDisposable
         Assert.False(File.Exists(staleLogo));
     }
 
+    [Fact]
+    public async Task PreparedDownloads_NoDownloadPointsAt_AreDeleted_OnceTheyAreAnHourOld()
+    {
+        var cache = _factory.Services.GetRequiredService<IOptionsMonitor<FlexarrOptions>>().CurrentValue.ResolvedCacheDirectory;
+        var folder = Path.Combine(cache, "downloads");
+        Guid ready, preparing;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var library = new Library { Name = "Films", Type = LibraryType.Movies };
+            var movie = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Movie, Title = "Film", SortTitle = "film" };
+            var readyRow = new Download
+            {
+                ProfileId = PlaybackState.DefaultUser, MediaItemId = movie.Id, Quality = DownloadQuality.Medium, Status = DownloadStatus.Ready,
+            };
+            readyRow.FilePath = Path.Combine(folder, $"{readyRow.Id:N}.mp4");
+            var preparingRow = new Download
+            {
+                ProfileId = PlaybackState.DefaultUser, MediaItemId = movie.Id, Quality = DownloadQuality.High, Status = DownloadStatus.Preparing,
+            };
+            db.AddRange(library, movie, readyRow, preparingRow);
+            await db.SaveChangesAsync();
+            (ready, preparing) = (readyRow.Id, preparingRow.Id);
+        }
+
+        var readyFile = Write(Path.Combine(folder, $"{ready:N}.mp4"));
+        var partFile = Write(Path.Combine(folder, $"{preparing:N}.part.mp4"));
+        var orphan = Write(Path.Combine(folder, $"{Guid.NewGuid():N}.mp4")); // its profile was deleted
+        var orphanPart = Write(Path.Combine(folder, $"{Guid.NewGuid():N}.part.m4a"));
+        var justMade = Write(Path.Combine(folder, $"{Guid.NewGuid():N}.mp4")); // a row about to be saved
+        foreach (var old in new[] { readyFile, partFile, orphan, orphanPart })
+        {
+            File.SetLastWriteTimeUtc(old, DateTime.UtcNow - CacheJanitor.DownloadGrace - TimeSpan.FromMinutes(5));
+        }
+
+        await _factory.Services.GetRequiredService<CacheJanitor>().RunOnceAsync(CancellationToken.None);
+
+        Assert.True(File.Exists(readyFile));
+        Assert.True(File.Exists(partFile));
+        Assert.True(File.Exists(justMade));
+        Assert.False(File.Exists(orphan));
+        Assert.False(File.Exists(orphanPart));
+    }
+
     private static string Write(string path)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);

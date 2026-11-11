@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Flexarr.Api.Endpoints;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
@@ -486,6 +487,34 @@ public sealed class TitleVersionsTests : IAsyncLifetime
         var detail = await Client().GetFromJsonAsync<JsonElement>(Api($"/items/{show}?includeSeason=true"));
         var season = Assert.Single(detail.GetProperty("children").EnumerateArray()).GetProperty("id").GetGuid();
         Assert.Equal(season, detail.GetProperty("nextUp").GetProperty("parentId").GetGuid());
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Summaries_NameOneShowForEpisodesOfEitherCopy(bool hdShowFirst)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        MediaItem Show(Guid library, Guid id) => new() { Id = id, LibraryId = library, Kind = MediaKind.Series, Title = "Split", SortTitle = "split", TvdbId = "778" };
+        MediaItem Season(Guid library, MediaItem parent) => new() { LibraryId = library, ParentId = parent.Id, Kind = MediaKind.Season, Title = "Season 1", SortTitle = "001", SeasonNumber = 1 };
+        MediaItem Episode(Guid library, MediaItem season, int number) =>
+            new() { LibraryId = library, ParentId = season.Id, Kind = MediaKind.Episode, Title = $"E{number}", SortTitle = $"001{number:D3}", SeasonNumber = 1, EpisodeNumber = number };
+        var low = Guid.Parse("00000000-0000-7000-8000-000000000011");
+        var high = Guid.Parse("00000000-0000-7000-8000-000000000012");
+        var hdShow = Show(_hdLibrary, hdShowFirst ? low : high);
+        var uhdShow = Show(_uhdLibrary, hdShowFirst ? high : low);
+        var (hdSeason, uhdSeason) = (Season(_hdLibrary, hdShow), Season(_uhdLibrary, uhdShow));
+        // Episode 1 only in HD, episode 2 only in 4K: a season's list takes one from each copy.
+        db.AddRange(hdShow, uhdShow, hdSeason, uhdSeason, Episode(_hdLibrary, hdSeason, 1), Episode(_uhdLibrary, uhdSeason, 2));
+        await db.SaveChangesAsync();
+        await TitleLinker.LinkAsync(db, default);
+        await Flexarr.Api.Profiles.LibraryVisibility.ApplyAsync(db, PlaybackState.DefaultUser, default);
+
+        var summaries = await db.MediaItems.Where(i => i.Parent!.Parent!.TvdbId == "778" || i.Parent!.TvdbId == "778")
+            .Summaries(PlaybackState.DefaultUser).ToListAsync();
+        Assert.Equal(4, summaries.Count); // two seasons, two episodes
+        Assert.All(summaries, s => Assert.Equal(low, s.SeriesId));
     }
 
     [Fact]

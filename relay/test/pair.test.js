@@ -138,6 +138,17 @@ test('an address gets 60 requests a minute', async () => {
   assert.equal((await call({ url: '/api/pair?code=ABCDEFGH', ip: '198.51.100.7' })).status, 429);
 });
 
+test('the addresses of one IPv6 /64 share those 60', async () => {
+  pair._hits.clear();
+  pair._memory.clear();
+  await call({ method: 'POST', body: { code: 'ABCDEFGH', publicKey: publicKey(), secret } });
+  for (let i = 0; i < 60; i++) {
+    assert.equal((await call({ url: '/api/pair?code=ABCDEFGH', ip: `2001:db8:7:7::${(i + 1).toString(16)}` })).status, 200);
+  }
+  assert.equal((await call({ url: '/api/pair?code=ABCDEFGH', ip: '2001:db8:7:7:abcd::1' })).status, 429);
+  assert.equal((await call({ url: '/api/pair?code=ABCDEFGH', ip: '2001:db8:7:8::1' })).status, 200);
+});
+
 // --- Budgets: what a flood does all day and a household hardly ever.
 
 function fresh() {

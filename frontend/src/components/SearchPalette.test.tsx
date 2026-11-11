@@ -34,6 +34,54 @@ function renderPalette(onClose = vi.fn()) {
 }
 
 describe('SearchPalette', () => {
+  it('says the server didn’t answer, not that nothing matches, clears what an earlier search found, and tries again', async () => {
+    const empty = { titles: [], episodes: [], people: [], genres: [], albums: [], tracks: [] }
+    let down = false
+    mockApi({
+      '/search': (_: RequestInit | undefined, url: URL) => {
+        if (down) throw new TypeError('Failed to fetch')
+        return { ...empty, titles: [summary({ id: url.searchParams.get('q')!, kind: 'Movie', title: `Film ${url.searchParams.get('q')}` })] }
+      },
+    })
+    renderPalette()
+    const field = screen.getByLabelText('Search your library')
+    fireEvent.change(field, { target: { value: 'pulp' } })
+    expect(await screen.findByText('Film pulp', {}, { timeout: 2000 })).toBeInTheDocument()
+
+    down = true
+    fireEvent.change(field, { target: { value: 'blur' } })
+    expect(await screen.findByText('Flexarr didn’t answer. Try again.', {}, { timeout: 2000 })).toBeInTheDocument()
+    expect(screen.queryByText('Film pulp')).toBeNull()
+    expect(screen.queryByText(/Nothing in your library matches/)).toBeNull()
+
+    down = false
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByText('Film blur', {}, { timeout: 2000 })).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('asks again whether Seerr is set up when the last check got no answer', async () => {
+    const empty = { titles: [], episodes: [], people: [], genres: [], albums: [], tracks: [] }
+    let checks = 0
+    mockApi({
+      '/search': empty,
+      '/requests/status': () => {
+        checks++
+        if (checks === 1) throw new TypeError('Failed to fetch')
+        return { configured: true, reachable: true }
+      },
+      '/requests/music/status': { configured: false, reachable: false },
+      '/requests/search': [{ tmdbId: 7, mediaType: 'movie', title: 'Pulp Fiction', year: 1994, overview: null, poster: null, backdrop: null, rating: 8, availability: 'None', libraryItemId: null }],
+    })
+    renderPalette()
+    const field = screen.getByLabelText('Search your library')
+    fireEvent.change(field, { target: { value: 'pulp' } })
+    await vi.waitFor(() => expect(checks).toBe(1), { timeout: 2000 })
+    fireEvent.change(field, { target: { value: 'pulp f' } })
+    expect(await screen.findByRole('group', { name: 'Not in your library' }, { timeout: 2000 })).toBeInTheDocument()
+    expect(checks).toBe(2)
+  })
+
   it('groups artists, albums and tracks, naming the artist and album beneath each', async () => {
     mockApi({ '/search': { titles: [pulp], episodes: [], people: [], genres: [], albums: [differentClass], tracks: [{ item: commonPeople, album: 'Different Class' }] } })
     renderPalette()

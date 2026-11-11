@@ -75,7 +75,8 @@ struct DownloadedShowRow: View {
         }
         .alert(t("Remove these downloads?"), isPresented: $removing) {
             Button(t("Remove downloads"), role: .destructive) {
-                for episode in show.episodes { store.delete(episode.id) }
+                // Through the group stop, so a Download show or season still asking for them ends too.
+                store.delete(episodes: show.episodes.map(\.item), unfinishedOnly: false)
             }
             Button(t(Words.cancel), role: .cancel) {}
         }
@@ -84,7 +85,7 @@ struct DownloadedShowRow: View {
     @ViewBuilder private var status: some View {
         let count = t("{count, plural, one {# episode} other {# episodes}}", ["count": show.episodes.count])
         switch GroupDownloadStatus(show.episodes.map(\.state)) {
-        case .downloading(let fraction, _, _):
+        case .downloading(let fraction, _, _, _):
             VStack(alignment: .leading, spacing: 4) {
                 caption(count)
                 ProgressView(value: fraction).tint(.silver)
@@ -94,7 +95,7 @@ struct DownloadedShowRow: View {
                 DownloadedMark()
                 caption([count, formatBytes(show.episodes.compactMap(\.sizeBytes).reduce(0, +))].joined(separator: "  "))
             }
-        case .failed(let message):
+        case .failed(let message, _):
             VStack(alignment: .leading, spacing: 3) {
                 caption(count)
                 Text(message).font(.caption).foregroundStyle(Color.danger).lineLimit(1)
@@ -124,7 +125,10 @@ struct DownloadedShowView: View {
                     ForEach(show.seasons, id: \.number) { season in
                         Section(season.number.map { t("Season {number}", ["number": $0]) } ?? t("Special")) {
                             ForEach(season.episodes) { DownloadRow(download: $0) }
-                                .onDelete { offsets in for index in offsets { store.delete(season.episodes[index].id) } }
+                                // As a group stop, so a Download show or season still asking for it ends.
+                                .onDelete { offsets in
+                                    store.delete(episodes: offsets.map { season.episodes[$0].item }, unfinishedOnly: false)
+                                }
                         }
                     }
                 }

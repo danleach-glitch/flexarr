@@ -2,6 +2,27 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Downloads
+
+- **Download show** now says roughly how much space it needs, and warns when that's more than the phone has free. A download that runs out of space says **Not enough space** rather than just stopping.
+- On Android, downloading a whole show runs three episodes at a time, with the rest shown as **Queued**, instead of one notification per episode.
+- The server now takes turns between people when preparing downloads, so one person's whole show no longer holds up everyone else's film. Watching something that doesn't need converting no longer restarts a download being prepared, and one that's nearly done finishes first.
+- With 4K and 1080p copies linked, a downloaded show is listed once, and an episode already coming through the other copy isn't downloaded again.
+- On iPhone, switching profile part-way through **Download show** no longer downloads the rest into the new profile; removing a show from Downloads stops its download; a show with one failed episode still shows its progress and **Stop**; and **Download Season** sits on its own line under the season pills.
+- Prepared download files the server no longer needs are now cleaned up.
+
+### Web
+
+- When the server doesn't answer, pages and dialogs say so in your language rather than showing "Failed to fetch", and an action that fails now says why instead of doing nothing.
+- Search says when the server didn't answer, with **Try again**, rather than "Nothing in your library matches".
+- Settings › Overview no longer says nobody's watching right above something that's getting ready to play.
+
+### Privacy and security
+
+- On iPhone, a download only resumes against your home server's address once that server has confirmed it's yours.
+
 ## 0.65.0 · 11 November 2026
 
 ### Trakt

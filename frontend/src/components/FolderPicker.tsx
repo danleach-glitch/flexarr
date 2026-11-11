@@ -1,3 +1,4 @@
+import { errorText } from '../lib/errorText'
 import { useEffect, useState } from 'react'
 import { browseFilesystem, chooseFolderOnMac } from '../api/client'
 import { useApi } from '../hooks/useApi'
@@ -71,7 +72,7 @@ function ChooseOnMac({ onPick }: { onPick: (path: string) => void }) {
         onPick(picked.path)
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(errorText(e))
     } finally {
       setWaiting(false)
     }

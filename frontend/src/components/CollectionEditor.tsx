@@ -1,5 +1,6 @@
+import { errorText } from '../lib/errorText'
 import { useState, type FormEvent } from 'react'
-import { ApiError, createCollection, getGenres, updateCollection, type CollectionSummary, type SmartRules } from '../api/client'
+import { createCollection, getGenres, updateCollection, type CollectionSummary, type SmartRules } from '../api/client'
 import { useApi } from '../hooks/useApi'
 import { AsyncButton } from './AsyncButton'
 import { useModal } from '../hooks/useModal'
@@ -45,7 +46,7 @@ export function CollectionEditor({
         : await createCollection({ name, description, personal, rules: smart ? rules : undefined })
       onSaved(saved)
     } catch (err) {
-      setError(err instanceof ApiError && err.messages[0] ? err.messages[0] : String(err))
+      setError(errorText(err))
       setSaving(false)
     }
   }

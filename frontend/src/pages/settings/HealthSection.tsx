@@ -1,3 +1,4 @@
+import { errorText } from '../../lib/errorText'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { ApiError, getLibraryHealth, confirmHeldRemoval, keepMatch, removeDuplicates, deleteCopy, getHealthCheck, startHealthCheck, type ItemSummary, type LibraryHealth, type HeldFolder, searchAgain, mergeAlbums, mergeArtists } from '../../api/client'
@@ -585,7 +586,7 @@ function MusicHealth({ data, onChanged }: { data: LibraryHealth; onChanged: () =
       setMerging(undefined)
       onChanged()
     } catch (e) {
-      setError(e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e))
+      setError(errorText(e))
     } finally {
       setBusy(false)
     }

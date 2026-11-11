@@ -445,7 +445,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
                     )
                     DetailActions.Button.WATCHLIST -> onWatchlist?.let { on -> WatchlistAction(on, { toggleWatchlist(on) }, slot) }
                     DetailActions.Button.DOWNLOAD ->
-                        if (item.kind == MediaKind.Series) ShowDownloadAction(model, item, allEpisodes, slot)
+                        if (item.kind == MediaKind.Series) ShowDownloadAction(model, item, allEpisodes, slot, detail.copyIds.orEmpty())
                         else DownloadAction(model, item, slot, detail.copyIds.orEmpty())
                     DetailActions.Button.MORE -> Box(slot) {
                         LabeledAction(t("More"), FlexarrIcons.more, { more = true }, Modifier.fillMaxWidth())
@@ -630,7 +630,7 @@ private fun SeasonPicker(seasons: List<ItemSummary>, selected: String?, onSeason
     val model = LocalContext.current.appModel
     // "Download Season 2", on the pills' line at the end, outside their scrolling so it stays in view.
     val link: @Composable () -> Unit = {
-        season?.takeIf { it.item.id == selected }?.let { SeasonDownloadLink(model, it.item, it.children, Modifier.padding(end = Edge - 4.dp)) }
+        season?.takeIf { it.item.id == selected }?.let { SeasonDownloadLink(model, it.item, it.children, Modifier.padding(end = Edge - 4.dp), it.copyIds.orEmpty()) }
     }
     if (seasons.size == 1) {
         val only = seasons.first()

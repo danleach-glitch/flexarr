@@ -1,6 +1,7 @@
 import { ApiError } from '../api/client'
 import { AsyncButton } from './AsyncButton'
 import { t } from '../i18n'
+import { errorText } from '../lib/errorText'
 
 /**
  * A page that couldn't load, the same on every page and like the apps' StatusView: what happened, and Try again
@@ -11,7 +12,7 @@ export function PageError({ error, message, onRetry, retrying }: { error: Error;
   const gone = error instanceof ApiError ? error.status === 404 : error.message.includes('404')
   return (
     <div className="page-message page-status" role="alert">
-      <p className="error">{message ?? error.message}</p>
+      <p className="error">{message ?? errorText(error)}</p>
       {onRetry && !gone && (
         <AsyncButton className="button quiet small" busy={retrying} keepFocus onClick={onRetry}>
           {t('Try again')}

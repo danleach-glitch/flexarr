@@ -1,3 +1,4 @@
+import { errorText } from '../lib/errorText'
 import Hls from 'hls.js/light'
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
@@ -430,7 +431,7 @@ export function PlayerPage() {
         if (status === 410 && session.current === replaces) session.current = undefined
         const refused = status === 503 || status === 410
         if ((!quiet || refused) && request === requests.current) {
-          setError({ message: e instanceof Error ? e.message : String(e), kind: status === 410 ? 'takenOver' : status === 503 ? 'busy' : 'other' })
+          setError({ message: errorText(e), kind: status === 410 ? 'takenOver' : status === 503 ? 'busy' : 'other' })
         }
         return refused
       }

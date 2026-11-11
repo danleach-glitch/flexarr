@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { ApiError, downloadSubtitles, searchSubtitles, type SubtitleResult } from '../api/client'
+import { downloadSubtitles, searchSubtitles, type SubtitleResult } from '../api/client'
 import { useApi } from '../hooks/useApi'
 import { useModal } from '../hooks/useModal'
 import { AsyncButton } from './AsyncButton'
 import { t, Words } from '../i18n'
+import { errorText } from '../lib/errorText'
 
 interface Props {
   itemId: string
@@ -97,5 +98,5 @@ export function SubtitleSearchDialog({ itemId, fileId, title, onDownloaded, onCl
 }
 
 function message(e: unknown) {
-  return e instanceof ApiError && e.messages[0] ? e.messages[0] : e instanceof Error ? e.message : String(e)
+  return errorText(e)
 }

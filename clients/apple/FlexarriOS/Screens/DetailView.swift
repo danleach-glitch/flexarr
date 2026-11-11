@@ -284,7 +284,7 @@ struct DetailView: View {
         case .download:
             if item.kind == .series {
                 // Every episode of every season.
-                ShowDownloadButton(show: item, seasons: (detail?.children ?? []).filter { $0.kind == .season })
+                ShowDownloadButton(show: item, seasons: detail.map { $0.children.filter { $0.kind == .season } })
             } else {
                 DownloadButton(item: item, copies: detail?.copyIds ?? [])
             }
@@ -436,37 +436,28 @@ struct DetailView: View {
     private func seasonsSection(_ seasonList: [ItemSummary]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             if seasonList.count > 1 {
-                // The pills scroll; Download Season N stays put at the end of their line.
-                HStack(spacing: 16) {
+                // The pills scroll across the whole width; Download Season N is on its own line under them, so a long
+                // name ("Download Season 12") never squeezes them out of view.
+                VStack(alignment: .leading, spacing: 12) {
                 ScrollViewReader { proxy in
                     ScrollView(.horizontal) {
                         HStack(spacing: 8) {
                             ForEach(seasonList) { season in
                                 Button { selectedSeasonID = season.id } label: { seasonPillLabel(season) }
                                     .buttonStyle(PillButtonStyle(selected: season.id == selectedSeasonID, ambient: ambient))
-                                    // What scrolls into view: the pill plus the margin before it and the fade after it,
-                                    // as scrollTo counts the row's very edge (under the fade) as in view.
+                                    // What scrolls into view: the pill plus the margins either side of it, as scrollTo
+                                    // counts the row's very edge as in view.
                                     .background {
                                         Color.clear
-                                            .padding(.leading, -Layout.edge)
-                                            .padding(.trailing, -Self.pillFade)
+                                            .padding(.horizontal, -Layout.edge)
                                             .id(season.id)
                                     }
                             }
                         }
                     }
-                    // Margins rather than padding, so scrolling a pill into view keeps it clear of the edge and the fade.
-                    .contentMargins(.leading, Layout.edge, for: .scrollContent)
-                    .contentMargins(.trailing, selectedSeason == nil ? Layout.edge : Self.pillFade, for: .scrollContent)
+                    // Margins rather than padding, so scrolling a pill into view keeps it clear of the edges.
+                    .contentMargins(.horizontal, Layout.edge, for: .scrollContent)
                     .scrollIndicators(.hidden)
-                    // Pills running under the download link fade out rather than stop at a hard edge.
-                    .mask {
-                        HStack(spacing: 0) {
-                            Color.black
-                            LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
-                                .frame(width: selectedSeason == nil ? 0 : Self.pillFade)
-                        }
-                    }
                     // The chosen season fully in view, moving the row no more than it takes.
                     .onAppear { if let selectedSeasonID { proxy.scrollTo(selectedSeasonID) } }
                     .onChange(of: selectedSeasonID) { _, id in
@@ -489,15 +480,13 @@ struct DetailView: View {
         .task(id: selectedSeasonID) { await loadSelectedSeason() }
     }
 
-    /// How far the season pills fade before the download link.
-    private static let pillFade: CGFloat = 56
-
-    /// Download Season N, at the end of the seasons' line, once the season's episodes are here.
+    /// Download Season N, under the season pills (or at the end of a single season's heading), once the season's
+    /// episodes are here.
     @ViewBuilder
     private var seasonDownloadLink: some View {
         if let season = selectedSeason {
             SeasonDownloadLink(season: season)
-                .padding(.trailing, Layout.edge)
+                .padding(.horizontal, Layout.edge)
                 .fixedSize()
         }
     }

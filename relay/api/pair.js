@@ -13,6 +13,7 @@
 // Without them each instance keeps codes in its own memory, which only works with a single instance (tests, local).
 
 const crypto = require('node:crypto');
+const { clientAddress, localCount } = require('../lib/limits');
 
 const TTL_SECONDS = 600;
 const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -21,7 +22,7 @@ const SECRET = /^[A-Za-z0-9_-]{32,128}$/;
 const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 const MAX_SEALED = 4096; // an invite is a few hundred bytes
 // A TV polls every few seconds for ten minutes; a server makes a couple of calls per invite.
-const RATE_LIMIT = 60; // requests per minute per address
+const RATE_LIMIT = 60; // requests per minute per address (an IPv6 one's /64)
 const KV_TIMEOUT_MS = 1500;
 
 // --- Storage: Upstash when configured, else this instance's memory.
@@ -100,14 +101,7 @@ const store = {
 const hits = new Map();
 
 function limited(ip, now = Date.now()) {
-  const minute = Math.floor(now / 60_000);
-  const entry = hits.get(ip);
-  if (!entry || entry.minute !== minute) {
-    if (hits.size > 10_000) hits.clear();
-    hits.set(ip, { minute, count: 1 });
-    return false;
-  }
-  return ++entry.count > RATE_LIMIT;
+  return localCount(hits, ip, 60, now) > RATE_LIMIT;
 }
 
 // --- Budgets per address for the two things a flood does all day and a household hardly ever: asking about codes
@@ -246,7 +240,7 @@ module.exports = async (req, res) => {
     return reply(res, 415, { reason: 'UnsupportedMediaType' });
   }
 
-  const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim();
+  const ip = clientAddress(req);
   if (limited(ip)) return reply(res, 429, { reason: 'TooManyRequests' });
 
   if (!kvConfigured() && process.env.VERCEL_ENV === 'production') {

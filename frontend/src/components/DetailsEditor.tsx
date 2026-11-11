@@ -1,10 +1,11 @@
 import { useState, type FormEvent } from 'react'
-import { ApiError, editAlbum, editDetails, resetDetails, type ItemDetail } from '../api/client'
+import { editAlbum, editDetails, resetDetails, type ItemDetail } from '../api/client'
 import { useModal } from '../hooks/useModal'
 import { AsyncButton } from './AsyncButton'
 import { NameList } from './NameList'
 import { automaticSort, withName } from '../lib/names'
 import { t, Words } from '../i18n'
+import { errorText } from '../lib/errorText'
 
 /** An album's kinds of release, as its page names them, with a plain album first. */
 const albumTypes = (): [string, string][] => [
@@ -57,7 +58,7 @@ export function DetailsEditor({ detail, onSaved, onClose }: { detail: ItemDetail
       onSaved()
       onClose()
     } catch (err) {
-      setError(err instanceof ApiError && err.messages[0] ? err.messages[0] : String(err))
+      setError(errorText(err))
       setSaving(false)
     }
   }

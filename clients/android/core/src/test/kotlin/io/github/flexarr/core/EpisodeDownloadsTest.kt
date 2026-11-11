@@ -95,7 +95,71 @@ class EpisodeDownloadsTest {
     fun queuesWhatIsNeitherHereNorOnItsWayAndRetriesFailures() {
         val episodes = listOf(episode("here"), episode("coming"), episode("failed"), episode("new"))
         val downloads = listOf(download("here", LocalPhase.Downloaded), download("coming", LocalPhase.Downloading), download("failed", LocalPhase.Failed)).associateBy { it.item.id }
-        assertEquals(listOf("failed", "new"), EpisodeGroupRules.toQueue(episodes) { downloads[it] }.map { it.id })
+        assertEquals(listOf("failed", "new"), EpisodeGroupRules.toQueue(episodes) { downloads[it.id] }.map { it.id })
+    }
+
+    @Test
+    fun findsAnEpisodeDownloadedThroughALinkedCopyOfTheShow() {
+        // The 4K copy's S1E2 was downloaded; the 1080p copy's page asks after its own S1E2.
+        val held = listOf(download(episode("4k-s1e2", number = 2, seriesId = "show-4k"), LocalPhase.Downloading))
+        val wanted = episode("hd-s1e2", number = 2, seriesId = "show-hd")
+        assertEquals("d-4k-s1e2", EpisodeGroupRules.throughCopies(wanted, held, setOf("show-hd", "show-4k"))?.id)
+        // Another episode, a show that isn't a copy, or no linked copies at all: none.
+        assertEquals(null, EpisodeGroupRules.throughCopies(episode("hd-s1e3", number = 3, seriesId = "show-hd"), held, setOf("show-hd", "show-4k")))
+        assertEquals(null, EpisodeGroupRules.throughCopies(wanted, held, setOf("show-hd", "other")))
+        assertEquals(null, EpisodeGroupRules.throughCopies(wanted, held, setOf("show-hd")))
+    }
+
+    @Test
+    fun findsAnEpisodeDownloadedThroughALinkedCopyOfTheSeason() {
+        val held = listOf(download(episode("4k-s1e2", number = 2, seriesId = "show-4k").copy(parentId = "season-4k"), LocalPhase.Downloaded))
+        assertEquals("d-4k-s1e2", EpisodeGroupRules.throughCopies(episode("hd-s1e2", number = 2, seriesId = "show-hd"), held, setOf("season-hd", "season-4k"))?.id)
+    }
+
+    @Test
+    fun aDownloadTheServerHandsBackIsKeptUnlessItFailedHereOrIsAnotherProfiles() {
+        assertEquals(true, DownloadRules.keepsHeld(download("a", LocalPhase.Downloading), "p"))
+        assertEquals(true, DownloadRules.keepsHeld(download("a", LocalPhase.Downloaded), "p"))
+        assertEquals(false, DownloadRules.keepsHeld(download("a", LocalPhase.Failed), "p"))
+        assertEquals(false, DownloadRules.keepsHeld(download("a", LocalPhase.Downloading), "someone else"))
+        assertEquals(false, DownloadRules.keepsHeld(null, "p"))
+    }
+
+    @Test
+    fun asksTheSizesOfEveryEpisodeOrAnEvenSpreadOfALongShow() {
+        val few = (1..5).map { episode("e$it", number = it) }
+        assertEquals(few, EpisodeGroupRules.sizeSample(few, most = 10))
+        val many = (1..100).map { episode("e$it", number = it) }
+        val sample = EpisodeGroupRules.sizeSample(many, most = 10)
+        assertEquals(listOf("e1", "e11", "e21", "e31", "e41", "e51", "e61", "e71", "e81", "e91"), sample.map { it.id })
+    }
+
+    @Test
+    fun estimatesTheWholeGroupFromTheSizesKnown() {
+        assertEquals(3_000L, EpisodeGroupRules.estimatedBytes(listOf(100L, 200L), 20))
+        assertEquals(null, EpisodeGroupRules.estimatedBytes(emptyList(), 20))
+    }
+
+    @Test
+    fun warnsWhenTheEstimateLeavesThePhoneShort() {
+        val gb = 1_000_000_000L
+        assertEquals(false, EpisodeGroupRules.outgrows(10 * gb, 20 * gb))
+        assertEquals(true, EpisodeGroupRules.outgrows(20 * gb, 20 * gb))
+        assertEquals(true, EpisodeGroupRules.outgrows(30 * gb, 20 * gb))
+    }
+
+    @Test
+    fun aTitlesEstimateIsAtTheSizeItWouldComeAt() {
+        val options = listOf(
+            DownloadOption(DownloadQuality.Original, 9_000, available = false),
+            DownloadOption(DownloadQuality.High, 4_000, available = true),
+            DownloadOption(DownloadQuality.Medium, 2_000, available = true),
+        )
+        assertEquals(2_000L, DownloadRules.estimatedBytes(DownloadQuality.Medium, options))
+        // An Original the phone can't play comes at High.
+        assertEquals(4_000L, DownloadRules.estimatedBytes(DownloadQuality.Original, options))
+        assertEquals(null, DownloadRules.estimatedBytes(DownloadQuality.Small, options))
+        assertEquals(null, DownloadRules.estimatedBytes(DownloadQuality.Medium, null))
     }
 
     @Test

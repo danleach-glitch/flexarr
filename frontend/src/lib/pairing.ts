@@ -1,3 +1,4 @@
+import { errorText } from './errorText'
 import { useSyncExternalStore } from 'react'
 import { ApiError, type PairingDetails } from '../api/client'
 import { t } from '../i18n'
@@ -20,9 +21,7 @@ export function deviceCode(text: string | null | undefined): string | null {
 export const pairingError = (e: unknown) =>
   e instanceof ApiError && e.status === 403
     ? t('Only the main profile can connect a device.')
-    : e instanceof ApiError && e.messages[0]
-      ? e.messages[0]
-      : String(e)
+    : errorText(e)
 
 // The code Connect a device (Settings, or /link from a TV's QR code) is asking about, so the app-wide prompt doesn't
 // ask about the same device twice on one screen.

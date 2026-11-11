@@ -399,7 +399,7 @@ function AddLibraryForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
       await createLibrary({ name: name || libraryTypeLabel[type], type, folders: [folder] })
       onDone()
     } catch (e) {
-      setErrors(e instanceof ApiError && e.messages.length ? e.messages : [e instanceof Error ? e.message : String(e)])
+      setErrors(e instanceof ApiError && e.messages.length ? e.messages : [errorText(e)])
     } finally {
       setSaving(false)
     }

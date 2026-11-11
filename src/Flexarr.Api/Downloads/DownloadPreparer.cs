@@ -164,8 +164,9 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
     internal async Task<bool> RunOnceAsync(CancellationToken ct)
     {
         await ExpireAsync(ct);
-        // Someone's watching something being converted: they come first.
-        if (transcodes.ActiveCount == 0)
+        // Someone's watching something whose picture is being converted: they come first. A repackaged stream (the
+        // picture copied as it is) or a song costs next to nothing, and a conversion needn't stop for it.
+        if (transcodes.EncodingCount == 0)
         {
             return await PrepareNextAsync(ct);
         }
@@ -243,15 +244,25 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
         download.FilePath = null;
     }
 
+    /// <summary>Whose download is converted next (see <see cref="DownloadTurns"/>).</summary>
+    private readonly DownloadTurns _turns = new();
+
     /// <returns>False when nothing was queued.</returns>
     private async Task<bool> PrepareNextAsync(CancellationToken ct)
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
-        var download = await db.Downloads.IgnoreQueryFilters().Where(d => d.Status == DownloadStatus.Queued).OrderBy(d => d.CreatedAt).FirstOrDefaultAsync(ct);
-        if (download is null)
+        var queued = (await db.Downloads.IgnoreQueryFilters().Where(d => d.Status == DownloadStatus.Queued)
+            .Select(d => new
+            {
+                d.Id, d.ProfileId, d.CreatedAt, d.MediaItemId,
+                Batch = d.MediaItem!.Kind == MediaKind.Episode ? d.MediaItem.Parent!.ParentId : d.MediaItem.Kind == MediaKind.Track ? d.MediaItem.ParentId : null,
+            }).ToListAsync(ct))
+            .Select(d => new DownloadTurns.Waiting(d.Id, d.ProfileId, d.Batch ?? d.MediaItemId, d.CreatedAt)).ToList();
+        if (_turns.Next(queued) is not { } next
+            || await db.Downloads.IgnoreQueryFilters().FirstOrDefaultAsync(d => d.Id == next && d.Status == DownloadStatus.Queued, ct) is not { } download)
         {
-            return false;
+            return queued.Count > 0; // taken meanwhile (made ready as it is, or deleted): the next round looks again
         }
 
         var file = await DownloadSource.ForAsync(db, download.MediaItemId, download.Quality, download.ProfileId, ct);
@@ -323,8 +334,8 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
             ? FfmpegCommand.M4a(file.Path, plan.AudioIndex ?? 0, plan.Convert?.AudioChannels ?? 2, partial)
             : FfmpegCommand.Mp4(file.Path, plan.Convert, plan.VideoIndex, plan.AudioIndex, plan.VideoCodec, plan.Subtitles, partial, current);
 
-        // Someone starting to watch takes precedence: the conversion stops and goes back in the queue.
-        var error = await RunAsync(settings.FfmpegPath, Args(settings), file.DurationSeconds ?? 0, download.Id, ct, yieldTo: () => transcodes.ActiveCount > 0);
+        // Someone starting to watch something converted takes precedence: the conversion stops and goes back in the queue.
+        var error = await RunAsync(settings.FfmpegPath, Args(settings), file.DurationSeconds ?? 0, download.Id, ct, yieldTo: () => transcodes.EncodingCount > 0);
 
         // The hardware encoder failed (busy, out of sessions, a codec it won't take): once more in software, as streams do.
         if (error is not null && !ReferenceEquals(error, Yielded) && !plan.IsAudioOnly && plan.Convert is { VideoStreamIndex: >= 0 }
@@ -334,7 +345,7 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
             LogSoftwareFallback(download.Id, settings.Resolved.ToString());
             TryDelete(partial);
             settings = settings with { HardwareAcceleration = HardwareAcceleration.None };
-            error = await RunAsync(settings.FfmpegPath, Args(settings), file.DurationSeconds ?? 0, download.Id, ct, yieldTo: () => transcodes.ActiveCount > 0);
+            error = await RunAsync(settings.FfmpegPath, Args(settings), file.DurationSeconds ?? 0, download.Id, ct, yieldTo: () => transcodes.EncodingCount > 0);
         }
 
         if (ReferenceEquals(error, Yielded))
@@ -561,12 +572,18 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
         return name.Length == 0 ? "Podcast" : name.Length > 100 ? name[..100].Trim() : name;
     }
 
+    /// <summary>
+    /// How far a conversion has got when it no longer stops for someone watching: stopping throws the work away, and
+    /// what's left of it (at low priority) costs the stream less than starting again later would cost the queue.
+    /// </summary>
+    internal const double NearlyDone = 0.9;
+
     /// <summary>What <see cref="RunAsync"/> gives back when it stopped to make way for someone watching.</summary>
     private static readonly string Yielded = new("yielded".ToCharArray());
 
     /// <summary>
     /// Runs ffmpeg, noting its progress; null when it worked, else what went wrong, or <see cref="Yielded"/> when
-    /// <paramref name="yieldTo"/> said to stop for someone else.
+    /// <paramref name="yieldTo"/> said to stop for someone else (it isn't asked once the conversion is <see cref="NearlyDone"/>).
     /// </summary>
     private async Task<string?> RunAsync(string ffmpeg, IReadOnlyList<string> args, double duration, Guid id, CancellationToken ct, Func<bool>? yieldTo = null)
     {
@@ -588,11 +605,12 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
 
         var errors = process.StandardError.ReadToEndAsync(ct);
         var lastSaved = DateTime.MinValue;
+        var done = 0.0;
         try
         {
             while (await process.StandardOutput.ReadLineAsync(ct) is { } line)
             {
-                if (yieldTo?.Invoke() == true)
+                if (done < NearlyDone && yieldTo?.Invoke() == true)
                 {
                     process.Kill(entireProcessTree: true);
                     await process.WaitForExitAsync(ct);
@@ -600,14 +618,19 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
                 }
 
                 if (!line.StartsWith("out_time_us=", StringComparison.Ordinal) || duration <= 0
-                    || !long.TryParse(line.AsSpan("out_time_us=".Length), NumberStyles.Integer, CultureInfo.InvariantCulture, out var micros)
-                    || DateTime.UtcNow - lastSaved < TimeSpan.FromSeconds(3))
+                    || !long.TryParse(line.AsSpan("out_time_us=".Length), NumberStyles.Integer, CultureInfo.InvariantCulture, out var micros))
+                {
+                    continue;
+                }
+
+                done = Math.Clamp(micros / 1_000_000.0 / duration, 0, 0.99);
+                if (DateTime.UtcNow - lastSaved < TimeSpan.FromSeconds(3))
                 {
                     continue;
                 }
 
                 lastSaved = DateTime.UtcNow;
-                if (!await SaveProgressAsync(id, Math.Clamp(micros / 1_000_000.0 / duration, 0, 0.99), ct))
+                if (!await SaveProgressAsync(id, done, ct))
                 {
                     process.Kill(entireProcessTree: true); // deleted meanwhile
                     break;
