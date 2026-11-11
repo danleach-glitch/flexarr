@@ -23,6 +23,8 @@ const RefreshGuide = icon.refresh
 /** How wide the guide draws a minute. */
 const PX_PER_MINUTE = 6
 const GUIDE_HOURS = 6
+/** How far past its start the guide's window gets before it moves on. */
+const GUIDE_REBASE_MS = 60 * 60_000
 /** Longer than the server waits for Dispatcharr's downloads, after which the guide is read regardless. */
 const REFRESH_GIVES_UP_MS = 6 * 60_000
 /** On a server that can't say a refresh finished: one not seen under way by then has come and gone. */
@@ -365,9 +367,52 @@ function ChannelRow({ channel: c, favourite, onToggle }: { channel: LiveChannel;
 /** Minutes from the guide's start to a time. */
 const guideMinutes = (from: Date, iso: string | number) => ((typeof iso === 'number' ? iso : Date.parse(iso)) - from.getTime()) / 60_000
 
+/** A programme's start and end, read once per programme (a guide holds thousands, looked at every tick). */
+const parsedTimes = new WeakMap<LiveProgramme, { start: number; end: number }>()
+function times(p: LiveProgramme) {
+  let parsed = parsedTimes.get(p)
+  if (!parsed) {
+    parsed = { start: Date.parse(p.start), end: Date.parse(p.end) }
+    parsedTimes.set(p, parsed)
+  }
+  return parsed
+}
+
+/** How far `now` has got through a channel's programmes: changes only when one of them starts or ends. */
+function guidePhase(channel: LiveGuide['channels'][number], now: number) {
+  let phase = 0
+  for (const p of channel.programmes) {
+    const { start, end } = times(p)
+    if (start <= now) phase++
+    if (end <= now) phase++
+  }
+  return phase
+}
+
+type GuideRowProps = {
+  channel: LiveGuide['channels'][number]
+  from: Date
+  hours: number
+  now: number
+  selected: LiveProgramme['id'] | undefined
+  onSelect: (channel: LiveGuide['channels'][number], programme: LiveProgramme) => void
+}
+
 /**
- * A channel's line in the guide. Drawn again only when its own programmes, the time or its chosen programme change, so
- * choosing a programme redraws the line it's on (and the one it left), not hundreds.
+ * Whether a line looks the same: the time only matters to it when one of its programmes started or ended since, so a
+ * tick of the clock redraws the few lines whose programme changed, not hundreds.
+ */
+const sameRow = (a: GuideRowProps, b: GuideRowProps) =>
+  a.channel === b.channel &&
+  a.from === b.from &&
+  a.hours === b.hours &&
+  a.selected === b.selected &&
+  a.onSelect === b.onSelect &&
+  (a.now === b.now || guidePhase(a.channel, a.now) === guidePhase(b.channel, b.now))
+
+/**
+ * A channel's line in the guide. Drawn again only when its own programmes, its on-now programme or its chosen programme
+ * change, so choosing a programme redraws the line it's on (and the one it left), not hundreds.
  */
 const GuideRow = memo(function GuideRow({
   channel: c,
@@ -376,15 +421,8 @@ const GuideRow = memo(function GuideRow({
   now,
   selected,
   onSelect,
-}: {
-  channel: LiveGuide['channels'][number]
-  from: Date
-  hours: number
-  now: number
-  selected: LiveProgramme['id'] | undefined
-  onSelect: (channel: LiveGuide['channels'][number], programme: LiveProgramme) => void
-}) {
-  const minutes = (iso: string | number) => guideMinutes(from, iso)
+}: GuideRowProps) {
+  const minutes = (time: number) => guideMinutes(from, time)
   const width = hours * 60 * PX_PER_MINUTE
   return (
     <div className="livetv-guide-row">
@@ -397,10 +435,13 @@ const GuideRow = memo(function GuideRow({
       <div className="livetv-guide-programmes" style={{ width }}>
         {c.programmes.length === 0 && <span className="livetv-guide-none muted">{t('No listings')}</span>}
         {c.programmes.map((p) => {
-          const left = Math.max(0, minutes(p.start)) * PX_PER_MINUTE
-          const right = Math.min(hours * 60, minutes(p.end)) * PX_PER_MINUTE
-          const onNow = Date.parse(p.start) <= now && Date.parse(p.end) > now
-          const past = Date.parse(p.end) <= now
+          const { start, end } = times(p)
+          // Outside the window (the guide moved on since it was fetched): not drawn.
+          if (end <= from.getTime()) return null
+          const left = Math.max(0, minutes(start)) * PX_PER_MINUTE
+          const right = Math.min(hours * 60, minutes(end)) * PX_PER_MINUTE
+          const onNow = start <= now && end > now
+          const past = end <= now
           const time = programmeTime(p)
           return (
             <button
@@ -424,13 +465,13 @@ const GuideRow = memo(function GuideRow({
       </div>
     </div>
   )
-})
+}, sameRow)
 
 // Only redrawn when a refresh finishes, not by every look at the status above it.
 const Guide = memo(function Guide({ refreshed }: { refreshed: number }) {
   const navigate = useNavigate()
   const { limited } = useAgeLimits()
-  const [from] = useState(() => guideStart())
+  const [from, setFrom] = useState(() => guideStart())
   const [hours, setHours] = useState(GUIDE_HOURS)
   /** The guide, and whether it was asked for the favourite channels only. */
   const [loaded, setLoaded] = useState<{ guide: LiveGuide; favourites: boolean }>()
@@ -444,7 +485,13 @@ const Guide = memo(function Guide({ refreshed }: { refreshed: number }) {
   const scroller = useRef<HTMLDivElement>(null)
   // Favourites first, as in On now, when there are any.
   const [favouritesChosen, setFavouritesOnly] = useState<boolean>()
-  usePolling(() => setNow(Date.now()), 30_000)
+  // Ticks while the tab is shown, and once as soon as it's shown again. A guide left open moves on with the time: an
+  // hour past its start, it starts on the half hour before now again (and is fetched for that window).
+  usePolling(() => {
+    const time = Date.now()
+    setNow(time)
+    setFrom((start) => (time - start.getTime() >= GUIDE_REBASE_MS ? guideStart(new Date(time)) : start))
+  }, 30_000)
   // Until the guide says, as if there were favourites: asked for them alone first, a guide without any comes back
   // empty, and every channel is asked for then.
   const anyFavourite = guide ? guide.channels.some((c) => c.isFavourite) : true
