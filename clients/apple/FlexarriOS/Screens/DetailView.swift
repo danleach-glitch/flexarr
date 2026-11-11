@@ -191,7 +191,8 @@ struct DetailView: View {
                              canDownload: item.kind == .movie || item.kind == .episode || item.kind == .series,
                              canSearchSubtitles: detail?.canSearchSubtitles == true && detail?.files.first != nil,
                              canWatchlist: watchlistState(item) != nil,
-                             canChooseVersion: (detail?.versions?.count ?? 0) > 1)
+                             canChooseVersion: (detail?.versions?.count ?? 0) > 1,
+                             wide: sizeClass == .regular)
     }
 
     /// Whether it's on the watchlist, or nil when it can't go on one here: only films and shows, from servers that have one.
