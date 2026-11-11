@@ -188,10 +188,11 @@ struct DetailView: View {
         return DetailActions(kind: kind, hasProgress: playable?.isResumable == true && item.kind != .series,
                              watched: isWatched(item), hasTrailer: trailer != nil, isKids: model.isKids,
                              platform: .phone, canPlayTrailers: canPlayTrailers,
-                             canDownload: item.kind == .movie || item.kind == .episode,
+                             canDownload: item.kind == .movie || item.kind == .episode || item.kind == .series,
                              canSearchSubtitles: detail?.canSearchSubtitles == true && detail?.files.first != nil,
                              canWatchlist: watchlistState(item) != nil,
-                             canChooseVersion: (detail?.versions?.count ?? 0) > 1)
+                             canChooseVersion: (detail?.versions?.count ?? 0) > 1,
+                             wide: sizeClass == .regular)
     }
 
     /// Whether it's on the watchlist, or nil when it can't go on one here: only films and shows, from servers that have one.
@@ -281,7 +282,12 @@ struct DetailView: View {
                 .accessibilityLabel(onList ? t(Words.removeFromWatchlist) : t(Words.addToWatchlist))
             }
         case .download:
-            DownloadButton(item: item, copies: detail?.copyIds ?? [])
+            if item.kind == .series {
+                // Every episode of every season.
+                ShowDownloadButton(show: item, seasons: (detail?.children ?? []).filter { $0.kind == .season })
+            } else {
+                DownloadButton(item: item, copies: detail?.copyIds ?? [])
+            }
         case .more:
             Menu {
                 ForEach(menu, id: \.self) { entry in
@@ -430,22 +436,48 @@ struct DetailView: View {
     private func seasonsSection(_ seasonList: [ItemSummary]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             if seasonList.count > 1 {
+                // The pills scroll; Download Season N stays put at the end of their line.
+                HStack(spacing: 16) {
                 ScrollViewReader { proxy in
                     ScrollView(.horizontal) {
                         HStack(spacing: 8) {
                             ForEach(seasonList) { season in
                                 Button { selectedSeasonID = season.id } label: { seasonPillLabel(season) }
                                     .buttonStyle(PillButtonStyle(selected: season.id == selectedSeasonID, ambient: ambient))
-                                    .id(season.id)
+                                    // What scrolls into view: the pill plus the margin before it and the fade after it,
+                                    // as scrollTo counts the row's very edge (under the fade) as in view.
+                                    .background {
+                                        Color.clear
+                                            .padding(.leading, -Layout.edge)
+                                            .padding(.trailing, -Self.pillFade)
+                                            .id(season.id)
+                                    }
                             }
                         }
-                        .padding(.horizontal, Layout.edge)
                     }
+                    // Margins rather than padding, so scrolling a pill into view keeps it clear of the edge and the fade.
+                    .contentMargins(.leading, Layout.edge, for: .scrollContent)
+                    .contentMargins(.trailing, selectedSeason == nil ? Layout.edge : Self.pillFade, for: .scrollContent)
                     .scrollIndicators(.hidden)
-                    .onAppear { if let selectedSeasonID { proxy.scrollTo(selectedSeasonID, anchor: .center) } }
+                    // Pills running under the download link fade out rather than stop at a hard edge.
+                    .mask {
+                        HStack(spacing: 0) {
+                            Color.black
+                            LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
+                                .frame(width: selectedSeason == nil ? 0 : Self.pillFade)
+                        }
+                    }
+                    // The chosen season fully in view, moving the row no more than it takes.
+                    .onAppear { if let selectedSeasonID { proxy.scrollTo(selectedSeasonID) } }
+                    .onChange(of: selectedSeasonID) { _, id in
+                        if let id { withAnimation(.easeInOut(duration: 0.25)) { proxy.scrollTo(id) } }
+                    }
+                }
+                    seasonDownloadLink
                 }
             } else if let only = seasonList.first {
                 SectionHeading(title: gaps.countLabel(season: only.seasonNumber).map { "\(only.title): \($0)" } ?? only.title)
+                    .overlay(alignment: .trailing) { seasonDownloadLink }
             }
 
             if let season = selectedSeason {
@@ -455,6 +487,19 @@ struct DetailView: View {
             }
         }
         .task(id: selectedSeasonID) { await loadSelectedSeason() }
+    }
+
+    /// How far the season pills fade before the download link.
+    private static let pillFade: CGFloat = 56
+
+    /// Download Season N, at the end of the seasons' line, once the season's episodes are here.
+    @ViewBuilder
+    private var seasonDownloadLink: some View {
+        if let season = selectedSeason {
+            SeasonDownloadLink(season: season)
+                .padding(.trailing, Layout.edge)
+                .fixedSize()
+        }
     }
 
     /// "Season 1", with a quieter "8 of 10" beside it when some of its aired episodes aren't in the library (as on the web).
@@ -619,11 +664,22 @@ struct EpisodeRow: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            if sizeClass == .regular { wide } else { narrow }
+        // The download button sits outside the row's own button, so pressing it never plays the episode.
+        HStack(alignment: sizeClass == .regular ? .center : .top, spacing: 8) {
+            Button(action: action) {
+                if sizeClass == .regular { wide } else { narrow }
+            }
+            .buttonStyle(CardButtonStyle())
+            .contextMenu { ItemContextMenu(item: episode, showsDetails: true) }
+            DownloadButton(item: episode, ringWhilePreparing: true)
+                .labelStyle(.iconOnly)
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.screen)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+                // A phone: level with the middle of the picture.
+                .padding(.top, sizeClass == .regular ? 0 : 140 * 9 / 16 / 2 - 22)
         }
-        .buttonStyle(CardButtonStyle())
-        .contextMenu { ItemContextMenu(item: episode, showsDetails: true) }
     }
 
     /// An iPad or a Mac: the picture, then the episode's number, title, length and overview beside it.

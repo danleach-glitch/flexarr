@@ -54,8 +54,9 @@ public struct DetailActions: Equatable, Sendable {
     ///   - canSearchSubtitles: whether the server can find subtitles for it.
     ///   - canWatchlist: whether this title can go on a watchlist here (films and shows, on servers that have one).
     ///   - canChooseVersion: whether it has more than one version.
+    ///   - wide: a phone app with a wide screen (an iPad, the Mac): every button fits, so none moves to ⋯.
     public init(kind: Kind, hasProgress: Bool, watched: Bool, hasTrailer: Bool, isKids: Bool, platform: Platform,
-                canPlayTrailers: Bool, canDownload: Bool, canSearchSubtitles: Bool = false, canWatchlist: Bool = true, canChooseVersion: Bool = false) {
+                canPlayTrailers: Bool, canDownload: Bool, canSearchSubtitles: Bool = false, canWatchlist: Bool = true, canChooseVersion: Bool = false, wide: Bool = false) {
         var row: [Button] = []
         if hasProgress { row.append(.startOver) }
         if kind == .show { row.append(.shuffle) }
@@ -65,7 +66,7 @@ public struct DetailActions: Equatable, Sendable {
         if platform == .phone && canDownload { row.append(.download) }
 
         var moved: [MenuItem] = []
-        if platform == .phone && row.count > Self.phoneSlots {
+        if platform == .phone && !wide && row.count > Self.phoneSlots {
             let pinned = row.filter { $0 == .startOver || $0 == .download }
             let started = hasProgress || watched
             let priority: [Button] = started ? [.watched, .watchlist, .trailer, .shuffle] : [.trailer, .watchlist, .watched, .shuffle]

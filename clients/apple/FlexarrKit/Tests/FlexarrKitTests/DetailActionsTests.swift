@@ -18,6 +18,15 @@ struct DetailActionsTests {
         #expect(many.has(.more))
     }
 
+    @Test func aWideScreenKeepsEveryButton_AShowsDownloadIsPinnedOnAPhone() {
+        let wide = DetailActions(kind: .show, hasProgress: false, watched: false, hasTrailer: true, isKids: false, platform: .phone,
+                                 canPlayTrailers: true, canDownload: true, wide: true)
+        #expect(wide.buttons == [.play, .shuffle, .trailer, .watched, .watchlist, .download])
+        let phone = actions(kind: .show, download: true)
+        #expect(phone.has(.download))
+        #expect(phone.buttons.filter { $0 != .play && $0 != .more }.count == DetailActions.phoneSlots)
+    }
+
     @Test func aFreshMovie() {
         let a = actions()
         #expect(a.buttons == [.play, .trailer, .watched, .watchlist])

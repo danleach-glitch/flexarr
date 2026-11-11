@@ -40,6 +40,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -107,6 +109,9 @@ import io.github.flexarr.core.progress
 import io.github.flexarr.ui.components.isWide
 import io.github.flexarr.ui.components.ActionButton
 import io.github.flexarr.ui.downloads.DownloadAction
+import io.github.flexarr.ui.downloads.SeasonDownloadLink
+import io.github.flexarr.ui.downloads.ShowDownloadAction
+import io.github.flexarr.ui.downloads.TitleDownloadButton
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.FactsLine
 import io.github.flexarr.ui.components.ItemMenu
@@ -245,6 +250,10 @@ fun DetailScreen(model: AppModel, id: String) {
     if (item?.kind == MediaKind.Artist) return ArtistScreen(model, id)
     val series = item?.let { if (it.kind == MediaKind.Series) it else loaded.ancestors.firstOrNull { a -> a.kind == MediaKind.Series } }
     val ambient = item?.let { glowColor(it.accentColor) } ?: Flexarr.silver
+    // A show's every episode, season by season (those already fetched for the page as they are), for its Download.
+    val allEpisodes: suspend () -> List<ItemSummary> = {
+        loaded?.children.orEmpty().flatMap { season -> (seasons[season.id] ?: client.item(season.id).also { seasons[season.id] = it }).children }
+    }
 
     CompositionLocalProvider(LocalPlayFrom provides pageToken) {
     RoomBackground(ambient = ambient, intensity = 0.22f) {
@@ -258,7 +267,7 @@ fun DetailScreen(model: AppModel, id: String) {
             ) {
                 val episodeColumns = if (isWide) 2 else 1
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-                    item(key = "header") { Header(item, series, loaded, ambient, nextUp, seasons[selectedSeasonId]) }
+                    item(key = "header") { Header(item, series, loaded, ambient, nextUp, seasons[selectedSeasonId], allEpisodes) }
                     sections(item, loaded, seasons[selectedSeasonId], selectedSeasonId, { selectedSeasonId = it }, similar, ambient, columns = episodeColumns, missing = missing) {
                         if (item.kind == MediaKind.Series) {
                             showMissingSections(
@@ -306,7 +315,7 @@ fun DetailScreen(model: AppModel, id: String) {
 }
 
 @Composable
-private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, ambient: Color, nextUp: ItemSummary?, season: ItemDetail?) {
+private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, ambient: Color, nextUp: ItemSummary?, season: ItemDetail?, allEpisodes: suspend () -> List<ItemSummary>) {
     var overviewExpanded by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         // Taller than usual only when large text needs it.
@@ -336,7 +345,7 @@ private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, 
                 }
             }
         }
-        Actions(item, series, nextUp, season, ambient, detail)
+        Actions(item, series, nextUp, season, ambient, detail, allEpisodes)
         detail.overview?.takeIf { it.isNotEmpty() }?.let { overview ->
             Text(
                 overview,
@@ -356,7 +365,7 @@ private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, 
  * client shares ([DetailActions]); ⋯ holds the rest.
  */
 @Composable
-private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary?, season: ItemDetail?, ambient: Color, detail: ItemDetail) {
+private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary?, season: ItemDetail?, ambient: Color, detail: ItemDetail, allEpisodes: suspend () -> List<ItemSummary>) {
     val from = LocalPlayFrom.current
     val navigator = LocalNavigator.current
     val model = androidx.compose.ui.platform.LocalContext.current.appModel
@@ -399,7 +408,8 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
             hasTrailer = trailer != null,
             isKids = model.isKids,
             platform = DetailActions.Platform.PHONE,
-            canDownload = item.kind == MediaKind.Movie || item.kind == MediaKind.Episode,
+            // A show downloads every episode of every season.
+            canDownload = item.kind == MediaKind.Movie || item.kind == MediaKind.Episode || item.kind == MediaKind.Series,
             canSearchSubtitles = detail.canSearchSubtitles == true && file != null,
             canChooseVersion = (detail.versions?.size ?: 0) > 1,
             canWatchlist = onWatchlist != null,
@@ -434,7 +444,9 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
                         maxLines = 2,
                     )
                     DetailActions.Button.WATCHLIST -> onWatchlist?.let { on -> WatchlistAction(on, { toggleWatchlist(on) }, slot) }
-                    DetailActions.Button.DOWNLOAD -> DownloadAction(model, item, slot, detail.copyIds.orEmpty())
+                    DetailActions.Button.DOWNLOAD ->
+                        if (item.kind == MediaKind.Series) ShowDownloadAction(model, item, allEpisodes, slot)
+                        else DownloadAction(model, item, slot, detail.copyIds.orEmpty())
                     DetailActions.Button.MORE -> Box(slot) {
                         LabeledAction(t("More"), FlexarrIcons.more, { more = true }, Modifier.fillMaxWidth())
                         DropdownMenu(more, onDismissRequest = { more = false; choosingVersion = false }) {
@@ -556,7 +568,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.sections(
     gaps: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {},
 ) {
     if (item.kind == MediaKind.Series && detail.children.isNotEmpty()) {
-        item(key = "seasons") { SeasonPicker(detail.children, selectedSeasonId, onSeason, ambient) { missing.countLabel(it.seasonNumber) } }
+        item(key = "seasons") { SeasonPicker(detail.children, selectedSeasonId, onSeason, ambient, season) { missing.countLabel(it.seasonNumber) } }
         if (season == null) {
             item(key = "season-loading") { Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Flexarr.screen) } }
         } else {
@@ -614,20 +626,60 @@ private fun androidx.compose.foundation.lazy.LazyListScope.sections(
 }
 
 @Composable
-private fun SeasonPicker(seasons: List<ItemSummary>, selected: String?, onSeason: (String) -> Unit, ambient: Color, count: (ItemSummary) -> String? = { null }) {
+private fun SeasonPicker(seasons: List<ItemSummary>, selected: String?, onSeason: (String) -> Unit, ambient: Color, season: ItemDetail?, count: (ItemSummary) -> String? = { null }) {
+    val model = LocalContext.current.appModel
+    // "Download Season 2", on the pills' line at the end, outside their scrolling so it stays in view.
+    val link: @Composable () -> Unit = {
+        season?.takeIf { it.item.id == selected }?.let { SeasonDownloadLink(model, it.item, it.children, Modifier.padding(end = Edge - 4.dp)) }
+    }
     if (seasons.size == 1) {
         val only = seasons.first()
-        SectionHeading(count(only)?.let { "${only.title}: $it" } ?: only.title)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SectionHeading(count(only)?.let { "${only.title}: $it" } ?: only.title, Modifier.weight(1f))
+            link()
+        }
         return
     }
     val state = rememberLazyListState()
-    // The chosen season in view (once it's known: the show's next-up episode decides it).
+    // The chosen season fully in view, clear of the start and of the fade at the end, moving the row only as far as it
+    // must: when it's pressed, and once it's known (the show's next-up episode decides it).
     LaunchedEffect(selected) {
         val index = seasons.indexOfFirst { it.id == selected }
-        if (index >= 0 && state.layoutInfo.visibleItemsInfo.none { it.index == index && it.offset >= 0 }) state.animateScrollToItem(index)
+        if (index < 0) return@LaunchedEffect
+        // Offsets count from the end of the start padding; the clear room ends where the end padding (the fade) begins.
+        fun room() = state.layoutInfo.viewportEndOffset - state.layoutInfo.afterContentPadding
+        var pill = state.layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }
+        if (pill == null) {
+            // Out of sight: brought to the start, then (if it lay beyond the end) back to rest against the end.
+            val after = index > (state.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1)
+            state.scrollToItem(index)
+            pill = state.layoutInfo.visibleItemsInfo.firstOrNull { it.index == index } ?: return@LaunchedEffect
+            if (after) {
+                val back = pill.offset + pill.size - room()
+                if (back < 0) state.scrollBy(back.toFloat())
+            }
+            return@LaunchedEffect
+        }
+        val overStart = pill.offset
+        val overEnd = pill.offset + pill.size - room()
+        when {
+            overStart < 0 -> state.animateScrollBy(overStart.toFloat())
+            overEnd > 0 -> state.animateScrollBy(overEnd.coerceAtMost(overStart).toFloat())
+        }
     }
-    LazyRow(state = state, contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(seasons, key = { it.id }) { season -> PillButton(season.title, season.id == selected, { onSeason(season.id) }, ambient, detail = count(season)) }
+    // With the link beside them, the pills fade out before it (room for the last to scroll clear of the fade).
+    val hasLink = season != null && season.item.id == selected && season.children.any { it.kind == MediaKind.Episode }
+    val fade = 56.dp
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyRow(
+            Modifier.weight(1f).then(if (hasLink) Modifier.fadeEnd(fade) else Modifier),
+            state = state,
+            contentPadding = PaddingValues(start = Edge, end = if (hasLink) fade else Edge),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items(seasons, key = { it.id }) { season -> PillButton(season.title, season.id == selected, { onSeason(season.id) }, ambient, detail = count(season)) }
+        }
+        link()
     }
 }
 
@@ -664,7 +716,7 @@ private fun EpisodeRow(episode: ItemSummary, overview: String?, isCurrent: Boole
                     episode.progress?.let { ProgressBar(it, Modifier.align(Alignment.BottomCenter).padding(6.dp)) }
                     if (episode.userData.watched) WatchedBadge(Modifier.align(Alignment.TopEnd).padding(5.dp))
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(
                         episode.episodeNumber?.let { t("Episode {number}", "number" to it) } ?: t("Special"),
                         fontSize = 12.sp,
@@ -674,7 +726,8 @@ private fun EpisodeRow(episode: ItemSummary, overview: String?, isCurrent: Boole
                     Text(episode.title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     episodeTime(episode)?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher) }
                 }
-                Spacer(Modifier.weight(1f))
+                // Its download, like Download on its own page; tapping it doesn't open or play the episode.
+                TitleDownloadButton(LocalContext.current.appModel, episode)
             }
             overview?.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 13.sp, color = Flexarr.usher, maxLines = 3, overflow = TextOverflow.Ellipsis) }
         }
@@ -729,6 +782,15 @@ internal fun channelsLabel(count: Int) = when (count) {
 internal fun fileSizeLabel(bytes: Long): String {
     val gb = bytes / 1_000_000_000.0
     return if (gb >= 1) String.format(io.github.flexarr.core.i18n.Localization.locale, "%.1f GB", gb) else String.format(io.github.flexarr.core.i18n.Localization.locale, "%.0f MB", bytes / 1_000_000.0)
+}
+
+/** Drawn into its own layer, then faded to nothing over its last [width] at the end (the right, or the left right to left). */
+private fun Modifier.fadeEnd(width: androidx.compose.ui.unit.Dp) = graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen).drawWithContent {
+    drawContent()
+    val edge = width.toPx().coerceAtMost(size.width)
+    val rtl = layoutDirection == androidx.compose.ui.unit.LayoutDirection.Rtl
+    val (from, to) = if (rtl) edge to 0f else (size.width - edge) to size.width
+    drawRect(Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = from, endX = to), blendMode = BlendMode.DstIn)
 }
 
 /** Drawn into its own layer, then faded to nothing over the bottom of it, so there's no seam with the wash behind. */
