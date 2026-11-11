@@ -24,17 +24,22 @@ public static class TitleVersions
             : [id];
 
     /// <summary>The readable files of the title and its copies, with what playing them needs.</summary>
-    public static async Task<List<MediaFile>> FilesAsync(FlexarrDbContext db, MediaItem item, CancellationToken ct)
+    /// <param name="db">The database, filtered for the profile.</param>
+    /// <param name="item">The title.</param>
+    /// <param name="ct">Stops it.</param>
+    /// <param name="copies">The title's copies, if already known.</param>
+    public static async Task<List<MediaFile>> FilesAsync(FlexarrDbContext db, MediaItem item, CancellationToken ct, List<Guid>? copies = null)
     {
-        var copies = await CopiesAsync(db, item, ct);
+        copies ??= await CopiesAsync(db, item, ct);
         return await db.MediaFiles.AsNoTracking().Include(f => f.Streams).Include(f => f.Markers)
             .Where(f => copies.Contains(f.MediaItemId) && f.ProbeError == null).ToListAsync(ct);
     }
 
     /// <summary>The same files on their own, for telling versions apart.</summary>
-    public static async Task<List<MediaFile>> FileRowsAsync(FlexarrDbContext db, MediaItem item, CancellationToken ct)
+    /// <inheritdoc cref="FilesAsync" path="/param"/>
+    public static async Task<List<MediaFile>> FileRowsAsync(FlexarrDbContext db, MediaItem item, CancellationToken ct, List<Guid>? copies = null)
     {
-        var copies = await CopiesAsync(db, item, ct);
+        copies ??= await CopiesAsync(db, item, ct);
         return await db.MediaFiles.AsNoTracking().Where(f => copies.Contains(f.MediaItemId) && f.ProbeError == null).ToListAsync(ct);
     }
 
@@ -49,9 +54,10 @@ public static class TitleVersions
     }
 
     /// <summary>What the profile chose for the title, on whichever copy.</summary>
-    public static async Task<VersionChoice?> ChoiceAsync(FlexarrDbContext db, MediaItem item, string profileId, CancellationToken ct)
+    /// <param name="copies">The title's copies, if already known.</param>
+    public static async Task<VersionChoice?> ChoiceAsync(FlexarrDbContext db, MediaItem item, string profileId, CancellationToken ct, List<Guid>? copies = null)
     {
-        var copies = await CopiesAsync(db, item, ct);
+        copies ??= await CopiesAsync(db, item, ct);
         return await db.VersionChoices.AsNoTracking().Where(c => c.ProfileId == profileId && copies.Contains(c.MediaItemId))
             .OrderByDescending(c => c.ChosenAt).FirstOrDefaultAsync(ct);
     }

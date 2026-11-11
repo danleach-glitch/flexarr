@@ -367,6 +367,8 @@ public static class ItemEndpoints
                 ? childQuery.OrderByDescending(i => i.Year).ThenBy(i => i.SortTitle)
                 : childQuery.OrderBy(i => i.SortTitle))
             .Summaries(profile.Id).ToListAsync(ct);
+        // A linked title's copies, once for the whole page (its versions, the choice made, CopyIds).
+        var copies = entity.LinkGroupId is null ? null : await Playback.TitleVersions.CopiesAsync(db, entity, ct);
         var files = await db.MediaFiles.AsNoTracking().Where(f => f.MediaItemId == id).Include(f => f.Streams)
             .OrderByDescending(f => f.Height).ToListAsync(ct);
 
@@ -401,24 +403,25 @@ public static class ItemEndpoints
             RatingAge: entity.RatingAge, KidsOverride: profile.IsMainProfile ? entity.KidsOverride : null,
             Book: entity.Kind == MediaKind.Audiobook ? await Books.BookQueries.DetailAsync(db, entity, profile.Id, ct) : null,
             DetailsLocked: entity.DetailsLocked, SortTitle: entity.SortTitle, ArtworkLocked: entity.ArtworkLocked,
-            Versions: entity.Kind is MediaKind.Movie or MediaKind.Episode ? await VersionsAsync(db, entity, files, profile.Id, ct) : null,
-            CopyIds: entity.LinkGroupId is null ? null : await Playback.TitleVersions.CopiesAsync(db, entity, ct));
+            Versions: entity.Kind is MediaKind.Movie or MediaKind.Episode ? await VersionsAsync(db, entity, files, copies, profile.Id, ct) : null,
+            CopyIds: copies);
     }
 
     /// <summary>What the title's Version choice offers; null with only one version to play.</summary>
-    private static async Task<List<VersionDto>?> VersionsAsync(FlexarrDbContext db, MediaItem item, List<MediaFile> own, string profileId, CancellationToken ct)
+    /// <param name="copies">The copies of a linked title, looked up once for the whole page.</param>
+    private static async Task<List<VersionDto>?> VersionsAsync(FlexarrDbContext db, MediaItem item, List<MediaFile> own, List<Guid>? copies, string profileId, CancellationToken ct)
     {
         // Only what someone could tell apart: a spare copy isn't a version to choose. A title with no copies has its files already.
         var files = item.LinkGroupId is null
             ? own.Where(f => f.ProbeError == null).ToList()
-            : await Playback.TitleVersions.FileRowsAsync(db, item, ct);
+            : await Playback.TitleVersions.FileRowsAsync(db, item, ct, copies);
         var offered = VersionRules.Sort(VersionRules.BestFirst(files)).Kept;
         if (offered.Count < 2)
         {
             return null;
         }
 
-        var choice = await Playback.TitleVersions.ChoiceAsync(db, item, profileId, ct);
+        var choice = await Playback.TitleVersions.ChoiceAsync(db, item, profileId, ct, copies);
         var chosen = choice is null ? null : Streaming.VersionPicker.Chosen(files, choice);
         return offered
             .Select(f => new VersionDto(f.Id, VersionRules.Label(f), VersionRules.Edition(f), f.DurationSeconds, f.Size, f.Id == chosen?.Id, f.VideoCodec, f.AudioCodec, f.AudioChannels))

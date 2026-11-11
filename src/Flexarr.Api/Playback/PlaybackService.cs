@@ -58,7 +58,8 @@ public sealed class PlaybackService(
             return null;
         }
 
-        var files = await TitleVersions.FilesAsync(db, item, ct);
+        var copies = await TitleVersions.CopiesAsync(db, item, ct);
+        var files = await TitleVersions.FilesAsync(db, item, ct, copies);
         if (files.Count == 0)
         {
             return item.Kind == MediaKind.PodcastEpisode ? await StartPodcastAsync(item, request, ct) : null;
@@ -120,7 +121,7 @@ public sealed class PlaybackService(
         var file = files.FirstOrDefault(f => f.Id == request.FileId);
         if (file is null)
         {
-            var choice = files.Count > 1 ? await TitleVersions.ChoiceAsync(db, item, profile.Id, ct) : null;
+            var choice = files.Count > 1 ? await TitleVersions.ChoiceAsync(db, item, profile.Id, ct, copies) : null;
             file = VersionPicker.Pick(files, choice, Math.Min(request.Profile.MaxHeight, request.MaxHeight ?? int.MaxValue), candidate =>
             {
                 var plan = sidecarsMatter ? PlanFor(candidate) : MakePlan(candidate, sidecars: false);
