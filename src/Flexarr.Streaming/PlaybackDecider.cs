@@ -83,6 +83,9 @@ public sealed record TranscodePlan(
     /// <summary>The video is copied as it is (repackaged), cut at <see cref="Repackage.SegmentStarts"/>; null when it's converted.</summary>
     public Repackage? Repackage { get; init; }
 
+    /// <summary>The picture is converted: neither copied (<see cref="Repackage"/>) nor left out (sound only). The costly kind.</summary>
+    public bool EncodesVideo => Repackage is null && VideoStreamIndex >= 0;
+
     /// <summary>RFC 6381 codec string for the audio in the HLS output, for the master playlist.</summary>
     public string? AudioCodecTag => AudioStreamIndex is null ? null : LosslessAudio ? "fLaC" : !CopyAudio ? "mp4a.40.2" : SourceAudioCodec switch
     {

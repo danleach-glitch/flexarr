@@ -414,6 +414,38 @@ public sealed class DownloadTests : IDisposable
         Assert.False(await preparer.RunOnceAsync(CancellationToken.None));
     }
 
+    [Fact]
+    public async Task ARepackagedStream_DoesntHoldDownloadsBack_AConvertedOneDoes()
+    {
+        var transcodes = _factory.Services.GetRequiredService<Flexarr.Streaming.TranscodeManager>();
+        var preparer = _factory.Services.GetRequiredService<Downloads.DownloadPreparer>();
+        var plan = new Flexarr.Streaming.TranscodePlan(0, 1, 1920, 1080, 10_000_000, ToneMap: false, CopyAudio: false, AudioChannels: 2, BurnSubtitle: null);
+        var (_, tracks) = await AddAlbumAsync(("mp3", "mp3", ".mp3", 3_000_000), ("mp3", "mp3", ".mp3", 3_000_000));
+        var client = Client();
+        async Task<string> AskAsync(Guid item) =>
+            (await (await client.PostAsJsonAsync(new Uri("/api/v1/offline", UriKind.Relative), new { itemId = item, quality = "Original" })).Content.ReadFromJsonAsync<JsonElement>())
+                .GetProperty("id").GetString()!;
+        async Task<string?> StatusAsync(string id) =>
+            (await client.GetFromJsonAsync<JsonElement>(new Uri($"/api/v1/offline/{id}", UriKind.Relative))).GetProperty("status").GetString();
+
+        // An Apple TV playing a 4K MKV, its picture copied as it is.
+        var repackaged = await transcodes.CreateAsync("tv", "/in.mkv", 600, plan with
+        {
+            Repackage = new Flexarr.Streaming.Remux.Repackage([0, 4], "hvc1", "hvc1.2.4.L150.B0", null, "PQ", StripDolbyVision: false),
+        });
+        var first = await AskAsync(tracks[0].Id);
+        await preparer.RunOnceAsync(CancellationToken.None);
+        Assert.Equal("Ready", await StatusAsync(first));
+
+        // A stream whose picture is converted: the queue waits for it.
+        var converted = await transcodes.CreateAsync("tv", "/in.mkv", 600, plan);
+        var second = await AskAsync(tracks[1].Id);
+        Assert.True(await preparer.RunOnceAsync(CancellationToken.None));
+        Assert.Equal("Queued", await StatusAsync(second));
+        await transcodes.StopAsync(converted.Id);
+        await transcodes.StopAsync(repackaged.Id);
+    }
+
     /// <summary>Every statement the server sent the database.</summary>
     private sealed class Statements : Microsoft.EntityFrameworkCore.Diagnostics.DbCommandInterceptor
     {
