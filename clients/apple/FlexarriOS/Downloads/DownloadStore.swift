@@ -277,6 +277,8 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         for session in sessions { session.getAllTasks(completionHandler: body) }
     }
     @ObservationIgnored private var polling: Task<Void, Never>?
+    /// When each download being got ready was last asked after (see `poll`).
+    @ObservationIgnored private var lastAsked: [String: Date] = [:]
     @ObservationIgnored private let monitor = NWPathMonitor()
     @ObservationIgnored private var lastSaved = Date.distantPast
     /// Writes `all` to its file away from the main thread, at most every couple of seconds (see `save`).
@@ -950,6 +952,9 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     nonisolated private static func coverName(forAlbum albumId: String) -> String { "cover-\(albumId).jpg" }
 
     /// Follows the server getting downloads ready, every few seconds while any are.
+    /// Only the first few waiting are asked after on every look, in the order they were asked for (the order the server
+    /// works through them), and the rest a couple at a time (`DownloadPolling`): a whole show waiting would otherwise
+    /// be a question per episode every few seconds.
     private func poll() {
         guard polling == nil else { return }
         polling = Task { [weak self] in
@@ -958,10 +963,17 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
                 let waiting = all.filter {
                     guard case .preparing = $0.state else { return false }
                     return isOnWiFi || !isWiFiOnly($0)
-                }
+                }.sorted { $0.createdAt < $1.createdAt }
                 guard !waiting.isEmpty, let client else { break }
-                for download in waiting {
-                    if let remote = try? await client.download(download.id) { apply(remote) }
+                let ids = waiting.map(\.id)
+                let now = Date()
+                // Heard of now (asked for just now, or found waiting at launch): counts as just asked.
+                let known = Set(ids)
+                lastAsked = lastAsked.filter { known.contains($0.key) }
+                for id in ids where lastAsked[id] == nil { lastAsked[id] = now }
+                for id in DownloadPolling.due(ids, lastAsked: lastAsked, now: now) {
+                    lastAsked[id] = Date()
+                    if let remote = try? await client.download(id) { apply(remote) }
                 }
                 try? await Task.sleep(for: .seconds(3))
             }
@@ -1281,9 +1293,14 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
 
     // MARK: Saving
 
+    /// Changes a download, if that changes anything: setting `all` at all redraws every screen that lists downloads, and
+    /// most answers about one being got ready say what was known already.
     private func update(_ id: String, _ change: (inout LocalDownload) -> Void) {
         guard let index = all.firstIndex(where: { $0.id == id }) else { return }
-        change(&all[index])
+        var changed = all[index]
+        change(&changed)
+        guard changed != all[index] else { return }
+        all[index] = changed
         save()
     }
 
