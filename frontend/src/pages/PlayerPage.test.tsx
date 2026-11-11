@@ -1,4 +1,4 @@
-import { act, fireEvent, render, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { mockApi, summary } from '../test/mockApi'
@@ -188,6 +188,24 @@ describe('Player with a copied picture', () => {
     fireEvent.error(video)
     await new Promise((resolve) => setTimeout(resolve, 20))
     expect(asked.slice(2).every((a) => a.fmp4 === undefined)).toBe(true)
+    await act(async () => page.unmount())
+  })
+})
+
+describe('Player on a phone', () => {
+  it('has speed, quality and the sleep timer in one ⋯ menu as well', async () => {
+    mockApi({ 'POST /playback': () => playback(), 'DELETE /playback/s1': undefined })
+    const page = renderPlayer()
+    // The phone's ⋯ (shown by the CSS below 680 px) and the separate buttons it stands in for.
+    const more = await waitFor(() => page.getByRole('button', { name: 'More options' }))
+    expect(more.closest('.player-narrow-only')).not.toBeNull()
+    for (const name of [/^Speed/, /^Quality/, 'Back 10 seconds']) expect(page.getByRole('button', { name }).closest('.player-wide-only')).not.toBeNull()
+
+    fireEvent.click(more)
+    const menu = page.getByRole('menu')
+    for (const heading of ['Speed', 'Quality', 'While watching', 'Sleep timer']) expect(within(menu).getByRole('heading', { name: heading })).toBeInTheDocument()
+    fireEvent.click(within(menu).getByRole('menuitemradio', { name: '1.5×' }))
+    expect(page.getByRole('button', { name: /^Speed/ })).toHaveTextContent('1.5×')
     await act(async () => page.unmount())
   })
 })
