@@ -80,10 +80,11 @@ extension DownloadStore {
     }
 
     /// Deletes these episodes' downloads: all of them, or only those still on their way. Any batch still asking for
-    /// them stops.
+    /// them stops, and the show and season they're in no longer count as started.
     func delete(episodes: [ItemSummary], unfinishedOnly: Bool) {
         stoppedEpisodeIds.formUnion(episodes.map(\.id))
         for episode in episodes {
+            for group in [episode.seriesId, episode.parentId].compactMap({ $0 }) { forgetStarted(group) }
             guard let download = entry(for: episode.id) else { continue }
             if unfinishedOnly && download.isDownloaded { continue }
             delete(download.id)
@@ -94,68 +95,105 @@ extension DownloadStore {
     func hasDownloads(ofShow showId: String) -> Bool {
         all.contains { $0.profileId == profileId && $0.item.seriesId == showId }
     }
+
+    private func groupKey(_ id: String) -> String { "\(profileId ?? ""):\(id)" }
+    func isStarted(_ groupId: String) -> Bool { startedGroups.contains(groupKey(groupId)) }
+    func markStarted(_ groupId: String) { startedGroups.insert(groupKey(groupId)) }
+    func forgetStarted(_ groupId: String) { startedGroups.remove(groupKey(groupId)) }
+
+    /// A show's or season's control: all here reads as downloaded however they came; otherwise its progress shows only
+    /// once the whole group was started from it, so downloading one episode leaves the season and show as they were.
+    func status(ofGroup groupId: String, episodes: [ItemSummary]) -> GroupDownloadStatus {
+        let states = states(of: episodes)
+        let status = GroupDownloadStatus(states)
+        if status == .downloaded || isStarted(groupId) { return status }
+        return .notStarted(missing: states.filter { $0 != .downloaded }.count)
+    }
 }
 
-/// What tapping a group's download control does, and the questions it asks: download what's missing (a whole show
-/// asks first, with the count), stop what's on its way, remove what's here, or try a failure again.
-private struct GroupDownloadActions: ViewModifier {
-    @Environment(DownloadStore.self) private var store
-    let episodes: [ItemSummary]?
-    @Binding var trigger: Bool
-    /// Asks before downloading, naming the show (a whole show can be a lot); nil downloads straight away.
-    let confirmsFor: String?
-    @State private var confirming = 0
-    @State private var stopping = false
-    @State private var removing = false
-    @State private var error: String?
+/// The one question a group's download control is asking.
+private enum GroupQuestion {
+    case confirm(count: Int, show: String)
+    case stop
+    case remove
+    case failed(String)
 
-    func body(content: Content) -> some View {
-        content
-            .onChange(of: trigger) { _, pressed in
-                guard pressed else { return }
-                trigger = false
-                guard let episodes else { return }
-                switch GroupDownloadStatus(store.states(of: episodes)) {
-                case .notStarted(let missing):
-                    if confirmsFor != nil { confirming = missing } else { start(episodes) }
-                case .failed: start(episodes)
-                case .downloading: stopping = true
-                case .downloaded: removing = true
-                }
-            }
-            .alert(t("Download {count, plural, one {# episode} other {# episodes}} of {show}?", ["count": confirming, "show": confirmsFor ?? ""]),
-                   isPresented: Binding(get: { confirming > 0 }, set: { if !$0 { confirming = 0 } })) {
-                Button(t(Words.download)) { if let episodes { start(episodes) } }
-                Button(t(Words.cancel), role: .cancel) {}
-            }
-            .alert(t("Stop these downloads?"), isPresented: $stopping) {
-                Button(t("Stop downloads"), role: .destructive) {
-                    if let episodes { store.delete(episodes: episodes, unfinishedOnly: true) }
-                }
-                Button(t(Words.cancel), role: .cancel) {}
-            }
-            .alert(t("Remove these downloads?"), isPresented: $removing) {
-                Button(t("Remove downloads"), role: .destructive) {
-                    if let episodes { store.delete(episodes: episodes, unfinishedOnly: false) }
-                }
-                Button(t(Words.cancel), role: .cancel) {}
-            }
-            .alert(t("Couldn’t download this"), isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
-                Button(t("OK"), role: .cancel) {}
-            } message: {
-                Text(error ?? "")
-            }
-    }
-
-    private func start(_ episodes: [ItemSummary]) {
-        Task {
-            do { try await store.download(all: episodes) } catch { self.error = ConnectionError(error).message }
+    var title: String {
+        switch self {
+        case .confirm(let count, let show): t("Download {count, plural, one {# episode} other {# episodes}} of {show}?", ["count": count, "show": show])
+        case .stop: t("Stop these downloads?")
+        case .remove: t("Remove these downloads?")
+        case .failed: t("Couldn’t download this")
         }
     }
 }
 
-/// Download on a show's page: every episode of every season. It finds the episodes when pressed, or straight away
-/// when some of the show is already here, so it can show how far it's got.
+/// What pressing a group's download control does, with its questions in one alert (several alerts on one view
+/// fought, so Stop took more than one press): download what's missing (a whole show asks first, with the count),
+/// stop what's on its way, remove what's here, or try a failure again.
+@MainActor
+private enum GroupDownloadPress {
+    static func press(_ store: DownloadStore, group: String, episodes: [ItemSummary], confirmsFor show: String?,
+                      ask: (GroupQuestion) -> Void, onError: @escaping (String) -> Void) {
+        switch store.status(ofGroup: group, episodes: episodes) {
+        case .notStarted(let missing):
+            if let show { ask(.confirm(count: missing, show: show)) } else { start(store, group: group, episodes: episodes, onError: onError) }
+        case .failed: start(store, group: group, episodes: episodes, onError: onError)
+        case .downloading: ask(.stop)
+        case .downloaded: ask(.remove)
+        }
+    }
+
+    static func start(_ store: DownloadStore, group: String, episodes: [ItemSummary], onError: @escaping (String) -> Void) {
+        store.markStarted(group)
+        Task {
+            do { try await store.download(all: episodes) } catch { onError(ConnectionError(error).message) }
+        }
+    }
+}
+
+private struct GroupDownloadAlert: ViewModifier {
+    @Environment(DownloadStore.self) private var store
+    @Binding var question: GroupQuestion?
+    let group: String
+    let episodes: [ItemSummary]
+
+    func body(content: Content) -> some View {
+        content.alert(question?.title ?? "", isPresented: Binding(get: { question != nil }, set: { if !$0 { question = nil } }),
+                      presenting: question) { asked in
+            switch asked {
+            case .confirm:
+                Button(t(Words.download)) {
+                    GroupDownloadPress.start(store, group: group, episodes: episodes) { message in
+                        Task { @MainActor in question = .failed(message) }
+                    }
+                }
+                Button(t(Words.cancel), role: .cancel) {}
+            case .stop:
+                // After the alert has gone, so it closes on the first press.
+                Button(t("Stop downloads"), role: .destructive) { later { store.delete(episodes: episodes, unfinishedOnly: true) } }
+                Button(t(Words.cancel), role: .cancel) {}
+            case .remove:
+                Button(t("Remove downloads"), role: .destructive) { later { store.delete(episodes: episodes, unfinishedOnly: false) } }
+                Button(t(Words.cancel), role: .cancel) {}
+            case .failed:
+                Button(t("OK"), role: .cancel) {}
+            }
+        } message: { asked in
+            if case .failed(let message) = asked { Text(message) }
+        }
+    }
+
+    private func later(_ body: @escaping @MainActor () -> Void) {
+        Task { @MainActor in
+            await Task.yield()
+            body()
+        }
+    }
+}
+
+/// Download show on a show's page: every episode of every season. It finds the episodes when pressed, or straight
+/// away when some of the show is already here, so it can tell when it's all here.
 struct ShowDownloadButton: View {
     @Environment(AppModel.self) private var model
     @Environment(DownloadStore.self) private var store
@@ -163,13 +201,17 @@ struct ShowDownloadButton: View {
     let seasons: [ItemSummary]
     @State private var episodes: [ItemSummary]?
     @State private var loading = false
-    @State private var pressed = false
-    @State private var loadError: String?
+    @State private var question: GroupQuestion?
 
     var body: some View {
-        let status = episodes.map { GroupDownloadStatus(store.states(of: $0)) }
+        let status = episodes.map { store.status(ofGroup: show.id, episodes: $0) }
         Button {
-            if episodes != nil { pressed = true } else { Task { await load(); pressed = episodes != nil } }
+            Task {
+                if episodes == nil { await load() }
+                guard let episodes else { return }
+                GroupDownloadPress.press(store, group: show.id, episodes: episodes, confirmsFor: show.title,
+                                         ask: { question = $0 }, onError: { question = .failed($0) })
+            }
         } label: {
             Label {
                 Text(label(status))
@@ -179,12 +221,7 @@ struct ShowDownloadButton: View {
         }
         .disabled(loading)
         .accessibilityLabel(status.map(accessibility) ?? t("Download show"))
-        .modifier(GroupDownloadActions(episodes: episodes, trigger: $pressed, confirmsFor: show.title))
-        .alert(t("Couldn’t download this"), isPresented: Binding(get: { loadError != nil }, set: { if !$0 { loadError = nil } })) {
-            Button(t("OK"), role: .cancel) {}
-        } message: {
-            Text(loadError ?? "")
-        }
+        .modifier(GroupDownloadAlert(question: $question, group: show.id, episodes: episodes ?? []))
         .task(id: show.id) {
             if store.hasDownloads(ofShow: show.id) { await load() }
         }
@@ -201,7 +238,7 @@ struct ShowDownloadButton: View {
             }
             episodes = all
         } catch {
-            loadError = ConnectionError(error).message
+            question = .failed(ConnectionError(error).message)
         }
     }
 
@@ -229,12 +266,15 @@ struct ShowDownloadButton: View {
 struct SeasonDownloadLink: View {
     @Environment(DownloadStore.self) private var store
     let season: ItemDetail
-    @State private var pressed = false
+    @State private var question: GroupQuestion?
 
     var body: some View {
         let episodes = season.children.filter { $0.kind == .episode }
-        let status = GroupDownloadStatus(store.states(of: episodes))
-        Button { pressed = true } label: {
+        let status = store.status(ofGroup: season.item.id, episodes: episodes)
+        Button {
+            GroupDownloadPress.press(store, group: season.item.id, episodes: episodes, confirmsFor: nil,
+                                     ask: { question = $0 }, onError: { question = .failed($0) })
+        } label: {
             HStack(spacing: 6) {
                 DownloadStateIcon(state: status.iconState, size: 18)
                 Text(label(status))
@@ -244,7 +284,7 @@ struct SeasonDownloadLink: View {
             .monospacedDigit()
         }
         .buttonStyle(.plain)
-        .modifier(GroupDownloadActions(episodes: episodes, trigger: $pressed, confirmsFor: nil))
+        .modifier(GroupDownloadAlert(question: $question, group: season.item.id, episodes: episodes))
         .opacity(episodes.isEmpty ? 0 : 1)
         .disabled(episodes.isEmpty)
     }

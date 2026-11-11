@@ -233,9 +233,17 @@ struct DownloadButton: View {
     let item: ItemSummary
     /// Its linked copies, as a download made through one of them is this title's too.
     var copies: [String] = []
-    @State private var removing = false
-    @State private var error: String?
-    @State private var failure: String?
+    /// The ring (with its stop square) from the start, filling as the server gets it ready too: an episode's row, where
+    /// it should look like it's on its way the moment it's pressed.
+    var ringWhilePreparing = false
+    @State private var question: Question?
+
+    /// The one question it's asking: all in one alert, as several on one view fought and took more than one press.
+    private enum Question {
+        case remove(downloaded: Bool)
+        case failed(String)
+        case couldNotStart(String)
+    }
 
     var body: some View {
         let download = store.entry(for: item.id, orCopies: copies)
@@ -243,37 +251,50 @@ struct DownloadButton: View {
         Button {
             switch download?.state {
             case nil: Task { await start() }
-            case .failed(let reason): failure = reason
-            default: removing = true
+            case .failed(let reason): question = .failed(reason)
+            default: question = .remove(downloaded: download?.isDownloaded == true)
             }
         } label: {
             Label {
                 Text(waiting ? t("Waiting for Wi-Fi") : label(download))
             } icon: {
-                DownloadStateIcon(state: download?.state, waitingForWiFi: waiting)
+                DownloadStateIcon(state: download?.state, waitingForWiFi: waiting, ringWhilePreparing: ringWhilePreparing)
             }
         }
         .accessibilityLabel(waiting ? t("Waiting for Wi-Fi") : DownloadStateIcon.accessibilityLabel(download?.state))
-        .alert(t("Couldn’t download this"), isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
-            Button(t("Try again")) {
-                if let download { store.delete(download.id) }
-                Task { await start() }
+        .alert(title(question), isPresented: Binding(get: { question != nil }, set: { if !$0 { question = nil } }),
+               presenting: question) { asked in
+            switch asked {
+            case .remove(let downloaded):
+                Button(downloaded ? t("Remove download") : t("Stop download"), role: .destructive) {
+                    // After the alert has gone, so it closes on the first press.
+                    Task { @MainActor in
+                        await Task.yield()
+                        if let download = store.entry(for: item.id, orCopies: copies) { store.delete(download.id) }
+                    }
+                }
+                Button(t(Words.cancel), role: .cancel) {}
+            case .failed:
+                Button(t("Try again")) {
+                    if let download = store.entry(for: item.id, orCopies: copies) { store.delete(download.id) }
+                    Task { await start() }
+                }
+                Button(t(Words.cancel), role: .cancel) {}
+            case .couldNotStart:
+                Button(t("OK"), role: .cancel) {}
             }
-            Button(t(Words.cancel), role: .cancel) {}
-        } message: {
-            Text(failure ?? "")
-        }
-        .alert(download?.isDownloaded == true ? t("Remove this download?") : t("Stop this download?"),
-               isPresented: $removing) {
-            Button(download?.isDownloaded == true ? t("Remove download") : t("Stop download"), role: .destructive) {
-                if let download { store.delete(download.id) }
+        } message: { asked in
+            switch asked {
+            case .failed(let message), .couldNotStart(let message): Text(message)
+            case .remove: EmptyView()
             }
-            Button(t(Words.cancel), role: .cancel) {}
         }
-        .alert(t("Couldn’t download this"), isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
-            Button(t("OK"), role: .cancel) {}
-        } message: {
-            Text(error ?? "")
+    }
+
+    private func title(_ question: Question?) -> String {
+        switch question {
+        case .remove(let downloaded): downloaded ? t("Remove this download?") : t("Stop this download?")
+        case .failed, .couldNotStart, nil: t("Couldn’t download this")
         }
     }
 
@@ -281,7 +302,7 @@ struct DownloadButton: View {
         do {
             try await store.download(itemId: item.id)
         } catch {
-            self.error = ConnectionError(error).message
+            question = .couldNotStart(ConnectionError(error).message)
         }
     }
 

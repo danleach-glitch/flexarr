@@ -660,7 +660,7 @@ struct EpisodeRow: View {
             }
             .buttonStyle(CardButtonStyle())
             .contextMenu { ItemContextMenu(item: episode, showsDetails: true) }
-            DownloadButton(item: episode)
+            DownloadButton(item: episode, ringWhilePreparing: true)
                 .labelStyle(.iconOnly)
                 .buttonStyle(.plain)
                 .foregroundStyle(Color.screen)
