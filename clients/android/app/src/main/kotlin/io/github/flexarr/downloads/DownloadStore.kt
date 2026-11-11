@@ -47,6 +47,7 @@ import io.github.flexarr.core.OfflineDownload
 import io.github.flexarr.core.checkOffline
 import io.github.flexarr.core.PlaylistSummary
 import io.github.flexarr.core.ServerAnswer
+import io.github.flexarr.core.TransferQueue
 import io.github.flexarr.core.deleteDownload
 import io.github.flexarr.core.downloadOptions
 import io.github.flexarr.core.markDownloadReceived
@@ -522,8 +523,10 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
             if (remote.item.kind != MediaKind.Unknown) update(download.id) { it.copy(item = remote.item) }
         }
         removeKeptFromProfile(client)
-        // A transfer for everything still to come (one that's running already is left alone).
+        // A transfer for everything still to come (one that's running already is left alone), and for those waiting
+        // their turn as places come free.
         all.filter { it.isPending }.forEach { enqueue(it, replace = false) }
+        startWaiting()
         downloads.forEach { fetchNext(after = it) }
         reconcilePodcasts()
         // Whole books are kept apart, and catch up with the rest.
@@ -579,6 +582,8 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         }
         val remote = client.requestDownload(itemId, quality)
         if (!automatic) offerNotifications()
+        // A few asked for by hand come down at once; the rest of a whole show waits its turn ([TransferQueue]).
+        val waits = !automatic && TransferQueue.waits(profileId, all.filterNot { it.id == remote.id })
         val local = LocalDownload(
             id = remote.id,
             profileId = profileId,
@@ -591,6 +596,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
             sizeBytes = remote.sizeBytes,
             automatic = automatic,
             createdAtMillis = System.currentTimeMillis(),
+            queued = waits,
         )
         all = all.filterNot { it.id == remote.id } + local
         save()
@@ -606,9 +612,11 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     /**
      * Gives a download a transfer. One asked for by hand runs as a user-initiated job on Android 14 on, when Android
      * takes one (the app's on screen, or a notification's button was just pressed); the rest go to WorkManager. [replace]
-     * starts a new one; otherwise one that's waiting or running already is left alone.
+     * starts a new one; otherwise one that's waiting or running already is left alone. One waiting its turn on the
+     * phone ([LocalDownload.queued]) gets none until [startWaiting] gives it its place.
      */
     private fun enqueue(download: LocalDownload, replace: Boolean) {
+        if (download.queued) return
         if (!replace && UserInitiatedTransfers.isScheduled(context, download.id)) return
         if (replace && !download.automatic && UserInitiatedTransfers.schedule(context, download)) {
             work.cancelUniqueWork(workName(download.id))
@@ -663,6 +671,32 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         }
     }
 
+    /**
+     * Starts the downloads waiting their turn ([TransferQueue]) that have a place now: a transfer ended (arrived, failed,
+     * deleted), or the app caught up after a restart.
+     */
+    private fun startWaiting() {
+        for (next in TransferQueue.toStart(all)) {
+            update(next.id) { it.copy(queued = false) }
+            byId(next.id)?.let { enqueue(it, replace = true) }
+        }
+    }
+
+    private var startWaitingPosted = false
+
+    /**
+     * [startWaiting] once whatever's being done on the main thread now is over, so deleting a whole show doesn't start
+     * (and stop again) the episodes it's about to delete.
+     */
+    private fun startWaitingSoon() {
+        if (startWaitingPosted) return
+        startWaitingPosted = true
+        scope.launch(Dispatchers.Main) {
+            startWaitingPosted = false
+            startWaiting()
+        }
+    }
+
     internal fun progressed(id: String, fraction: Double) {
         val download = byId(id) ?: return
         transferring[id] = fraction
@@ -675,6 +709,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         transferring.remove(id)
         update(id) { it.copy(phase = LocalPhase.Downloaded, fileName = name, sizeBytes = bytes, progress = 1.0, failure = null) }
         flexarrLog.info("Downloaded $id")
+        startWaitingSoon()
         val here = byId(id) ?: return // deleted as it came: the server was told that
         // The server is told once the list saying so is saved ([saved]).
         unacknowledged += id
@@ -696,6 +731,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     internal fun failed(id: String, message: String) {
         transferring.remove(id)
         update(id) { it.copy(phase = LocalPhase.Failed, failure = message) }
+        startWaitingSoon()
     }
 
     /**
@@ -902,6 +938,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         save()
         hurry.trySend(Unit)
         removeImageIfUnused(download.imageFileName)
+        if (download.isPending) startWaitingSoon()
         if (!tellServer) return
         // The server drops its copy (and won't offer a podcast episode again); out of reach, it's told later.
         unsentDeletes = unsentDeletes + id

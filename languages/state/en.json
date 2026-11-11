@@ -2001,7 +2001,7 @@
   "Quality": "w",
   "Quality: {quality}": "w",
   "Queue": "w",
-  "Queued": "w",
+  "Queued": "wn",
   "Queued to download": "w",
   "Queued: intros and credits for this season will be re-detected shortly": "w",
   "Quietens loud scenes and lifts quiet ones.": "wan",

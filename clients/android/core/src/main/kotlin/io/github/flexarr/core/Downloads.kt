@@ -161,6 +161,11 @@ data class LocalDownload(
     /** Fetched by itself: as the next episode, or a podcast's newest. Only these wait for Wi-Fi. */
     val automatic: Boolean = false,
     val createdAtMillis: Long = 0,
+    /**
+     * Asked for by hand while the profile had [TransferQueue.MOST_RUNNING] transfers under way: it waits its turn on
+     * this phone, with no transfer of its own yet, and starts as one of those ends.
+     */
+    val queued: Boolean = false,
 ) {
     val isDownloaded: Boolean get() = phase == LocalPhase.Downloaded && fileName != null
 
