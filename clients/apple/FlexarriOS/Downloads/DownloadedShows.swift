@@ -75,7 +75,8 @@ struct DownloadedShowRow: View {
         }
         .alert(t("Remove these downloads?"), isPresented: $removing) {
             Button(t("Remove downloads"), role: .destructive) {
-                for episode in show.episodes { store.delete(episode.id) }
+                // Through the group stop, so a Download show or season still asking for them ends too.
+                store.delete(episodes: show.episodes.map(\.item), unfinishedOnly: false)
             }
             Button(t(Words.cancel), role: .cancel) {}
         }
@@ -124,7 +125,10 @@ struct DownloadedShowView: View {
                     ForEach(show.seasons, id: \.number) { season in
                         Section(season.number.map { t("Season {number}", ["number": $0]) } ?? t("Special")) {
                             ForEach(season.episodes) { DownloadRow(download: $0) }
-                                .onDelete { offsets in for index in offsets { store.delete(season.episodes[index].id) } }
+                                // As a group stop, so a Download show or season still asking for it ends.
+                                .onDelete { offsets in
+                                    store.delete(episodes: offsets.map { season.episodes[$0].item }, unfinishedOnly: false)
+                                }
                         }
                     }
                 }
