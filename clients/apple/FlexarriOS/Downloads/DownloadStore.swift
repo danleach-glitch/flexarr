@@ -767,20 +767,38 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
 
     // MARK: Downloading
 
+    /// The sign-in and profile a download is asked for with: a batch (Download show) keeps the ones it started with.
+    typealias Owner = (client: FlexarrClient, profileId: String)
+
+    /// Who's signed in now, to ask for downloads as.
+    var owner: Owner? {
+        guard let client, let profileId else { return nil }
+        return (client, profileId)
+    }
+
+    /// Whether `owner`'s profile is still the one watching, and still signed in.
+    func isStill(_ owner: Owner) -> Bool { client != nil && profileId == owner.profileId }
+
     /// Downloads a title at the size chosen in Settings. An original the phone can't play comes at High instead.
-    func download(itemId: String) async throws {
-        guard let client else { throw FlexarrClientError.invalidResponse }
+    /// `owner`: whose it is, when not whoever is signed in now (a batch's: it's asked for as the profile that started
+    /// it, and not at all once someone else is watching).
+    func download(itemId: String, as owner: Owner? = nil) async throws {
+        guard let client = owner?.client ?? client else { throw FlexarrClientError.invalidResponse }
         var quality = quality
         if quality == .original, let options = try? await client.downloadOptions(itemId),
            options.first(where: { $0.quality == .original })?.available == false {
             quality = .high
         }
-        try await download(itemId: itemId, quality: quality)
+        try await download(itemId: itemId, quality: quality, as: owner)
     }
 
     /// Asks the server to get a title ready at this size, then fetches it when it is.
-    func download(itemId: String, quality: DownloadQuality, automatic: Bool = false) async throws {
-        guard let client, let profileId else { throw FlexarrClientError.invalidResponse }
+    func download(itemId: String, quality: DownloadQuality, automatic: Bool = false, as owner: Owner? = nil) async throws {
+        guard let client = owner?.client ?? client, let profileId = owner?.profileId ?? profileId else {
+            throw FlexarrClientError.invalidResponse
+        }
+        // Someone else is watching now: not theirs to ask for (and what's here is looked up as theirs).
+        if owner != nil, profileId != self.profileId { throw CancellationError() }
         // Already here or on its way: nothing to do. Failed: start again.
         if let existing = entry(for: itemId) {
             guard case .failed = existing.state else { return }

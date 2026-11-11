@@ -59,17 +59,21 @@ extension DownloadStore {
 
     /// Downloads every one of these not already here or on its way (a failed one starts again), one after another,
     /// so the server queues them in order. Carries on past a failure and throws the first one at the end.
-    /// Stopping them (`delete(episodes:)`) ends the batch too, so the rest aren't asked for after the stop.
+    /// Stopping them (`delete(episodes:)`) ends the batch too, so the rest aren't asked for after the stop. They're all
+    /// asked for as the profile that started it: once someone else is watching, the batch ends.
     func download(all episodes: [ItemSummary]) async throws {
+        guard let owner else { throw FlexarrClientError.invalidResponse }
         let ids = Set(episodes.map(\.id))
         stoppedEpisodeIds.subtract(ids)
         var firstError: Error?
         for episode in episodes {
-            guard stoppedEpisodeIds.isDisjoint(with: ids) else { return }
+            guard stoppedEpisodeIds.isDisjoint(with: ids), isStill(owner) else { return }
             if let existing = entry(for: episode.id) {
                 if case .failed = existing.state { delete(existing.id) } else { continue }
             }
-            do { try await download(itemId: episode.id) } catch { firstError = firstError ?? error }
+            do { try await download(itemId: episode.id, as: owner) } catch { firstError = firstError ?? error }
+            // Someone else is watching now (or no one: signed out): the rest aren’t theirs to ask for.
+            guard isStill(owner) else { return }
             // Stopped while the server was being asked: this one arrived after the stop.
             if !stoppedEpisodeIds.isDisjoint(with: ids) {
                 if let late = entry(for: episode.id), !late.isDownloaded { delete(late.id) }
