@@ -29,6 +29,8 @@ struct DetailView: View {
     /// Searching for subtitles for this file (its id), and what was saved, to say so.
     @State private var subtitleSearchFile: SubtitleSearchFile?
     @State private var savedSubtitles: String?
+    /// A version chosen here that the server didn't take: an alert of its own, not the saved notice.
+    @State private var versionProblem: String?
     /// Said once the search has gone, so the banner shows on the page rather than under the leaving sheet.
     @State private var subtitlesJustSaved: String?
     /// On the watchlist or not, as changed here, until the page next loads.
@@ -97,6 +99,9 @@ struct DetailView: View {
             }
         }
         .banner($savedSubtitles)
+        .alert(versionProblem ?? "", isPresented: Binding(get: { versionProblem != nil }, set: { if !$0 { versionProblem = nil } })) {
+            Button(t("OK"), role: .cancel) {}
+        }
         .task(id: model.refreshToken) {
             // Coming back from a screen pushed on top or another tab runs this again; fetch only when something
             // changed here, or what's shown is old enough that something may have changed elsewhere.
@@ -335,7 +340,7 @@ struct DetailView: View {
 
     private func chooseVersion(_ item: ItemSummary, _ fileId: String?) {
         Task {
-            if await !model.chooseVersion(item, fileId: fileId) { savedSubtitles = t("That didn’t work. Try again.") }
+            if await !model.chooseVersion(item, fileId: fileId) { versionProblem = t("That didn’t work. Try again.") }
         }
     }
 
