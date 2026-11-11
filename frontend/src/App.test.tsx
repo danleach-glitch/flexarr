@@ -36,6 +36,28 @@ function renderAt(path: string) {
 
 const niceGuys = summary({ id: 'm1', title: 'The Nice Guys', year: 2016, resolution: '1080p', communityRating: 7.4, contentRating: 'R' })
 
+describe('the phone drawer', () => {
+  it('keeps Tab inside while open, and hands focus back to Menu when it closes', async () => {
+    mockApi({ '/system/status': status, '/libraries': [movies], '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 } })
+    renderAt('/')
+    const menu = await screen.findByRole('button', { name: 'Menu' })
+    menu.focus()
+    fireEvent.click(menu)
+    const drawer = document.getElementById('sidebar')!
+    expect(drawer).toContainElement(document.activeElement as HTMLElement)
+
+    // Shift-Tab from the drawer's first control goes round to its last, not to the page behind.
+    const first = drawer.querySelector<HTMLElement>('a, button')!
+    first.focus()
+    fireEvent.keyDown(first, { key: 'Tab', shiftKey: true })
+    expect(drawer).toContainElement(document.activeElement as HTMLElement)
+    expect(document.activeElement).not.toBe(first)
+
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    await waitFor(() => expect(menu).toHaveFocus())
+  })
+})
+
 describe('App', () => {
   it('shows the featured hero and rows on the home page', async () => {
     mockApi({
