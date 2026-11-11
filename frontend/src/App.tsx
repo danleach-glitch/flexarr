@@ -369,6 +369,8 @@ export default function App() {
   // Arrived from a phone's or tablet's code: laid out like the app's own code screen, which it sits beside.
   const codePage = state.kind === 'unauthorized' && !state.setupOpen && tvCode !== null
   const thisDevice = /iPad/.test(navigator.userAgent) ? 'iPad' : /iPhone/.test(navigator.userAgent) ? 'iPhone' : 'device'
+  // The PIN fields, marked wrong and pointed at what's wrong with them.
+  const pinInvalid = state.kind === 'unauthorized' && (state.pinMismatch || state.badPin) ? { 'aria-invalid': true, 'aria-describedby': 'setupPin-error' } : {}
 
   return (
     <div className={codePage ? 'connect connect-code' : 'connect'}>
@@ -379,7 +381,7 @@ export default function App() {
       {codePage && <p className="connect-tagline">{t('Your entertainment, on every screen.')}</p>}
       <section className="panel" aria-label={t('Server status')}>
         {state.kind === 'loading' && <p className="muted">{t('Connecting…')}</p>}
-        {state.kind === 'error' && <p className="error">{t('Can’t reach the server ({message}). Check that Flexarr is running, then reload.', { message: state.message })}</p>}
+        {state.kind === 'error' && <p className="error" role="alert">{t('Can’t reach the server ({message}). Check that Flexarr is running, then reload.', { message: state.message })}</p>}
         {state.kind === 'unauthorized' && state.setupOpen && (
           <form className="setup-welcome api-key-form" onSubmit={setUp}>
             <h1>{t('Welcome to your Flexarr server')}</h1>
@@ -389,8 +391,8 @@ export default function App() {
             ) : (
               <>
                 <label htmlFor="setupCode">{t('Setup code')}</label>
-                <input id="setupCode" name="setupCode" type="text" autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false} placeholder="ABCD-EFGH" required />
-                {state.wrongCode && <p className="error">{t('That isn’t this server’s setup code.')}</p>}
+                <input id="setupCode" name="setupCode" type="text" autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false} placeholder="ABCD-EFGH" required aria-invalid={state.wrongCode || undefined} aria-describedby={state.wrongCode ? 'setupCode-error' : undefined} />
+                {state.wrongCode && <p className="error" role="alert" id="setupCode-error">{t('That isn’t this server’s setup code.')}</p>}
                 <p className="muted small-print setup-code-help">
                   {whereTheCodeIs(setupInstall)}{' '}
                   <a href="https://flexarr.io/guide/first-setup#enter-the-setup-code" target="_blank" rel="noreferrer">
@@ -405,15 +407,23 @@ export default function App() {
             <div className="field-row">
               <label>
                 {t('PIN (required)')}
-                <input name="setupPin" type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" title={t('4 to 8 digits')} placeholder={t('4 to 8 digits')} required />
+                <input name="setupPin" type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" title={t('4 to 8 digits')} placeholder={t('4 to 8 digits')} required {...pinInvalid} />
               </label>
               <label>
                 {t('Confirm PIN')}
-                <input name="setupPinAgain" type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" title={t('4 to 8 digits')} required />
+                <input name="setupPinAgain" type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" title={t('4 to 8 digits')} required {...pinInvalid} />
               </label>
             </div>
-            {state.pinMismatch && <p className="error">{t('The two PINs don’t match. Type the same one in both.')}</p>}
-            {state.badPin && <p className="error">{state.badPin}</p>}
+            {state.pinMismatch && (
+              <p className="error" role="alert" id="setupPin-error">
+                {t('The two PINs don’t match. Type the same one in both.')}
+              </p>
+            )}
+            {state.badPin && !state.pinMismatch && (
+              <p className="error" role="alert" id="setupPin-error">
+                {state.badPin}
+              </p>
+            )}
             <button type="submit" className="button">
               {t('Set up Flexarr')}
             </button>
@@ -451,12 +461,24 @@ export default function App() {
             <label htmlFor="apiKey">{t('API key')}</label>
             <p className="muted">{t('Ask whoever set up Flexarr for the key, or connect from home.')}</p>
             <div className="api-key-row">
-              <input id="apiKey" name="apiKey" type="password" autoComplete="off" required />
+              <input
+                id="apiKey"
+                name="apiKey"
+                type="password"
+                autoComplete="off"
+                required
+                aria-invalid={state.wrongKey || undefined}
+                aria-describedby={state.wrongKey ? 'apiKey-error' : undefined}
+              />
               <button type="submit" className="button">
                 {t('Connect')}
               </button>
             </div>
-            {state.wrongKey && <p className="error">{t('That isn’t the right key.')}</p>}
+            {state.wrongKey && (
+              <p className="error" role="alert" id="apiKey-error">
+                {t('That isn’t the right key.')}
+              </p>
+            )}
             <p className="muted small-print">
               {t('For whoever set it up: the key is in config.json in the server’s data folder. Opening Flexarr through Tailscale signs you in without it.')}
             </p>

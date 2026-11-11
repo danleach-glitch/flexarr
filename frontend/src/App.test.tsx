@@ -646,7 +646,10 @@ describe('App', () => {
     fireEvent.change(await screen.findByLabelText('API key'), { target: { value: 'nope' } })
     fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
 
-    expect(await screen.findByText("That isn’t the right key.")).toBeInTheDocument()
+    // Said out loud, and the field marked wrong and pointed at why.
+    expect(await screen.findByRole('alert')).toHaveTextContent('That isn’t the right key.')
+    expect(screen.getByLabelText('API key')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByLabelText('API key')).toHaveAccessibleDescription('That isn’t the right key.')
   })
 
   it('trades a key stored by an earlier version for a session, then forgets it', async () => {
