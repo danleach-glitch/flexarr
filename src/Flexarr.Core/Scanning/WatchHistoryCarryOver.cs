@@ -90,7 +90,11 @@ public static class WatchHistoryCarryOver
                 && (i.TmdbId != null || i.TvdbId != null || i.ImdbId != null))
             .Select(i => new Title(i.Id, i.Kind, i.TmdbId, i.TvdbId, i.ImdbId))
             .ToListAsync(ct).ConfigureAwait(false);
-        var tombstones = await db.WatchTombstones.ToListAsync(ct).ConfigureAwait(false);
+        // Only what finding a match needs, untracked: a big removal leaves thousands for a month, and each scan looks.
+        // A tombstone is read whole only once there's somewhere for it to go.
+        var tombstones = await db.WatchTombstones.AsNoTracking()
+            .Select(t => new Tombstone(t.Id, t.Kind, t.TmdbId, t.TvdbId, t.ImdbId, t.SeasonNumber, t.EpisodeNumber, t.AirDate))
+            .ToListAsync(ct).ConfigureAwait(false);
         if (missing.Count == 0 && tombstones.Count == 0)
         {
             return 0;
@@ -181,14 +185,20 @@ public static class WatchHistoryCarryOver
                 }
             }
 
-            users ??= (await db.Profiles.Select(p => p.Id).ToListAsync(ct).ConfigureAwait(false)).ToHashSet(StringComparer.Ordinal);
-            if (tombstone.Kind != MediaKind.Episode)
+            var id = tombstone.Id;
+            if (await db.WatchTombstones.FirstOrDefaultAsync(t => t.Id == id, ct).ConfigureAwait(false) is not { } whole)
             {
-                await KeepKidsOverrideAsync(db, tombstone.KidsOverride, target, ct).ConfigureAwait(false);
+                continue;
             }
 
-            carried += await RestoreAsync(db, added, users, tombstone, target, ct).ConfigureAwait(false);
-            db.WatchTombstones.Remove(tombstone);
+            users ??= (await db.Profiles.Select(p => p.Id).ToListAsync(ct).ConfigureAwait(false)).ToHashSet(StringComparer.Ordinal);
+            if (whole.Kind != MediaKind.Episode)
+            {
+                await KeepKidsOverrideAsync(db, whole.KidsOverride, target, ct).ConfigureAwait(false);
+            }
+
+            carried += await RestoreAsync(db, added, users, whole, target, ct).ConfigureAwait(false);
+            db.WatchTombstones.Remove(whole);
         }
 
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
@@ -225,6 +235,9 @@ public static class WatchHistoryCarryOver
 
         public HashSet<(Guid CollectionId, Guid MediaItemId)> Memberships { get; } = [];
     }
+
+    /// <summary>What of a <see cref="WatchTombstone"/> finding where it goes needs.</summary>
+    private sealed record Tombstone(int Id, MediaKind Kind, string? TmdbId, string? TvdbId, string? ImdbId, int? SeasonNumber, int? EpisodeNumber, DateOnly? AirDate);
 
     private sealed record Title(Guid Id, MediaKind Kind, string? TmdbId, string? TvdbId, string? ImdbId)
     {

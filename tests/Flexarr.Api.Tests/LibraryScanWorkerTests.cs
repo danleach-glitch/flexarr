@@ -15,6 +15,28 @@ namespace Flexarr.Api.Tests;
 public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFactory>
 {
     [Fact]
+    public async Task AScopedScan_RelinksOnlyWhatsInItsFolder()
+    {
+        var root = $"/scope-{Guid.NewGuid():N}";
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var library = new Library { Name = $"TV {Guid.NewGuid():N}", Type = LibraryType.TvShows };
+        var show = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Series, Title = "Show", SortTitle = "show", Path = $"{root}/Show" };
+        var season = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Season, Title = "1", SortTitle = "1", Parent = show };
+        var episode = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Episode, Title = "One", SortTitle = "1", Parent = season, Files = [new MediaFile { Path = $"{root}/Show/Season 1/One.mkv" }] };
+        var gone = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Episode, Title = "Two", SortTitle = "2", Parent = season, MissingSince = DateTime.UtcNow, Files = [new MediaFile { Path = $"{root}/Show/Season 1/Two.mkv" }] };
+        var elsewhere = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Series, Title = "Other", SortTitle = "other", Path = $"{root}/Other" };
+        db.AddRange(library, show, season, episode, gone, elsewhere);
+        await db.SaveChangesAsync();
+
+        var one = await LibraryScanWorker.InScopeAsync(db, [$"{root}/show/Season 1/One.mkv"], default); // as a webhook might spell it
+        var folder = await LibraryScanWorker.InScopeAsync(db, [$"{root}/Show/"], default);
+
+        Assert.Equal([episode.Id], one);
+        Assert.Equal(new[] { show.Id, episode.Id, gone.Id }.Order(), folder.Order());
+    }
+
+    [Fact]
     public async Task APathWithANullCharacter_IsDropped_AndTheWorkerKeepsScanning()
     {
         // The scan itself needs a probe; CI has no ffprobe, and a missing ffprobe fails the whole scan.

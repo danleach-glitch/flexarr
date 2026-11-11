@@ -151,8 +151,11 @@ public static partial class DeleteEndpoints
             }
         }
 
-        // What's left, if anything, has no copies to be linked to now.
-        await Flexarr.Core.Scanning.TitleLinker.LinkAsync(db, ct);
+        // What's left of a linked title, if anything, may have no copies to be linked to now: only it is looked at.
+        if (copies.Any(c => c.LinkGroupId is not null))
+        {
+            await Flexarr.Core.Scanning.TitleLinker.LinkAsync(db, [.. copies.Select(c => c.Id)], ct);
+        }
         return failures.Count == 0 ? Results.NoContent()
             : Problems.Of("Deleted {done} of {total} copies. {failures}", new { done, total = copies.Count, failures = string.Join(" ", failures) }, status: status);
     }

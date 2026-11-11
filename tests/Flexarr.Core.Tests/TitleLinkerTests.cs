@@ -131,6 +131,114 @@ public sealed class TitleLinkerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task CarryingOver_ReadsOnlyTheTombstonesThatHaveSomewhereToGo()
+    {
+        var show = Add(_hd, MediaKind.Series, "Show", tvdb: "5");
+        await _db.SaveChangesAsync();
+        var season = Add(_hd, MediaKind.Season, "Season 1", parent: show, season: 1);
+        await _db.SaveChangesAsync();
+        var back = Add(_hd, MediaKind.Episode, "Back", parent: season, season: 1, episode: 1);
+        _db.WatchTombstones.AddRange(
+            new WatchTombstone { Kind = MediaKind.Episode, TvdbId = "5", SeasonNumber = 1, EpisodeNumber = 1, Playback = [new TombstonePlayback(PlaybackState.DefaultUser, 0, 100, true, 1, DateTime.UtcNow, null, null)] },
+            new WatchTombstone { Kind = MediaKind.Episode, TvdbId = "5", SeasonNumber = 1, EpisodeNumber = 2, Playback = [new TombstonePlayback(PlaybackState.DefaultUser, 0, 100, true, 1, DateTime.UtcNow, null, null)] },
+            new WatchTombstone { Kind = MediaKind.Movie, TmdbId = "99", Playback = [new TombstonePlayback(PlaybackState.DefaultUser, 0, 100, true, 1, DateTime.UtcNow, null, null)] });
+        await _db.SaveChangesAsync();
+        _db.ChangeTracker.Clear();
+
+        var carried = await WatchHistoryCarryOver.CarryOverAsync(_db, default);
+
+        Assert.Equal(1, carried);
+        Assert.True(await _db.PlaybackStates.AnyAsync(p => p.MediaItemId == back.Id && p.Watched));
+        Assert.Equal(2, await _db.WatchTombstones.CountAsync()); // the one used is gone; the others wait
+        Assert.Empty(_db.ChangeTracker.Entries<WatchTombstone>());
+    }
+
+    private async Task LinkOnlyAsync(params MediaItem[] touched)
+    {
+        await _db.SaveChangesAsync();
+        await TitleLinker.LinkAsync(_db, [.. touched.Select(t => t.Id)], default);
+        _db.ChangeTracker.Clear();
+    }
+
+    [Fact]
+    public async Task AScopedPass_LinksWhatItTouched_ThroughAThirdCopy_AndLeavesTheRest()
+    {
+        var a = Add(_hd, MediaKind.Movie, "A", tmdb: "1");
+        var b = Add(_hd, MediaKind.Movie, "B", tmdb: "1", imdb: "tt9");
+        var c = Add(_uhd, MediaKind.Movie, "C", imdb: "tt9");
+        var other = Add(_hd, MediaKind.Movie, "Other", tmdb: "2");
+        var otherCopy = Add(_uhd, MediaKind.Movie, "Other", tmdb: "2");
+        await LinkOnlyAsync(a);
+
+        Assert.NotNull(await GroupOf(a));
+        Assert.Equal(await GroupOf(a), await GroupOf(b));
+        Assert.Equal(await GroupOf(a), await GroupOf(c));
+        Assert.Null(await GroupOf(other)); // not looked at
+        Assert.Null(await GroupOf(otherCopy));
+
+        await LinkAsync();
+        Assert.NotNull(await GroupOf(other));
+        Assert.Equal(await GroupOf(other), await GroupOf(otherCopy));
+    }
+
+    [Fact]
+    public async Task AScopedPassFromANewEpisode_LinksItWithItsCopy()
+    {
+        var hd = Add(_hd, MediaKind.Series, "Show", tvdb: "5");
+        var uhd = Add(_uhd, MediaKind.Series, "Show", tvdb: "5");
+        await _db.SaveChangesAsync();
+        var hd1 = Add(_hd, MediaKind.Season, "Season 1", parent: hd, season: 1);
+        var uhd1 = Add(_uhd, MediaKind.Season, "Season 1", parent: uhd, season: 1);
+        await _db.SaveChangesAsync();
+        var hdE1 = Add(_hd, MediaKind.Episode, "One", parent: hd1, season: 1, episode: 1);
+        await LinkAsync();
+
+        var uhdE1 = Add(_uhd, MediaKind.Episode, "One", parent: uhd1, season: 1, episode: 1);
+        await LinkOnlyAsync(uhdE1);
+
+        Assert.NotNull(await GroupOf(uhdE1));
+        Assert.Equal(await GroupOf(hdE1), await GroupOf(uhdE1));
+    }
+
+    [Fact]
+    public async Task AScopedPass_UnlinksACopyLeftAlone_AndKeepsOtherTitlesLinks()
+    {
+        var hd = Add(_hd, MediaKind.Movie, "Film", tmdb: "1");
+        var uhd = Add(_uhd, MediaKind.Movie, "Film", tmdb: "1");
+        var other = Add(_hd, MediaKind.Movie, "Other", tmdb: "2");
+        var otherCopy = Add(_uhd, MediaKind.Movie, "Other", tmdb: "2");
+        var unrelated = Add(_hd, MediaKind.Movie, "Unrelated", tmdb: "3");
+        await LinkAsync();
+        var otherGroup = await GroupOf(other);
+        Assert.NotNull(otherGroup);
+
+        // Its copy goes without a scan of its folder (deleted, say); a scan elsewhere notices.
+        await _db.MediaItems.IgnoreQueryFilters().Where(i => i.Id == uhd.Id).ExecuteDeleteAsync();
+        await LinkOnlyAsync(unrelated);
+
+        Assert.Null(await GroupOf(hd));
+        Assert.Equal(otherGroup, await GroupOf(otherCopy));
+        Assert.Equal(otherGroup, await GroupOf(other));
+        Assert.True(await _db.TitleGroups.AnyAsync(g => g.Id == otherGroup));
+    }
+
+    [Fact]
+    public async Task AScopedPass_FromATitleWhoseIdChanged_UnlinksItsOldCopy()
+    {
+        var hd = Add(_hd, MediaKind.Movie, "Film", tmdb: "1");
+        var uhd = Add(_uhd, MediaKind.Movie, "Film", tmdb: "1");
+        var right = Add(_uhd, MediaKind.Movie, "Right film", tmdb: "7");
+        await LinkAsync();
+
+        (await _db.MediaItems.IgnoreQueryFilters().FirstAsync(i => i.Id == hd.Id)).TmdbId = "7";
+        await LinkOnlyAsync(hd);
+
+        Assert.Null(await GroupOf(uhd));
+        Assert.NotNull(await GroupOf(hd));
+        Assert.Equal(await GroupOf(hd), await GroupOf(right));
+    }
+
+    [Fact]
     public async Task AFilmAndAShowWithTheSameNumber_DoNotLink()
     {
         var film = Add(_hd, MediaKind.Movie, "Film", tmdb: "1");
