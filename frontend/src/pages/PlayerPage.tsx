@@ -497,7 +497,7 @@ export function PlayerPage() {
       copyAsked.current = true
       return false
     }
-    rememberCopyingFailed()
+    rememberCopyingFailed(info?.item.id)
     void restartHere({ noCopy: true, audioStreamIndex: info?.selectedAudioIndex ?? undefined, subtitleKey: subtitleKey ?? 'off' })
     return true
   }

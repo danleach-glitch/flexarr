@@ -12,33 +12,62 @@ import { detectProfile } from './profile'
  *   is asked for again the way it was before.
  * - The sound stays as it was: with fragmented MP4 the server would copy FLAC and ALAC and turn surround into FLAC, so
  *   those two are left out of what the browser says it plays.
- * - A browser that fails to play such a stream is asked the old way from then on (`rememberCopyingFailed`).
+ * - A title whose copied stream fails to play is asked for the old way for a week, and every title is once two
+ *   different titles have failed (`rememberCopyingFailed`).
  */
 
-/** Set in this browser once a copied stream failed to play in it. */
+/**
+ * The copied streams that failed to play in this browser, as JSON `{ [itemId]: time }`. (Before, it held a lone time:
+ * read as one failure on an unknown title.)
+ */
 export const COPY_FAILED_KEY = 'flexarr.copiedVideoFailed'
+/** How long a failure counts: a browser update or a newer server may well play the stream later. */
+export const COPY_FAILED_FOR_MS = 7 * 24 * 60 * 60 * 1000
+/** Failures on this many different titles turn copying off for every title; one failure only for its own title. */
+const TITLES_TO_TURN_OFF = 2
 
-let failedHere = false
+/** Failures this visit, kept apart from the browser's storage (which may keep nothing). */
+const failedHere = new Map<string, number>()
 /** Titles whose stream would copy HEVC: asked for the old way straight away next time (another audio track, a recovery). */
 const hevcTitles = new Set<string>()
 /** The streams asked for in fragmented MP4. */
 const sentFmp4 = new WeakSet<PlaybackInfo>()
 
-/** Whether a copied stream has failed to play in this browser before. */
-export function copyingFailed(): boolean {
-  if (failedHere) return true
+function storedFailures(): [string, number][] {
   try {
-    return localStorage.getItem(COPY_FAILED_KEY) !== null
+    const raw = localStorage.getItem(COPY_FAILED_KEY)
+    if (raw === null) return []
+    const parsed: unknown = JSON.parse(raw)
+    if (typeof parsed === 'number') return [['', parsed]]
+    if (parsed && typeof parsed === 'object') {
+      return Object.entries(parsed).filter((entry): entry is [string, number] => typeof entry[1] === 'number')
+    }
   } catch {
-    return false
+    // Unreadable or blocked: nothing remembered.
   }
+  return []
 }
 
-/** A copied stream failed to play here: films and episodes are asked for the old way from now on. */
-export function rememberCopyingFailed() {
-  failedHere = true
+/** The titles whose copied stream failed within the last week, with when. */
+function recentFailures(now = Date.now()): Map<string, number> {
+  const all = new Map(storedFailures())
+  for (const [id, at] of failedHere) all.set(id, Math.max(at, all.get(id) ?? 0))
+  for (const [id, at] of all) if (now - at >= COPY_FAILED_FOR_MS) all.delete(id)
+  return all
+}
+
+/** Whether copying is off here: a copied stream failed within the week on `itemId` itself, or on two different titles. */
+export function copyingFailed(itemId?: string): boolean {
+  const recent = recentFailures()
+  return recent.size >= TITLES_TO_TURN_OFF || (itemId !== undefined && recent.has(itemId))
+}
+
+/** A copied stream of `itemId` failed to play here: that title is asked for the old way for a week, and all of them once two have. */
+export function rememberCopyingFailed(itemId = '') {
+  const now = Date.now()
+  failedHere.set(itemId, now)
   try {
-    localStorage.setItem(COPY_FAILED_KEY, String(Date.now()))
+    localStorage.setItem(COPY_FAILED_KEY, JSON.stringify(Object.fromEntries(recentFailures(now))))
   } catch {
     // Kept for this visit only.
   }
@@ -71,7 +100,7 @@ export async function startVideo(
   start: (request: PlaybackRequest) => Promise<PlaybackInfo>,
   copy = true,
 ): Promise<PlaybackInfo> {
-  const asking = copy && !copyingFailed() && !hevcTitles.has(request.itemId)
+  const asking = copy && !copyingFailed(request.itemId) && !hevcTitles.has(request.itemId)
   const info = await start({ ...request, profile: videoProfile(asking) })
   if (!asking) return info
   if (copiesHevc(info)) {

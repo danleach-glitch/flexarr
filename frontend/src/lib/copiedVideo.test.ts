@@ -72,7 +72,7 @@ describe('copied video', () => {
     expect(wasCopyAsked(info)).toBe(true)
   })
 
-  it('asks the old way once copying failed in this browser, and when told to', async () => {
+  it('asks the old way for a title that failed, for every title once two have, and when told to', async () => {
     const first = await fresh()
     const sent: PlaybackRequest[] = []
     const start = async (request: PlaybackRequest) => {
@@ -82,15 +82,50 @@ describe('copied video', () => {
     await first.startVideo({ itemId: 'm1' }, start, false)
     expect(sent.pop()?.profile.fmp4).toBeUndefined()
 
-    first.rememberCopyingFailed()
+    // One failure: only that title.
+    first.rememberCopyingFailed('m1')
+    await first.startVideo({ itemId: 'm1' }, start)
+    expect(sent.pop()?.profile.fmp4).toBeUndefined()
     await first.startVideo({ itemId: 'm2' }, start)
+    expect(sent.pop()?.profile.fmp4).toBe(true)
+
+    // The same title again isn't a second title.
+    first.rememberCopyingFailed('m1')
+    expect(first.copyingFailed('m3')).toBe(false)
+
+    first.rememberCopyingFailed('m2')
+    await first.startVideo({ itemId: 'm3' }, start)
     expect(sent.pop()?.profile.fmp4).toBeUndefined()
 
     // Remembered by the browser, for later visits.
     const later = await fresh()
     expect(later.copyingFailed()).toBe(true)
-    await later.startVideo({ itemId: 'm2' }, start)
+    await later.startVideo({ itemId: 'm4' }, start)
     expect(sent.pop()?.profile.fmp4).toBeUndefined()
+  })
+
+  it('forgets failures after a week', async () => {
+    const { copyingFailed, rememberCopyingFailed, COPY_FAILED_FOR_MS } = await fresh()
+    const now = Date.now()
+    vi.spyOn(Date, 'now').mockReturnValue(now)
+    rememberCopyingFailed('m1')
+    rememberCopyingFailed('m2')
+    expect(copyingFailed('m5')).toBe(true)
+    vi.spyOn(Date, 'now').mockReturnValue(now + COPY_FAILED_FOR_MS + 1)
+    expect(copyingFailed('m1')).toBe(false)
+    expect(copyingFailed()).toBe(false)
+  })
+
+  it('reads the old lone time as one failure, and lets it expire', async () => {
+    localStorage.setItem('flexarr.copiedVideoFailed', String(Date.now()))
+    const { copyingFailed, rememberCopyingFailed, COPY_FAILED_FOR_MS } = await fresh()
+    expect(copyingFailed('m1')).toBe(false)
+    rememberCopyingFailed('m1')
+    expect(copyingFailed('m2')).toBe(true)
+
+    localStorage.setItem('flexarr.copiedVideoFailed', String(Date.now() - COPY_FAILED_FOR_MS - 1))
+    const later = await fresh()
+    expect(later.copyingFailed('m1')).toBe(false)
   })
 
   it('still remembers a failure for the visit when the browser keeps nothing', async () => {
@@ -101,8 +136,8 @@ describe('copied video', () => {
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('blocked')
     })
-    expect(copyingFailed()).toBe(false)
-    rememberCopyingFailed()
-    expect(copyingFailed()).toBe(true)
+    expect(copyingFailed('m1')).toBe(false)
+    rememberCopyingFailed('m1')
+    expect(copyingFailed('m1')).toBe(true)
   })
 })
