@@ -21,6 +21,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Downloads
 
 - On iPhone, a download paused when Wi‑Fi dropped now carries on over mobile data once **Wi‑Fi only** is off, rather than waiting for Wi‑Fi.
+- On iPhone, iPad, Android and the Mac, a show's page now has **Download show**, which downloads every episode, a **Download Season 2** link at the end of the season pills, and a download button on each episode. Pressing either again stops or removes those downloads.
+- Downloads now lists each show once with how many episodes are here; open it to see them by season.
+- On iPad and the Mac, a film's or show's buttons all stay beside Play rather than some moving to ⋯.
 
 ## 0.64.0 · 9 November 2026
 
