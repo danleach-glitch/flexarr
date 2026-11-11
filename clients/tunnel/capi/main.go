@@ -72,14 +72,21 @@ func FlexarrTunnelStop() { tunnel.Stop() }
 //export FlexarrTunnelSetVerbose
 func FlexarrTunnelSetVerbose(on C.int) { tunnel.SetVerbose(on != 0) }
 
-// FlexarrTunnelFree frees a string returned by this library.
-//
 // FlexarrTunnelSetPreferredPort makes FlexarrTunnelStart listen on that loopback
 // port when it's free (0: any), so the app's address stays the same between launches.
 //
 //export FlexarrTunnelSetPreferredPort
 func FlexarrTunnelSetPreferredPort(port C.int) { tunnel.SetPreferredPort(int(port)) }
 
+// FlexarrTunnelSetClientToken makes the loopback port take only connections whose
+// first request carries token in its X-Flexarr-Tunnel header (tunnel.SetClientToken),
+// so another app on the device can't use it. NULL or "" turns the check off.
+//
+//export FlexarrTunnelSetClientToken
+func FlexarrTunnelSetClientToken(token *C.char) { tunnel.SetClientToken(goString(token)) }
+
+// FlexarrTunnelFree frees a string returned by this library.
+//
 //export FlexarrTunnelFree
 func FlexarrTunnelFree(p *C.char) { C.free(unsafe.Pointer(p)) }
 

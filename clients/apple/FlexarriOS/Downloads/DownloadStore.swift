@@ -1092,7 +1092,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
 
     @discardableResult
     private func fetchImage(at path: String?, named name: String, width: Int = 500) async -> String? {
-        guard let url = client?.imageURL(path, width: width), let (data, _) = try? await URLSession.shared.data(from: url), PlatformImage(data: data) != nil else {
+        guard let url = client?.imageURL(path, width: width), let (data, _) = try? await URLSession.shared.data(for: GuestTunnelToken.request(url)), PlatformImage(data: data) != nil else {
             return nil
         }
         try? data.write(to: Self.folder.appending(path: name))

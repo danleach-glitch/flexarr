@@ -891,7 +891,7 @@ final class MusicPlayer {
             let file = manifest.timeline.locate(ready.startPositionSeconds).file
             if manifest.files.indices.contains(file), let url = client.url(for: manifest.files[file].url) {
                 let type = Self.bookType(manifest.files[file])
-                let asset = AVURLAsset(url: url, options: type.map { [AVURLAssetOverrideMIMETypeKey: $0] })
+                let asset = AVURLAsset.flexarr(url, options: type.map { [AVURLAssetOverrideMIMETypeKey: $0] } ?? [:])
                 self.warmAsset = (url, asset)
                 _ = try? await asset.load(.isPlayable, .duration)
             }
@@ -1140,7 +1140,7 @@ final class MusicPlayer {
         // The file a book's page got ready, already loading.
         let warmed = warmAsset?.url == url ? warmAsset?.asset : nil
         warmAsset = nil
-        let asset = warmed ?? AVURLAsset(url: url, options: type.map { [AVURLAssetOverrideMIMETypeKey: $0] })
+        let asset = warmed ?? AVURLAsset.flexarr(url, options: type.map { [AVURLAssetOverrideMIMETypeKey: $0] } ?? [:])
         let item = AVPlayerItem(asset: asset)
         if isPodcast || isBook { item.audioTimePitchAlgorithm = .timeDomain }
         return item

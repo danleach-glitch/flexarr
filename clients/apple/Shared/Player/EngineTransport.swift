@@ -88,6 +88,8 @@ final class EngineTransport: PlayerTransport {
         // Each segment is sent as it's written, so the picture starts on its first fragments over a slow link.
         options.progressiveSegmentDelivery = true
         options.externalSubtitles = sidecars()
+        // A family guest's tunnel asks for this launch's token (its sidecar subtitles, from the same address, inherit it).
+        options.httpHeaders = GuestTunnelToken.headers(for: url)
         options.initialSubtitleTrackID = trackID(forKey: subtitleKey ?? info.selectedSubtitleKey)
         // Surround as lossy Dolby Digital Plus (which any TV or bar takes), or lossless FLAC as multichannel PCM for a
         // receiver or eARC soundbar that takes it: the viewer's choice in Settings, else what the output takes.
@@ -473,7 +475,7 @@ final class EngineTransport: PlayerTransport {
 
     #if DEBUG
     private static func dumpServed(_ master: URL) async {
-        guard let (data, _) = try? await URLSession.shared.data(from: master), let text = String(data: data, encoding: .utf8) else {
+        guard let (data, _) = try? await URLSession.shared.data(for: GuestTunnelToken.request(master)), let text = String(data: data, encoding: .utf8) else {
             log.debug("DUMP master: couldn't fetch \(master.absoluteString)")
             return
         }
@@ -481,12 +483,12 @@ final class EngineTransport: PlayerTransport {
         // The first media playlist, and its init segment.
         let lines = text.split(separator: "\n").map(String.init)
         guard let mediaLine = lines.first(where: { !$0.hasPrefix("#") && !$0.isEmpty }), let media = URL(string: mediaLine, relativeTo: master),
-              let (mediaData, _) = try? await URLSession.shared.data(from: media), let mediaText = String(data: mediaData, encoding: .utf8) else { return }
+              let (mediaData, _) = try? await URLSession.shared.data(for: GuestTunnelToken.request(media)), let mediaText = String(data: mediaData, encoding: .utf8) else { return }
         for line in mediaText.split(separator: "\n").prefix(14) { log.debug("DUMP media: \(line)") }
         guard let mapLine = mediaText.split(separator: "\n").first(where: { $0.hasPrefix("#EXT-X-MAP") }),
               let uriStart = mapLine.range(of: "URI=\""), let uriEnd = mapLine[uriStart.upperBound...].firstIndex(of: "\""),
               let initURL = URL(string: String(mapLine[uriStart.upperBound..<uriEnd]), relativeTo: media),
-              let (initData, _) = try? await URLSession.shared.data(from: initURL) else { return }
+              let (initData, _) = try? await URLSession.shared.data(for: GuestTunnelToken.request(initURL)) else { return }
         log.debug("DUMP init: \(initData.count) bytes, boxes \(Self.boxes(initData))")
         if let hvcC = Self.find(box: "hvcC", in: initData) {
             log.debug("DUMP init hvcC: \(hvcC.prefix(23).map { String(format: "%02x", $0) }.joined())")

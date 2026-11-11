@@ -25,7 +25,7 @@ final class LiveTransport: NSObject, PlayerTransport {
     }
 
     init(url: URL) {
-        item = AVPlayerItem(url: url)
+        item = AVPlayerItem(asset: .flexarr(url))
         // Start a little back from the newest segment, so a slow one doesn't stall the picture straight away.
         item.configuredTimeOffsetFromLive = CMTime(seconds: 12, preferredTimescale: 600)
         item.automaticallyPreservesTimeOffsetFromLive = false

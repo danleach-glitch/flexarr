@@ -142,7 +142,7 @@ public struct FlexarrClient: Sendable {
             var request = URLRequest(url: url.appending(path: "api/v1/system/status"))
             request.timeoutInterval = seconds
             request.setValue("application/json", forHTTPHeaderField: "Accept")
-            return request
+            return GuestTunnelToken.applied(to: request)
         }
         @Sendable func answers(_ url: URL) async -> Bool {
             if addresses.asksProof(of: url) { return await provesItself(url, fresh: true) }
@@ -223,7 +223,7 @@ public struct FlexarrClient: Sendable {
     /// without following a redirect; nil when nothing answered, or what did gave none. Waits as long as a request
     /// would, so a server that's slow to wake is still found.
     private static func idAnswering(at url: URL, session: URLSession) async -> String? {
-        var request = URLRequest(url: url.appending(path: "api/v1/setup"))
+        var request = GuestTunnelToken.request(url.appending(path: "api/v1/setup"))
         request.timeoutInterval = 20
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         guard let (data, response) = try? await session.data(for: request, delegate: NoRedirects.shared),
@@ -581,7 +581,7 @@ public struct FlexarrClient: Sendable {
 
     /// The request for a download's file, signed in, for a background download session (which can't use this client).
     public func downloadFileRequest(_ id: String) -> URLRequest {
-        var request = URLRequest(url: baseURL.appending(path: "api/v1/offline/\(id)/file"))
+        var request = GuestTunnelToken.request(baseURL.appending(path: "api/v1/offline/\(id)/file"))
         if let apiKey, !apiKey.isEmpty { request.setValue(apiKey, forHTTPHeaderField: "X-Api-Key") }
         if let profileToken, !profileToken.isEmpty { request.setValue(profileToken, forHTTPHeaderField: "X-Flexarr-Profile") }
         if let deviceType = Self.deviceType { request.setValue(deviceType, forHTTPHeaderField: "X-Flexarr-Device") }
@@ -846,7 +846,7 @@ public struct FlexarrClient: Sendable {
         if !accepts.isEmpty { query.append(URLQueryItem(name: "accepts", value: accepts.map(\.rawValue).joined(separator: ","))) }
         if nowPlaying { query.append(URLQueryItem(name: "nowPlaying", value: "true")) }
         if !query.isEmpty { url.append(queryItems: query) }
-        var request = URLRequest(url: url)
+        var request = GuestTunnelToken.request(url)
         request.timeoutInterval = 90 // The server writes a comment every 20 seconds.
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         if let apiKey, !apiKey.isEmpty { request.setValue(apiKey, forHTTPHeaderField: "X-Api-Key") }
@@ -996,7 +996,7 @@ public struct FlexarrClient: Sendable {
     /// A small request (the server's health check) so the connection is up before anything that matters asks:
     /// coming back to the app, the first real request (Play) doesn't pay for setting it up. Best effort.
     public func warmConnection() async {
-        var request = URLRequest(url: baseURL.appending(path: "health"))
+        var request = GuestTunnelToken.request(baseURL.appending(path: "health"))
         request.timeoutInterval = 5
         _ = try? await requests.data(for: request)
     }
@@ -1123,7 +1123,7 @@ public struct FlexarrClient: Sendable {
             request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         }
         for (name, value) in headers { request.setValue(value, forHTTPHeaderField: name) }
-        return request
+        return GuestTunnelToken.applied(to: request)
     }
 
     private typealias Answer = (data: Data, response: HTTPURLResponse)
