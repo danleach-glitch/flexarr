@@ -68,8 +68,17 @@ public static class ItemQueries
                 // The show for episodes and seasons; the artist for tracks and albums; the podcast for its episodes.
                 SeriesTitle = i.Kind == MediaKind.Episode || i.Kind == MediaKind.Track ? i.Parent!.Parent!.Title
                     : i.Kind == MediaKind.Season || i.Kind == MediaKind.Album || i.Kind == MediaKind.PodcastEpisode ? i.Parent!.Title : null,
-                SeriesId = i.Kind == MediaKind.Episode || i.Kind == MediaKind.Track ? i.Parent!.ParentId
-                    : i.Kind == MediaKind.Season || i.Kind == MediaKind.Album || i.Kind == MediaKind.PodcastEpisode ? i.ParentId : null,
+                // A linked show is reported as the copy its pages list, as ParentId is: a season can hold episodes of
+                // either copy, and apps group them (Downloads, say) by this.
+                SeriesId = i.Kind == MediaKind.Episode || i.Kind == MediaKind.Track
+                    ? i.Parent!.Parent != null && i.Parent.Parent.LinkGroupId != null
+                        ? i.Parent.Parent.LinkGroup!.Items.OrderBy(o => o.Id).Select(o => (Guid?)o.Id).FirstOrDefault() ?? i.Parent.ParentId
+                        : i.Parent.ParentId
+                    : i.Kind == MediaKind.Season || i.Kind == MediaKind.Album || i.Kind == MediaKind.PodcastEpisode
+                        ? i.Parent != null && i.Parent.LinkGroupId != null
+                            ? i.Parent.LinkGroup!.Items.OrderBy(o => o.Id).Select(o => (Guid?)o.Id).FirstOrDefault() ?? i.ParentId
+                            : i.ParentId
+                        : null,
                 PodcastDuration = i.Enclosure != null ? i.Enclosure.DurationSeconds : null,
                 // A book's smallest series (the sub-series rather than its universe), its name and the book's number in
                 // it read as two single values, for books only. Read as one row of two inside Book below, the database
