@@ -271,9 +271,9 @@ public static partial class DeleteEndpoints
                 return (sonarr, episode.Id);
             }
 
-            // This Sonarr has the show but numbers the episode differently: its own record will do if it's this
-            // Sonarr's. Never from disk behind its back.
-            return Manager(copy, options) is { Instance: { } recorded } own && recorded.Name == sonarr.Name ? own : throw new OwnerUnclearException();
+            // This Sonarr has the show but not this episode by its number or date: its own record will do if it's
+            // this Sonarr's. Otherwise Sonarr can't delete it either, so its file goes from disk, as it always has.
+            return Manager(copy, options) is { Instance: { } recorded, ArrId: not null } own && recorded.Name == sonarr.Name ? own : (null, null);
         }
 
         return await RecordedOwnerAsync(db, copy, options, lists, ct);
