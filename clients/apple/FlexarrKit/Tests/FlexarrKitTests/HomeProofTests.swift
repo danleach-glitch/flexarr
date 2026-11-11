@@ -236,6 +236,40 @@ struct HomeProofTests {
         #expect(signedIn(home).isEmpty)
     }
 
+    @Test func aDownloadTransferWaitsForHomeToSayWhoItIs() async {
+        // Someone else's network: the transfer (which runs apart from the client, sign-in and all) isn't made.
+        let (theirs, theirHome, _) = client(home: .init(status: 200, body: Data()), whoIsHome: "someone-else")
+        #expect(!(await theirs.maySendTransfer(to: theirs.downloadFileRequest("d1").url)))
+        #expect(signedIn(theirHome).isEmpty)
+
+        // Home, and it's this server: it may go.
+        let (ours, ourHome, _) = client(home: Self.status)
+        #expect(await ours.maySendTransfer(to: ours.downloadFileRequest("d1").url))
+        #expect(signedIn(ourHome).isEmpty, "only asked who it is")
+    }
+
+    @Test func aDownloadTransferGoesOnlyToTheAddressInUse() async {
+        let (client, _, remote) = client(home: Self.status, remote: Self.status)
+        let atHome = client.downloadFileRequest("d1").url
+        client.addresses.reached(client.addresses.remote!)
+        let away = client.downloadFileRequest("d1").url
+        #expect(away?.host() == remote)
+        #expect(await client.maySendTransfer(to: away))
+        #expect(!(await client.maySendTransfer(to: atHome)), "made for home while the app is away")
+        #expect(!(await client.maySendTransfer(to: nil)))
+    }
+
+    @Test func whereATransferGotToIsUsedOnlyAtTheSameAddress() {
+        let home = URL(string: "http://192.168.1.20:8383/api/v1/offline/d1/file")!
+        #expect(FlexarrClient.resumes(home, at: URL(string: "http://192.168.1.20:8383/api/v1/offline/d1/file")!))
+        #expect(FlexarrClient.resumes(URL(string: "HTTP://192.168.1.20:8383/x")!, at: home))
+        #expect(!FlexarrClient.resumes(home, at: URL(string: "https://mini.tail1234.ts.net:8443/api/v1/offline/d1/file")!))
+        #expect(!FlexarrClient.resumes(home, at: URL(string: "http://192.168.1.21:8383/api/v1/offline/d1/file")!))
+        #expect(!FlexarrClient.resumes(home, at: URL(string: "http://192.168.1.20:8384/api/v1/offline/d1/file")!))
+        #expect(FlexarrClient.resumes(URL(string: "https://mini.ts.net/a")!, at: URL(string: "https://mini.ts.net:443/b")!))
+        #expect(!FlexarrClient.resumes(nil, at: home), "not known where it went")
+    }
+
     @Test func trustLapsesOnceHomeHasBeenQuietAWhile() async {
         let home = URL(string: "http://192.168.1.20:8383")!
         let addresses = ServerAddresses(home: home, remote: URL(string: "https://mini.tail1234.ts.net:8443")!, serverId: Self.id)
