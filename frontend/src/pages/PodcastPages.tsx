@@ -306,8 +306,15 @@ function EpisodeRow({
   const track = () => [episodeAsTrack(episode)]
   const mark = async (watched: boolean) => {
     onMarked?.(episode.id, watched)
-    await setWatched(episode.id, watched).catch(() => undefined)
-    onChanged()
+    try {
+      await setWatched(episode.id, watched)
+    } catch (e) {
+      // Put back as it was (the reload below puts back anything moved out of a list), and the button or menu says why.
+      onMarked?.(episode.id, !watched)
+      throw e
+    } finally {
+      onChanged()
+    }
   }
   const actions: MenuAction[] = [
     // Up Next lives on the server, so it's the same on the phone.

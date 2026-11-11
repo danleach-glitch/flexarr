@@ -51,7 +51,7 @@ const episodes = Array.from({ length: 260 }, (_, i) => ({
  * "offset+limit". `list` is what it has now (take one out, and it has been heard elsewhere), and `hold` keeps back the
  * answer to the next ask for "offset+limit" until the function it returns is called.
  */
-function server() {
+function server(extra: Record<string, unknown> = {}) {
   const asked: string[] = []
   const list = [...episodes]
   const held = new Map<string, Promise<void>>()
@@ -69,6 +69,7 @@ function server() {
       await wait
       return { total: list.length, items: list.slice(offset, offset + Math.min(limit, 200)) }
     },
+    ...extra,
   })
   const hold = (ask: string) => {
     let release = () => {}
@@ -104,6 +105,22 @@ async function more(container: HTMLElement, count: number) {
 }
 
 describe('a podcast’s episodes', () => {
+  it('puts an episode back, and says why, when marking it played fails', async () => {
+    const notices: string[] = []
+    const listen = (e: Event) => notices.push((e as CustomEvent<string>).detail)
+    window.addEventListener('flexarr:notice', listen)
+    try {
+      server({ 'POST /items/e0/watched': () => new Response('', { status: 500 }) })
+      const { container } = show()
+      await waitFor(() => expect(rows(container)).toHaveLength(50))
+      fireEvent.click(container.querySelector<HTMLButtonElement>('.podcast-episode-played')!)
+      await waitFor(() => expect(notices).toEqual(['Flexarr had a problem. Try again.']))
+      await waitFor(() => expect(rows(container)[0]).toBe('Episode 260'))
+    } finally {
+      window.removeEventListener('flexarr:notice', listen)
+    }
+  })
+
   it('Show more asks for the next page only, and carries on past 200 to the last episode', async () => {
     const { asked } = server()
     const { container } = show()

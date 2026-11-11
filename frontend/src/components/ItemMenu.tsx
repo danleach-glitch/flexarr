@@ -8,7 +8,7 @@ import { useAgeLimits } from '../hooks/sessionContext'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { usePlay } from '../hooks/usePlay'
 import { useWatchlistKeys } from '../hooks/useWatchlistKeys'
-import { showNotice } from '../lib/notice'
+import { noticeFailure, showNotice } from '../lib/notice'
 import { announceWatched } from '../hooks/watched'
 import { episodeCode, progressOf } from '../lib/format'
 import { t, Words } from '../i18n'
@@ -23,7 +23,8 @@ export const hasMenu = (item: ItemSummary, continueWatching = false) =>
   ['Movie', 'Episode', 'Season', 'Series', 'Album', 'Audiobook'].includes(item.kind) || (continueWatching && item.kind === 'PodcastEpisode')
 
 /** `marks` for an action that changes watch state, which a child's menus leave out. `checked` makes it one of a set to choose from. */
-export type MenuAction = { label: string; run: () => void | Promise<void>; danger?: boolean; marks?: boolean; checked?: boolean } | 'divider'
+/** An action that fails says so in a notice, unless it says so itself (`silentFailure`). */
+export type MenuAction = { label: string; run: () => void | Promise<void>; danger?: boolean; marks?: boolean; checked?: boolean; silentFailure?: boolean } | 'divider'
 
 /**
  * Quick actions for a title from its card: play it, or mark it watched. (The card's text links to its pages.) Something
@@ -207,7 +208,11 @@ export function Menu({ label, at, actions, onClose, focusBack }: { label: string
             className={a.danger ? 'danger' : undefined}
             onClick={async () => {
               onClose()
-              await a.run()
+              try {
+                await a.run()
+              } catch (e) {
+                if (!a.silentFailure) noticeFailure(e)
+              }
             }}
           >
             {a.label}
