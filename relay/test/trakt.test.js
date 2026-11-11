@@ -110,3 +110,44 @@ test('gives out the public client id, never the secret', () =>
     assert.equal(answer.status, 200);
     assert.deepEqual(answer.body, { clientId: 'id' });
   }));
+
+test('every call to Trakt together gets at most 200 a minute, whatever the codes and addresses', async () => {
+  const now = Date.UTC(2030, 0, 1, 12, 0, 30);
+  for (let i = 0; i < 200; i++) assert.equal(await trakt._count('global', 'all', now), false);
+  assert.equal(await trakt._count('global', 'all', now), true);
+  assert.equal(await trakt._count('global', 'all', now + 60_000), false);
+});
+
+test('the overall ceiling is counted in the store when there is one, and falls back to this instance when it is down', async () => {
+  const now = Date.UTC(2030, 0, 2, 12, 0, 30);
+  const realFetch = global.fetch;
+  process.env.KV_REST_API_URL = 'https://kv.example';
+  process.env.KV_REST_API_TOKEN = 'token';
+  try {
+    // Another instance has already sent 200 this minute.
+    global.fetch = async () => ({ ok: true, json: async () => [{ result: 201 }, { result: 1 }] });
+    assert.equal(await trakt._count('global', 'all', now), false); // the first hit here costs the store nothing
+    assert.equal(await trakt._count('global', 'all', now), true);
+    // The store is down: this instance's own count (3 of 200) lets calls through.
+    global.fetch = async () => { throw new Error('down'); };
+    assert.equal(await trakt._count('global', 'all', now), false);
+  } finally {
+    global.fetch = realFetch;
+    delete process.env.KV_REST_API_URL;
+    delete process.env.KV_REST_API_TOKEN;
+  }
+});
+
+test('refuses with 429 once the overall ceiling is reached, without calling Trakt', () =>
+  withTrakt({ status: 200, body: {} }, async (sent) => {
+    const id = 'trakt:global:' + require('node:crypto').createHash('sha256').update('all').digest('hex').slice(0, 32);
+    const window = Math.floor(Date.now() / 1000 / 60);
+    const saved = trakt._hits.get(id);
+    trakt._hits.set(id, { window, count: 200, sent: 200 });
+    try {
+      assert.equal((await call({ body: { grant: 'device_token', code: 'g'.repeat(64) }, ip: '203.0.113.240' })).status, 429);
+      assert.equal(sent.length, 0);
+    } finally {
+      if (saved) trakt._hits.set(id, saved); else trakt._hits.delete(id);
+    }
+  }));

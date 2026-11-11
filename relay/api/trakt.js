@@ -26,12 +26,19 @@ const TOKEN_SHAPE = /^[A-Za-z0-9_-]{16,256}$/;
 // otherwise each warm instance counts on its own. A store that's down falls back to this instance's count. The first
 // time an instance sees a value in a window costs the store nothing (lib/limits.js), so made-up codes and tokens
 // can't spend the store's quota.
+//
+// On top of those, one ceiling on every call that reaches Trakt with Flexarr's secret, however it's spread across
+// codes and addresses: Trakt limits an app as a whole (1000 calls every 5 minutes for app-level calls), and if it
+// throttles Flexarr, Trakt sign-in breaks for every household. 200 a minute is about 16 connects polling at once on top
+// of the daily refreshes. Like the others it's shared through the store when there is one and falls back to this
+// instance's own count when the store is down.
 
 const LIMITS = {
   ip: { max: RATE_LIMIT, seconds: 60 },
   device_token: { max: 200, seconds: 3600 },
   refresh_token: { max: 10, seconds: 3600 },
   revoke: { max: 10, seconds: 3600 },
+  global: { max: 200, seconds: 60 },
 };
 const hits = new Map();
 
@@ -128,6 +135,10 @@ module.exports = async (req, res) => {
   const limitedBy = { device_token: input.code, refresh_token: input.refreshToken, revoke: input.token }[input.grant];
   if (await count(input.grant, limitedBy)) {
     console.log(`trakt: ${input.grant} limit reached`);
+    return reply(res, 429, { reason: 'TooManyRequests' });
+  }
+  if (await count('global', 'all')) {
+    console.log('trakt: overall limit reached');
     return reply(res, 429, { reason: 'TooManyRequests' });
   }
 
