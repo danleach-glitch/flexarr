@@ -359,7 +359,10 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
                     gate.withPermit {
                         try {
                             DownloadRules.estimatedBytes(chosen, client.downloadOptions(episode.id))
-                        } catch (_: FlexarrException) {
+                        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                            throw e
+                        } catch (_: Exception) {
+                            // An estimate is only a guess: any failure (an answer that won't parse too) leaves this one out.
                             null
                         }
                     }
