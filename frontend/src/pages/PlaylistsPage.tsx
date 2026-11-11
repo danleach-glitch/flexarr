@@ -27,7 +27,6 @@ import { formatClock, formatDuration } from '../lib/format'
 import { MoreButton, queueActions } from './MusicPages'
 import { shuffled } from '../lib/shuffle'
 import { t, Words } from '../i18n'
-import '../styles/settings.lazy.css'
 
 /**
  * Every playlist of the profile's, most recently changed first, and a way to start another. Inside a music library it

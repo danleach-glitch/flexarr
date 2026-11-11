@@ -1,6 +1,6 @@
 import { useSearchParams } from 'react-router'
 import { ConnectTv } from '../components/ConnectTv'
-import '../styles/settings.lazy.css'
+import '../styles/shared.lazy.css'
 
 /** Where a TV's QR code lands: /link?code=ABC-123. */
 export function LinkPage() {

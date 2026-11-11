@@ -11,7 +11,6 @@ import { usePolling } from '../hooks/usePolling'
 import { formatSize } from '../lib/format'
 import { programmeTime } from '../lib/livetv'
 import { locale, t, Words } from '../i18n'
-import '../styles/settings.lazy.css'
 import '../styles/livetv.lazy.css'
 
 const day = { format: (d: Date) => d.toLocaleDateString(locale(), { weekday: 'short', day: 'numeric', month: 'short' }) }

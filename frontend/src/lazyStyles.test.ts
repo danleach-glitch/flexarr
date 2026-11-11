@@ -26,6 +26,10 @@ describe('stylesheets kept off the first page', () => {
     }
     expect(importersOf('player.lazy.css')).toEqual(expect.arrayContaining(['./pages/PlayerPage.tsx', './pages/LivePlayerPage.tsx']))
     expect(importersOf('settings.lazy.css')).toContain('./pages/settings/SettingsPage.tsx')
+    // Pages that share a heading or two with Settings take the small sheet, not all of Settings'.
+    for (const page of ['./pages/PlaylistsPage.tsx', './pages/CollectionsPage.tsx', './pages/DiscoverPage.tsx', './pages/DiscoverMusic.tsx', './pages/LinkPage.tsx', './pages/LiveRecordings.tsx']) {
+      expect(importersOf('settings.lazy.css'), page).not.toContain(page)
+    }
     expect(importersOf('livetv.lazy.css')).toEqual(expect.arrayContaining(['./pages/LiveTvPage.tsx', './pages/LivePlayerPage.tsx', './pages/LiveRecordings.tsx']))
   })
 })

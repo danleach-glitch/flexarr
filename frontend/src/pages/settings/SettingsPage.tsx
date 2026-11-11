@@ -28,6 +28,7 @@ import { NavigationSection } from './NavigationSection'
 import { TraktSection } from './TraktSection'
 import { UpdatesSection } from './UpdatesSection'
 import '../../styles/settings.lazy.css'
+import '../../styles/shared.lazy.css'
 
 interface Page {
   id: string
