@@ -155,7 +155,10 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   const moreButton = useRef<HTMLButtonElement>(null)
   const versions = detail.versions ?? []
   const chosenVersion = versions.find((v) => v.chosen)?.fileId ?? null
-  if (versions.length > 1) more.push({ label: t(Words.version), run: () => setVersionAt(moreAt) })
+  const chosen = versions.find((v) => v.fileId === chosenVersion)
+  if (versions.length > 1) {
+    more.push({ label: t('Version: {name}', { name: chosen ? versionName(chosen, versions) : t(Words.automatic) }), run: () => setVersionAt(moreAt) })
+  }
   // A child's profile has no collections and doesn't find subtitles.
   if ((item.kind === 'Movie' || item.kind === 'Series') && !kids) more.push({ label: t('Add to collection…'), run: () => openAddToCollection(item) })
   if (detail.canSearchSubtitles && !kids) more.push({ label: t('Search for subtitles…'), run: () => setFindingSubtitles(true) })

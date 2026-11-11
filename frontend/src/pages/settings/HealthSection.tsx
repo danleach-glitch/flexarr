@@ -234,7 +234,7 @@ export function HealthSection() {
         count={data.duplicates.length}
         // Stays while spares are removed, so the last of them going doesn't take the progress with it.
         shown={removing !== null}
-        lede={t('Files alike for one movie or episode. Removing spares frees {size}; the best copy, and the one Sonarr or Radarr use, always stay.', { size: formatSize(data.reclaimableBytes) })}
+        lede={t('Extra copies of the same file. Removing them frees {size}; the best copy, and the one Sonarr or Radarr use, always stay.', { size: formatSize(data.reclaimableBytes) })}
         action={
           data.duplicates.length > 0 && (
             <AsyncButton className="button danger small" busy={removing !== null && removing.done < removing.total} onClick={() => setConfirmAll(true)}>
