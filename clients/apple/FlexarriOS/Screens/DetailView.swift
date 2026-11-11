@@ -437,7 +437,7 @@ struct DetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             if seasonList.count > 1 {
                 // The pills scroll; Download Season N stays put at the end of their line.
-                HStack(spacing: 12) {
+                HStack(spacing: 16) {
                 ScrollViewReader { proxy in
                     ScrollView(.horizontal) {
                         HStack(spacing: 8) {
@@ -447,9 +447,19 @@ struct DetailView: View {
                                     .id(season.id)
                             }
                         }
-                        .padding(.horizontal, Layout.edge)
+                        .padding(.leading, Layout.edge)
+                        // Room to scroll the last pill clear of the fade.
+                        .padding(.trailing, selectedSeason == nil ? Layout.edge : Self.pillFade)
                     }
                     .scrollIndicators(.hidden)
+                    // Pills running under the download link fade out rather than stop at a hard edge.
+                    .mask {
+                        HStack(spacing: 0) {
+                            Color.black
+                            LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
+                                .frame(width: selectedSeason == nil ? 0 : Self.pillFade)
+                        }
+                    }
                     .onAppear { if let selectedSeasonID { proxy.scrollTo(selectedSeasonID, anchor: .center) } }
                 }
                     seasonDownloadLink
@@ -467,6 +477,9 @@ struct DetailView: View {
         }
         .task(id: selectedSeasonID) { await loadSelectedSeason() }
     }
+
+    /// How far the season pills fade before the download link.
+    private static let pillFade: CGFloat = 56
 
     /// Download Season N, at the end of the seasons' line, once the season's episodes are here.
     @ViewBuilder
