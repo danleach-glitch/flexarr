@@ -1431,6 +1431,10 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
 
     fileprivate func bookFileStopped(_ id: String, file: Int, _ error: Error, wifiOnly: Bool, url: URL?) {
         guard let download = all.first(where: { $0.id == id }), !download.isDownloaded else { return }
+        if Self.isOutOfSpace(error) {
+            update(id) { $0.state = .failed(Self.outOfSpaceMessage) }
+            return
+        }
         // Cut off part-way (or cancelled by the system with where it got to, the app swiped away): carried on from
         // there at the next catch-up.
         if let data = (error as NSError).userInfo[NSURLSessionDownloadTaskResumeData] as? Data {
@@ -1476,6 +1480,11 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     fileprivate func stopped(_ id: String, _ error: Error, wifiOnly: Bool = false, url: URL? = nil) {
         if let (book, file) = Self.bookFile(id) { return bookFileStopped(book, file: file, error, wifiOnly: wifiOnly, url: url) }
         guard let download = all.first(where: { $0.id == id }), !download.isDownloaded else { return }
+        // The device is full: it would only stop again.
+        if Self.isOutOfSpace(error) {
+            update(id) { $0.state = .failed(Self.outOfSpaceMessage) }
+            return
+        }
         // Cut off part-way (the network went, a guest's tunnel slept with the phone locked, or the system cancelled it
         // when the app was swiped away): back to waiting, to carry on from where it got to once the server's in reach
         // again (the next catch-up, back in front). Checked before "cancelled", which is how the system reports a
@@ -1487,6 +1496,33 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         }
         if (error as? URLError)?.code == .cancelled { return }
         update(id) { $0.state = .failed(t("The download stopped. Try again.")) }
+    }
+}
+
+// MARK: Space
+
+extension DownloadStore {
+    /// The space free on this device for what the person asks for (`volumeAvailableCapacityForImportantUsage`).
+    nonisolated static var freeBytes: Int64? {
+        (try? folder.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?.volumeAvailableCapacityForImportantUsage
+    }
+
+    static var outOfSpaceMessage: String {
+        t("Not enough space on this {device}. Free some up and try again.", ["device": ThisDevice.name])
+    }
+
+    /// A transfer stopped, or its file couldn't be moved into place, because the device is full: the file system says
+    /// so, or the downloader couldn't write with almost nothing free.
+    nonisolated static func isOutOfSpace(_ error: Error) -> Bool {
+        let error = error as NSError
+        switch (error.domain, error.code) {
+        case (NSCocoaErrorDomain, NSFileWriteOutOfSpaceError), (NSPOSIXErrorDomain, Int(ENOSPC)): return true
+        case (NSURLErrorDomain, NSURLErrorCannotWriteToFile), (NSURLErrorDomain, NSURLErrorCannotCreateFile):
+            if let free = freeBytes, free < 500_000_000 { return true }
+        default: break
+        }
+        if let underlying = error.userInfo[NSUnderlyingErrorKey] as? Error { return isOutOfSpace(underlying) }
+        return false
     }
 }
 

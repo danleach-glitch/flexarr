@@ -96,6 +96,22 @@ extension DownloadStore {
         }
     }
 
+    /// About how much these episodes would take here at the size downloads are made at (nil when the server gives no
+    /// estimate). The server estimates one title at a time, so it's asked about one of them and that's scaled by
+    /// their lengths: a question per episode would be a hundred for a long show.
+    func estimatedBytes(of episodes: [ItemSummary]) async -> Int64? {
+        guard let client = owner?.client, !episodes.isEmpty else { return nil }
+        let sample = episodes.first { ($0.durationSeconds ?? 0) > 0 } ?? episodes[0]
+        guard let options = try? await client.downloadOptions(sample.id) else { return nil }
+        // As `download(itemId:)` picks: an original the phone can't play comes at High.
+        var choice = options.first { $0.quality == quality }
+        if quality == .original, choice?.available == false { choice = options.first { $0.quality == .high } }
+        guard let bytes = choice?.estimatedBytes, bytes > 0 else { return nil }
+        guard let length = sample.durationSeconds, length > 0 else { return bytes * Int64(episodes.count) }
+        let perSecond = Double(bytes) / length
+        return Int64(episodes.reduce(0) { $0 + ($1.durationSeconds ?? length) * perSecond })
+    }
+
     /// Whether anything of this show is downloaded or on its way here.
     func hasDownloads(ofShow showId: String) -> Bool {
         all.contains { $0.profileId == profileId && $0.item.seriesId == showId }
@@ -118,7 +134,8 @@ extension DownloadStore {
 
 /// The one question a group's download control is asking.
 private enum GroupQuestion {
-    case confirm(count: Int, show: String)
+    /// About how much it'll take (`size`), and the space free here, when known.
+    case confirm(count: Int, show: String, size: Int64?, free: Int64?)
     /// Some are still on their way (and `failed` couldn't download meanwhile).
     case stop(failed: Int)
     case remove
@@ -128,7 +145,7 @@ private enum GroupQuestion {
 
     var title: String {
         switch self {
-        case .confirm(let count, let show): t("Download {count, plural, one {# episode} other {# episodes}} of {show}?", ["count": count, "show": show])
+        case .confirm(let count, let show, _, _): t("Download {count, plural, one {# episode} other {# episodes}} of {show}?", ["count": count, "show": show])
         case .stop: t("Stop these downloads?")
         case .remove: t("Remove these downloads?")
         case .retry(_, let count): t("Couldn’t download {count, plural, one {# episode} other {# episodes}}", ["count": count])
@@ -142,11 +159,26 @@ private enum GroupQuestion {
 /// stop what's on its way (or try what failed meanwhile again), remove what's here, or try the failures again.
 @MainActor
 private enum GroupDownloadPress {
-    static func press(_ store: DownloadStore, group: String, episodes: [ItemSummary], confirmsFor show: String?,
-                      ask: (GroupQuestion) -> Void, onError: @escaping (String) -> Void) {
+    /// `name`: what it's of (the show's, or the season's), for the question. A whole show always asks first, with the
+    /// count and about how much space it'll take; a season asks only when that's more than is free here.
+    static func press(_ store: DownloadStore, group: String, episodes: [ItemSummary], name: String, alwaysAsks: Bool,
+                      ask: (GroupQuestion) -> Void, onError: @escaping (String) -> Void) async {
         switch store.status(ofGroup: group, episodes: episodes) {
         case .notStarted(let missing):
-            if let show { ask(.confirm(count: missing, show: show)) } else { start(store, group: group, episodes: episodes, onError: onError) }
+            // What would be asked for: not here, nor on its way.
+            let wanted = episodes.filter { episode in
+                guard let state = store.entry(for: episode.id)?.state else { return true }
+                if case .failed = state { return true }
+                return false
+            }
+            let size = await store.estimatedBytes(of: wanted)
+            let free = DownloadStore.freeBytes
+            let tooBig = if let size, let free { size > free } else { false }
+            if alwaysAsks || tooBig {
+                ask(.confirm(count: missing, show: name, size: size, free: free))
+            } else {
+                start(store, group: group, episodes: episodes, onError: onError)
+            }
         case .failed(let reason, let count): ask(.retry(reason, count: count))
         case .downloading(_, _, _, let failed): ask(.stop(failed: failed))
         case .downloaded: ask(.remove)
@@ -197,6 +229,13 @@ private struct GroupDownloadAlert: ViewModifier {
             }
         } message: { asked in
             switch asked {
+            case .confirm(_, _, let size?, let free):
+                if let free, size > free {
+                    Text(t("About {size}: more than the {free} free on this {device}.",
+                           ["size": formatBytes(size), "free": formatBytes(free), "device": ThisDevice.name]))
+                } else {
+                    Text(t("About {size}.", ["size": formatBytes(size)]))
+                }
             case .failed(let message), .retry(let message, _): Text(message)
             case .stop(let failed) where failed > 0:
                 Text(t("{count, plural, one {# episode} other {# episodes}} couldn’t download.", ["count": failed]))
@@ -248,14 +287,14 @@ struct ShowDownloadButton: View {
                 defer { pressing = false }
                 if episodes == nil { await load() }
                 guard let episodes, question == nil else { return }
-                GroupDownloadPress.press(store, group: show.id, episodes: episodes, confirmsFor: show.title,
-                                         ask: { question = $0 }, onError: { question = .failed($0) })
+                await GroupDownloadPress.press(store, group: show.id, episodes: episodes, name: show.title, alwaysAsks: true,
+                                               ask: { question = $0 }, onError: { question = .failed($0) })
             }
         } label: {
             Label {
                 Text(label(status))
             } icon: {
-                if loading { ProgressView().frame(width: 22, height: 22) } else { DownloadStateIcon(state: status?.iconState) }
+                if loading || pressing { ProgressView().frame(width: 22, height: 22) } else { DownloadStateIcon(state: status?.iconState) }
             }
         }
         .disabled(seasons == nil || loading || pressing)
@@ -311,13 +350,20 @@ struct SeasonDownloadLink: View {
     @Environment(DownloadStore.self) private var store
     let season: ItemDetail
     @State private var question: GroupQuestion?
+    @State private var pressing = false
 
     var body: some View {
         let episodes = season.children.filter { $0.kind == .episode }
         let status = store.status(ofGroup: season.item.id, episodes: episodes)
         Button {
-            GroupDownloadPress.press(store, group: season.item.id, episodes: episodes, confirmsFor: nil,
-                                     ask: { question = $0 }, onError: { question = .failed($0) })
+            // Taken at once: the size is asked about before it starts, and a second press meanwhile would start it twice.
+            guard !pressing, question == nil else { return }
+            pressing = true
+            Task {
+                defer { pressing = false }
+                await GroupDownloadPress.press(store, group: season.item.id, episodes: episodes, name: season.item.title,
+                                               alwaysAsks: false, ask: { question = $0 }, onError: { question = .failed($0) })
+            }
         } label: {
             HStack(spacing: 6) {
                 DownloadStateIcon(state: status.iconState, size: 18)
@@ -330,7 +376,7 @@ struct SeasonDownloadLink: View {
         .buttonStyle(.plain)
         .modifier(GroupDownloadAlert(question: $question, group: season.item.id, episodes: episodes))
         .opacity(episodes.isEmpty ? 0 : 1)
-        .disabled(episodes.isEmpty)
+        .disabled(episodes.isEmpty || pressing)
     }
 
     private func label(_ status: GroupDownloadStatus) -> String {
