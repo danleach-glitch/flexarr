@@ -63,6 +63,11 @@ describe('PIN pad', () => {
     expect(await screen.findByRole('heading', { name: 'Choose a profile' })).toBeInTheDocument()
   })
 
+  it('names the main profile in one sentence', () => {
+    render(<ProfilePicker profiles={[main, kids]} onChosen={() => {}} />)
+    expect(screen.getByRole('button', { name: /^Dan, main profile/ })).toBeInTheDocument()
+  })
+
   it('has a Back to see, for a touch screen', async () => {
     render(<ProfilePicker profiles={[main, kids]} onChosen={() => {}} />)
     fireEvent.click(screen.getByRole('button', { name: /Kids/ }))

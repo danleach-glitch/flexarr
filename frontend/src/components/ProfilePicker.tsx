@@ -310,10 +310,15 @@ export function ProfilePicker({
                       </span>
                     )}
                   </span>
-                  <span>
-                    {p.name}
-                    {p.isMain && <span className="visually-hidden">{t(', main profile')}</span>}
-                  </span>
+                  {p.isMain ? (
+                    // Read out whole ("Dan, main profile"), so a language can put the words where it needs them.
+                    <span>
+                      <span aria-hidden="true">{p.name}</span>
+                      <span className="visually-hidden">{t('{name}, main profile', { name: p.name })}</span>
+                    </span>
+                  ) : (
+                    <span>{p.name}</span>
+                  )}
                   {asksPin(p) && <span className="muted profile-locked">{t('Needs a PIN')}</span>}
                 </AsyncButton>
               </li>

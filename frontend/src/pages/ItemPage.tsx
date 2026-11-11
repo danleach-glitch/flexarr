@@ -553,7 +553,7 @@ function FileInfo({ files, versions, itemId, kind }: { files: MediaFile[]; versi
   const count = files.length + elsewhere.length
   return (
     <details className="file-info">
-      <summary>{count > 1 ? t('{count} files on disk', { count }) : t('File and stream details')}</summary>
+      <summary>{count > 1 ? t('{count, plural, one {# file on disk} other {# files on disk}}', { count }) : t('File and stream details')}</summary>
       {elsewhere.map((v) => (
         <div key={v.fileId} className="file">
           <p>{[versionName(v, versions), v.videoCodec?.toUpperCase(), v.audioCodec?.toUpperCase(), formatSize(v.size)].filter(Boolean).join(', ')}</p>
