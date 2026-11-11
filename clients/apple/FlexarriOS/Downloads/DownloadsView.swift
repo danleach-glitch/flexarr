@@ -22,10 +22,10 @@ struct DownloadsView: View {
                                 .onDelete { remove(films, at: $0) }
                         }
                     }
-                    ForEach(shows, id: \.title) { show in
-                        Section(show.title) {
-                            ForEach(show.episodes) { DownloadRow(download: $0) }
-                                .onDelete { remove(show.episodes, at: $0) }
+                    let shows = store.downloadedShows
+                    if !shows.isEmpty {
+                        Section(t(Words.shows)) {
+                            ForEach(shows) { DownloadedShowRow(show: $0) }
                         }
                     }
                     let music = store.musicCollections
@@ -64,21 +64,13 @@ struct DownloadsView: View {
         .refreshable { await store.catchUp() }
     }
 
-    /// Episodes grouped by show, in episode order.
-    private var shows: [(title: String, episodes: [LocalDownload])] {
-        let episodes = store.videoDownloads.filter { $0.item.kind == .episode }
-        return Dictionary(grouping: episodes) { $0.item.seriesTitle ?? t("Episodes") }
-            .map { ($0.key, $0.value.sorted { ($0.item.seasonNumber ?? 0, $0.item.episodeNumber ?? 0) < ($1.item.seasonNumber ?? 0, $1.item.episodeNumber ?? 0) }) }
-            .sorted { $0.title < $1.title }
-    }
-
     private func remove(_ list: [LocalDownload], at offsets: IndexSet) {
         for index in offsets { store.delete(list[index].id) }
     }
 }
 
 /// A download: its picture, title and size, and what it's doing (tap to play once it's here).
-private struct DownloadRow: View {
+struct DownloadRow: View {
     @Environment(AppModel.self) private var model
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(DownloadStore.self) private var store
