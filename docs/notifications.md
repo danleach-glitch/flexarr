@@ -176,6 +176,8 @@ For Android it needs `FCM_SERVICE_ACCOUNT`: the contents of a service account ke
 project the Android app is built with, from the Firebase console under Project settings › Service accounts › Generate
 new private key. Without it, Android pushes get `503 {"reason":"NotConfigured"}`.
 `KV_REST_API_URL` and `KV_REST_API_TOKEN` are optional: with an Upstash Redis store connected (Vercel's marketplace
-sets both), the per-phone limit is counted across every instance of the relay rather than by each one alone. Make the key in the Apple
+sets both), the per-phone limit is counted across every instance of the relay rather than by each one alone. A token
+reaches the store only once an instance has seen it twice in a minute, so a flood of made-up tokens costs the store
+nothing (pairing shares it); per-address limits count an IPv6 address as its /64. Make the key in the Apple
 Developer site under Certificates, Identifiers & Profiles › Keys, with Apple Push Notifications service enabled. The
 app ID needs the Push Notifications capability.

@@ -9,6 +9,7 @@
 
 const crypto = require('node:crypto');
 const http2 = require('node:http2');
+const { clientAddress, localCount, sharedCount } = require('../lib/limits');
 
 const HOSTS = { production: 'https://api.push.apple.com', sandbox: 'https://api.sandbox.push.apple.com' };
 // Apple takes 4 KB in all; base64 grows the sealed payload by a third, and the alert around it needs room too.
@@ -16,11 +17,10 @@ const MAX_PAYLOAD = 2800;
 const TIMEOUT_MS = 10_000;
 // Per address: a backstop only, now each phone has its own limit. Generous, because servers from before 0.51 reach the
 // relay through flexarr.io's rewrite and may all arrive from Vercel's own few addresses.
-const RATE_LIMIT = 600; // requests per minute per IP
+const RATE_LIMIT = 600; // requests per minute per address (an IPv6 one's /64)
 // Per phone: a household's server sends a handful a minute at most (a season arriving). More is someone else's server,
 // or someone who has the phone's token, filling it with alerts.
 const TOKEN_LIMIT = 12; // per minute per device token
-const KV_TIMEOUT_MS = 1500;
 
 // --- Provider token: Apple wants it refreshed between 20 and 60 minutes.
 
@@ -147,43 +147,19 @@ async function sendToGoogle(account, token, payload, collapseId) {
 const hits = new Map();
 
 function limited(ip, now = Date.now()) {
-  const minute = Math.floor(now / 60_000);
-  const entry = hits.get(ip);
-  if (!entry || entry.minute !== minute) {
-    if (hits.size > 10_000) hits.clear();
-    hits.set(ip, { minute, count: 1 });
-    return false;
-  }
-  return ++entry.count > RATE_LIMIT;
+  return localCount(hits, ip, 60, now) > RATE_LIMIT;
 }
 
-// --- Per phone, across instances when there's a store. A store that's down or slow lets the send through: the
-// limit is there for floods, and every phone missing its notifications would be worse.
+// --- Per phone, across instances when there's a store. A token's first push a minute on an instance costs the
+// store nothing (lib/limits.js), so a flood of made-up tokens can't spend the store's quota, which pairing needs too.
+// A store that's down or slow lets the send through: the limit is there for floods, and every phone missing its
+// notifications would be worse.
 
 const tokenHits = new Map();
 
 async function tokenLimited(token, now = Date.now()) {
-  const minute = Math.floor(now / 60_000);
-  const key = `push:${crypto.createHash('sha256').update(token).digest('hex').slice(0, 32)}:${minute}`;
-  const { KV_REST_API_URL, KV_REST_API_TOKEN } = process.env;
-  if (KV_REST_API_URL && KV_REST_API_TOKEN) {
-    try {
-      const response = await fetch(`${KV_REST_API_URL}/pipeline`, {
-        method: 'POST',
-        headers: { authorization: `Bearer ${KV_REST_API_TOKEN}`, 'content-type': 'application/json' },
-        body: JSON.stringify([['INCR', key], ['EXPIRE', key, '120']]),
-        signal: AbortSignal.timeout(KV_TIMEOUT_MS),
-      });
-      const [incr] = await response.json();
-      if (response.ok && typeof incr?.result === 'number') return incr.result > TOKEN_LIMIT;
-    } catch {
-      // Fall back to this instance's own count.
-    }
-  }
-  if (tokenHits.size > 10_000) tokenHits.clear();
-  const count = (tokenHits.get(key) || 0) + 1;
-  tokenHits.set(key, count);
-  return count > TOKEN_LIMIT;
+  const id = crypto.createHash('sha256').update(token).digest('hex').slice(0, 32);
+  return (await sharedCount(tokenHits, id, `push:${id}`, 60, now)) > TOKEN_LIMIT;
 }
 
 // --- The handler.
@@ -217,7 +193,7 @@ module.exports = async (req, res) => {
     return reply(res, 415, { reason: 'UnsupportedMediaType' });
   }
 
-  const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim();
+  const ip = clientAddress(req);
   if (limited(ip)) {
     console.log('push: address limit reached');
     return reply(res, 429, { reason: 'TooManyRequests' });
@@ -365,4 +341,7 @@ async function forwardToGoogle(res, token, payload, collapseId) {
 module.exports._jwt = jwt;
 module.exports._forget = () => { cachedAccess = null; };
 module.exports._tokenLimited = tokenLimited;
+module.exports._limited = limited;
+module.exports._hits = hits;
+module.exports._tokenHits = tokenHits;
 module.exports._activityState = activityState;
