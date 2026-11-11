@@ -15,7 +15,37 @@ Thanks for helping build Flexarr! Bug reports, feature ideas, docs and code are 
 | Server | .NET 10 SDK | `make dev-api` | `dotnet test` |
 | Web | Node.js 24+ | `make dev-web` | `cd frontend && npm test` |
 | Apple | Xcode 26+, XcodeGen | `make apple`, then open `clients/apple/Flexarr.xcodeproj` | `make test-apple` |
-| Mac app (in development) | Xcode 26+, XcodeGen | `clients/macos/Tools/build.sh` | |
+| Mac app | Xcode 26+, XcodeGen | `clients/macos/Tools/build.sh` | |
+| Android | Android Studio (its JDK 17 and SDK) | `./gradlew :app:installDebug` in `clients/android` | `./gradlew test` |
+
+FFmpeg 7+ is needed to play anything, and Go (`brew install go`) builds the Tailscale tunnel both apps carry.
+
+```bash
+make setup     # restore .NET + npm dependencies
+make dev-api   # server on http://localhost:8383 (hot reload)
+make dev-web   # web client on http://localhost:5173
+make test      # server + web tests
+make apple     # build the tvOS and iOS apps
+make guide     # rebuild flexarr.io/guide from docs/guide
+make apps      # rebuild flexarr.io/apps and the README's apps table from site/apps.json
+```
+
+### What lives where
+
+| Path | What |
+| --- | --- |
+| `src/Flexarr.Api` | ASP.NET Core server: REST API, playback sessions, live TV, podcast feeds, background workers |
+| `src/Flexarr.Core` | Domain model, database, parsing, library scanning |
+| `src/Flexarr.Metadata` | Metadata from Sonarr, Radarr, Lidarr, TVmaze, TMDB and local `.nfo` files and artwork, image cache |
+| `src/Flexarr.Streaming` | Playback decisions, FFmpeg/HLS, subtitles, previews, intro/credits detection |
+| `src/Flexarr.Integrations.Arr` | Sonarr, Radarr, Lidarr and Seerr clients and webhooks |
+| `frontend/` | Web client (React, TypeScript, Vite) |
+| `clients/apple/` | `FlexarrKit`, shared app code, and the tvOS, iOS and Mac apps |
+| `clients/android/` | The Android app, for phones, tablets and Android TV |
+| `clients/macos/` | Flexarr Server for Mac: the server and web app as a sandboxed menu bar app |
+| `clients/tunnel/` | The Tailscale tunnel the apps carry for family guests (Go) |
+| `site/` | flexarr.io, with the guide built into `site/guide` and the apps page into `site/apps.html` |
+| `relay/` | The iPhone app's notification relay (push.flexarr.io) |
 
 In development the server runs with `AuthenticationRequired: DisabledForLocalAddresses`, so the web client works on localhost without an API key. Runtime data (including the generated API key) lives in `src/Flexarr.Api/data/` and is git-ignored.
 
