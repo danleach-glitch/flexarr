@@ -54,7 +54,7 @@ import kotlinx.coroutines.launch
  * group holding one of a batch's episodes halts it: nothing more is asked for, and the one being asked as it was
  * stopped is deleted when it comes, so Stop needs pressing only once.
  */
-private object EpisodeBatches {
+internal object EpisodeBatches {
     class Batch(val ids: Set<String>) {
         var halted = false
     }
