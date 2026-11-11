@@ -34,6 +34,8 @@ import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.EpisodeGroupRules
 import io.github.flexarr.core.EpisodeGroupState
+import io.github.flexarr.core.Format
+import io.github.flexarr.core.bytes
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.LocalDownload
 import io.github.flexarr.core.MediaKind
@@ -43,6 +45,7 @@ import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.FlexarrIcons
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 // A show's or a season's episodes downloaded together, as on iPhone: Download on a show's page (every episode of every
@@ -105,6 +108,10 @@ internal class GroupDownloads(
         private set
     var question by mutableStateOf<GroupQuestion?>(null)
 
+    /** About how big the episodes a Confirm question asks about come to, once the server's estimates are in. */
+    private var estimate by mutableStateOf<Long?>(null)
+    private var estimating: Job? = null
+
     val started: Boolean get() = model.downloads.isStarted(groupId)
 
     /**
@@ -146,7 +153,12 @@ internal class GroupDownloads(
     /** Downloading [episodes] once asked: "Download 12 episodes of Severance?", counting only those it would fetch. */
     fun confirmDownload(episodes: List<ItemSummary>) {
         val wanted = EpisodeGroupRules.toQueue(episodes, model.downloads.episodeLookup(copies))
-        if (wanted.isNotEmpty()) question = GroupQuestion.Confirm(wanted)
+        if (wanted.isEmpty()) return
+        estimate = null
+        question = GroupQuestion.Confirm(wanted)
+        // The size follows in a moment, from the server's estimates.
+        estimating?.cancel()
+        estimating = model.scope.launch { estimate = model.downloads.estimatedBytes(wanted) }
     }
 
     /**
@@ -167,12 +179,25 @@ internal class GroupDownloads(
 
     @Composable
     fun Dialogs() {
-        val dismiss = { question = null }
+        val dismiss = {
+            estimating?.cancel()
+            question = null
+        }
         when (val asking = question) {
             null -> Unit
             is GroupQuestion.Confirm -> AlertDialog(
                 onDismissRequest = dismiss,
                 title = { Text(t("Download {count, plural, one {# episode} other {# episodes}} of {show}?", "count" to asking.episodes.size, "show" to showTitle.orEmpty())) },
+                text = estimate?.let { bytes ->
+                    {
+                        val free = model.downloads.freeBytes
+                        if (EpisodeGroupRules.outgrows(bytes, free)) {
+                            Text(t("About {size}, more than the {free} free on this phone.", "size" to Format.bytes(bytes), "free" to Format.bytes(free)), color = Flexarr.danger)
+                        } else {
+                            Text(t("About {size}", "size" to Format.bytes(bytes)))
+                        }
+                    }
+                },
                 confirmButton = { TextButton(onClick = { dismiss(); download(asking.episodes) }) { Text(t(Words.download), color = Flexarr.screen) } },
                 dismissButton = { TextButton(onClick = dismiss) { Text(t(Words.cancel), color = Flexarr.screen) } },
                 containerColor = Flexarr.seat,

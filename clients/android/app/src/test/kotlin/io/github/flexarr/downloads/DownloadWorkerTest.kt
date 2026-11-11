@@ -35,4 +35,12 @@ class DownloadWorkerTest {
         assertFalse(complete(0, "bytes */0", expectedBytes = 0))
         assertFalse(complete(-1, "bytes */-1"))
     }
+
+    @Test
+    fun `a write the full phone refused is told apart from a dropped connection`() {
+        assertTrue(DownloadTransfer.isNoSpace(java.io.IOException("write failed: ENOSPC (No space left on device)")))
+        assertTrue(DownloadTransfer.isNoSpace(java.io.IOException("Couldn't write", java.io.IOException("No space left on device"))))
+        assertFalse(DownloadTransfer.isNoSpace(java.net.SocketTimeoutException("timeout")))
+        assertFalse(DownloadTransfer.isNoSpace(java.io.IOException()))
+    }
 }

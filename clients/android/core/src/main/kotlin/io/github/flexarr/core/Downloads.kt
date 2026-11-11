@@ -287,6 +287,12 @@ object DownloadRules {
      */
     fun keepsHeld(held: LocalDownload?, profileId: String): Boolean = held != null && held.profileId == profileId && held.phase != LocalPhase.Failed
 
+    /** About how big a title comes at the size [chosen] in Settings (as [quality] picks it), from its [options]; null when unknown. */
+    fun estimatedBytes(chosen: DownloadQuality, options: List<DownloadOption>?): Long? {
+        val quality = quality(chosen, options)
+        return options?.firstOrNull { it.quality == quality }?.estimatedBytes?.takeIf { it > 0 }
+    }
+
     /** A finished episode's next one, to fetch by itself: an episode with a next, not already here or on its way. */
     fun nextToFetch(download: LocalDownload, downloads: List<LocalDownload>): String? {
         if (download.item.kind != MediaKind.Episode || !download.isDownloaded) return null

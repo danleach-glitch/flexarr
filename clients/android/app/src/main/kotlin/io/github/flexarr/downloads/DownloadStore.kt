@@ -60,6 +60,11 @@ import io.github.flexarr.core.reportOfflineProgress
 import io.github.flexarr.core.requestDownload
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.delay
@@ -335,6 +340,34 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     fun byId(id: String): LocalDownload? = index.byId(id)
 
     val bytesUsed: Long get() = all.filter { it.isDownloaded }.sumOf { it.sizeBytes ?: 0 }
+
+    /** Room left on the phone for downloads. */
+    val freeBytes: Long get() = folder.usableSpace
+
+    /**
+     * About how big [episodes] come to at the size chosen in Settings: the server's estimate for each (its download
+     * options), or for an even spread of a long show's scaled up to them all, asked a few at a time. Null when the
+     * server gave none (out of reach, say).
+     */
+    suspend fun estimatedBytes(episodes: List<ItemSummary>): Long? {
+        val client = currentClient ?: return null
+        val chosen = quality
+        val gate = Semaphore(ESTIMATES_AT_ONCE)
+        val known = coroutineScope {
+            EpisodeGroupRules.sizeSample(episodes).map { episode ->
+                async {
+                    gate.withPermit {
+                        try {
+                            DownloadRules.estimatedBytes(chosen, client.downloadOptions(episode.id))
+                        } catch (_: FlexarrException) {
+                            null
+                        }
+                    }
+                }
+            }.awaitAll().filterNotNull()
+        }
+        return EpisodeGroupRules.estimatedBytes(known, episodes.size)
+    }
 
     fun file(download: LocalDownload): File? = download.fileName?.let { fileIn(folder, it) }?.takeIf { it.exists() }
 
@@ -1108,6 +1141,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         private const val MOST_SAVE_GAP_MS = 2_000L
         private const val SAVE_REST = 10
         private const val RECORDED_CATCH_UP_MS = 60_000L
+        private const val ESTIMATES_AT_ONCE = 4
 
         /**
          * The saved list, keeping every entry that reads (one an older or newer app wrote in a way this one can't is
