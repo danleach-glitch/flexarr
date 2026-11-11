@@ -56,11 +56,43 @@ public sealed class ArtworkAccentTests : IAsyncLifetime
         Assert.False(Directory.Exists(Path.Combine(_dir, "images")) && Directory.EnumerateFiles(Path.Combine(_dir, "images"), "*", SearchOption.AllDirectories).Any());
     }
 
-    private MetadataRefresher Refresher(HttpMessageHandler radarr)
+    [Fact]
+    public async Task AnAlbumCoverThatCantBeRead_IsntFetchedAgainEveryScan()
+    {
+        var music = new Library { Name = "Music", Type = LibraryType.Music };
+        _db.Libraries.Add(music);
+        _db.MediaItems.Add(new MediaItem { LibraryId = music.Id, Kind = MediaKind.Album, Title = "Album", SortTitle = "album", PosterUrl = $"https://covers.test/{Guid.NewGuid():N}.jpg" });
+        await _db.SaveChangesAsync();
+        var covers = new Missing();
+
+        // The image cache itself would wait five minutes; this is about the next scan, hours later.
+        await Refresher(covers, goneFor: TimeSpan.Zero).RefreshLibraryAsync(music, force: false, default);
+        await Refresher(covers, goneFor: TimeSpan.Zero).RefreshLibraryAsync(music, force: false, default);
+        Assert.Equal(1, covers.Requests);
+
+        await Refresher(covers, goneFor: TimeSpan.Zero).RefreshLibraryAsync(music, force: true, default); // asked for: tried again
+        Assert.Equal(2, covers.Requests);
+    }
+
+    private MetadataRefresher Refresher(HttpMessageHandler radarr, TimeSpan? goneFor = null)
     {
         var settings = new Settings(_dir);
+        var images = new ImageCache(new HttpClient(radarr), settings, NullLogger<ImageCache>.Instance);
+        images.GoneFor = goneFor ?? images.GoneFor;
         return new MetadataRefresher(_db, new ArrClient(new HttpClient(radarr)), new TvMazeClient(new HttpClient(radarr)),
-            new ImageCache(new HttpClient(radarr), settings, NullLogger<ImageCache>.Instance), settings, NullLogger<MetadataRefresher>.Instance);
+            images, settings, NullLogger<MetadataRefresher>.Instance);
+    }
+
+    /// <summary>Answers 404 to everything, and counts.</summary>
+    private sealed class Missing : HttpMessageHandler
+    {
+        public int Requests;
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref Requests);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+        }
     }
 
     private sealed class Settings(string cache) : IMetadataSettings
