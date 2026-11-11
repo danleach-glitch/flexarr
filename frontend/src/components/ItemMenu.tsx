@@ -156,7 +156,14 @@ export function Menu({ label, at, actions, onClose, focusBack }: { label: string
   // Closing puts focus back where it came from, or a keyboard is left at the top of the page. A menu that replaced
   // another has no opener left of its own, so says what it belongs to.
   const opener = useRef(document.activeElement as HTMLElement | null)
-  useEffect(() => () => (focusBack?.current ?? (opener.current?.isConnected ? opener.current : null))?.focus(), [focusBack])
+  // Not when it handed over to another menu (⋯ › Version), which has focused its own row by now.
+  useEffect(
+    () => () => {
+      if (document.activeElement?.closest('[role="menu"]')) return
+      ;(focusBack?.current ?? (opener.current?.isConnected ? opener.current : null))?.focus()
+    },
+    [focusBack],
+  )
 
   // Keep the menu on screen, then focus its first item.
   useLayoutEffect(() => {
