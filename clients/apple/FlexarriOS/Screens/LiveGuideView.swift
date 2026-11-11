@@ -6,7 +6,6 @@ import SwiftUI
 /// now; holding a programme adds its channel to Favourites or takes it off.
 struct LiveGuideView: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var sizeClass
     let channels: [LiveChannel]
     /// The channels are the favourites: the guide is asked for only theirs.
@@ -104,9 +103,9 @@ struct LiveGuideView: View {
                 StatusView(state: .loading)
             }
         }
-        // Only while the app is in front: with music keeping it alive in the background, it would go on asking.
-        .task(id: scenePhase == .active) {
-            guard scenePhase == .active else { return }
+        // Only while it's on screen and the app is in front: with music keeping it alive in the background, or a screen
+        // pushed over it, it would go on asking.
+        .whileShown {
             // The line for now moves on every couple of minutes; the listings are fetched again only once they're old,
             // a recording has started or ended since (its mark changes), or they weren't had: a fetch that failed is
             // tried again at the next look.
