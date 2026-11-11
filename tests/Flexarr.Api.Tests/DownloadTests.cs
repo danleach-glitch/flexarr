@@ -457,6 +457,70 @@ public sealed class DownloadTests : IDisposable
             server.Services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions>>().CurrentValue), Assert.Single(asked));
     }
 
+    [Fact]
+    public async Task AskingAfterADownloadStillWaiting_LeavesOutItsMarksAndNextEpisode_UntilItsReady()
+    {
+        Guid first, second;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var library = new Library { Name = $"Shows {Guid.NewGuid():N}", Type = LibraryType.TvShows };
+            var show = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Series, Title = "Show", SortTitle = "show" };
+            var season = new MediaItem { LibraryId = library.Id, ParentId = show.Id, Kind = MediaKind.Season, Title = "Season 1", SortTitle = "001", SeasonNumber = 1 };
+            MediaItem Episode(int number) => new()
+            {
+                LibraryId = library.Id, ParentId = season.Id, Kind = MediaKind.Episode, Title = $"E{number}", SortTitle = $"001{number:D3}", SeasonNumber = 1,
+                EpisodeNumber = number,
+            };
+            var episodes = new[] { Episode(1), Episode(2) };
+            db.AddRange(library, show, season);
+            db.AddRange(episodes);
+            foreach (var episode in episodes)
+            {
+                var path = Path.Combine(_factory.MediaDirectory, $"{Guid.NewGuid():N}.mkv");
+                await File.WriteAllBytesAsync(path, new byte[4096]);
+                db.Add(new MediaFile
+                {
+                    MediaItemId = episode.Id, Path = path, Size = 4096, Container = "matroska,webm", DurationSeconds = 1500, VideoCodec = "mpeg2video", Width = 1920,
+                    Height = 1080, AudioCodec = "aac", AudioChannels = 2,
+                    Streams =
+                    [
+                        new MediaStream { Index = 0, Type = StreamType.Video, Codec = "mpeg2video", Width = 1920, Height = 1080 },
+                        new MediaStream { Index = 1, Type = StreamType.Audio, Codec = "aac", Channels = 2, IsDefault = true },
+                    ],
+                    Markers = [new MediaMarker { Type = MarkerType.Intro, StartSeconds = 30, EndSeconds = 90, Source = "chapters" }],
+                });
+            }
+
+            await db.SaveChangesAsync();
+            (first, second) = (episodes[0].Id, episodes[1].Id);
+        }
+
+        var client = Client();
+        var created = await (await client.PostAsJsonAsync(new Uri("/api/v1/offline", UriKind.Relative), new { itemId = first, quality = "Medium" }))
+            .Content.ReadFromJsonAsync<JsonElement>();
+        // The first answer is whole: the apps keep what it says.
+        Assert.Equal(1, created.GetProperty("markers").GetArrayLength());
+        Assert.Equal(second, created.GetProperty("nextId").GetGuid());
+        var id = created.GetProperty("id").GetString();
+
+        var waiting = await client.GetFromJsonAsync<JsonElement>(new Uri($"/api/v1/offline/{id}", UriKind.Relative));
+        Assert.Equal("Queued", waiting.GetProperty("status").GetString());
+        Assert.Equal(0, waiting.GetProperty("markers").GetArrayLength());
+        Assert.Equal(JsonValueKind.Null, waiting.GetProperty("nextId").ValueKind);
+        Assert.Equal("E1", waiting.GetProperty("item").GetProperty("title").GetString());
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            await db.Downloads.ExecuteUpdateAsync(u => u.SetProperty(d => d.Status, DownloadStatus.Ready).SetProperty(d => d.ReadyAt, DateTime.UtcNow));
+        }
+
+        var ready = await client.GetFromJsonAsync<JsonElement>(new Uri($"/api/v1/offline/{id}", UriKind.Relative));
+        Assert.Equal(1, ready.GetProperty("markers").GetArrayLength());
+        Assert.Equal(second, ready.GetProperty("nextId").GetGuid());
+    }
+
     private async Task<double> PositionAsync(Guid item)
     {
         using var scope = _factory.Services.CreateScope();
