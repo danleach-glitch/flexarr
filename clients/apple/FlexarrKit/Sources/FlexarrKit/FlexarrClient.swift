@@ -589,6 +589,33 @@ public struct FlexarrClient: Sendable {
         return request
     }
 
+    /// Whether a background transfer to `url` (a download's file, made with the sign-in by `downloadFileRequest` or
+    /// `bookFileRequest`) may start now: only to the address requests go to now and, when that's a home address that
+    /// has to say who it is (see `ServerAddresses`), once it has. A transfer runs apart from this client, so nothing
+    /// else checks: this is asked before each one is made or carried on.
+    public func maySendTransfer(to url: URL?) async -> Bool {
+        let base = addresses.current
+        guard let url, Self.sameAddress(url, base) else { return false }
+        return await provesItself(base)
+    }
+
+    /// Whether a transfer cut off part-way while going to `kept` may carry on from where it got to as one going to
+    /// `url`: only at the same address. Resume data replays its own request, sign-in and all, so from anywhere else
+    /// it's dropped and the transfer starts again at the address checked now (`maySendTransfer`).
+    public static func resumes(_ kept: URL?, at url: URL?) -> Bool {
+        guard let kept, let url else { return false }
+        return sameAddress(kept, url)
+    }
+
+    /// The same scheme, host and port (the scheme's port when none is written).
+    static func sameAddress(_ a: URL, _ b: URL) -> Bool {
+        func port(_ url: URL) -> Int? {
+            url.port ?? (url.scheme?.lowercased() == "https" ? 443 : url.scheme?.lowercased() == "http" ? 80 : nil)
+        }
+        return a.scheme?.lowercased() == b.scheme?.lowercased() && a.host()?.lowercased() == b.host()?.lowercased()
+            && port(a) == port(b)
+    }
+
     /// The signed-in profile's auto-play and skip preferences.
     public func playbackPreferences() async throws -> PlaybackPreferences {
         try await get("me/playback-preferences")
