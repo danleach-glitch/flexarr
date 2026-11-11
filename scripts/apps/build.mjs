@@ -1,6 +1,7 @@
-// Builds flexarr.io/apps: site/apps.json (every app and platform, its status and version) into site/apps.html.
+// Builds flexarr.io/apps: site/apps.json (every app and platform, its status and version) into site/apps.html, and the
+// same list as a table in README.md (between its apps:start and apps:end comments), so the two never disagree.
 // Run with `make apps`. The output is committed, so Vercel serves it as a plain file, and apps.json is served as is
-// for anything that wants the same list. `--check` fails when apps.html is out of date; `--server-version x.y.z`
+// for anything that wants the same list. `--check` fails when either is out of date; `--server-version x.y.z`
 // (from scripts/release.sh) first writes that version into every entry marked "release": "server".
 import fs from 'node:fs';
 import path from 'node:path';
@@ -8,6 +9,7 @@ import path from 'node:path';
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
 const source = path.join(root, 'site/apps.json');
 const out = path.join(root, 'site/apps.html');
+const readme = path.join(root, 'README.md');
 const repo = 'https://github.com/danleach-glitch/flexarr';
 const args = process.argv.slice(2);
 const check = args.includes('--check');
@@ -328,14 +330,44 @@ ${sections}
 </html>
 `;
 
+// The README's table: one row per app, in the page's order, with links made absolute for GitHub.
+const readmeStatus = {
+  available: '✅ Available',
+  beta: '🧪 Beta',
+  coming: '🟡 Coming soon',
+  development: '🛠️ In development',
+  planned: '🗓️ Planned',
+};
+const md = s => String(s).replace(/[\\|]/g, '\\$&');
+const absolute = href => (href.startsWith('/') ? `https://flexarr.io${href}` : href);
+const row = p => {
+  const links = (p.links ?? []).map(l => `[${md(l.label)}](${absolute(l.href)})`).join(' · ');
+  const get = [p.note && `<sub>${md(p.note)}</sub>`, links].filter(Boolean).join('<br>');
+  return `| **${md(p.name)}**${p.runsOn ? `<br><sub>${p.runsOn.join(' · ')}</sub>` : ''} | ${readmeStatus[p.status]} | ${p.version ?? ''} | ${get} |`;
+};
+const table = [
+  '| App | Status | Version | Get it |',
+  '| --- | --- | --- | --- |',
+  ...Object.keys(kinds).flatMap(kind => ofKind(kind).map(row)),
+].join('\n');
+const start = '<!-- apps:start (made by `make apps` from site/apps.json; edit that, not this) -->';
+const end = '<!-- apps:end -->';
+const readmeText = fs.readFileSync(readme, 'utf8');
+const from = readmeText.indexOf(start);
+const to = readmeText.indexOf(end);
+if (from < 0 || to < from) throw new Error(`README.md needs the lines\n${start}\n${end}\nwhere the apps table goes`);
+const readmeOut = `${readmeText.slice(0, from + start.length)}\n${table}\n${readmeText.slice(to)}`;
+
 if (check) {
   const current = fs.existsSync(out) ? fs.readFileSync(out, 'utf8') : '';
-  if (current !== html) {
-    console.error('site/apps.html is out of date with site/apps.json: run `make apps` and commit the result.');
+  const stale = [current !== html && 'site/apps.html', readmeText !== readmeOut && 'README.md'].filter(Boolean);
+  if (stale.length) {
+    console.error(`${stale.join(' and ')} out of date with site/apps.json: run \`make apps\` and commit the result.`);
     process.exit(1);
   }
-  console.log('site/apps.html is up to date.');
+  console.log('site/apps.html and README.md are up to date.');
 } else {
   fs.writeFileSync(out, html);
-  console.log(`site/apps.html: ${data.platforms.length} platforms`);
+  fs.writeFileSync(readme, readmeOut);
+  console.log(`site/apps.html and README.md: ${data.platforms.length} platforms`);
 }

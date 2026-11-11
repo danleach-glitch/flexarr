@@ -129,7 +129,7 @@ strings: ## Collect every looked-up string into languages/packs/en.json, check t
 
 languages: strings ## Build flexarr.io/languages (site/languages) from languages/ (part of make strings)
 
-apps: ## Build flexarr.io/apps (site/apps.html) from site/apps.json
+apps: ## Build flexarr.io/apps (site/apps.html) and the README's apps table from site/apps.json
 	node scripts/apps/build.mjs
 
 # Archive the tvOS app and upload it to App Store Connect. Pass the iOS app's bundle ID to ship both on one
