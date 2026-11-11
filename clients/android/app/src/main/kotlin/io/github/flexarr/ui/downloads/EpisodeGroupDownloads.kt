@@ -180,7 +180,7 @@ internal class GroupDownloads(
             val episodes = (target.episodes() + downloads.map { it.item }).distinctBy { it.id }
             EpisodeBatches.halt(episodes.map { it.id }.toSet())
             store.forgetStarted(EpisodeGroupRules.groupsHolding(episodes) + groupId)
-            (if (onlyUnfinished) EpisodeGroupRules.toStop(downloads) else downloads).forEach { store.delete(it.id) }
+            store.removeAll((if (onlyUnfinished) EpisodeGroupRules.toStop(downloads) else downloads).map { it.id })
         }
     }
 

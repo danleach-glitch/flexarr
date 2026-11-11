@@ -985,30 +985,68 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         remove(id, tellServer = true)
     }
 
-    private fun remove(id: String, tellServer: Boolean) {
-        val download = byId(id) ?: return
-        work.cancelUniqueWork(workName(id))
-        UserInitiatedTransfers.cancel(context, id)
-        transferring.remove(id)
-        unacknowledged.remove(id)
-        download.fileName?.let { fileIn(folder, it)?.delete() }
-        fileIn(folder, "${safeName(id)}.part")?.delete()
-        all = all.filterNot { it.id == id }
+    /**
+     * Deleted by hand, many at once (a show's or a season's episodes, from the Downloads list or a show's page): the
+     * list changes once, and the transfers' cancelling and the files' deleting happen off the main thread.
+     */
+    fun removeAll(ids: Collection<String>) {
+        val podcasts = ids.mapNotNull(::byId).filter { it.isPodcastEpisode }.map { it.item.id }
+        if (podcasts.isNotEmpty()) declined = declined + podcasts
+        remove(ids, tellServer = true, inBackground = true)
+    }
+
+    private fun remove(id: String, tellServer: Boolean) = remove(listOf(id), tellServer, inBackground = false)
+
+    /**
+     * Takes [ids] off the list in one change. Their transfers are cancelled and their files deleted at once, or with
+     * [inBackground] on the IO threads (a long show's are dozens of calls into the system and gigabytes of files), where
+     * one asked for again meanwhile is left alone.
+     */
+    private fun remove(ids: Collection<String>, tellServer: Boolean, inBackground: Boolean) {
+        val going = ids.distinct().mapNotNull(::byId)
+        if (going.isEmpty()) return
+        val goingIds = going.map { it.id }.toSet()
+        goingIds.forEach {
+            transferring.remove(it)
+            unacknowledged.remove(it)
+        }
+        all = all.filterNot { it.id in goingIds }
         save()
         hurry.trySend(Unit)
-        removeImageIfUnused(download.imageFileName)
-        if (download.isPending) startWaitingSoon()
+        // Pictures nothing shows any more (an album's cover is shared by its tracks and the album).
+        val pictures = going.mapNotNull { it.imageFileName }.distinct()
+            .filter { name -> all.none { it.imageFileName == name } && collections.none { it.imageFileName == name } }
+        fun clearAway(download: LocalDownload) {
+            work.cancelUniqueWork(workName(download.id))
+            UserInitiatedTransfers.cancel(context, download.id)
+            download.fileName?.let { fileIn(folder, it)?.delete() }
+            fileIn(folder, "${safeName(download.id)}.part")?.delete()
+        }
+        if (inBackground) {
+            scope.launch(Dispatchers.IO) {
+                going.forEach { if (byId(it.id) == null) clearAway(it) }
+                pictures.forEach { name -> if (all.none { it.imageFileName == name }) fileIn(folder, name)?.delete() }
+            }
+        } else {
+            going.forEach(::clearAway)
+            pictures.forEach { fileIn(folder, it)?.delete() }
+        }
+        if (going.any { it.isPending }) startWaitingSoon()
         if (!tellServer) return
-        // The server drops its copy (and won't offer a podcast episode again); out of reach, it's told later.
-        unsentDeletes = unsentDeletes + id
+        // The server drops its copies (and won't offer a podcast episode again); out of reach, it's told later.
+        unsentDeletes = unsentDeletes + goingIds
         val client = currentClient ?: return
         scope.launch {
-            try {
-                client.deleteDownload(id)
-                unsentDeletes = unsentDeletes - id
-            } catch (e: FlexarrException.Http) {
-                if (e.status == 404) unsentDeletes = unsentDeletes - id
-            } catch (_: FlexarrException) {
+            for (id in goingIds) {
+                try {
+                    client.deleteDownload(id)
+                    unsentDeletes = unsentDeletes - id
+                } catch (e: FlexarrException.Http) {
+                    if (e.status == 404) unsentDeletes = unsentDeletes - id
+                } catch (_: FlexarrException.Unreachable) {
+                    break // the rest are told on the next catch-up too
+                } catch (_: FlexarrException) {
+                }
             }
         }
     }
@@ -1020,7 +1058,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         if (!loaded) clearedBeforeLoad = true
         val client = currentClient
         val pending = all.mapNotNull { download -> download.unsent?.let { download.item.id to it } }
-        all.map { it.id }.forEach { remove(it, tellServer = true) }
+        remove(all.map { it.id }, tellServer = true, inBackground = true)
         val pictures = collections.mapNotNull { it.imageFileName }
         collections = emptyList()
         saveCollections()

@@ -85,7 +85,7 @@ internal fun DownloadedShowRow(model: AppModel, show: DownloadedShow, onOpen: ()
                 // A Download show still asking for episodes stops too, or they'd come back as Downloading.
                 EpisodeBatches.halt(show.episodes.map { it.item.id }.toSet())
                 store.forgetStarted(EpisodeGroupRules.groupsHolding(show.episodes.map { it.item }))
-                show.episodes.forEach { store.delete(it.id) }
+                store.removeAll(show.episodes.map { it.id })
             },
             onDismiss = { removing = false },
         )
