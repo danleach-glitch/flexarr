@@ -7,6 +7,7 @@ import { useModal } from '../hooks/useModal'
 import { AsyncButton } from './AsyncButton'
 import { Search } from './icons'
 import { t, Words } from '../i18n'
+import { errorText } from '../lib/errorText'
 
 /** Which cover to keep: the match's own, the one there now, or another result's (by its coverValue). */
 type CoverChoice = { kind: 'own' } | { kind: 'current' } | { kind: 'other'; value: string }
@@ -55,7 +56,7 @@ export function MusicMatchDialog({ detail, onFixed, onClose }: { detail: ItemDet
       onFixed()
       onClose()
     } catch (e) {
-      setError(e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e))
+      setError(errorText(e))
       setBusy(false)
     }
   }

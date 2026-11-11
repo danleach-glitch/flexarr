@@ -1,7 +1,8 @@
+import { errorText } from '../lib/errorText'
 import { useState } from 'react'
 import { PageLoading } from '../components/PageStatus'
 import { Link } from 'react-router'
-import { ApiError, getRecordings, removeRecording, removeSeries, updateSeries, type Recording, type RecordingSeries } from '../api/client'
+import { getRecordings, removeRecording, removeSeries, updateSeries, type Recording, type RecordingSeries } from '../api/client'
 import { AsyncButton, IconButton } from '../components/AsyncButton'
 import { Close, RecordDot, Stop } from '../components/icons'
 import { icon } from '../components/icons.generated'
@@ -32,7 +33,7 @@ export default function LiveRecordings() {
     try {
       await action()
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : String(e))
+      setError(errorText(e))
     }
     setVersion((v) => v + 1)
   }

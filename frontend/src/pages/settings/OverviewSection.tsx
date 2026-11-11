@@ -21,6 +21,8 @@ export function OverviewSection() {
   const arr = useApi(getArrStatus, []).data
   const seerr = useApi(getRequestStatus, []).data
   const data = activity.data
+  // Only what someone is watching: a stream converting ahead of Play (a page looked at) isn't anyone watching yet.
+  const watching = data?.streams.filter((s) => !s.warming)
 
   const titles = libraries?.reduce((n, l) => n + l.itemCount, 0) ?? 0
   const down = arr?.filter((a) => !a.ok).map((a) => a.name) ?? []
@@ -39,8 +41,8 @@ export function OverviewSection() {
 
       <SettingsGroup title={t('Watching now')}>
         {!data && <p className="muted">{t('Loading…')}</p>}
-        {data && data.streams.filter((s) => !s.warming).length === 0 && <p className="muted">{t('Nobody’s watching anything.')}</p>}
-        {data?.streams.map((s) => (
+        {watching?.length === 0 && <p className="muted">{t('Nobody’s watching anything.')}</p>}
+        {watching?.map((s) => (
           <div key={s.sessionId} className="setting-row static stream">
             <span className="setting-text">
               <strong>
@@ -53,11 +55,9 @@ export function OverviewSection() {
                 )}
               </strong>
               <span className="muted">
-                {s.warming
-                  ? t('Getting ready to play')
-                  : s.paused
-                    ? t('Paused at {position} of {duration}', { position: formatClock(s.positionSeconds), duration: formatClock(s.durationSeconds) })
-                    : t('At {position} of {duration}', { position: formatClock(s.positionSeconds), duration: formatClock(s.durationSeconds) })}
+                {s.paused
+                  ? t('Paused at {position} of {duration}', { position: formatClock(s.positionSeconds), duration: formatClock(s.durationSeconds) })
+                  : t('At {position} of {duration}', { position: formatClock(s.positionSeconds), duration: formatClock(s.durationSeconds) })}
               </span>
             </span>
             <span className="tag">{s.method === 'DirectPlay' ? t('Original file') : t('Converting to {format}', { format: s.transcode })}</span>

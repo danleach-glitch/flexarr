@@ -1,6 +1,6 @@
+import { errorText } from '../lib/errorText'
 import { useEffect, useState } from 'react'
 import {
-  ApiError,
   getRecordings,
   recordProgramme,
   recordSeries,
@@ -52,7 +52,7 @@ export function RecordControls({ programme, channelId, now, onChanged }: { progr
       setLoaded((n) => n + 1)
       onChanged()
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : String(e))
+      setError(errorText(e))
     } finally {
       setBusy(false)
     }

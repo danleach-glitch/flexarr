@@ -1,8 +1,8 @@
+import { errorText } from '../lib/errorText'
 import { useState, type DragEvent } from 'react'
 import { PageError, PageLoading } from '../components/PageStatus'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import {
-  ApiError,
   createCollection,
   deleteCollection,
   getCollection,
@@ -195,7 +195,7 @@ export function CollectionPage() {
       await work()
       reload()
     } catch (e) {
-      setMessage(e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e))
+      setMessage(errorText(e))
     }
   }
 

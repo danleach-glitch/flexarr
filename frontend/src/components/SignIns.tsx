@@ -1,5 +1,6 @@
+import { errorText } from '../lib/errorText'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { ApiError, getSignIns, releaseSignInKidsLock, renameSignIn, revokeSignIn, signOut, signOutOthers, type SignIn } from '../api/client'
+import { getSignIns, releaseSignInKidsLock, renameSignIn, revokeSignIn, signOut, signOutOthers, type SignIn } from '../api/client'
 import { useApi } from '../hooks/useApi'
 import { deviceTypeName } from '../lib/deviceTypes'
 import { relativeTime } from '../lib/format'
@@ -82,7 +83,7 @@ export function SignIns() {
       setDone(said || undefined)
       list.reload()
     } catch (e) {
-      setError(e instanceof ApiError && e.messages[0] ? e.messages[0] : String(e))
+      setError(errorText(e))
       list.reload() // some of a group may have gone
     } finally {
       setBusy(false)
@@ -303,7 +304,7 @@ function RenameForm({ signIn, onDone }: { signIn: SignIn; onDone: (renamed: bool
       await renameSignIn(signIn.id, name.trim())
       onDone(true)
     } catch (err) {
-      setError(err instanceof ApiError && err.messages[0] ? err.messages[0] : String(err))
+      setError(errorText(err))
       setSaving(false)
     }
   }
