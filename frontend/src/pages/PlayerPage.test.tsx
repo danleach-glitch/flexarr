@@ -191,3 +191,23 @@ describe('Player with a copied picture', () => {
     await act(async () => page.unmount())
   })
 })
+
+describe('Player Skip intro', () => {
+  it('shows the pill without taking focus, so Space still pauses', async () => {
+    mockApi({ 'POST /playback': () => playback({ markers: [{ type: 'Intro', start: 5, end: 90 }] }), 'DELETE /playback/s1': undefined })
+    const page = renderPlayer()
+    const video = page.container.querySelector('video')!
+    await waitFor(() => expect(video.getAttribute('src')).toContain('/playback/s1/'))
+    Object.defineProperty(video, 'currentTime', { configurable: true, get: () => 10, set: () => undefined })
+    Object.defineProperty(video, 'paused', { configurable: true, get: () => false })
+    fireEvent.timeUpdate(video)
+    const skip = await waitFor(() => page.getByRole('button', { name: /Skip intro/ }))
+    expect(skip).not.toHaveFocus()
+
+    const pause = vi.mocked(window.HTMLMediaElement.prototype.pause)
+    pause.mockClear()
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: ' ' })
+    expect(pause).toHaveBeenCalled()
+    await act(async () => page.unmount())
+  })
+})

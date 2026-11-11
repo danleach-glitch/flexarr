@@ -27,6 +27,15 @@ describe('belongsToFocused', () => {
     expect(press('f', button)).toBe(false)
   })
 
+  it('leaves a slider its arrows, but Space and the shortcuts to the page', () => {
+    const slider = Object.assign(document.createElement('input'), { type: 'range' })
+
+    expect(press('ArrowRight', slider)).toBe(true)
+    expect(press('Home', slider)).toBe(true)
+    expect(press(' ', slider)).toBe(false)
+    expect(press('k', slider)).toBe(false)
+  })
+
   it('leaves arrows to a menu', () => {
     const menu = document.createElement('div')
     menu.setAttribute('role', 'menu')

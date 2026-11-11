@@ -1508,7 +1508,6 @@ export function PlayerPage() {
           <button
             className="skip-pill-skip"
             onClick={pressSkip}
-            autoFocus
             style={{ '--fill': `${(skipCounting?.progress ?? 0) * 100}%` } as CSSProperties}
           >
             <span className="skip-pill-label">{skipLabel}</span>
