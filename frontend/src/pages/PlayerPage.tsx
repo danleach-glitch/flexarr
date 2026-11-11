@@ -52,7 +52,7 @@ import { skipAt, skipCancelled, skipFresh, skipPressed, skipSeeked, type SkipNow
 import { NEXT_EPISODE_COUNTDOWN_SECONDS, nextEpisodeTiming, upNextAt, upNextAtEnd, upNextFresh, upNextMoved, type UpNextState } from '../lib/upNext'
 import { dialogueBoostChoices, isShaping, nightModeChoices, readSoundSettings, shapingFor, speakerChoices, timeOfDay, unshaped, useSoundSettings, useSoundShaping, writeSoundSettings } from '../lib/soundSettings'
 import { detectProfile, prefersNativeHls } from '../lib/profile'
-import { prepareVideo, rememberCopyingFailed, startVideo, wasCopyAsked } from '../lib/copiedVideo'
+import { prepareVideo, rememberCopyingFailed, startVideo, streamBadge, wasCopyAsked } from '../lib/copiedVideo'
 import { EARLY_STALL_MS, reportEarlyStall, reportStart, type StartTiming } from '../lib/startTiming'
 import { drop as dropPrepared, getReady, holds as holdsPrepared, take as takePrepared } from '../lib/preparedPlayback'
 import { extended, FADE_SECONDS, minutesLeft, secondsLeft, sleepChoices, sleepLabel, STILL_WATCHING_SECONDS, type SleepTimer } from '../lib/sleepTimer'
@@ -1517,10 +1517,9 @@ export function PlayerPage() {
             )}
           </div>
         )}
-        {info?.transcodeSummary && (
+        {info && streamBadge(info) && (
           <span className="player-badge" title={info.reasons.join('\n')}>
-            {/* A copied picture ("Original H.264, repackaged") isn't converted, so it isn't called that. */}
-            {/^Original\b/.test(info.transcodeSummary) ? info.transcodeSummary : t('Converting: {summary}', { summary: info.transcodeSummary })}
+            {streamBadge(info)}
           </span>
         )}
       </header>

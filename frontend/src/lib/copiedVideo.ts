@@ -1,6 +1,7 @@
 import { prepareStream } from '../api/client'
 import type { DeviceProfile, PlaybackInfo, PlaybackRequest } from '../api/types'
 import { detectProfile } from './profile'
+import { locale, t } from '../i18n'
 
 /**
  * A film or episode the browser can't open as it is (an MKV, say) used to have its picture converted to H.264 even
@@ -85,9 +86,54 @@ export function wasCopyAsked(info: PlaybackInfo): boolean {
   return sentFmp4.has(info)
 }
 
-/** The server's summary of a repackaged stream starts "Original HEVC" or "Original H.264". */
+/** Whether the stream copies an HEVC picture: by its fields, or (servers before 0.66) its English summary. */
 function copiesHevc(info: PlaybackInfo): boolean {
-  return info.method === 'Transcode' && /^Original HEVC\b/.test(info.transcodeSummary ?? '')
+  if (info.method !== 'Transcode') return false
+  if (info.stream) return info.stream.videoCopied && info.stream.videoCodec === 'hevc'
+  return /^Original HEVC\b/.test(info.transcodeSummary ?? '')
+}
+
+function channelsLabel(channels: number | null): string {
+  switch (channels) {
+    case 8:
+      return '7.1'
+    case 6:
+      return '5.1'
+    case 2:
+      return t('stereo')
+    case 1:
+      return t('mono')
+    default:
+      return t('{count}-channel', { count: channels ?? 0 })
+  }
+}
+
+/**
+ * The player's badge for a converted or repackaged stream, in the language shown; null when the file plays as it is.
+ * A copied picture isn't converted, so it isn't called that. Servers before 0.66 send only their English summary.
+ */
+export function streamBadge(info: PlaybackInfo): string | null {
+  const stream = info.stream
+  if (!stream) {
+    const summary = info.transcodeSummary
+    if (!summary) return null
+    return /^Original\b/.test(summary) ? summary : t('Converting: {summary}', { summary })
+  }
+  let video: string
+  if (stream.videoCopied) {
+    // Names, not words: as the server's summary writes them. HDR10+ travels inside the HDR10.
+    const range =
+      stream.dynamicRange === 'DolbyVision' ? (stream.hdr10Plus ? 'Dolby Vision, HDR10+' : 'Dolby Vision')
+      : stream.dynamicRange === 'HDR10' ? (stream.hdr10Plus ? 'HDR10+' : 'HDR10')
+      : stream.dynamicRange === 'HLG' ? 'HLG'
+      : null
+    const codec = stream.videoCodec === 'hevc' ? 'HEVC' : 'H.264'
+    video = t('Original {video}, repackaged', { video: range ? `${codec} (${range})` : codec })
+  } else {
+    const values = { height: String(stream.height ?? 0), mbps: new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 }).format((stream.videoBitrate ?? 0) / 1_000_000) }
+    video = stream.toneMapped ? t('Converting: {height}p H.264 at {mbps} Mbps, HDR converted to SDR', values) : t('Converting: {height}p H.264 at {mbps} Mbps', values)
+  }
+  return stream.losslessAudio ? t('{video}, lossless FLAC {channels} sound', { video, channels: channelsLabel(stream.audioChannels) }) : video
 }
 
 /**

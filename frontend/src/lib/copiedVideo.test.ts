@@ -141,3 +141,31 @@ describe('copied video', () => {
     expect(copyingFailed('m1')).toBe(true)
   })
 })
+
+describe('stream badge', () => {
+  const stream = { videoCopied: true, videoCodec: 'hevc', dynamicRange: 'DolbyVision', hdr10Plus: true, height: null, videoBitrate: null, toneMapped: false, losslessAudio: false, audioChannels: null }
+
+  it('words the fields, whatever the English summary says', async () => {
+    const { streamBadge } = await fresh()
+    expect(streamBadge(answer({ transcodeSummary: 'Anything', stream }))).toBe('Original HEVC (Dolby Vision, HDR10+), repackaged')
+    expect(streamBadge(answer({ stream: { ...stream, videoCodec: 'h264', dynamicRange: 'SDR', hdr10Plus: false, losslessAudio: true, audioChannels: 8 } })))
+      .toBe('Original H.264, repackaged, lossless FLAC 7.1 sound')
+    expect(streamBadge(answer({ stream: { ...stream, videoCopied: false, videoCodec: 'h264', dynamicRange: null, height: 1080, videoBitrate: 8_000_000, toneMapped: true } })))
+      .toBe('Converting: 1080p H.264 at 8 Mbps, HDR converted to SDR')
+  })
+
+  it('falls back on the summary from older servers', async () => {
+    const { streamBadge } = await fresh()
+    expect(streamBadge(answer())).toBe('Original H.264, repackaged')
+    expect(streamBadge(answer({ transcodeSummary: '720p H.264 at 3 Mbps' }))).toBe('Converting: 720p H.264 at 3 Mbps')
+    expect(streamBadge(answer({ transcodeSummary: null }))).toBeNull()
+  })
+
+  it('takes a copied HEVC picture from the fields over the summary', async () => {
+    playsHevcAndFlac()
+    const { startVideo } = await fresh()
+    const start = vi.fn(async () => answer({ transcodeSummary: 'Copie HEVC', stream }))
+    await startVideo({ itemId: 'm1' }, start)
+    expect(start).toHaveBeenCalledTimes(2) // asked again the old way
+  })
+})

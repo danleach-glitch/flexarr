@@ -40,6 +40,19 @@ public sealed record SubtitleTrackDto(string Key, string Label, string Codec, st
 
 public sealed record MarkerDto(MarkerType Type, double Start, double End);
 
+/// <summary>What a converted or repackaged stream carries, as <see cref="PlaybackInfoDto.TranscodeSummary"/> says it in English.</summary>
+/// <param name="VideoCopied">The picture is the file's own, repackaged; false when it's converted.</param>
+/// <param name="VideoCodec">"hevc" or "h264": the file's when copied, H.264 when converted.</param>
+/// <param name="DynamicRange">A copied picture's: "DolbyVision", "HDR10", "HLG" or "SDR". Null for a converted one.</param>
+/// <param name="Hdr10Plus">A copied HDR10 picture carries HDR10+ too.</param>
+/// <param name="Height">A converted picture's height, in pixels.</param>
+/// <param name="VideoBitrate">A converted picture's bit rate, in bits per second.</param>
+/// <param name="ToneMapped">A converted picture's HDR was turned into SDR.</param>
+/// <param name="LosslessAudio">The sound is converted to lossless FLAC.</param>
+/// <param name="AudioChannels">How many channels the sound has when it's converted to FLAC.</param>
+public sealed record StreamSummaryDto(bool VideoCopied, string VideoCodec, string? DynamicRange, bool Hdr10Plus, int? Height, long? VideoBitrate, bool ToneMapped,
+    bool LosslessAudio, int? AudioChannels);
+
 /// <summary>The subtitles the viewer picked in the player: a track's key, or "off".</summary>
 public sealed record SubtitleChoiceRequest(string Key);
 
@@ -75,7 +88,10 @@ public sealed record PlaybackInfoDto(
     string? FontsUrl = null,
     bool SoundShaped = false,
     // A book's files on its timeline, chapters, bookmarks and place. Absent from servers before 0.58.
-    Books.BookManifestDto? Book = null)
+    Books.BookManifestDto? Book = null,
+    // What a converted or repackaged stream is, for the apps to word in their language (TranscodeSummary is English).
+    // Null when the file plays as it is. Absent from servers before 0.66.
+    StreamSummaryDto? Stream = null)
 {
     /// <summary>
     /// Names this playback in logs without giving away <see cref="SessionId"/>, which works as a password for the

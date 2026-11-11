@@ -382,7 +382,8 @@ public sealed class PlaybackService(
             // Bazarr finds subtitles for what Sonarr and Radarr manage; not for a kids profile.
             options.CurrentValue.Bazarr?.Instance is not null && !db.ServesKids && item.Kind is (MediaKind.Movie or MediaKind.Episode) && item.ArrId is not null,
             subtitles.Any(s => s.IsStyled && s.ExternalPath is null) ? $"{basePath}/fonts.json" : null,
-            decision.Transcode is { Sound: not null });
+            decision.Transcode is { Sound: not null },
+            Stream: decision.Transcode is { } stream ? StreamOf(stream, file) : null);
     }
 
     /// <summary>
@@ -994,6 +995,26 @@ public sealed class PlaybackService(
 
         var converted = $"{plan.TargetHeight}p H.264 at {plan.VideoBitrate / 1_000_000.0:0.#} Mbps" + (plan.ToneMap ? ", HDR converted to SDR" : "");
         return sound is null ? converted : $"{converted}, {sound}";
+    }
+
+    /// <summary>What <see cref="Summary"/> says, as fields: for apps to put in their own words.</summary>
+    internal static StreamSummaryDto StreamOf(TranscodePlan plan, MediaFile file)
+    {
+        var lossless = !plan.CopyAudio && plan.LosslessAudio;
+        if (plan.Repackage is { } repackage)
+        {
+            var range = file.VideoRange switch
+            {
+                VideoRange.DolbyVision when !repackage.StripDolbyVision => "DolbyVision",
+                VideoRange.Sdr => "SDR",
+                _ when repackage.VideoRange == "HLG" => "HLG",
+                _ => "HDR10",
+            };
+            return new StreamSummaryDto(true, file.VideoCodec == "hevc" ? "hevc" : "h264", range, range is "DolbyVision" or "HDR10" && file.Hdr10Plus == true,
+                null, null, false, lossless, lossless ? plan.AudioChannels : null);
+        }
+
+        return new StreamSummaryDto(false, "h264", null, false, plan.TargetHeight, plan.VideoBitrate, plan.ToneMap, lossless, lossless ? plan.AudioChannels : null);
     }
 
     private static string Channels(int channels) => channels switch { 8 => "7.1", 6 => "5.1", 2 => "stereo", 1 => "mono", _ => $"{channels}-channel" };
