@@ -152,7 +152,7 @@ public class AuthorInfoApiTests(FlexarrApiFactory factory) : IClassFixture<Flexa
     public async Task AnUploadWhoseFileIsGone_IsNoPhoto_AndUnlockingClearsIt()
     {
         using var app = Serve();
-        var (person, _) = await SeedAsync(app, imageUrl: "file:///elsewhere/person-images/gone.jpg");
+        var (person, book) = await SeedAsync(app, imageUrl: "file:///elsewhere/person-images/gone.jpg");
         using (var scope = app.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
@@ -161,6 +161,8 @@ public class AuthorInfoApiTests(FlexarrApiFactory factory) : IClassFixture<Flexa
 
         var admin = Admin(app);
         var shown = await admin.GetFromJsonAsync<JsonElement>(Api($"/people/{person}"));
+        var credited = await admin.GetFromJsonAsync<JsonElement>(Api($"/items/{book}"));
+        Assert.Equal(JsonValueKind.Null, credited.GetProperty("credits").EnumerateArray().Single(c => c.GetProperty("personId").GetGuid() == person).GetProperty("image").ValueKind);
         var unlocked = await (await admin.PutAsJsonAsync(Api($"/people/{person}"), new { locked = false })).Content.ReadFromJsonAsync<JsonElement>();
 
         Assert.Equal(JsonValueKind.Null, shown.GetProperty("image").ValueKind);

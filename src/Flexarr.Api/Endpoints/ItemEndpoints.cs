@@ -210,11 +210,11 @@ public static class ItemEndpoints
         // includeSeason (the web's title page): a series also carries its Up Next episode and one season's episodes (the
         // requested number, else the first unwatched), so the page needs one request rather than three in a row.
         api.MapGet("/items/{id:guid}", async (Guid id, bool? includeSeason, int? season, FlexarrDbContext db, PlaybackService playback,
-            CurrentProfile profile, IOptionsMonitor<FlexarrOptions> options, Watchlist.WatchlistService watchlist, CancellationToken ct) =>
+            CurrentProfile profile, IOptionsMonitor<FlexarrOptions> options, Watchlist.WatchlistService watchlist, PersonImages images, CancellationToken ct) =>
         {
             // A kids profile doesn't find subtitles.
             var bazarr = options.CurrentValue.Bazarr?.Instance is not null && !db.ServesKids;
-            var detail = await DetailAsync(id, db, profile, bazarr, ct);
+            var detail = await DetailAsync(id, db, profile, bazarr, images, ct);
             if (detail is null)
             {
                 return Results.NotFound();
@@ -236,7 +236,7 @@ public static class ItemEndpoints
                 var selected = seasons.FirstOrDefault(s => season is { } n && s.SeasonNumber == n)
                     ?? seasons.FirstOrDefault(s => !s.UserData.Watched && s.SeasonNumber != 0)
                     ?? seasons.FirstOrDefault();
-                var seasonDetail = selected is null ? null : await DetailAsync(selected.Id, db, profile, bazarr, ct);
+                var seasonDetail = selected is null ? null : await DetailAsync(selected.Id, db, profile, bazarr, images, ct);
                 detail = detail with { NextUp = nextUp, Season = seasonDetail };
             }
 
@@ -335,7 +335,7 @@ public static class ItemEndpoints
     }
 
     /// <param name="bazarr">Whether Bazarr is set up, so films and episodes Sonarr and Radarr manage can have subtitles found.</param>
-    private static async Task<ItemDetailDto?> DetailAsync(Guid id, FlexarrDbContext db, CurrentProfile profile, bool bazarr, CancellationToken ct)
+    private static async Task<ItemDetailDto?> DetailAsync(Guid id, FlexarrDbContext db, CurrentProfile profile, bool bazarr, PersonImages images, CancellationToken ct)
     {
         var item = await db.MediaItems.Where(i => i.Id == id).Summaries(profile.Id).FirstOrDefaultAsync(ct);
         if (item is null)
@@ -372,9 +372,12 @@ public static class ItemEndpoints
 
         // Seasons and episodes show their series' cast.
         var creditsFor = entity.Kind is MediaKind.Season or MediaKind.Episode && ancestors.Count > 0 ? ancestors[0].Id : id;
-        var credits = await db.Credits.Where(c => c.MediaItemId == creditsFor).OrderBy(c => c.Order)
-            .Select(c => new CreditDto(c.PersonId, c.Person!.Name, c.Role, c.Character, ArtworkUrls.Person(c.PersonId, c.Person.ImageUrl != null, c.Person.ImageChangedAt)))
-            .ToListAsync(ct);
+        // No photo for one uploaded whose file has gone, as on the person's page: it would only answer 404.
+        var credits = (await db.Credits.Where(c => c.MediaItemId == creditsFor).OrderBy(c => c.Order)
+            .Select(c => new { c.PersonId, c.Person!.Name, c.Role, c.Character, HasImage = c.Person.ImageUrl != null, c.Person.PhotoSource, c.Person.ImageChangedAt })
+            .ToListAsync(ct))
+            .Select(c => new CreditDto(c.PersonId, c.Name, c.Role, c.Character, ArtworkUrls.Person(c.PersonId, c.HasImage && !images.Missing(c.PersonId, c.PhotoSource), c.ImageChangedAt)))
+            .ToList();
 
         var series = entity.Kind is MediaKind.Season or MediaKind.Episode && ancestors.Count > 0
             ? await db.MediaItems.AsNoTracking().Include(i => i.Genres).FirstAsync(i => i.Id == ancestors[0].Id, ct)
