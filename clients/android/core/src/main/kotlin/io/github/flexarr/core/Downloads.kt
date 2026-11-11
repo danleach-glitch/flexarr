@@ -161,6 +161,11 @@ data class LocalDownload(
     /** Fetched by itself: as the next episode, or a podcast's newest. Only these wait for Wi-Fi. */
     val automatic: Boolean = false,
     val createdAtMillis: Long = 0,
+    /**
+     * Asked for by hand while the profile had [TransferQueue.MOST_RUNNING] transfers under way: it waits its turn on
+     * this phone, with no transfer of its own yet, and starts as one of those ends.
+     */
+    val queued: Boolean = false,
 ) {
     val isDownloaded: Boolean get() = phase == LocalPhase.Downloaded && fileName != null
 
@@ -274,6 +279,19 @@ object DownloadRules {
     /** The size to ask for: the one chosen, unless that's an Original this phone can't play (then High). */
     fun quality(chosen: DownloadQuality, options: List<DownloadOption>?): DownloadQuality =
         if (chosen == DownloadQuality.Original && options?.firstOrNull { it.quality == DownloadQuality.Original }?.available == false) DownloadQuality.High else chosen
+
+    /**
+     * Asked for again, the server handed back download [held] this phone has already for [profileId] (made through a
+     * linked copy, say): it's kept as it is, its transfer carrying on, rather than started again from nothing. One that
+     * failed here starts again.
+     */
+    fun keepsHeld(held: LocalDownload?, profileId: String): Boolean = held != null && held.profileId == profileId && held.phase != LocalPhase.Failed
+
+    /** About how big a title comes at the size [chosen] in Settings (as [quality] picks it), from its [options]; null when unknown. */
+    fun estimatedBytes(chosen: DownloadQuality, options: List<DownloadOption>?): Long? {
+        val quality = quality(chosen, options)
+        return options?.firstOrNull { it.quality == quality }?.estimatedBytes?.takeIf { it > 0 }
+    }
 
     /** A finished episode's next one, to fetch by itself: an episode with a next, not already here or on its way. */
     fun nextToFetch(download: LocalDownload, downloads: List<LocalDownload>): String? {

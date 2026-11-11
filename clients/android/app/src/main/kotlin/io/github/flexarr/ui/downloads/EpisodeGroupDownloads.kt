@@ -34,6 +34,8 @@ import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.EpisodeGroupRules
 import io.github.flexarr.core.EpisodeGroupState
+import io.github.flexarr.core.Format
+import io.github.flexarr.core.bytes
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.LocalDownload
 import io.github.flexarr.core.MediaKind
@@ -43,6 +45,7 @@ import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.FlexarrIcons
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 // A show's or a season's episodes downloaded together, as on iPhone: Download on a show's page (every episode of every
@@ -54,7 +57,7 @@ import kotlinx.coroutines.launch
  * group holding one of a batch's episodes halts it: nothing more is asked for, and the one being asked as it was
  * stopped is deleted when it comes, so Stop needs pressing only once.
  */
-private object EpisodeBatches {
+internal object EpisodeBatches {
     class Batch(val ids: Set<String>) {
         var halted = false
     }
@@ -90,11 +93,24 @@ internal sealed interface GroupQuestion {
  * once its Download is pressed. One question shows at a time, from one place ([Dialogs]).
  */
 @Stable
-internal class GroupDownloads(private val model: AppModel, private val groupId: String, private val showTitle: String? = null) {
+internal class GroupDownloads(
+    private val model: AppModel,
+    private val groupId: String,
+    private val showTitle: String? = null,
+    /** The show's or season's linked copies (itself included): an episode downloaded through one counts as here. */
+    private val copies: List<String> = emptyList(),
+) {
+    /** Each episode's download, its own or one made through a linked copy. */
+    fun entry(episode: ItemSummary): LocalDownload? = model.downloads.episodeLookup(copies)(episode)
+
     /** Episodes are still being asked of the server. */
     var queueing by mutableStateOf(false)
         private set
     var question by mutableStateOf<GroupQuestion?>(null)
+
+    /** About how big the episodes a Confirm question asks about come to, once the server's estimates are in. */
+    private var estimate by mutableStateOf<Long?>(null)
+    private var estimating: Job? = null
 
     val started: Boolean get() = model.downloads.isStarted(groupId)
 
@@ -105,7 +121,7 @@ internal class GroupDownloads(private val model: AppModel, private val groupId: 
      */
     fun download(episodes: List<ItemSummary>) {
         val store = model.downloads
-        val wanted = EpisodeGroupRules.toQueue(episodes, store::entry)
+        val wanted = EpisodeGroupRules.toQueue(episodes, model.downloads.episodeLookup(copies))
         if (wanted.isEmpty()) return
         store.markStarted(groupId)
         queueing = true
@@ -123,7 +139,7 @@ internal class GroupDownloads(private val model: AppModel, private val groupId: 
                         first = first ?: (e.message ?: t("Couldn’t download this"))
                     }
                     // Stopped while this one was being asked for: it goes too.
-                    if (batch.halted) store.entry(episode.id)?.let { store.delete(it.id) }
+                    if (batch.halted) entry(episode)?.let { store.delete(it.id) }
                 }
             } finally {
                 EpisodeBatches.end(batch)
@@ -136,8 +152,13 @@ internal class GroupDownloads(private val model: AppModel, private val groupId: 
 
     /** Downloading [episodes] once asked: "Download 12 episodes of Severance?", counting only those it would fetch. */
     fun confirmDownload(episodes: List<ItemSummary>) {
-        val wanted = EpisodeGroupRules.toQueue(episodes, model.downloads::entry)
-        if (wanted.isNotEmpty()) question = GroupQuestion.Confirm(wanted)
+        val wanted = EpisodeGroupRules.toQueue(episodes, model.downloads.episodeLookup(copies))
+        if (wanted.isEmpty()) return
+        estimate = null
+        question = GroupQuestion.Confirm(wanted)
+        // The size follows in a moment, from the server's estimates.
+        estimating?.cancel()
+        estimating = model.scope.launch { estimate = model.downloads.estimatedBytes(wanted) }
     }
 
     /**
@@ -158,12 +179,25 @@ internal class GroupDownloads(private val model: AppModel, private val groupId: 
 
     @Composable
     fun Dialogs() {
-        val dismiss = { question = null }
+        val dismiss = {
+            estimating?.cancel()
+            question = null
+        }
         when (val asking = question) {
             null -> Unit
             is GroupQuestion.Confirm -> AlertDialog(
                 onDismissRequest = dismiss,
                 title = { Text(t("Download {count, plural, one {# episode} other {# episodes}} of {show}?", "count" to asking.episodes.size, "show" to showTitle.orEmpty())) },
+                text = estimate?.let { bytes ->
+                    {
+                        val free = model.downloads.freeBytes
+                        if (EpisodeGroupRules.outgrows(bytes, free)) {
+                            Text(t("About {size}, more than the {free} free on this phone.", "size" to Format.bytes(bytes), "free" to Format.bytes(free)), color = Flexarr.danger)
+                        } else {
+                            Text(t("About {size}", "size" to Format.bytes(bytes)))
+                        }
+                    }
+                },
                 confirmButton = { TextButton(onClick = { dismiss(); download(asking.episodes) }) { Text(t(Words.download), color = Flexarr.screen) } },
                 dismissButton = { TextButton(onClick = dismiss) { Text(t(Words.cancel), color = Flexarr.screen) } },
                 containerColor = Flexarr.seat,
@@ -191,16 +225,17 @@ private fun List<ItemSummary>.episodesOnly() = filter { it.kind == MediaKind.Epi
  * remove), or "Couldn’t download" (tap to try again).
  */
 @Composable
-fun ShowDownloadAction(model: AppModel, show: ItemSummary, loadEpisodes: suspend () -> List<ItemSummary>, modifier: Modifier = Modifier) {
+fun ShowDownloadAction(model: AppModel, show: ItemSummary, loadEpisodes: suspend () -> List<ItemSummary>, modifier: Modifier = Modifier, copies: List<String> = emptyList()) {
     val store = model.downloads
-    val group = remember(show.id) { GroupDownloads(model, show.id, showTitle = show.title) }
+    val group = remember(show.id, copies) { GroupDownloads(model, show.id, showTitle = show.title, copies = copies) }
     val scope = rememberCoroutineScope()
     var episodes by remember(show.id) { mutableStateOf<List<ItemSummary>?>(null) }
     var loading by remember(show.id) { mutableStateOf(false) }
     // Pressed, and finding the episodes before asking: further presses are ignored, so a second load can't ask again
     // after the first question was answered. Set at once on the press, before anything is launched.
     var busy by remember(show.id) { mutableStateOf(false) }
-    val held = store.episodesOfShow(show.id)
+    val held = store.episodesOfShow(show.id, copies)
+    val lookup = store.episodeLookup(copies)
 
     suspend fun load(): List<ItemSummary>? {
         episodes?.let { return it }
@@ -223,11 +258,11 @@ fun ShowDownloadAction(model: AppModel, show: ItemSummary, loadEpisodes: suspend
     LaunchedEffect(show.id, hasAny) { if (hasAny && episodes == null) load() }
 
     val known = episodes
-    val entries: List<LocalDownload?> = known?.map { store.entry(it.id) } ?: held
+    val entries: List<LocalDownload?> = known?.map(lookup) ?: held
     val state = EpisodeGroupRules.state(entries, started = group.started, queueing = group.queueing || loading, known = known != null, progress = store::progress)
     // Everything of the show here: its episodes' downloads, and any the list no longer has.
-    val all = { (known.orEmpty().mapNotNull { store.entry(it.id) } + store.episodesOfShow(show.id)).distinctBy { it.id } }
-    val target = GroupTarget(all) { known.orEmpty() + store.episodesOfShow(show.id).map { it.item } }
+    val all = { (known.orEmpty().mapNotNull(store.episodeLookup(copies)) + store.episodesOfShow(show.id, copies)).distinctBy { it.id } }
+    val target = GroupTarget(all) { known.orEmpty() + store.episodesOfShow(show.id, copies).map { it.item } }
 
     val label = when (state) {
         // Not the plain word: beside "Play S2E3" it would read as downloading that episode.
@@ -272,13 +307,13 @@ fun ShowDownloadAction(model: AppModel, show: ItemSummary, loadEpisodes: suspend
  * "Couldn’t download" (tap to try again).
  */
 @Composable
-fun SeasonDownloadLink(model: AppModel, season: ItemSummary, episodes: List<ItemSummary>, modifier: Modifier = Modifier) {
+fun SeasonDownloadLink(model: AppModel, season: ItemSummary, episodes: List<ItemSummary>, modifier: Modifier = Modifier, copies: List<String> = emptyList()) {
     val store = model.downloads
-    val group = remember(season.id) { GroupDownloads(model, season.id) }
+    val group = remember(season.id, copies) { GroupDownloads(model, season.id, copies = copies) }
     val list = episodes.episodesOnly()
     if (list.isEmpty()) return
-    val state = EpisodeGroupRules.state(list.map { store.entry(it.id) }, started = group.started, queueing = group.queueing, progress = store::progress)
-    val here = GroupTarget({ list.mapNotNull { store.entry(it.id) } }) { list }
+    val state = EpisodeGroupRules.state(list.map(store.episodeLookup(copies)), started = group.started, queueing = group.queueing, progress = store::progress)
+    val here = GroupTarget({ list.mapNotNull(store.episodeLookup(copies)) }) { list }
     val label = when (state) {
         is EpisodeGroupState.NotDownloaded -> t("Download {season}", "season" to season.title)
         is EpisodeGroupState.Downloading -> t("Downloading {season}", "season" to season.title)

@@ -101,9 +101,15 @@ internal class DownloadTransfer(
             onMain { store.failed(id, e.message ?: t("The server didn’t accept this device’s sign-in.")) }
             return Outcome.Done
         } catch (e: NoRoom) {
-            onMain { store.failed(id, t("There isn’t room for this on the phone. Delete something and try again.")) }
+            onMain { store.failed(id, t("Not enough space")) }
             return Outcome.Done
         } catch (e: Exception) {
+            // The phone filled up as it came: tried again it would only fail the same way, so it says so at once.
+            if (isNoSpace(e)) {
+                flexarrLog.warning("Download $id stopped: the phone is full", e)
+                onMain { store.failed(id, t("Not enough space")) }
+                return Outcome.Done
+            }
             flexarrLog.warning("Download $id stopped; trying again later", e)
             if (attempt >= MAX_ATTEMPTS) {
                 onMain { store.failed(id, t("The download stopped. Try again.")) }
@@ -173,6 +179,12 @@ internal class DownloadTransfer(
     companion object {
         /** Downloads whose transfer is running in this process (read and changed on the main thread). */
         private val running = mutableSetOf<String>()
+
+        /** A write that failed because the phone is full (ENOSPC), however it's wrapped. */
+        internal fun isNoSpace(error: Throwable): Boolean =
+            generateSequence(error) { it.cause }.take(5).any { cause ->
+                cause.message?.let { "ENOSPC" in it || "No space left" in it } == true
+            }
 
         /**
          * A 416 when asking for what follows [partBytes]: the file is all there if the server's Content-Range

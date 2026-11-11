@@ -52,14 +52,41 @@ object EpisodeGroupRules {
     }
 
     /** The episodes Download asks for: those not here or on their way (one that failed is asked for again). */
-    fun toQueue(episodes: List<ItemSummary>, entry: (String) -> LocalDownload?): List<ItemSummary> =
-        episodes.filter { episode -> entry(episode.id).let { it == null || it.phase == LocalPhase.Failed } }
+    fun toQueue(episodes: List<ItemSummary>, entry: (ItemSummary) -> LocalDownload?): List<ItemSummary> =
+        episodes.filter { episode -> entry(episode).let { it == null || it.phase == LocalPhase.Failed } }
+
+    /**
+     * Of [downloads], the one of [episode] made through a linked copy of its show or season ([copies], their ids): the
+     * same episode of another copy, as the server hands back the download it has through any copy of a title.
+     */
+    fun throughCopies(episode: ItemSummary, downloads: List<LocalDownload>, copies: Set<String>): LocalDownload? =
+        if (copies.size < 2) null
+        else downloads.firstOrNull { held ->
+            held.item.kind == MediaKind.Episode && (held.item.seriesId in copies || held.item.parentId in copies) && held.item.sameEpisode(episode)
+        }
 
     /** What Stop downloads deletes: everything not yet here (on its way, or failed); what's here stays. */
     fun toStop(downloads: List<LocalDownload>): List<LocalDownload> = downloads.filter { !it.isDownloaded }
 
     /** What Try again asks for again. */
     fun failed(downloads: List<LocalDownload>): List<LocalDownload> = downloads.filter { it.phase == LocalPhase.Failed }
+
+    /**
+     * The episodes whose sizes are asked of the server for a group's estimate: every one, or [most] spread evenly across
+     * a long show, so a show of hundreds of episodes doesn't ask hundreds of times.
+     */
+    fun sizeSample(episodes: List<ItemSummary>, most: Int = SIZE_SAMPLE): List<ItemSummary> =
+        if (episodes.size <= most) episodes else List(most) { episodes[it * episodes.size / most] }
+
+    /** About how big [count] episodes come to, from the sizes the server gave for those asked about ([known]); null with none. */
+    fun estimatedBytes(known: List<Long>, count: Int): Long? =
+        if (known.isEmpty()) null else (known.sum().toDouble() / known.size * count).toLong()
+
+    /** Whether [bytes] would leave the phone short of room, with [freeBytes] free (and a little kept spare, as a transfer does). */
+    fun outgrows(bytes: Long, freeBytes: Long): Boolean = bytes + SPARE_BYTES > freeBytes
+
+    private const val SIZE_SAMPLE = 40
+    private const val SPARE_BYTES = 200L * 1024 * 1024
 
     /**
      * The started groups Stop or Remove on [episodes] forgets: every group holding one of them, its show and its season

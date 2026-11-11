@@ -70,6 +70,7 @@ import io.github.flexarr.core.Format
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.LocalDownload
 import io.github.flexarr.core.LocalPhase
+import io.github.flexarr.core.TransferQueue
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.asPodcastEpisode
 import io.github.flexarr.core.bytes
@@ -293,6 +294,7 @@ private fun DownloadStatusLine(model: AppModel, download: LocalDownload, doneLin
     @Composable fun caption(text: String) = Text(text, fontSize = 12.sp, color = Flexarr.usher, style = io.github.flexarr.ui.podcasts.Tabular)
     when {
         store.isWaitingForWiFi(download) -> caption(t("Waiting for Wi-Fi"))
+        TransferQueue.isQueued(download) -> caption(t("Queued"))
         download.phase == LocalPhase.Preparing -> caption(gettingReady(download.progress))
         download.phase == LocalPhase.Downloading -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             val progress = store.progress(download)
@@ -355,6 +357,7 @@ internal fun DownloadRing(fraction: Float) {
 fun downloadDescription(download: LocalDownload?, waitingForWiFi: Boolean): String = when {
     waitingForWiFi -> t("Waiting for Wi-Fi")
     download == null -> t(Words.download)
+    TransferQueue.isQueued(download) -> t("Queued")
     download.phase == LocalPhase.Preparing -> t("Getting ready on the server")
     download.phase == LocalPhase.Downloading -> t("Downloading, {percent}%", "percent" to (download.progress * 100).toInt())
     download.phase == LocalPhase.Downloaded -> t("Downloaded")
@@ -387,6 +390,7 @@ fun DownloadAction(model: AppModel, item: ItemSummary, modifier: Modifier = Modi
     val label = when {
         waiting -> t("Waiting for Wi-Fi")
         download == null -> t(Words.download)
+        TransferQueue.isQueued(download) -> t("Queued")
         download.phase == LocalPhase.Preparing -> t("Getting ready")
         download.phase == LocalPhase.Downloading -> "${(store.progress(download) * 100).toInt()}%"
         download.phase == LocalPhase.Downloaded -> t("Downloaded")
