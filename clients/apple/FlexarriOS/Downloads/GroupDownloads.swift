@@ -229,7 +229,9 @@ struct ShowDownloadButton: View {
     @Environment(AppModel.self) private var model
     @Environment(DownloadStore.self) private var store
     let show: ItemSummary
-    let seasons: [ItemSummary]
+    /// The show's seasons, once its page has loaded (nil until then: the button waits, rather than finding no
+    /// episodes in a page that's only a preview).
+    let seasons: [ItemSummary]?
     @State private var episodes: [ItemSummary]?
     @State private var loading = false
     @State private var pressing = false
@@ -256,16 +258,18 @@ struct ShowDownloadButton: View {
                 if loading { ProgressView().frame(width: 22, height: 22) } else { DownloadStateIcon(state: status?.iconState) }
             }
         }
-        .disabled(loading || pressing)
+        .disabled(seasons == nil || loading || pressing)
         .accessibilityLabel(status.map(accessibility) ?? t("Download show"))
         .modifier(GroupDownloadAlert(question: $question, group: show.id, episodes: episodes ?? []))
-        .task(id: show.id) {
+        // Again whenever the seasons change (the page loaded, or reloaded with more): what was found is for those.
+        .task(id: seasons?.map(\.id)) {
+            episodes = nil
             if store.hasDownloads(ofShow: show.id) { await load() }
         }
     }
 
     private func load() async {
-        guard let client = model.client, !loading else { return }
+        guard let client = model.client, let seasons, !seasons.isEmpty, !loading else { return }
         loading = true
         defer { loading = false }
         do {
@@ -273,7 +277,8 @@ struct ShowDownloadButton: View {
             for season in seasons {
                 all += try await client.item(season.id).children.filter { $0.kind == .episode }
             }
-            episodes = all
+            // None found isn't kept: the next press looks again.
+            episodes = all.isEmpty ? nil : all
         } catch {
             question = .failed(ConnectionError(error).message)
         }

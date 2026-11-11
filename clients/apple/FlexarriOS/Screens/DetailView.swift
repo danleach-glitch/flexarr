@@ -284,7 +284,7 @@ struct DetailView: View {
         case .download:
             if item.kind == .series {
                 // Every episode of every season.
-                ShowDownloadButton(show: item, seasons: (detail?.children ?? []).filter { $0.kind == .season })
+                ShowDownloadButton(show: item, seasons: detail.map { $0.children.filter { $0.kind == .season } })
             } else {
                 DownloadButton(item: item, copies: detail?.copyIds ?? [])
             }
