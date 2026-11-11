@@ -243,15 +243,25 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
         download.FilePath = null;
     }
 
+    /// <summary>Whose download is converted next (see <see cref="DownloadTurns"/>).</summary>
+    private readonly DownloadTurns _turns = new();
+
     /// <returns>False when nothing was queued.</returns>
     private async Task<bool> PrepareNextAsync(CancellationToken ct)
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
-        var download = await db.Downloads.IgnoreQueryFilters().Where(d => d.Status == DownloadStatus.Queued).OrderBy(d => d.CreatedAt).FirstOrDefaultAsync(ct);
-        if (download is null)
+        var queued = (await db.Downloads.IgnoreQueryFilters().Where(d => d.Status == DownloadStatus.Queued)
+            .Select(d => new
+            {
+                d.Id, d.ProfileId, d.CreatedAt, d.MediaItemId,
+                Batch = d.MediaItem!.Kind == MediaKind.Episode ? d.MediaItem.Parent!.ParentId : d.MediaItem.Kind == MediaKind.Track ? d.MediaItem.ParentId : null,
+            }).ToListAsync(ct))
+            .Select(d => new DownloadTurns.Waiting(d.Id, d.ProfileId, d.Batch ?? d.MediaItemId, d.CreatedAt)).ToList();
+        if (_turns.Next(queued) is not { } next
+            || await db.Downloads.IgnoreQueryFilters().FirstOrDefaultAsync(d => d.Id == next && d.Status == DownloadStatus.Queued, ct) is not { } download)
         {
-            return false;
+            return queued.Count > 0; // taken meanwhile (made ready as it is, or deleted): the next round looks again
         }
 
         var file = await DownloadSource.ForAsync(db, download.MediaItemId, download.Quality, download.ProfileId, ct);
