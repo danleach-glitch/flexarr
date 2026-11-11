@@ -30,7 +30,7 @@ export function useSettings() {
   const waiting = error ? (
     <div className="panel">
       <p className="error" role="alert">
-        {t('Couldn’t load the settings: {message}', { message: error.message })}
+        {t('Couldn’t load the settings: {message}', { message: errorText(error) })}
       </p>
       <AsyncButton className="button quiet small" busy={loading} onClick={reload}>
         {t('Try again')}
