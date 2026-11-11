@@ -511,6 +511,71 @@ public class DeleteTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
     }
 
     [Fact]
+    public async Task AFilmNoRadarrsFoldersHold_GoesThroughTheRadarrOnItsRecord_NeverFromDisk()
+    {
+        var arr = new FakeArr();
+        using var app = WithSecondRadarr(arr, factory);
+        var (hd, uhd, _, hdFile, _, root) = await AddLinkedFilmAsync(app, arr);
+        await DeleteDirectlyAsync(app, uhd);
+        // A path mapping missing: Radarr reports its folder as it sees it.
+        arr.Responses["GET //radarr.test/api/v3/movie"] = System.Text.Json.JsonSerializer.Serialize(new[] { new { id = 7, title = "Film", path = "/movies/Film" } });
+
+        var response = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{hd}", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Contains("DELETE /api/v3/movie/7?deleteFiles=true&addImportExclusion=false", arr.Requests);
+        Assert.True(File.Exists(hdFile)); // Radarr's to delete (the fake one doesn't)
+        Directory.Delete(root, recursive: true);
+    }
+
+    [Fact]
+    public async Task ACopyWhoseRecordNamesTheRadarrHoldingTheOther_IsntDeletedThroughIt_NorFromDisk()
+    {
+        var arr = new FakeArr();
+        using var app = WithSecondRadarr(arr, factory);
+        var (hd, uhd, _, hdFile, uhdFile, root) = await AddLinkedFilmAsync(app, arr);
+        // The 4K Radarr's folder isn't mapped, and the 4K copy's record names the HD Radarr's film.
+        arr.Responses["GET //radarr4k.test/api/v3/movie"] = System.Text.Json.JsonSerializer.Serialize(new[] { new { id = 9, title = "Film", path = "/movies-4k/Film" } });
+
+        var response = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{uhd}", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.DoesNotContain(arr.Requests, r => r.StartsWith("DELETE", StringComparison.Ordinal));
+        Assert.True(File.Exists(uhdFile));
+        Assert.True(File.Exists(hdFile));
+        using var check = app.Services.CreateScope();
+        Assert.True(await check.ServiceProvider.GetRequiredService<FlexarrDbContext>().MediaItems.IgnoreQueryFilters().AnyAsync(i => i.Id == uhd || i.Id == hd));
+        Directory.Delete(root, recursive: true);
+    }
+
+    [Fact]
+    public async Task AFilmTheRadarrOnItsRecordNoLongerHas_IsDeletedFromDisk()
+    {
+        var arr = new FakeArr();
+        using var app = WithSecondRadarr(arr, factory);
+        var (hd, uhd, _, hdFile, _, root) = await AddLinkedFilmAsync(app, arr);
+        await DeleteDirectlyAsync(app, uhd);
+        arr.Responses["GET //radarr.test/api/v3/movie"] = "[]";
+
+        var response = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{hd}", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.DoesNotContain(arr.Requests, r => r.StartsWith("DELETE", StringComparison.Ordinal));
+        Assert.False(File.Exists(hdFile));
+        Directory.Delete(root, recursive: true);
+    }
+
+    /// <summary>Takes a copy out of Flexarr without asking any app, leaving the other unlinked.</summary>
+    private static async Task DeleteDirectlyAsync(Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> app, Guid id)
+    {
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        await db.MediaFiles.Where(f => f.MediaItemId == id).ExecuteDeleteAsync();
+        await db.MediaItems.IgnoreQueryFilters().Where(i => i.Id == id).ExecuteDeleteAsync();
+        await TitleLinker.LinkAsync(db, default);
+    }
+
+    [Fact]
     public async Task ADailyShowsEpisode_GoesThroughTheSonarrHoldingIt_FoundByItsDate()
     {
         var root = Directory.CreateTempSubdirectory("flexarr-daily-").FullName;

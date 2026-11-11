@@ -669,6 +669,8 @@
  "Couldn’t stop following this artist": "Couldn’t stop following this artist",
  "Couldn’t switch profile.": "Couldn’t switch profile.",
  "Couldn’t take the PIN off.": "Couldn’t take the PIN off.",
+ "Couldn’t tell which app holds it.": "Couldn’t tell which app holds it.",
+ "Couldn’t tell which app holds it. Check the path mappings in Settings, then try again. Nothing was deleted.": "Couldn’t tell which app holds it. Check the path mappings in Settings, then try again. Nothing was deleted.",
  "Couldn’t turn away the device": "Couldn’t turn away the device",
  "Couldn’t turn away {device}": "Couldn’t turn away {device}",
  "Couldn’t turn on notifications": "Couldn’t turn on notifications",

@@ -670,6 +670,8 @@
   "Couldn’t stop following this artist": "n",
   "Couldn’t switch profile.": "w",
   "Couldn’t take the PIN off.": "w",
+  "Couldn’t tell which app holds it.": "s",
+  "Couldn’t tell which app holds it. Check the path mappings in Settings, then try again. Nothing was deleted.": "s",
   "Couldn’t turn away the device": "a",
   "Couldn’t turn away {device}": "a",
   "Couldn’t turn on notifications": "an",
