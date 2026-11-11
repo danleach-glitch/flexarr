@@ -91,8 +91,8 @@ private struct GroupDownloadActions: ViewModifier {
     @Environment(DownloadStore.self) private var store
     let episodes: [ItemSummary]?
     @Binding var trigger: Bool
-    /// Asks before downloading (a whole show can be a lot).
-    let confirms: Bool
+    /// Asks before downloading, naming the show (a whole show can be a lot); nil downloads straight away.
+    let confirmsFor: String?
     @State private var confirming = 0
     @State private var stopping = false
     @State private var removing = false
@@ -106,13 +106,13 @@ private struct GroupDownloadActions: ViewModifier {
                 guard let episodes else { return }
                 switch GroupDownloadStatus(store.states(of: episodes)) {
                 case .notStarted(let missing):
-                    if confirms { confirming = missing } else { start(episodes) }
+                    if confirmsFor != nil { confirming = missing } else { start(episodes) }
                 case .failed: start(episodes)
                 case .downloading: stopping = true
                 case .downloaded: removing = true
                 }
             }
-            .alert(t("Download {count, plural, one {# episode} other {# episodes}}?", ["count": confirming]),
+            .alert(t("Download {count, plural, one {# episode} other {# episodes}} of {show}?", ["count": confirming, "show": confirmsFor ?? ""]),
                    isPresented: Binding(get: { confirming > 0 }, set: { if !$0 { confirming = 0 } })) {
                 Button(t(Words.download)) { if let episodes { start(episodes) } }
                 Button(t(Words.cancel), role: .cancel) {}
@@ -167,8 +167,8 @@ struct ShowDownloadButton: View {
             }
         }
         .disabled(loading)
-        .accessibilityLabel(status.map(accessibility) ?? t(Words.download))
-        .modifier(GroupDownloadActions(episodes: episodes, trigger: $pressed, confirms: true))
+        .accessibilityLabel(status.map(accessibility) ?? t("Download show"))
+        .modifier(GroupDownloadActions(episodes: episodes, trigger: $pressed, confirmsFor: show.title))
         .alert(t("Couldn’t download this"), isPresented: Binding(get: { loadError != nil }, set: { if !$0 { loadError = nil } })) {
             Button(t("OK"), role: .cancel) {}
         } message: {
@@ -199,7 +199,8 @@ struct ShowDownloadButton: View {
         case .downloading(_, let done, let total): t("{done} of {total}", ["done": done, "total": total])
         case .downloaded: t("Downloaded")
         case .failed: t("Couldn’t download")
-        case .notStarted, nil: t(Words.download)
+        // "Show", so it isn't taken for downloading the episode Play is about to play.
+        case .notStarted, nil: t("Download show")
         }
     }
 
@@ -208,7 +209,7 @@ struct ShowDownloadButton: View {
         case .downloading(let fraction, _, _): t("Downloading, {percent}%", ["percent": Int(fraction * 100)])
         case .downloaded: t("Downloaded")
         case .failed: t("Couldn’t download")
-        case .notStarted: t(Words.download)
+        case .notStarted: t("Download show")
         }
     }
 }
@@ -232,7 +233,7 @@ struct SeasonDownloadLink: View {
             .monospacedDigit()
         }
         .buttonStyle(.plain)
-        .modifier(GroupDownloadActions(episodes: episodes, trigger: $pressed, confirms: false))
+        .modifier(GroupDownloadActions(episodes: episodes, trigger: $pressed, confirmsFor: nil))
         .opacity(episodes.isEmpty ? 0 : 1)
         .disabled(episodes.isEmpty)
     }
