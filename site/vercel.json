@@ -1,7 +1,15 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
-  "redirects": [{ "source": "/install", "destination": "/#setup", "permanent": false }],
+  "redirects": [
+    { "source": "/install", "destination": "/#setup", "permanent": false },
+    {
+      "source": "/:path((?!\\.well-known/).*)",
+      "has": [{ "type": "host", "value": "flexarr.io" }],
+      "destination": "https://www.flexarr.io/:path",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     { "source": "/api/push", "destination": "https://push.flexarr.io/api/push" },
     { "source": "/.well-known/apple-app-site-association", "destination": "https://push.flexarr.io/api/app-links?platform=apple" },
