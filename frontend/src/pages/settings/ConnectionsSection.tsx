@@ -233,8 +233,7 @@ export function ConnectionsSection() {
             onOpen={() => setOpen('trakt')}
             onClose={() => setOpen(undefined)}
             onSave={async (traktApp) => {
-              // Trakt's sign-ins belong to the app that gave them: everyone connects again after a switch (a new secret for
-              // the same app changes nothing for them).
+              // Trakt's sign-ins belong to the app that gave them: everyone connects again after a switch.
               if ((traktApp.clientId || null) !== (settings.traktApp?.clientId || null) && !(await ask({ title: t('Change the Trakt app? Everyone who connected to Trakt will need to connect again.'), confirmLabel: t('Change app'), danger: true }))) return
               if (!(await save({ traktApp }))) return
               setOpen(undefined)
@@ -679,7 +678,7 @@ function TmdbRow({
 
 /**
  * Trakt works through Flexarr's own Trakt app. Someone building Flexarr themselves, or who wants their own, can give
- * their app's id and secret instead; the secret is never sent back.
+ * their app's client id instead: Trakt's sign-in needs no secret.
  */
 function TraktAppRow({
   app,
@@ -692,14 +691,13 @@ function TraktAppRow({
   open: boolean
   onOpen: () => void
   onClose: () => void
-  onSave: (app: { clientId: string; clientSecret?: string }) => Promise<void>
+  onSave: (app: { clientId: string }) => Promise<void>
 }) {
   const [clientId, setClientId] = useState(app?.clientId ?? '')
-  const [secret, setSecret] = useState('')
   const [saving, setSaving] = useState(false)
   return (
     <div className="connection">
-      <ConnectionLine icon={<Refresh />} name="Trakt" ok={app ? app.hasSecret : undefined} status={app ? t('Your own Trakt app') : t('Flexarr’s Trakt app')} baseUrl="" connected open={open} onOpen={onOpen} />
+      <ConnectionLine icon={<Refresh />} name="Trakt" ok={app ? true : undefined} status={app ? t('Your own Trakt app') : t('Flexarr’s Trakt app')} baseUrl="" connected open={open} onOpen={onOpen} />
       {open && (
         <form
           className="connection-form"
@@ -707,18 +705,14 @@ function TraktAppRow({
           onSubmit={(e) => {
             e.preventDefault()
             setSaving(true)
-            void onSave({ clientId: clientId.trim(), clientSecret: secret.trim() || undefined }).finally(() => setSaving(false))
+            void onSave({ clientId: clientId.trim() }).finally(() => setSaving(false))
           }}
         >
-          <p className="muted">{t('Each profile connects its own Trakt account in its Settings. To use your own Trakt app instead of Flexarr’s, give its details.')}</p>
+          <p className="muted">{t('Each profile connects its own Trakt account in its Settings. To use your own Trakt app instead of Flexarr’s, give its client ID.')}</p>
           <div className="field-row">
             <label className="grow">
               {t('Client ID')}
               <input value={clientId} autoComplete="off" onChange={(e) => setClientId(e.target.value)} />
-            </label>
-            <label className="grow">
-              {t('Client secret')}
-              <input type="password" value={secret} autoComplete="off" placeholder={app?.hasSecret ? t('Saved; paste to replace') : ''} onChange={(e) => setSecret(e.target.value)} />
             </label>
           </div>
           <div className="form-actions">
@@ -730,7 +724,7 @@ function TraktAppRow({
             <button type="button" className="button quiet small" onClick={onClose}>
               {t(Words.cancel)}
             </button>
-            <AsyncButton type="submit" className="button small" busy={saving} disabled={!clientId.trim() || (!secret.trim() && !(app?.hasSecret && app.clientId === clientId.trim()))}>
+            <AsyncButton type="submit" className="button small" busy={saving} disabled={!clientId.trim()}>
               {t('Save')}
             </AsyncButton>
           </div>

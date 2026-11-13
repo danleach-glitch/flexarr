@@ -285,7 +285,7 @@ public static class SettingsEndpoints
                 {
                     var id = app.ClientId?.Trim() ?? "";
                     var savedSecret = current.Trakt.ClientId == id ? current.Trakt.ClientSecret : "";
-                    // Only the app's two keys change: a relay or API address set in config.json stays.
+                    // Only the app's two keys change: an API address set in config.json stays.
                     var trakt = config["trakt"] as JsonObject ?? [];
                     if (id.Length == 0)
                     {

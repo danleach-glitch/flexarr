@@ -10,7 +10,7 @@ Decided so far:
 - **Auto-request is a switch per profile, off by default.** When it's off, a missing title shows a one-tap Request.
 - **No link between profiles and Seerr users for now.** Requests still go in as the admin.
 - **Trakt history goes both ways, and watched wins.** A sync never marks anything unwatched, and the newest resume point wins.
-- **Flexarr registers one Trakt app, and its secret never ships.** Trakt calls need only the public client id and the person's token; the secret is needed only to swap and refresh tokens, so the relay (push.flexarr.io) does that one step and stores nothing. Since July 2026, Trakt only lets VIP members create API apps, so asking each admin to make their own isn't realistic, but an admin can still enter their own id and secret, which then bypass the relay. Trakt is hidden when a server has neither.
+- **Flexarr registers one Trakt app, with no secret.** Every Trakt call, device code sign-in, refresh and revoke included, needs only the public client id (and the person's token), so servers talk to Trakt directly and nothing sits in between. (Until November 2026 a relay at push.flexarr.io added a client secret to the token calls; Trakt asked for it to go when granting production access.) Since July 2026, Trakt only lets VIP members create API apps, so asking each admin to make their own isn't realistic, but an admin can still enter their own app's client id. Trakt is hidden when a server has neither.
 - **History for titles the server doesn't have is remembered** by their ids, so a title that arrives later is already marked watched.
 - **Marking something unwatched in Flexarr leaves Trakt alone.** Sync only pulls plays newer than the last sync, so an old Trakt play can't mark it watched again.
 - **One Trakt account per profile.** A second profile connecting the same account is refused, since every play would be scrobbled twice.
@@ -91,7 +91,7 @@ New endpoints only; nothing changes shape.
 - **Rate limits:** about 1 write per second and 1,000 reads per 5 minutes. History goes in batches.
 - **Free accounts:** the watchlist is capped (100 in 2025; reportedly 250 since 2026). When Trakt says the list is full, that title stays in Flexarr, and Settings shows it plainly.
 - **Matching:** films by TMDB id, then IMDb. Episodes by show (TVDB, TMDB, then IMDb) plus season and episode number. Specials and absolute numbering can disagree; anything unmatched is counted in the preview, never guessed at.
-- **Credentials:** the server asks the relay for the public client id (`GET`), so nothing is in the repo and a new app needs no release. The secret lives only in the relay's Vercel environment, which adds it to `/oauth/device/token` and `/oauth/token` (refresh) calls and passes them on. A setting overrides both with your own app. Flexarr's app is registered under Dan's Trakt account, which needs VIP.
+- **Credentials:** Flexarr's public client id is built into the server (`TraktOptions.FlexarrClientId`), so a new app means a release. No secret: Trakt's device code, refresh and revoke work with the client id alone. A setting swaps in the admin's own app's client id; a secret saved for one before this change is still sent with the token calls. Flexarr's app is registered under Dan's Trakt account, which needs VIP. If Flexarr later signs in where an app can open a browser and come back to an https address on flexarr.io, that uses PKCE, which needs no secret either.
 - **Scrobble stop vs pause:** Trakt counts a stop at 80% or more as watched. Flexarr sends stop only when it has counted the play as finished (92% or the end credits), and pause otherwise, so the two never disagree.
 
 ## Apps
@@ -118,6 +118,6 @@ All four in phase 1: web, iPhone and iPad, Apple TV, Android. On the Apple TV an
 ## Risks and open questions
 
 - **Trakt's API terms keep changing** (the VIP requirement, token lifetime, list caps). Keep the Trakt client small, and make the connection's status visible.
-- **Every server refreshes tokens through the relay** once a day per connected profile. If the relay is down, a token that expires meanwhile is refreshed on the next try; after repeated failures the connection says it needs sign-in again.
+- **Every server refreshes its tokens with Trakt** ahead of expiry. If Trakt is down, a token that expires meanwhile is refreshed on the next try; only Trakt refusing the refresh token (`invalid_grant`) says it needs sign-in again.
 - **When should a show leave the watchlist:** on starting it, or on finishing it? Plan: on starting it.
 - **Is the Home row on by default?** Yes: it's empty (so hidden) until something on the list is ready.

@@ -53,115 +53,32 @@ public enum DeviceTokenState
 
     Denied,
 
-    /// <summary>Trakt or the relay couldn't be reached: try again at the next interval.</summary>
+    /// <summary>Trakt couldn't be reached: try again at the next interval.</summary>
     Unreachable,
 }
 
 /// <summary>
-/// Talks to Trakt. Every call but the token ones needs only the client id and the person's own token, so it goes
-/// straight to Trakt; the token calls (device token, refresh, revoke) need the client secret too, so they go through
-/// the relay, which holds it, unless the admin set up their own app (see <see cref="TraktOptions"/>).
+/// Talks to Trakt, straight from this server: every call needs only the Trakt app's public client id (and, once
+/// signed in, the person's own token). Trakt's device code sign-in, token refresh and revoke need no client secret, so
+/// none ships and nothing stands between a server and Trakt. An admin's own app may still carry a secret from before;
+/// it's sent with the token calls if so.
 /// </summary>
 public sealed partial class TraktClient(HttpClient http, IOptionsMonitor<FlexarrOptions> options, ILogger<TraktClient> logger)
 {
-    private static readonly TimeSpan ClientIdLifetime = TimeSpan.FromHours(6);
-    private static readonly SemaphoreSlim ClientIdGate = new(1, 1);
-    private static (string Relay, string? Id, DateTime At)? relayClientId;
-
     private TraktOptions Options => options.CurrentValue.Trakt;
 
     private Uri Api(string path) => new(Options.ApiUrl.TrimEnd('/') + path);
 
-    /// <summary>Forgets the client id the relay gave (tests, and a relay that changed apps).</summary>
-    internal static void ForgetClientId() => relayClientId = null;
+    /// <summary>The Trakt app's client id: the admin's own, or Flexarr's. Null when there's neither, and Trakt stays hidden.</summary>
+    public string? ClientId => Options.ActiveClientId;
 
-    /// <summary>How long "the relay has no Trakt app" is believed before asking again.</summary>
-    private static readonly TimeSpan NotSetUpFor = TimeSpan.FromMinutes(10);
-
-    /// <summary>The relay is asked for the id with a short wait of its own: a slow relay mustn't hold up every call.</summary>
-    private static readonly TimeSpan RelayTimeout = TimeSpan.FromSeconds(5);
-
-    /// <summary>
-    /// The Trakt app's client id: the admin's own, or Flexarr's from the relay (cached a few hours). Null when there's
-    /// neither, and Trakt stays hidden. "Not set up" is remembered a few minutes; while the relay is unreachable or
-    /// answers with an error, the id it gave before is kept.
-    /// </summary>
-    public async Task<string?> ClientIdAsync(CancellationToken ct)
-    {
-        var o = Options;
-        if (o.HasOwnApp)
-        {
-            return o.ClientId;
-        }
-
-        if (o.RelayUrl.Length == 0 || !Uri.TryCreate(o.RelayUrl, UriKind.Absolute, out var relay))
-        {
-            return null;
-        }
-
-        static bool Fresh((string Relay, string? Id, DateTime At)? c, string url) =>
-            c is { } v && v.Relay == url && DateTime.UtcNow - v.At < (v.Id is null ? NotSetUpFor : ClientIdLifetime);
-
-        if (Fresh(relayClientId, o.RelayUrl))
-        {
-            return relayClientId!.Value.Id;
-        }
-
-        await ClientIdGate.WaitAsync(ct);
-        try
-        {
-            if (Fresh(relayClientId, o.RelayUrl))
-            {
-                return relayClientId!.Value.Id;
-            }
-
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            timeout.CancelAfter(RelayTimeout);
-            using var response = await http.GetAsync(relay, timeout.Token);
-            if (response.IsSuccessStatusCode && await response.Content.ReadFromJsonAsync<RelayClientId>(timeout.Token) is { ClientId.Length: > 0 } answer)
-            {
-                relayClientId = (o.RelayUrl, answer.ClientId, DateTime.UtcNow);
-                return answer.ClientId;
-            }
-
-            if (response.StatusCode is HttpStatusCode.ServiceUnavailable or HttpStatusCode.NotFound)
-            {
-                // Not set up there (or not there yet): nothing to offer for a while.
-                relayClientId = (o.RelayUrl, null, DateTime.UtcNow);
-                return null;
-            }
-
-            return KeepStale(o.RelayUrl);
-        }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException && !ct.IsCancellationRequested)
-        {
-            LogRelayUnreachable(ex.Message);
-            return KeepStale(o.RelayUrl);
-        }
-        finally
-        {
-            ClientIdGate.Release();
-        }
-    }
-
-    /// <summary>An id fetched before stays good while the relay is away, trusted for another while before asking again.</summary>
-    private static string? KeepStale(string relayUrl)
-    {
-        if (relayClientId is { Id: { } id } stale && stale.Relay == relayUrl)
-        {
-            relayClientId = (relayUrl, id, DateTime.UtcNow - ClientIdLifetime + TimeSpan.FromMinutes(30));
-            return id;
-        }
-
-        relayClientId = (relayUrl, null, DateTime.UtcNow);
-        return null;
-    }
+    private string RequireClientId() => ClientId ?? throw new TraktException(null, Loc.Mark("Trakt isn’t set up on this server."));
 
     // --- Connecting: device code, then its token.
 
     public async Task<TraktDeviceCode> DeviceCodeAsync(CancellationToken ct)
     {
-        var id = await ClientIdAsync(ct) ?? throw new TraktException(null, Loc.Mark("Trakt isn’t set up on this server."));
+        var id = RequireClientId();
         using var response = await SendAsync(HttpMethod.Post, Api("/oauth/device/code"), new { client_id = id }, null, id, ct);
         return await ReadAsync<TraktDeviceCode>(response, ct);
     }
@@ -170,9 +87,7 @@ public sealed partial class TraktClient(HttpClient http, IOptionsMonitor<Flexarr
     {
         try
         {
-            using var response = await TokenCallAsync("device_token", "/oauth/device/token",
-                own => new { code = deviceCode, client_id = own.ClientId, client_secret = own.ClientSecret },
-                new { grant = "device_token", code = deviceCode }, ct);
+            using var response = await TokenCallAsync("device_token", "/oauth/device/token", new() { ["code"] = deviceCode }, ct);
             return (int)response.StatusCode switch
             {
                 200 => (DeviceTokenState.Approved, await ReadAsync<TraktToken>(response, ct)),
@@ -193,20 +108,15 @@ public sealed partial class TraktClient(HttpClient http, IOptionsMonitor<Flexarr
     public async Task<TraktToken?> RefreshAsync(string refreshToken, CancellationToken ct)
     {
         using var response = await TokenCallAsync("refresh_token", "/oauth/token",
-            own => new
-            {
-                refresh_token = refreshToken, client_id = own.ClientId, client_secret = own.ClientSecret,
-                redirect_uri = "urn:ietf:wg:oauth:2.0:oob", grant_type = "refresh_token",
-            },
-            new { grant = "refresh_token", refreshToken }, ct);
+            new() { ["refresh_token"] = refreshToken, ["redirect_uri"] = "urn:ietf:wg:oauth:2.0:oob", ["grant_type"] = "refresh_token" }, ct);
         if (response.IsSuccessStatusCode)
         {
             return await ReadAsync<TraktToken>(response, ct);
         }
 
         // Only Trakt turning the refresh token down signs the profile out: a 400 or 401 saying invalid_grant. Anything
-        // else (the relay or Trakt unwell, the relay's own checks) is tried again later.
-        // Not invalid_client and the like: a wrong secret on the relay must not sign every profile out.
+        // else (Trakt unwell, or invalid_client from a client id that's wrong) is tried again later, so a slip in the
+        // app's settings doesn't sign every profile out.
         if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.BadRequest
             && (await response.Content.ReadAsStringAsync(ct)).Contains("invalid_grant", StringComparison.Ordinal))
         {
@@ -221,9 +131,7 @@ public sealed partial class TraktClient(HttpClient http, IOptionsMonitor<Flexarr
     {
         try
         {
-            using var response = await TokenCallAsync("revoke", "/oauth/revoke",
-                own => new { token = accessToken, client_id = own.ClientId, client_secret = own.ClientSecret },
-                new { grant = "revoke", token = accessToken }, ct);
+            using var response = await TokenCallAsync("revoke", "/oauth/revoke", new() { ["token"] = accessToken }, ct);
             if (!response.IsSuccessStatusCode)
             {
                 LogRevokeFailed($"answered {(int)response.StatusCode}");
@@ -235,22 +143,18 @@ public sealed partial class TraktClient(HttpClient http, IOptionsMonitor<Flexarr
         }
     }
 
-    private async Task<HttpResponseMessage> TokenCallAsync(string grant, string path, Func<TraktOptions, object> direct, object viaRelay, CancellationToken ct)
+    /// <summary>A token call: the body plus the client id, and the secret only when the admin's own app has one.</summary>
+    private async Task<HttpResponseMessage> TokenCallAsync(string grant, string path, Dictionary<string, string> body, CancellationToken ct)
     {
-        var o = Options;
+        body["client_id"] = RequireClientId();
+        if (Options.OwnSecret is { } secret)
+        {
+            body["client_secret"] = secret;
+        }
+
         try
         {
-            if (o.HasOwnApp)
-            {
-                return await http.PostAsJsonAsync(Api(path), direct(o), ct);
-            }
-
-            if (!Uri.TryCreate(o.RelayUrl, UriKind.Absolute, out var relay))
-            {
-                throw new TraktException(null, Loc.Mark("Trakt isn’t set up on this server."));
-            }
-
-            return await http.PostAsJsonAsync(relay, viaRelay, ct);
+            return await http.PostAsJsonAsync(Api(path), body, ct);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
         {
@@ -296,7 +200,7 @@ public sealed partial class TraktClient(HttpClient http, IOptionsMonitor<Flexarr
     /// <summary>Sends a <c>/sync</c> change ("/sync/history", "/sync/watchlist", "/sync/watchlist/remove").</summary>
     public async Task<TraktSyncResult> SyncAsync(string path, TraktSyncBody body, string token, CancellationToken ct)
     {
-        var id = await ClientIdAsync(ct) ?? throw new TraktException(null, Loc.Mark("Trakt isn’t set up on this server."));
+        var id = RequireClientId();
         using var response = await SendAsync(HttpMethod.Post, Api(path), body, token, id, ct);
         return await ReadAsync<TraktSyncResult>(response, ct);
     }
@@ -304,20 +208,20 @@ public sealed partial class TraktClient(HttpClient http, IOptionsMonitor<Flexarr
     /// <param name="action">"start", "pause" or "stop".</param>
     public async Task ScrobbleAsync(string action, TraktScrobbleBody body, string token, CancellationToken ct)
     {
-        var id = await ClientIdAsync(ct) ?? throw new TraktException(null, Loc.Mark("Trakt isn’t set up on this server."));
+        var id = RequireClientId();
         using var response = await SendAsync(HttpMethod.Post, Api($"/scrobble/{action}"), body, token, id, ct, okStatuses: [HttpStatusCode.Conflict]);
     }
 
     private async Task<T> GetAsync<T>(string path, string token, CancellationToken ct)
     {
-        var id = await ClientIdAsync(ct) ?? throw new TraktException(null, Loc.Mark("Trakt isn’t set up on this server."));
+        var id = RequireClientId();
         using var response = await SendAsync(HttpMethod.Get, Api(path), null, token, id, ct);
         return await ReadAsync<T>(response, ct);
     }
 
     private async Task<List<T>> GetAllPagesAsync<T>(string path, string token, CancellationToken ct, int limit = 250)
     {
-        var id = await ClientIdAsync(ct) ?? throw new TraktException(null, Loc.Mark("Trakt isn’t set up on this server."));
+        var id = RequireClientId();
         var all = new List<T>();
         var separator = path.Contains('?', StringComparison.Ordinal) ? '&' : '?';
         for (var page = 1; page <= 200; page++)
@@ -394,11 +298,6 @@ public sealed partial class TraktClient(HttpClient http, IOptionsMonitor<Flexarr
             throw new TraktException(response.StatusCode, Loc.Mark("Trakt’s answer didn’t make sense."));
         }
     }
-
-    private sealed record RelayClientId(string? ClientId);
-
-    [LoggerMessage(Level = LogLevel.Information, Message = "Couldn't reach the Trakt relay: {Reason}")]
-    private partial void LogRelayUnreachable(string reason);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Couldn't reach Trakt for {Grant}: {Reason}")]
     private partial void LogTokenUnreachable(string grant, string reason);

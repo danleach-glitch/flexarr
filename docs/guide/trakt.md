@@ -64,10 +64,10 @@ Everything a connected profile watches goes to Trakt, whichever library it's in,
 
 ## Your own Trakt app
 
-Flexarr uses its own Trakt app, so there's nothing to set up. If you'd rather use your own, the main profile can enter its **Client ID** and **Client secret** in **Settings › Connections › Trakt**. Trakt gives an app a Client secret only when you ask for one in its Production access request. Everyone then connects again, as sign-ins belong to the app that gave them.
+Flexarr uses its own Trakt app, so there's nothing to set up. If you'd rather use your own, the main profile can enter its **Client ID** in **Settings › Connections › Trakt**; no secret is needed. Everyone then connects again, as sign-ins belong to the app that gave them.
 
 ## Privacy
 
-Your server keeps each connected profile's Trakt sign-in and sync state, and nothing leaves it except to Trakt. Signing in and renewing it go through Flexarr's relay, which stores nothing. The [privacy policy](https://flexarr.io/privacy#trakt) has the details.
+Your server keeps each connected profile's Trakt sign-in and sync state, and nothing leaves it except to Trakt: signing in goes straight there too. The [privacy policy](https://flexarr.io/privacy#trakt) has the details.
 
 Flexarr uses Trakt but is not endorsed or certified by Trakt.
