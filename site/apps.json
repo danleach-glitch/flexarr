@@ -7,7 +7,7 @@
       "name": "Server + Web Player",
       "icon": "flexarr",
       "status": "available",
-      "version": "0.65.0",
+      "version": "0.66.0",
       "release": "server",
       "runsOn": ["Docker", "Synology", "Unraid", "Linux", "Windows", "Mac"],
       "summary": "Reads your films, TV, music and podcasts, works with Sonarr, Radarr and Lidarr, and streams to every app. The web player is built in: open your server's address in any browser.",

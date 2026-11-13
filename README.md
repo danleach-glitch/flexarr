@@ -128,7 +128,7 @@ flowchart LR
 <!-- apps:start (made by `make apps` from site/apps.json; edit that, not this) -->
 | App | Status | Version | Get it |
 | --- | --- | --- | --- |
-| **Server + Web Player**<br><sub>Docker · Synology · Unraid · Linux · Windows · Mac</sub> | ✅ Available | 0.65.0 | [Set up your server](https://flexarr.io/#setup) · [What's new](https://github.com/danleach-glitch/flexarr/releases) |
+| **Server + Web Player**<br><sub>Docker · Synology · Unraid · Linux · Windows · Mac</sub> | ✅ Available | 0.66.0 | [Set up your server](https://flexarr.io/#setup) · [What's new](https://github.com/danleach-glitch/flexarr/releases) |
 | **Server for Mac** | ✅ Available | 0.57.0 | [Mac App Store](https://apps.apple.com/app/flexarr-server/id6827844952) · [Guide](https://flexarr.io/guide/install-macos) |
 | **iPhone and iPad** | ✅ Available | 0.57.0 | [App Store](https://apps.apple.com/app/flexarr/id6826618084) · [Guide](https://flexarr.io/guide/connect-devices#iphone-and-ipad) |
 | **Mac** | ✅ Available | 0.62.1 | [Download for Mac](https://github.com/danleach-glitch/flexarr/releases/latest/download/Flexarr.dmg) · [Guide](https://flexarr.io/guide/connect-devices#mac) |
