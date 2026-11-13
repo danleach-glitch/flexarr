@@ -6,7 +6,7 @@ using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Trakt;
 
-/// <param name="Available">The server can offer Trakt (it has Flexarr's app through the relay, or its own).</param>
+/// <param name="Available">The server can offer Trakt (Flexarr's Trakt app is built in, or the admin set up their own).</param>
 /// <param name="State">"disconnected", "connected" or "needsSignIn".</param>
 /// <param name="Pending">A connect in progress (or just ended, saying how).</param>
 /// <param name="Queued">Changes waiting to go to Trakt.</param>
@@ -42,7 +42,7 @@ public static class TraktEndpoints
         // A code to enter at trakt.tv/activate; the server waits for it, so the app can close.
         group.MapPost("/connect", async (CurrentProfile profile, TraktClient trakt, TraktConnector connector, CancellationToken ct) =>
         {
-            if (await trakt.ClientIdAsync(ct) is null)
+            if (trakt.ClientId is null)
             {
                 return Problems.Of("Trakt isn’t available on this server.", status: 409);
             }
@@ -164,7 +164,7 @@ public static class TraktEndpoints
     {
         var c = await db.TraktConnections.AsNoTracking().FirstOrDefaultAsync(x => x.ProfileId == profileId, ct);
         var queued = c is null ? 0 : await db.TraktOutbox.CountAsync(o => o.ProfileId == profileId, ct);
-        return new TraktStatusDto(await trakt.ClientIdAsync(ct) is not null, StateOf(c), c?.Username, c?.ConnectedAt, c?.LastSyncAt,
+        return new TraktStatusDto(trakt.ClientId is not null, StateOf(c), c?.Username, c?.ConnectedAt, c?.LastSyncAt,
             c?.LastError, c?.WatchlistFull ?? false, c?.ImportedAt, imports.Running(profileId), queued, connector.Current(profileId), imports.Error(profileId));
     }
 }

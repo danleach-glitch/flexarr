@@ -2,6 +2,13 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Trakt
+
+- Signing in to Trakt now goes from your server straight to Trakt, with nothing passing through flexarr.io.
+- Using your own Trakt app needs only its Client ID: Trakt no longer needs a Client secret.
+
 ## 0.66.0 · 13 November 2026
 
 ### Apple TV

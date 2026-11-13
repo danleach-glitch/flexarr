@@ -78,7 +78,7 @@ Your library, what everyone watches, your profiles and your logs stay on your se
 - **Artwork and details.** The server downloads posters and artwork from the image addresses Sonarr, Radarr and Lidarr give it, looks up shows on TVmaze, and movies on TMDB if you add a TMDB key.
 - **Audiobook details** (from the next release) come from Audible, Apple Books and Open Library, with no keys needed.
 - **Updates.** Once a day the server asks GitHub whether there's a newer version.
-- **Trakt**, if a profile connects to it. Signing in goes through the relay at push.flexarr.io unless you use your own Trakt app.
+- **Trakt**, if a profile connects to it, straight from your server.
 - **Podcasts.** Browsing and search use Apple's podcast directory, and the server fetches each show's feed and episodes. Your devices play them through your server, so podcast hosts see your server rather than each listener.
 - **Live TV logos**, if you use Live TV, come from a community collection on GitHub.
 - **Notifications**, if you turn them on, pass through a small relay at push.flexarr.io on their way to Apple. They're encrypted on your server so only your phone can read them; the relay never sees what's in them and keeps nothing. The iPhone's Lock Screen panel for a TV is the exception: its updates carry only whether it's paused, how far in it is, how long it is and its speed, unencrypted, never the title or picture.

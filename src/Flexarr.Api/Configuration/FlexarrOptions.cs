@@ -351,18 +351,36 @@ public sealed class NotificationOptions
 }
 
 /// <summary>
-/// Trakt (see docs/watchlist-trakt.md). By default Flexarr's own Trakt app: its public client id comes from the relay,
-/// which also holds the secret and makes the token calls. An admin's own app (both id and secret) bypasses the relay.
+/// Trakt (see docs/watchlist-trakt.md). By default Flexarr's own Trakt app, whose public client id is built in; an
+/// admin can use their own app's client id instead. Trakt's sign-in, refresh and revoke need no client secret.
 /// </summary>
 public sealed class TraktOptions
 {
+    /// <summary>
+    /// Flexarr's Trakt app. Public: Trakt shows it to anyone who looks, and every request carries it. Empty until Trakt
+    /// grants the app production access; Trakt stays hidden until then unless the admin uses their own app.
+    /// </summary>
+    public const string FlexarrClientId = "";
+
+    /// <summary>The admin's own Trakt app, used instead of Flexarr's.</summary>
     public string ClientId { get; set; } = "";
+
+    /// <summary>The admin's own app's secret, from before Trakt stopped needing one; sent with the token calls if set.</summary>
     public string ClientSecret { get; set; } = "";
-    public string RelayUrl { get; set; } = "https://push.flexarr.io/api/trakt";
+
+    /// <summary>Flexarr's app id, for tests and a fork that has its own: the built-in one unless set.</summary>
+    public string AppClientId { get; set; } = FlexarrClientId;
+
     public string ApiUrl { get; set; } = "https://api.trakt.tv";
 
-    /// <summary>Both an id and a secret of the admin's own Trakt app.</summary>
-    public bool HasOwnApp => ClientId.Length > 0 && ClientSecret.Length > 0;
+    /// <summary>The admin set up their own Trakt app.</summary>
+    public bool HasOwnApp => ClientId.Trim().Length > 0;
+
+    /// <summary>The client id every call carries, or null when there's none and Trakt is hidden.</summary>
+    public string? ActiveClientId => HasOwnApp ? ClientId.Trim() : AppClientId.Trim() is { Length: > 0 } app ? app : null;
+
+    /// <summary>The own app's secret, when it has one; never Flexarr's (it has none).</summary>
+    public string? OwnSecret => HasOwnApp && ClientSecret.Trim() is { Length: > 0 } secret ? secret : null;
 }
 
 public sealed class TmdbOptions

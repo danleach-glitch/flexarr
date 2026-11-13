@@ -18,7 +18,7 @@ namespace Flexarr.Api.Tests;
 
 /// <summary>
 /// Trakt: connecting by device code, tokens kept fresh, scrobbling, the outbox, the history import with its preview,
-/// the two-way sync (watched wins) and the watchlist both ways. Trakt and the relay are a <see cref="FakeTrakt"/>.
+/// the two-way sync (watched wins) and the watchlist both ways. Trakt is a <see cref="FakeTrakt"/>.
 /// </summary>
 public sealed class TraktTests : IAsyncLifetime
 {
@@ -28,7 +28,6 @@ public sealed class TraktTests : IAsyncLifetime
 
     public Task InitializeAsync()
     {
-        TraktClient.ForgetClientId();
         TraktAccounts.ForgetFailures();
         _server = _trakt.Serve(_factory);
         return Task.CompletedTask;
@@ -98,10 +97,10 @@ public sealed class TraktTests : IAsyncLifetime
     // ---- Availability and connecting ----
 
     [Fact]
-    public async Task WithoutCredentials_TraktIsNotOffered()
+    public async Task WithoutAClientId_TraktIsNotOffered()
     {
-        TraktClient.ForgetClientId();
-        _trakt.Set("GET /api/trakt", """{"reason":"NotConfigured"}""", HttpStatusCode.ServiceUnavailable);
+        await _server.DisposeAsync();
+        _server = _trakt.Serve(_factory, appClientId: "");
 
         var status = await StatusAsync();
         var connect = await Client().PostAsync(Api("/trakt/connect"), null);
@@ -111,10 +110,8 @@ public sealed class TraktTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task TheAdminsOwnApp_GoesStraightToTrakt_WithItsSecret()
+    public async Task TheAdminsOwnApp_IsUsedInstead_WithAnOldSecretStillSent()
     {
-        TraktClient.ForgetClientId();
-        _trakt.Set("GET /api/trakt", "{}", HttpStatusCode.ServiceUnavailable);
         _server.Services.GetRequiredService<TraktConnector>().MinimumInterval = TimeSpan.FromMilliseconds(20);
         _trakt.Set("POST /oauth/device/token", FakeTrakt.Token());
 
@@ -128,15 +125,33 @@ public sealed class TraktTests : IAsyncLifetime
         Assert.True(settings.GetProperty("traktApp").GetProperty("hasSecret").GetBoolean());
         Assert.DoesNotContain("my-own-secret", settings.GetRawText(), StringComparison.Ordinal);
         Assert.True(status.GetProperty("available").GetBoolean());
-        Assert.Contains("my-own-secret", _trakt.Bodies("POST /oauth/device/token").First(), StringComparison.Ordinal);
-        Assert.DoesNotContain(_trakt.Requests, r => r.Key == "POST /api/trakt");
+        var body = JsonDocument.Parse(_trakt.Bodies("POST /oauth/device/token").First()).RootElement;
+        Assert.Equal("my-own-id", body.GetProperty("client_id").GetString());
+        Assert.Equal("my-own-secret", body.GetProperty("client_secret").GetString());
+    }
+
+    [Fact]
+    public async Task TheAdminsOwnApp_NeedsOnlyItsClientId()
+    {
+        _server.Services.GetRequiredService<TraktConnector>().MinimumInterval = TimeSpan.FromMilliseconds(20);
+        _trakt.Set("POST /oauth/device/token", FakeTrakt.Token());
+
+        var saved = await Client().PutAsJsonAsync(Api("/settings"), new { traktApp = new { clientId = "my-own-id" } });
+        await Client().PostAsync(Api("/trakt/connect"), null);
+        await WaitForAsync(s => s.GetProperty("state").GetString() == "connected");
+        var settings = await Client().GetFromJsonAsync<JsonElement>(Api("/settings"));
+
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        Assert.False(settings.GetProperty("traktApp").GetProperty("hasSecret").GetBoolean());
+        Assert.Equal("my-own-id", JsonDocument.Parse(_trakt.Bodies("POST /oauth/device/code").Single()).RootElement.GetProperty("client_id").GetString());
+        Assert.All(_trakt.Bodies("POST /oauth/device/token"), b => Assert.DoesNotContain("secret", b, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
     public async Task Connecting_ShowsACode_TheServerWaits_ThenItsConnected()
     {
         _server.Services.GetRequiredService<TraktConnector>().MinimumInterval = TimeSpan.FromMilliseconds(20);
-        _trakt.Then("RELAY device", new FakeTrakt.Answer(HttpStatusCode.BadRequest), new FakeTrakt.Answer(HttpStatusCode.BadRequest),
+        _trakt.Then("POST /oauth/device/token", new FakeTrakt.Answer(HttpStatusCode.BadRequest), new FakeTrakt.Answer(HttpStatusCode.BadRequest),
             new FakeTrakt.Answer(HttpStatusCode.OK, FakeTrakt.Token()));
 
         var started = await Client().PostAsync(Api("/trakt/connect"), null);
@@ -148,9 +163,13 @@ public sealed class TraktTests : IAsyncLifetime
         Assert.True(status.GetProperty("available").GetBoolean());
         Assert.Equal("Dan", status.GetProperty("username").GetString());
         Assert.Equal("connected", status.GetProperty("pending").GetProperty("state").GetString()!.ToLowerInvariant());
-        // The secret never leaves the relay: the server only ever sent it the device code.
-        Assert.All(_trakt.RelayBodies, b => Assert.DoesNotContain("secret", b, StringComparison.OrdinalIgnoreCase));
+        // Straight to Trakt with Flexarr's public client id, and no secret: Trakt's device code sign-in needs none.
         Assert.Equal("flexarr-id", JsonDocument.Parse(_trakt.Bodies("POST /oauth/device/code").Single()).RootElement.GetProperty("client_id").GetString());
+        Assert.All(_trakt.Bodies("POST /oauth/device/token"), b =>
+        {
+            Assert.Equal("flexarr-id", JsonDocument.Parse(b).RootElement.GetProperty("client_id").GetString());
+            Assert.DoesNotContain("secret", b, StringComparison.OrdinalIgnoreCase);
+        });
     }
 
     [Fact]
@@ -159,15 +178,15 @@ public sealed class TraktTests : IAsyncLifetime
         await SeedAsync(db => db.Profiles.Add(new Profile { Id = "sam", Name = "Sam" }));
         await ConnectAsync("sam", slug: "dan");
         _server.Services.GetRequiredService<TraktConnector>().MinimumInterval = TimeSpan.FromMilliseconds(20);
-        _trakt.Set("RELAY device", FakeTrakt.Token());
-        _trakt.Set("RELAY revoke", "{}");
+        _trakt.Set("POST /oauth/device/token", FakeTrakt.Token());
+        _trakt.Set("POST /oauth/revoke", "{}");
 
         await Client().PostAsync(Api("/trakt/connect"), null);
         var status = await WaitForAsync(s => s.GetProperty("pending").ValueKind == JsonValueKind.Object && s.GetProperty("pending").GetProperty("state").GetString() != "Waiting");
 
         Assert.Equal("disconnected", status.GetProperty("state").GetString());
         Assert.Equal("InUse", status.GetProperty("pending").GetProperty("state").GetString());
-        Assert.Equal(1, _trakt.Count("POST /api/trakt") - _trakt.RelayBodies.Count(b => b.Contains("device_token", StringComparison.Ordinal)));
+        Assert.Equal(1, _trakt.Count("POST /oauth/revoke"));
     }
 
     private async Task<JsonElement> WaitForAsync(Func<JsonElement, bool> done)
@@ -190,7 +209,7 @@ public sealed class TraktTests : IAsyncLifetime
     public async Task ACodeNobodyEnters_Expires()
     {
         _server.Services.GetRequiredService<TraktConnector>().MinimumInterval = TimeSpan.FromMilliseconds(20);
-        _trakt.Then("RELAY device", new FakeTrakt.Answer(HttpStatusCode.BadRequest), new FakeTrakt.Answer(HttpStatusCode.Gone));
+        _trakt.Then("POST /oauth/device/token", new FakeTrakt.Answer(HttpStatusCode.BadRequest), new FakeTrakt.Answer(HttpStatusCode.Gone));
 
         await Client().PostAsync(Api("/trakt/connect"), null);
         var status = await WaitForAsync(s => s.GetProperty("pending").ValueKind == JsonValueKind.Object && s.GetProperty("pending").GetProperty("state").GetString() != "Waiting");
@@ -204,12 +223,12 @@ public sealed class TraktTests : IAsyncLifetime
     {
         await ConnectAsync();
         await SeedAsync(db => db.TraktOutbox.Add(new TraktOutboxEntry { ProfileId = Owner, Kind = TraktOutboxKind.History, Payload = "{}" }));
-        _trakt.Set("RELAY revoke", "{}");
+        _trakt.Set("POST /oauth/revoke", "{}");
 
         var response = await Client().DeleteAsync(Api("/trakt"));
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-        Assert.Contains(_trakt.RelayBodies, b => b.Contains("revoke", StringComparison.Ordinal));
+        Assert.Equal("access-token-0123456789", JsonDocument.Parse(_trakt.Bodies("POST /oauth/revoke").Single()).RootElement.GetProperty("token").GetString());
         Assert.False(await InDbAsync(db => db.TraktConnections.AnyAsync()));
         Assert.False(await InDbAsync(db => db.TraktOutbox.AnyAsync()));
     }
@@ -217,10 +236,10 @@ public sealed class TraktTests : IAsyncLifetime
     // ---- Tokens ----
 
     [Fact]
-    public async Task ATokenNearItsEnd_IsRefreshed_ThroughTheRelay()
+    public async Task ATokenNearItsEnd_IsRefreshed_WithoutASecret()
     {
         await ConnectAsync(expires: DateTime.UtcNow.AddMinutes(30));
-        _trakt.Set("RELAY refresh", FakeTrakt.Token("new-access-token-01234", "new-refresh-token-0123"));
+        _trakt.Set("POST /oauth/token", FakeTrakt.Token("new-access-token-01234", "new-refresh-token-0123"));
 
         string? token = null;
         await InScopeAsync(async s => token = await s.GetRequiredService<TraktAccounts>().TokenAsync(Owner, force: false, default));
@@ -229,13 +248,17 @@ public sealed class TraktTests : IAsyncLifetime
         Assert.Equal("new-access-token-01234", token);
         Assert.Equal("new-refresh-token-0123", saved.RefreshToken);
         Assert.True(saved.ExpiresAt > DateTime.UtcNow.AddHours(23));
+        var refresh = JsonDocument.Parse(_trakt.Bodies("POST /oauth/token").Single()).RootElement;
+        Assert.Equal("refresh-token-0123456789", refresh.GetProperty("refresh_token").GetString());
+        Assert.Equal("flexarr-id", refresh.GetProperty("client_id").GetString());
+        Assert.False(refresh.TryGetProperty("client_secret", out _));
     }
 
     [Fact]
     public async Task ARefusedRefresh_AsksToSignInAgain()
     {
         await ConnectAsync(expires: DateTime.UtcNow.AddMinutes(30));
-        _trakt.Set("RELAY refresh", """{"error":"invalid_grant"}""", HttpStatusCode.Unauthorized);
+        _trakt.Set("POST /oauth/token", """{"error":"invalid_grant"}""", HttpStatusCode.Unauthorized);
 
         string? token = "x";
         await InScopeAsync(async s => token = await s.GetRequiredService<TraktAccounts>().TokenAsync(Owner, force: false, default));
@@ -841,7 +864,7 @@ public sealed class TraktTests : IAsyncLifetime
     public async Task ARefreshThatFails_KeepsTheTokens_AndDiscoverStillWorks()
     {
         await ConnectAsync(expires: DateTime.UtcNow.AddMinutes(30));
-        _trakt.Set("RELAY refresh", """{"reason":"NotConfigured"}""", HttpStatusCode.ServiceUnavailable);
+        _trakt.Set("POST /oauth/token", "{}", HttpStatusCode.ServiceUnavailable);
 
         string? token = null;
         await InScopeAsync(async s => token = await s.GetRequiredService<TraktAccounts>().TokenAsync(Owner, force: false, default));
@@ -876,7 +899,7 @@ public sealed class TraktTests : IAsyncLifetime
             db.TraktHistoryHolds.Add(new TraktHistoryHold { ProfileId = Owner, Kind = MediaKind.Movie, TmdbId = "1", WatchedAt = DateTime.UtcNow });
         });
         _server.Services.GetRequiredService<TraktConnector>().MinimumInterval = TimeSpan.FromMilliseconds(20);
-        _trakt.Set("RELAY device", FakeTrakt.Token());
+        _trakt.Set("POST /oauth/device/token", FakeTrakt.Token());
 
         await Client().PostAsync(Api("/trakt/connect"), null);
         await WaitForAsync(s => s.GetProperty("username").GetString() == "Dan" && s.GetProperty("pending").GetProperty("state").GetString() == "Connected");
@@ -892,13 +915,13 @@ public sealed class TraktTests : IAsyncLifetime
         await SeedAsync(db => db.Profiles.Single(p => p.Id == Owner).SetAdminPin("2468"));
         var kid = (await (await Client().PostAsJsonAsync(Api("/profiles"), new { name = "Sam" })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString()!;
         await ConnectAsync(kid, slug: "sam");
-        _trakt.Set("RELAY revoke", "{}");
+        _trakt.Set("POST /oauth/revoke", "{}");
 
         var changed = await Client().PutAsJsonAsync(Api($"/profiles/{kid}/age-limit"), new { maxRatingAge = 8, isKids = true });
 
         Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
         Assert.False(await InDbAsync(db => db.TraktConnections.AnyAsync()));
-        Assert.Contains(_trakt.RelayBodies, b => b.Contains("revoke", StringComparison.Ordinal));
+        Assert.Equal("access-token-0123456789", JsonDocument.Parse(_trakt.Bodies("POST /oauth/revoke").Single()).RootElement.GetProperty("token").GetString());
     }
 
     // ---- Fixes from the follow-up audit ----
@@ -1014,7 +1037,7 @@ public sealed class TraktTests : IAsyncLifetime
     {
         var path = Flexarr.Api.Configuration.ServerConfigStore.PathFor(_factory.DataDirectory);
         var config = System.Text.Json.Nodes.JsonNode.Parse(File.Exists(path) ? await File.ReadAllTextAsync(path) : "{}")!.AsObject();
-        config["trakt"] = new System.Text.Json.Nodes.JsonObject { ["clientId"] = "mine", ["clientSecret"] = "secret", ["relayUrl"] = "http://elsewhere.test" };
+        config["trakt"] = new System.Text.Json.Nodes.JsonObject { ["clientId"] = "mine", ["clientSecret"] = "secret", ["apiUrl"] = "http://elsewhere.test" };
         config["tmdb"] = new System.Text.Json.Nodes.JsonObject { ["apiKey"] = "tmdb-key" };
         await File.WriteAllTextAsync(path, config.ToJsonString());
 
@@ -1026,7 +1049,7 @@ public sealed class TraktTests : IAsyncLifetime
         var after = System.Text.Json.Nodes.JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
 
         Assert.Equal("mine", exported["settings"]!["trakt"]!["clientId"]!.GetValue<string>());
-        Assert.Null(exported["settings"]!["trakt"]!["relayUrl"]);
+        Assert.Null(exported["settings"]!["trakt"]!["apiUrl"]);
         Assert.Equal("mine", after["trakt"]!["clientId"]!.GetValue<string>());
         Assert.Equal("tmdb-key", after["tmdb"]!["apiKey"]!.GetValue<string>());
     }

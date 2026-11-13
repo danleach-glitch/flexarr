@@ -18,7 +18,7 @@ public sealed partial class TraktAccounts(FlexarrDbContext db, TraktClient trakt
 
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> Gates = new(StringComparer.Ordinal);
 
-    /// <summary>When each profile's last refresh failed (Trakt or the relay away).</summary>
+    /// <summary>When each profile's last refresh failed (Trakt away).</summary>
     private static readonly ConcurrentDictionary<string, DateTime> Failed = new(StringComparer.Ordinal);
 
     /// <summary>How long after a failed refresh before trying again.</summary>
@@ -101,7 +101,7 @@ public sealed partial class TraktAccounts(FlexarrDbContext db, TraktClient trakt
             }
             catch (TraktException ex)
             {
-                // Trakt or the relay is away: the old token may have time left, and a later try refreshes.
+                // Trakt is away: the old token may have time left, and a later try refreshes.
                 Failed[profileId] = DateTime.UtcNow;
                 await SaveAsync(profileId, c => c.SetProperty(x => x.LastError, ex.Message), ct);
                 return fresh.ExpiresAt > DateTime.UtcNow ? fresh.AccessToken : null;

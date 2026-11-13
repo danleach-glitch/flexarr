@@ -3,7 +3,6 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { addressKey, clientAddress, remember, sharedCount } = require('../lib/limits.js');
 const push = require('../api/push.js');
-const trakt = require('../api/trakt.js');
 
 // A stand-in Upstash store: answers INCRBY as Redis would and keeps every pipeline it's sent.
 function withStore(work) {
@@ -106,16 +105,6 @@ test('a store that is down falls back to this instance\'s count, without countin
     delete process.env.KV_REST_API_TOKEN;
   }
 });
-
-test('made-up Trakt codes and tokens never reach the store either', () =>
-  withStore(async (sent) => {
-    const now = Date.UTC(2026, 10, 11, 12, 4, 30);
-    for (let i = 0; i < 50; i++) assert.equal(await trakt._count('revoke', `made-up-${i}`.padEnd(32, 'x'), now), false);
-    assert.equal(sent.length, 0);
-    for (let i = 0; i < 10; i++) await trakt._count('revoke', 'r'.repeat(32), now);
-    assert.equal(await trakt._count('revoke', 'r'.repeat(32), now), true);
-    assert.equal(sent.length, 10);
-  }));
 
 test('walking through an IPv6 /64 is one address to the push limit', () => {
   const now = Date.UTC(2026, 10, 11, 12, 5, 30);
