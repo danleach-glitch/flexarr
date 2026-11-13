@@ -4,6 +4,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Apple TV
+
+- On a film or show from Discover, moving up from **If you like this** goes back to **Request** again, rather than leaving you stuck in the row.
+
 ### Downloads
 
 - **Download show** now says roughly how much space it needs, and warns when that's more than the phone has free. A download that runs out of space says **Not enough space** rather than just stopping.
