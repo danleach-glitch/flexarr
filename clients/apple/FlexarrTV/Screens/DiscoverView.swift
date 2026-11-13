@@ -482,6 +482,7 @@ struct ExternalTitleView: View {
                     .font(.system(size: 28, weight: .medium))
                     .italic()
                     .foregroundStyle(Color.screen.opacity(0.85))
+                    .frame(maxWidth: 1100, alignment: .leading)
             }
             HStack(spacing: 22) {
                 FactsLine(facts: facts, scores: detail?.scores)
@@ -506,10 +507,14 @@ struct ExternalTitleView: View {
                     WatchlistActionButton(key: WatchlistKey(title), on: onList) { Task { await load() } }
                 }
             }
+            // Across the page, so moving up from anywhere along "If you like this" comes back to the buttons (the cast
+            // row between isn't focusable, so without this a card right of the buttons had nothing above it).
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .focusSection()
             .padding(.top, 14)
         }
+        // No trailing margin: the lines above keep their own width, and the buttons' focus section reaches the edge.
         .padding(.leading, Layout.edge)
-        .padding(.trailing, 300)
         .padding(.bottom, 10)
     }
 
