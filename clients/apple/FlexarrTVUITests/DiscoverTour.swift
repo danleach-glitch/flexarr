@@ -37,9 +37,16 @@ final class DiscoverTour: XCTestCase {
         XCTAssertGreaterThan(card.frame.height, card.frame.width, "focus should be on a poster")
         press(.select, wait: 4)
         shot("62-external-title")
+        let request = try XCTUnwrap(focused(), "the title's first button should have focus")
         // Down the title page to its cast and recommendations, never pressing Select here.
         press(.down, times: 2, wait: 1.5)
         shot("63-external-title-more")
+        // Along "If you like this", past the buttons, and back up: focus comes back to the buttons.
+        press(.right, times: 4, wait: 1)
+        press(.up, times: 2, wait: 1.5)
+        let back = try XCTUnwrap(focused(), "moving up should reach the buttons")
+        XCTAssertLessThan(back.frame.height, back.frame.width, "focus should be back on a button, not a poster")
+        XCTAssertLessThanOrEqual(back.frame.maxY, request.frame.maxY + 40, "focus should be back on the row of buttons")
         press(.menu, wait: 2)
 
         // Down to the genres.
