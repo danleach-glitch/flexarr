@@ -94,6 +94,13 @@ BUILD ?= $(shell date +%Y%m%d%H%M)
 # TestFlight upload of a version that's already on the App Store, so builds from main between releases pass the next one.
 APPLE_VERSION = $(if $(MARKETING),MARKETING_VERSION=$(MARKETING))
 # Sign in to App Store Connect with an API key instead of Xcode's account: ASC_KEY_ID, ASC_ISSUER_ID and ASC_KEY_PATH (the .p8).
+# Read from ~/.flexarr-release/apple.env when it's there. The key needs the Admin role: only Admin keys can cloud-sign. Xcode's
+# account works too, but xcodebuild can't renew its App Store Connect session, so it lapses within the hour.
+APPLE_ENV := $(HOME)/.flexarr-release/apple.env
+apple_env = $(shell [ -f $(APPLE_ENV) ] && sed -n 's/^$(1)=//p' $(APPLE_ENV))
+ASC_KEY_ID ?= $(call apple_env,ASC_KEY_ID)
+ASC_ISSUER_ID ?= $(call apple_env,ASC_ISSUER_ID)
+ASC_KEY_PATH ?= $(call apple_env,ASC_KEY_PATH)
 ASC_AUTH = $(if $(ASC_KEY_ID),-authenticationKeyID $(ASC_KEY_ID) -authenticationKeyIssuerID $(ASC_ISSUER_ID) -authenticationKeyPath $(ASC_KEY_PATH))
 
 ios-upload: tunnel-apple ## Archive the iOS app and upload it to App Store Connect

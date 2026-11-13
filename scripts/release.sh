@@ -141,7 +141,7 @@ publish() {
   notes=$(awk -v v="$version" '$0 ~ "^## " v " " {on=1; next} /^## / {if (on) exit} on' CHANGELOG.md)
   [ -n "$notes" ] || die "no CHANGELOG.md section for $version"
   # The Mac app for downloading (flexarr.io/apps links to the latest release's): built here, from the tag, because
-  # signing goes through Xcode's account on this Mac. Its copies say when this one is out.
+  # signing needs the API key kept on this Mac. Its copies say when this one is out.
   [ "$(git rev-parse HEAD)" = "$sha" ] || die "HEAD isn't $tag; check it out to build the Mac app's disk image from it"
   scripts/mac-player-dmg.sh "$version" || die "the Mac app's disk image failed (see above); nothing was published"
   gh release create "$tag" --title "$version" --notes "$notes" --verify-tag "$builds"/flexarr-*.tar.gz "$builds/SHA256SUMS" "$builds/SHA256SUMS.sig" \
