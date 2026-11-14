@@ -202,6 +202,15 @@ class DownloadsTest {
     }
 
     @Test
+    fun `an episode fetched by itself brings the next only once it's watched`() {
+        // Downloading a season mustn't go on to the rest of the show: the episode ahead stops there.
+        val ahead = local(automatic = true, nextId = "ep2")
+        assertNull(DownloadRules.nextToFetch(ahead, listOf(ahead)))
+        val watched = local(automatic = true, finishedAt = 5, nextId = "ep2")
+        assertEquals("ep2", DownloadRules.nextToFetch(watched, listOf(watched)))
+    }
+
+    @Test
     fun `watching offline keeps the place, and finishing starts it over`() {
         val watched = local().recorded(600.0, finished = false, now = 5)
         assertEquals(600.0, watched.startPosition, 0.0)

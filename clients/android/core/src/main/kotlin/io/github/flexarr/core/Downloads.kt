@@ -293,9 +293,14 @@ object DownloadRules {
         return options?.firstOrNull { it.quality == quality }?.estimatedBytes?.takeIf { it > 0 }
     }
 
-    /** A finished episode's next one, to fetch by itself: an episode with a next, not already here or on its way. */
+    /**
+     * A finished episode's next one, to fetch by itself: an episode with a next, not already here or on its way. One
+     * that was itself fetched this way is the episode ahead, and brings the one after it only once it's been watched:
+     * otherwise each would bring the next, to the end of the show.
+     */
     fun nextToFetch(download: LocalDownload, downloads: List<LocalDownload>): String? {
         if (download.item.kind != MediaKind.Episode || !download.isDownloaded) return null
+        if (download.automatic && download.finishedAtMillis == null) return null
         val next = download.nextId ?: return null
         return next.takeIf { id -> downloads.none { it.profileId == download.profileId && it.item.id == id } }
     }
