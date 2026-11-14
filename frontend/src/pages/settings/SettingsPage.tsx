@@ -1,4 +1,4 @@
-import { useEffect, type ComponentType, type ReactNode, type SVGProps } from 'react'
+import { useEffect, useRef, type ComponentType, type ReactNode, type SVGProps } from 'react'
 import { Navigate, NavLink, useParams } from 'react-router'
 import { clearApiCache, getMe, getTraktStatus, getUpdates, lockAdmin } from '../../api/client'
 import { useSession } from '../../hooks/sessionContext'
@@ -126,6 +126,18 @@ export function SettingsPage() {
   }, [unlockedUntil, reloadMe])
   // A dot on Updates when there's a release to install. Only the main profile may ask; older servers have no /updates.
   const updates = useApi((signal) => (me.data?.isAdmin ? getUpdates(signal) : Promise.resolve(undefined)), [me.data?.isAdmin])
+  // Narrow windows show the pages as one row that scrolls sideways: the open page's link is brought to its middle, when
+  // the page changes and when the list is first drawn or the server's pages join it. Only the row moves, never the page under it.
+  const pageList = useRef<HTMLElement>(null)
+  const listed = ownPages.length + (me.data?.isAdmin ? serverPages.length : 0)
+  useEffect(() => {
+    const row = pageList.current
+    const open = row?.querySelector('a.active')
+    if (!row || !open || row.scrollWidth <= row.clientWidth) return
+    const within = row.getBoundingClientRect()
+    const link = open.getBoundingClientRect()
+    row.scrollLeft += link.left + link.width / 2 - (within.left + within.width / 2)
+  }, [section, listed, me.loading])
   const badges: Record<string, string | undefined> = { updates: updates.data?.available ? t('Flexarr {version} is available', { version: updates.data.latest?.version }) : undefined }
 
   // A child's choices are a parent's to make: the kids app has no Settings, even by its address.
@@ -153,7 +165,7 @@ export function SettingsPage() {
     <div className="settings">
       <aside className="settings-nav">
         <h1>{t(Words.settings)}</h1>
-        <nav aria-label={t(Words.settings)}>
+        <nav ref={pageList} aria-label={t(Words.settings)}>
           <div className="settings-nav-group">
             <h2>{profileHeading(name)}</h2>
             {ownPages.map(link)}
