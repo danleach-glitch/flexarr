@@ -1309,10 +1309,11 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
 
     func resumePosition(ofEpisode episode: ItemSummary) -> Double {
         guard let download = entry(for: episode.id), download.finishedAt == nil else { return 0 }
-        // Heard here and not yet sent: this phone knows best. Otherwise the server may know of listening elsewhere
-        // since (the episode as the screen just loaded it), as Android's player takes it.
-        if download.unsent != nil || episode.userData.watched { return download.position }
-        return max(download.position, episode.userData.positionSeconds)
+        // Where this phone got to, once it has played any of it: that's as new as anything it's been told (an episode
+        // wound back here mustn't jump forward again to an older place). Until then, where the server says it was left,
+        // which may be further on than when it was downloaded.
+        if download.position > 0 || download.unsent != nil || episode.userData.watched { return download.position }
+        return max(0, episode.userData.positionSeconds)
     }
 
     func nextDownloadedEpisode(after episode: ItemSummary) -> ItemSummary? {

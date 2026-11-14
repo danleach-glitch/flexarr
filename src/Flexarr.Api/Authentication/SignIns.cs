@@ -211,9 +211,11 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
             GuestServer = server,
         };
 
+        List<SignIn> replaced;
         lock (_lock)
         {
-            foreach (var old in Loaded().Values.Where(s => s.Guest && s.GuestAddress == address).ToList())
+            replaced = Loaded().Values.Where(s => s.Guest && s.GuestAddress == address).ToList();
+            foreach (var old in replaced)
             {
                 Loaded().Remove(old.TokenHash);
             }
@@ -221,6 +223,8 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
             Loaded()[signIn.TokenHash] = signIn;
             SaveLocked();
         }
+
+        RaiseRevoked(replaced);
 
         LogIssued(SignInKind.Device, PathComparison.Printable(signIn.Name), NetworkZone.Tailnet);
         return (signIn, token);
@@ -378,6 +382,7 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
     /// <summary>Signs out every browser and device except <paramref name="keepId"/> (the one asking); returns how many.</summary>
     public int RevokeAllExcept(string? keepId)
     {
+        List<SignIn> removed;
         lock (_lock)
         {
             var others = Loaded().Values.Where(s => s.Id != keepId).ToList();
@@ -392,13 +397,26 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
                 LogRevokedAll(others.Count);
             }
 
-            return others.Count;
+            removed = others;
+        }
+
+        RaiseRevoked(removed);
+        return removed.Count;
+    }
+
+    /// <summary>Tells whoever listens that these sign-ins have ended, once the lock is let go.</summary>
+    private void RaiseRevoked(IEnumerable<SignIn> signIns)
+    {
+        foreach (var signIn in signIns)
+        {
+            Revoked?.Invoke(signIn.Id);
         }
     }
 
     /// <summary>Signs out every browser that signed in with the admin PIN, except <paramref name="keepId"/>.</summary>
     public int RevokePinVerifiedExcept(string? keepId)
     {
+        List<SignIn> removed;
         lock (_lock)
         {
             var earned = Loaded().Values.Where(s => s.PinVerified && s.Id != keepId).ToList();
@@ -413,13 +431,17 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
                 LogRevokedAll(earned.Count);
             }
 
-            return earned.Count;
+            removed = earned;
         }
+
+        RaiseRevoked(removed);
+        return removed.Count;
     }
 
     /// <summary>Signs out every browser that signed in with the admin PIN using the Tailscale login <paramref name="login"/>.</summary>
     public int RevokeEarnedBy(string login)
     {
+        List<SignIn> removed;
         lock (_lock)
         {
             var earned = Loaded().Values.Where(s => s.PinVerified && string.Equals(s.TailscaleLogin, login, StringComparison.OrdinalIgnoreCase)).ToList();
@@ -434,8 +456,11 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
                 LogRevokedAll(earned.Count);
             }
 
-            return earned.Count;
+            removed = earned;
         }
+
+        RaiseRevoked(removed);
+        return removed.Count;
     }
 
     /// <summary>

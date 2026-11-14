@@ -373,7 +373,7 @@ public static class FfmpegCommand
     /// </summary>
     private static string SoftwareToneMapScaled(TranscodePlan plan, TranscodeSettings settings, string width, string height) =>
         SoftwareToneMap(plan, settings) is { Length: > 0 } toneMap
-            ? $"zscale=w={width}:h={height}:{toneMap["zscale=".Length..]}"
+            ? $"zscale=w={width}:h={height}:filter=bicubic:{toneMap["zscale=".Length..]}"
             : "";
 
     private static void AddVideo(List<string> args, TranscodePlan plan, SubtitleTrack? burn, HardwareAcceleration hw, TranscodeSettings settings, bool fromOpening)
