@@ -28,6 +28,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 - **Who's watching?** now sits in the middle of the screen on iPad, instead of starting from the top left.
 
+### Web
+
+- The setup guide now asks before removing a profile, as Settings does.
+
 ## 0.66.0 · 13 November 2026
 
 ### Apple TV
