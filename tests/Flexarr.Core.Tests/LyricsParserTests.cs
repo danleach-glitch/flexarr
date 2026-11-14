@@ -5,6 +5,27 @@ namespace Flexarr.Core.Tests;
 public class LyricsParserTests
 {
     [Fact]
+    public void ASidecarThatLinksToAnotherKindOfFile_IsntRead_ButALinkToLyricsIs()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return; // making links there takes a privilege
+        }
+
+        var folder = Directory.CreateTempSubdirectory("flexarr-lyrics-").FullName;
+        var elsewhere = Directory.CreateTempSubdirectory("flexarr-elsewhere-").FullName;
+        File.WriteAllText(Path.Combine(elsewhere, "config.json"), "{ \"apiKey\": \"secret\" }");
+        File.WriteAllText(Path.Combine(elsewhere, "02.lrc"), "[00:01.00]Hello");
+        File.WriteAllText(Path.Combine(folder, "03.lrc"), "[00:01.00]Here");
+        File.CreateSymbolicLink(Path.Combine(folder, "01.lrc"), Path.Combine(elsewhere, "config.json"));
+        File.CreateSymbolicLink(Path.Combine(folder, "02.lrc"), Path.Combine(elsewhere, "02.lrc"));
+
+        Assert.Null(LyricsParser.Sidecar(Path.Combine(folder, "01.flac"), ".lrc"));
+        Assert.NotNull(LyricsParser.Sidecar(Path.Combine(folder, "02.flac"), ".lrc"));
+        Assert.NotNull(LyricsParser.Sidecar(Path.Combine(folder, "03.flac"), ".lrc"));
+    }
+
+    [Fact]
     public void Lrc_TimesEveryLine_AndDropsTheTagLines()
     {
         var lyrics = LyricsParser.Parse("[ar:Dire Straits]\n[ti:News]\n[al:Communiqué]\n[00:12.50]He sticks to his guns\r\n[00:16.000]He takes the road as it comes\n[01:02]It takes the shine off his shoes\n");

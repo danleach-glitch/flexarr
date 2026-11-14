@@ -311,7 +311,8 @@ public static partial class Subtitles
     {
         ArgumentNullException.ThrowIfNull(track);
         var path = track.ExternalPath ?? CachePath(file, track, settings, ".ass");
-        if (!track.IsStyled || !File.Exists(path))
+        // A sidecar that's a link to something that isn't subtitles is left unread: it's sent as it is to the player.
+        if (!track.IsStyled || !File.Exists(path) || (track.ExternalPath is not null && Flexarr.Core.Paths.PathComparison.LinksToAnotherKind(path)))
         {
             return null;
         }

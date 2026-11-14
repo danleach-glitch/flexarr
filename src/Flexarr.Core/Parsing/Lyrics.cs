@@ -40,7 +40,8 @@ public static partial class LyricsParser
     {
         ArgumentNullException.ThrowIfNull(trackPath);
         var path = Path.ChangeExtension(trackPath, extension);
-        return File.Exists(path) ? path : null;
+        // Not a link to something that isn't lyrics: what's read is shown to whoever plays the track.
+        return File.Exists(path) && !Paths.PathComparison.LinksToAnotherKind(path) ? path : null;
     }
 
     /// <summary>
