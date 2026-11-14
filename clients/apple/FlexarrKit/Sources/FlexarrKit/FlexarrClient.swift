@@ -599,6 +599,15 @@ public struct FlexarrClient: Sendable {
         return await provesItself(base)
     }
 
+    /// Whether `id`, from outside the app (a link), looks like one of the server's: letters, digits, `-` and `_` (a
+    /// GUID, say). Anything else (a `/` or `..` that a link's `%2F` decodes to) could reach another of the server's
+    /// paths once put in one. The Android app's `FlexarrClient.isPlainId`.
+    public static func isPlainId(_ id: String) -> Bool {
+        !id.isEmpty && id.unicodeScalars.allSatisfy { scalar in
+            scalar.isASCII && (scalar.properties.isAlphabetic || ("0"..."9").contains(scalar) || scalar == "-" || scalar == "_")
+        }
+    }
+
     /// Whether a transfer cut off part-way while going to `kept` may carry on from where it got to as one going to
     /// `url`: only at the same address. Resume data replays its own request, sign-in and all, so from anywhere else
     /// it's dropped and the transfer starts again at the address checked now (`maySendTransfer`).

@@ -23,6 +23,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A subtitle or lyrics file that is really a link to some other kind of file is no longer read.
 - A private podcast feed's full address, which carries its key, is now shown only to profiles that follow it and to the main profile.
 - A Tailscale account linked to a profile other than the main one no longer sees the household's devices and what they're playing.
+- On iPhone, iPad and Apple TV, a link into the app is only followed when it names a title plainly, so a crafted link can't make the app ask the server for something else.
 
 ### iPad
 
