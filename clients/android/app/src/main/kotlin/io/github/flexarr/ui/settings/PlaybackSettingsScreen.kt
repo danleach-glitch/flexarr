@@ -42,7 +42,7 @@ import io.github.flexarr.core.shownSubtitleSize
 import io.github.flexarr.data.PlayerSettings
 import io.github.flexarr.data.SoundSettings
 import io.github.flexarr.ui.components.LocalNavigator
-import io.github.flexarr.ui.components.PageTitle
+import io.github.flexarr.ui.components.PinnedPageTitle
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
@@ -86,7 +86,7 @@ fun PlaybackSettingsScreen(model: AppModel) {
 
     RoomBackground(ambient = null) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-            item { PageTitle(t("Playback"), onBack = { navigator.back() }) }
+            stickyHeader { PinnedPageTitle(t("Playback"), onBack = { navigator.back() }) }
             preferences?.let { current ->
                 item {
                     Group(

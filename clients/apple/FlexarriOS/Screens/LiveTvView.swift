@@ -105,7 +105,7 @@ struct LiveTvView: View {
             if channels?.isEmpty == false {
                 // A recording is for everyone, so a profile with an age limit has none to see or set.
                 if !model.hasAgeLimit {
-                    NavigationLink { LiveRecordingsView() } label: {
+                    NavigationLink { LiveRecordingsView().roomForBottomBars() } label: {
                         Label(t("Recordings"), systemImage: "record.circle")
                     }
                 }

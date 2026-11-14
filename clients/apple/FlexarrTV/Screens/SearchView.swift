@@ -96,6 +96,9 @@ struct SearchView: View {
         .ignoresSafeArea(edges: .horizontal)
         .background(RoomBackground(ambient: nil))
         .searchable(text: $query, prompt: t("Movies, shows, episodes and people"))
+        // The field and its keyboard start under the collapsed sidebar's label ("‹ Search"), about where a library's
+        // switch is (`LibraryViewSwitch.topInset`): at the top of the screen the label sat on the field's first letters.
+        .padding(.top, 20)
         .onAppear(perform: takeSiriSearch)
         .onChange(of: model.pendingSearch) { takeSiriSearch() }
         .task(id: query) {

@@ -37,18 +37,25 @@ struct OfflineView: View {
     }
 }
 
-/// The slim bar over every tab while offline, on a strip of its own so nothing scrolls by beside it.
+/// The slim bar over every tab while offline, on a strip of its own so nothing scrolls by beside it. Where the top
+/// of the screen is taken (a wide iPad's tab bar and back button) it `floats` instead: just the pill, over the bottom
+/// of the page with the mini player, so it can't cover a control.
 struct OfflineBar: View {
+    var floats = false
+
     var body: some View {
         Label(t("Offline"), systemImage: "wifi.slash")
             .font(.footnote.weight(.semibold))
             .foregroundStyle(Color.screen)
             .padding(.horizontal, 14)
             .padding(.vertical, 6)
-            .background(Color.seat, in: Capsule())
+            .background {
+                // Lifted off the page like the mini player when there's no strip behind it.
+                Capsule().fill(Color.seat).shadow(color: .black.opacity(floats ? 0.35 : 0), radius: 12, y: 4)
+            }
             .padding(.vertical, 4)
-            .frame(maxWidth: .infinity)
-            .background(Color.room)
+            .frame(maxWidth: floats ? nil : .infinity)
+            .background(floats ? Color.clear : Color.room)
             .accessibilityIdentifier("offlineBar")
     }
 }

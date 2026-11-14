@@ -40,6 +40,9 @@ struct DetailView: View {
     @Environment(\.scenePhase) private var scenePhase
     @FocusState private var focusedSeason: String?
     @FocusState private var focusedEpisode: String?
+    /// The episode focus was on last, to tell focus coming back to it (its menu closed, the player left) from focus
+    /// coming into the row.
+    @State private var lastFocusedEpisode: String?
     /// The round action button in focus, by name, to show it under the row.
     @FocusState private var focusedAction: String?
     /// Play has focus: after a moment, what it starts is got ready (docs/fast-start.md). Told by Play's own focus
@@ -501,8 +504,10 @@ struct DetailView: View {
             .defaultFocus($focusedEpisode, anchor, priority: .userInitiated)
             .onChange(of: focusedEpisode) { old, new in
                 // Entering the row from above or below lands on the anchor episode, not
-                // whichever card happens to sit under the previous focus.
-                if old == nil, let new, let anchor, new != anchor { focusedEpisode = anchor }
+                // whichever card happens to sit under the previous focus. Coming back to the episode focus left
+                // (its menu closed, or the player or its page was left) stays on it.
+                if old == nil, let new, let anchor, new != anchor, new != lastFocusedEpisode { focusedEpisode = anchor }
+                if let new { lastFocusedEpisode = new }
             }
             .onAppear {
                 if let anchor { proxy.scrollTo(anchor, anchor: .leading) }

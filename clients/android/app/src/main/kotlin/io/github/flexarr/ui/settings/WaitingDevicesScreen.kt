@@ -38,7 +38,7 @@ import io.github.flexarr.core.WaitingDevice
 import io.github.flexarr.ui.components.ActionButton
 import io.github.flexarr.ui.components.styledParts
 import io.github.flexarr.ui.components.LocalNavigator
-import io.github.flexarr.ui.components.PageTitle
+import io.github.flexarr.ui.components.PinnedPageTitle
 import io.github.flexarr.ui.pairing.MainPinField
 import io.github.flexarr.ui.pairing.PinProblem
 import io.github.flexarr.ui.pairing.allowAsMainProfile
@@ -59,7 +59,7 @@ fun WaitingDevicesScreen(model: AppModel) {
     val navigator = LocalNavigator.current
     RoomBackground(ambient = null) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-            item { PageTitle(t("Devices waiting to connect"), onBack = { navigator.back() }) }
+            stickyHeader { PinnedPageTitle(t("Devices waiting to connect"), onBack = { navigator.back() }) }
             item { WaitingDevicesSection(model, header = null) }
         }
     }

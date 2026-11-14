@@ -99,36 +99,51 @@ struct MainTabView: View {
 struct TabStack<Content: View>: View {
     @Environment(AppModel.self) private var model
     @Environment(TVRemote.self) private var remote
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var router = Router()
+    @State private var barsHeight: CGFloat = 0
     var handlesDeepLinks = false
     @ViewBuilder var content: () -> Content
 
     var body: some View {
         @Bindable var router = router
-        NavigationStack(path: $router.path) {
-            content()
-                .navigationDestination(for: Route.self) { route in
-                    RouteDestination(route: route)
-                }
-        }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            if model.isOffline { OfflineBar() }
-        }
-        .animation(.easeInOut(duration: 0.25), value: model.isOffline)
-        // Music carries on under every screen; the bar sits above the tab bar and opens Now Playing.
-        // So does a TV's: its bar opens the remote.
-        .safeAreaInset(edge: .bottom) {
-            VStack(spacing: 0) {
-                // The remote has its own (on iPad its sheet doesn't cover the bars: one notice, not two).
-                // Neither while offline: what the TVs are doing can't be known, or changed.
-                if !remote.showsRemote, !model.isOffline { RemoteNoticeView() }
-                if !model.isOffline { TVPlayingBar() }
-                NowPlayingBar()
+        // The bars sit over the stack's bottom edge and every page is told their height (`roomForBottomBars`): an
+        // inset on the stack itself never reaches the pages' scrolling under iOS 26's tab bar, which left Sign out and
+        // each page's last rows under the bars.
+        ZStack(alignment: .bottom) {
+            NavigationStack(path: $router.path) {
+                content()
+                    .roomForBottomBars()
+                    .navigationDestination(for: Route.self) { route in
+                        RouteDestination(route: route).roomForBottomBars()
+                    }
             }
+            // On a strip of its own above the page. Not on a wide iPad: its tab bar and the page's back button share
+            // that strip, so the bar is down with the others there.
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if model.isOffline, sizeClass != .regular { OfflineBar() }
+            }
+            bottomBars
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barsHeight = $0 }
         }
+        .environment(\.bottomBarsHeight, barsHeight)
+        .animation(.easeInOut(duration: 0.25), value: model.isOffline)
         .environment(router)
         .onChange(of: model.pendingRoute) { _, _ in consumeDeepLink() }
         .onAppear(perform: consumeDeepLink)
+    }
+
+    /// Music carries on under every screen; the bar sits above the tab bar and opens Now Playing.
+    /// So does a TV's: its bar opens the remote.
+    private var bottomBars: some View {
+        VStack(spacing: 0) {
+            if model.isOffline, sizeClass == .regular { OfflineBar(floats: true) }
+            // The remote has its own (on iPad its sheet doesn't cover the bars: one notice, not two).
+            // Neither while offline: what the TVs are doing can't be known, or changed.
+            if !remote.showsRemote, !model.isOffline { RemoteNoticeView() }
+            if !model.isOffline { TVPlayingBar() }
+            NowPlayingBar()
+        }
     }
 
     private func consumeDeepLink() {

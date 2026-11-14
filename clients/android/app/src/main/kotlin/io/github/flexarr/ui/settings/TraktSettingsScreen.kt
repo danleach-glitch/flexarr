@@ -68,7 +68,7 @@ import io.github.flexarr.core.syncTraktNow
 import io.github.flexarr.core.traktLists
 import io.github.flexarr.core.traktStatus
 import io.github.flexarr.ui.components.LocalNavigator
-import io.github.flexarr.ui.components.PageTitle
+import io.github.flexarr.ui.components.PinnedPageTitle
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
@@ -92,7 +92,7 @@ fun TraktSettingsScreen(model: AppModel) {
 
     RoomBackground(ambient = null) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-            item { PageTitle("Trakt", onBack = { navigator.back() }) }
+            stickyHeader { PinnedPageTitle("Trakt", onBack = { navigator.back() }) }
             when {
                 trakt.unreachable -> item {
                     Group {

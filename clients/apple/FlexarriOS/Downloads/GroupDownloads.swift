@@ -375,6 +375,8 @@ struct SeasonDownloadLink: View {
     let season: ItemDetail
     @State private var question: GroupQuestion?
     @State private var pressing = false
+    /// The icon's box grows with the text, as its glyph does: fixed, a large glyph spilt over the words beside it.
+    @ScaledMetric(relativeTo: .subheadline) private var iconSize: CGFloat = 18
 
     var body: some View {
         let episodes = season.children.filter { $0.kind == .episode }
@@ -390,7 +392,7 @@ struct SeasonDownloadLink: View {
             }
         } label: {
             HStack(spacing: 6) {
-                DownloadStateIcon(state: status.iconState, size: 18)
+                DownloadStateIcon(state: status.iconState, size: iconSize)
                 Text(label(status))
             }
             .font(.subheadline.weight(.semibold))

@@ -135,7 +135,7 @@ struct SettingsView: View {
         .settingsPage(t(Words.settings))
         #if os(macOS)
         // The sidebar's Flexarr mark opens the Server page (MacNavigation.opensServerSettings).
-        .navigationDestination(isPresented: Bindable(MacNavigation.shared).opensServerSettings) { ServerSettingsView() }
+        .navigationDestination(isPresented: Bindable(MacNavigation.shared).opensServerSettings) { ServerSettingsView().roomForBottomBars() }
         #endif
         .sheet(isPresented: $askingParentPin) {
             ZStack {
@@ -226,7 +226,7 @@ struct SettingsLink<Destination: View>: View {
     }
 
     var body: some View {
-        NavigationLink(destination: destination) {
+        NavigationLink(destination: { destination().roomForBottomBars() }) {
             LabeledContent {
                 if let value { Text(value).lineLimit(1) }
             } label: {

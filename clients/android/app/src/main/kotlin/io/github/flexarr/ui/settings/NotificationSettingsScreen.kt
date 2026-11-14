@@ -36,7 +36,7 @@ import io.github.flexarr.AppModel
 import io.github.flexarr.core.NotificationDevice
 import io.github.flexarr.core.NotificationSettings
 import io.github.flexarr.ui.components.LocalNavigator
-import io.github.flexarr.ui.components.PageTitle
+import io.github.flexarr.ui.components.PinnedPageTitle
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
@@ -98,7 +98,7 @@ fun NotificationSettingsScreen(model: AppModel) {
 
     RoomBackground(ambient = null) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-            item { PageTitle(t("Notifications"), onBack = { navigator.back() }) }
+            stickyHeader { PinnedPageTitle(t("Notifications"), onBack = { navigator.back() }) }
             if (!notifications.isAvailable) {
                 item {
                     Group(footer = t("This build of Flexarr was made without Google’s notification service, so it can’t get notifications. Versions from Google Play can.")) {

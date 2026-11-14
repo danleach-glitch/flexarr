@@ -4,6 +4,17 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Apps
+
+- On iPad, the Offline notice no longer covers the back button in Downloads: it's now a small pill at the bottom of the page.
+- On iPhone, the mini player no longer hides the bottom of a page: Sign out, an album's last track and each list's last rows stay in reach.
+- On iPhone, a show's page and a downloaded album fit the screen at the largest text sizes.
+- On Apple TV, playing music with the visualiser on no longer closes the app.
+- On Apple TV, focus goes back to the poster or episode you were on after closing its menu or coming back from a title, and Search's field is no longer covered by the sidebar's label.
+- On Android, Download Season fetches that season and one episode ahead, no longer the whole show.
+- On Android, pages no longer scroll up through the clock and status icons, and Settings pages keep their title and Back in view.
+- On Android, a show's season pills are all readable: Download Season sits on its own line under them.
+
 ### Trakt
 
 - Signing in to Trakt now goes from your server straight to Trakt, with nothing passing through flexarr.io.
@@ -31,6 +42,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Web
 
+- On a phone, Settings' row of pages shows the page you're on and fades at its edges, so it's plain there's more to scroll to.
+- On a tablet held upright, the player's Audio menu stays on screen, with both audio sync buttons in reach.
+- On a phone, a playlist's tracks show their titles: each row keeps its ⋯ menu, which now holds Move up, Move down and Remove.
 - The setup guide now asks before removing a profile, as Settings does.
 - **Coming soon** now shows that it's loading, and says so with **Try again** when it can't load, instead of an empty page.
 

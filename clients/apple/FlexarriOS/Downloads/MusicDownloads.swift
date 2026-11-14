@@ -181,7 +181,7 @@ struct CollectionRow: View {
 
     var body: some View {
         NavigationLink {
-            OfflineCollectionView(collectionId: collection.id)
+            OfflineCollectionView(collectionId: collection.id).roomForBottomBars()
         } label: {
             HStack(spacing: 12) {
                 CollectionArtwork(collection: collection).frame(width: 63, height: 63)
@@ -243,6 +243,7 @@ struct OfflineCollectionView: View {
     @Environment(DownloadStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let collectionId: String
     @State private var removing = false
 
@@ -322,9 +323,12 @@ struct OfflineCollectionView: View {
                         .font(.body.weight(.semibold))
                         .foregroundStyle(Color.screen.opacity(0.9))
                 }
-                FactsLine(facts: facts(collection, tracks: tracks))
+                factsLines(facts(collection, tracks: tracks))
             }
-            HStack(spacing: 12) {
+            // Side by side; one above the other at the accessibility text sizes, where a row of them ran off both
+            // edges and took the whole page with it.
+            let buttons = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(spacing: 12)) : AnyLayout(HStackLayout(spacing: 12))
+            buttons {
                 Button { model.playTracks(tracks, albums: [collection.album].compactMap { $0 }, showingNowPlaying: router) } label: {
                     Label(t(Words.play), systemImage: Symbol.play)
                 }
@@ -336,11 +340,25 @@ struct OfflineCollectionView: View {
                 .disabled(tracks.count < 2)
             }
             .disabled(tracks.isEmpty)
-            .fixedSize()
+            .fixedSize(horizontal: !dynamicTypeSize.isAccessibilitySize, vertical: true)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 12)
         .padding(.horizontal, Layout.edge)
+    }
+
+    /// The facts on one line; over two at the accessibility text sizes, where one line is mostly cut short.
+    @ViewBuilder
+    private func factsLines(_ facts: [String]) -> some View {
+        if dynamicTypeSize.isAccessibilitySize, facts.count > 2 {
+            let half = (facts.count + 1) / 2
+            VStack(spacing: 2) {
+                FactsLine(facts: Array(facts.prefix(half)))
+                FactsLine(facts: Array(facts.dropFirst(half)))
+            }
+        } else {
+            FactsLine(facts: facts)
+        }
     }
 
     /// "1985   9 tracks   41m   Downloaded", or how many are here so far.

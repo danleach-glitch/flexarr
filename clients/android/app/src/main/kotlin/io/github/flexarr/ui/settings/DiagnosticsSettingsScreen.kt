@@ -37,7 +37,7 @@ import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.logging.LogHub
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.LocalNavigator
-import io.github.flexarr.ui.components.PageTitle
+import io.github.flexarr.ui.components.PinnedPageTitle
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
@@ -81,7 +81,7 @@ fun DiagnosticsSettingsScreen(model: AppModel) {
 
     RoomBackground(ambient = null) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-            item { PageTitle(t("Send diagnostics"), onBack = { navigator.back() }) }
+            stickyHeader { PinnedPageTitle(t("Send diagnostics"), onBack = { navigator.back() }) }
             item {
                 Notes(
                     footer = t("Sends what this phone has logged lately to your server, and only there, so a problem can be looked into. Sign-ins and stream addresses are taken out first. (Error reports, when your server has them on, are separate: see Server.)"),

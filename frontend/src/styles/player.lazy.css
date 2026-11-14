@@ -710,6 +710,23 @@
   color: var(--room);
 }
 
+/* A tablet held upright, or a window about as wide: the buttons sit too near the left for a two-column menu (Audio's is
+   554 px) to open leftwards from its own, so every menu opens from the right end of the row instead. */
+@media (min-width: 761px) and (max-width: 1000px) {
+  .player-buttons {
+    position: relative;
+  }
+
+  .menu-anchor {
+    position: static;
+  }
+
+  .player-menu {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+}
+
 @media (max-width: 760px) {
   /* The columns stack in one panel across the screen, scrolling, rather than running off its left edge. */
   .player-menu {

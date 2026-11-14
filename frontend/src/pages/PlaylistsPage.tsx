@@ -189,10 +189,14 @@ export function PlaylistPage() {
   const menuFor = (index: number) => {
     const entry = entries[index]
     const track = entry.track
+    // A phone's rows keep only ⋯ (detail.css hides the arrows and the cross up to 600 px), so moving is offered here.
+    const narrow = window.matchMedia?.('(max-width: 600px)').matches === true
     return [
       { label: t(Words.play), run: () => player.play(tracks, index) },
       ...queueActions(player, () => [track], track),
       'divider' as const,
+      ...(narrow && index > 0 ? [{ label: t('Move up'), run: () => move(index, index - 1) }] : []),
+      ...(narrow && index < entries.length - 1 ? [{ label: t('Move down'), run: () => move(index, index + 1) }] : []),
       ...(track.parentId ? [{ label: t('Use its cover for the playlist'), run: () => act(() => setPlaylistCover(summary.id, track.parentId)) }] : []),
       { label: t('Remove from playlist'), run: () => remove(entry), danger: true },
     ]

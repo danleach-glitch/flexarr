@@ -19,6 +19,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,7 +29,12 @@ import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.windowInsetsTopHeight
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -53,7 +59,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
@@ -244,6 +253,41 @@ fun PageTitle(title: String, onBack: (() -> Unit)? = null, trailing: @Composable
         }
     }
 }
+
+/**
+ * [PageTitle] as the `stickyHeader` of a page that scrolls as one list (Settings and the pages under it): it stays at
+ * the top, Back with it, and the rows go under it rather than up through the status bar.
+ */
+@Composable
+fun PinnedPageTitle(title: String, onBack: (() -> Unit)? = null) {
+    // Touches stop here, rather than reaching a row that has scrolled under it.
+    Box(Modifier.background(Flexarr.room).pointerInput(Unit) {}) { PageTitle(title, onBack) }
+}
+
+/**
+ * The room behind the status bar once a page that reaches up under it (Home, a title's page, an album) has scrolled:
+ * at rest its picture shows there, and after that nothing runs through the clock. [scrolled] is how far it has come
+ * in, 0 to 1, read only as it's drawn.
+ */
+@Composable
+fun BoxScope.StatusBarShade(scrolled: () -> Float) {
+    Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).graphicsLayer { alpha = scrolled() }.background(Flexarr.room))
+}
+
+@Composable
+fun BoxScope.StatusBarShade(list: LazyListState) {
+    val reach = with(LocalDensity.current) { ShadeReach.toPx() }
+    StatusBarShade { if (list.firstVisibleItemIndex > 0) 1f else (list.firstVisibleItemScrollOffset / reach).coerceIn(0f, 1f) }
+}
+
+@Composable
+fun BoxScope.StatusBarShade(grid: LazyGridState) {
+    val reach = with(LocalDensity.current) { ShadeReach.toPx() }
+    StatusBarShade { if (grid.firstVisibleItemIndex > 0) 1f else (grid.firstVisibleItemScrollOffset / reach).coerceIn(0f, 1f) }
+}
+
+/** How far a page scrolls before [StatusBarShade] is all there. */
+private val ShadeReach = 24.dp
 
 /** "2016   1h 56m   TV-MA": facts separated by space, never middle dots, then any [scores] beside their marks. */
 @Composable

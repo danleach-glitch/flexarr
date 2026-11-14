@@ -4,6 +4,8 @@ import io.github.flexarr.core.i18n.t
 import io.github.flexarr.core.i18n.Words
 
 import androidx.activity.compose.BackHandler
+import io.github.flexarr.ui.components.StatusBarShade
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -329,6 +331,7 @@ fun OfflineCollectionScreen(model: AppModel, collectionId: String, onBack: () ->
     var removing by remember { mutableStateOf(false) }
     BackHandler(onBack = onBack)
     val ambient = collection?.let { glowColor(it.album?.accentColor ?: it.accentColor) } ?: Flexarr.silver
+    val list = rememberLazyListState()
     RoomBackground(ambient = ambient, intensity = 0.3f) {
         if (collection == null) {
             StatusView(t("This download was removed."), empty = true)
@@ -336,7 +339,7 @@ fun OfflineCollectionScreen(model: AppModel, collectionId: String, onBack: () ->
             val downloads = store.tracks(collection)
             val tracks = downloads.filter { it.isDownloaded }.map { it.item }
             val albums = listOfNotNull(collection.album)
-            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
+            LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 32.dp)) {
                 item {
                     Column(
                         Modifier.fillMaxWidth().statusBarsPadding().padding(top = 12.dp, start = Edge, end = Edge),
@@ -377,6 +380,7 @@ fun OfflineCollectionScreen(model: AppModel, collectionId: String, onBack: () ->
                 }
             }
         }
+        StatusBarShade(list)
         Row(Modifier.fillMaxWidth().statusBarsPadding().padding(8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
             IconButton(onClick = onBack, modifier = Modifier.clip(CircleShape).background(Flexarr.room.copy(alpha = 0.55f))) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = t("Back"), tint = Flexarr.screen)

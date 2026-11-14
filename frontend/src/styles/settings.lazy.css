@@ -644,11 +644,15 @@
     position: static;
   }
 
-  /* One row of pages that scrolls sideways, the groups' labels left out. */
+  /* One row of pages that scrolls sideways, the groups' labels left out. It runs to the screen's edges and fades there,
+     so it's plain there's more to scroll to; the page that's open is scrolled into view (SettingsPage). */
   .settings-nav nav {
     flex-direction: row;
     gap: 2px;
     overflow-x: auto;
+    margin-inline: calc(var(--edge) * -1);
+    padding-inline: var(--edge);
+    mask-image: linear-gradient(to right, transparent, var(--black) var(--edge), var(--black) calc(100% - 32px), transparent);
   }
 
   .settings-nav-group {

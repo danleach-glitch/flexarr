@@ -492,7 +492,9 @@ struct DetailView: View {
         if let season = selectedSeason {
             SeasonDownloadLink(season: season)
                 .padding(.horizontal, Layout.edge)
-                .fixedSize()
+                // Its own height, but no wider than the page: at the largest text sizes it wraps rather than push
+                // the whole page off both edges.
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

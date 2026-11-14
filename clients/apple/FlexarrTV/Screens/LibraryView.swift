@@ -151,8 +151,8 @@ struct LibraryView: View {
         .onChange(of: total) { emptyLetters = Self.emptyLetters(among: items, of: total) }
         .onChange(of: focusedItem) { old, new in
             if old != nil, new == nil { lastFocusHereAt = .now }
-            if let new { place.id = new }
             focusFirstTitleFromSidebar(old: old, new: new)
+            if let new { place.id = new }
         }
         .onDisappear { isVisible = false }
         .onChange(of: scenePhase) { _, phase in
@@ -335,9 +335,11 @@ struct LibraryView: View {
 
     /// In from the sidebar, focus lands on whichever poster in the top row is nearest the row it left; the first
     /// title is where a page starts, so it goes there instead. Focus moving here from the switch, the sort buttons or
-    /// the rail, a letter jump, or coming back from a title, stays where it lands.
+    /// the rail, a letter jump, or coming back from a title, stays where it lands. So does focus coming back to the
+    /// poster it left (`place.id`, the last one focused): its menu closed, or the title it opened was left, however
+    /// long that took.
     private func focusFirstTitleFromSidebar(old: String?, new: String?) {
-        guard old == nil, let new, jumping == nil, focusedControl == nil, !switchFocused,
+        guard old == nil, let new, new != place.id, jumping == nil, focusedControl == nil, !switchFocused,
               Date.now.timeIntervalSince(lastFocusHereAt) > 1,
               let index = items.firstIndex(where: { $0.id == new }), index > 0, index < 6,
               let first = items.first else { return }

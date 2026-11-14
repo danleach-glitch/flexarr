@@ -37,7 +37,7 @@ import io.github.flexarr.core.setBookListening
 import io.github.flexarr.core.setPodcastPreferences
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.LocalNavigator
-import io.github.flexarr.ui.components.PageTitle
+import io.github.flexarr.ui.components.PinnedPageTitle
 import io.github.flexarr.ui.components.StatusView
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.RoomBackground
@@ -161,7 +161,7 @@ fun ListeningSettingsScreen(model: AppModel, onNotifications: () -> Unit) {
 
     RoomBackground(ambient = null) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-            item { PageTitle(t("Podcasts and audiobooks"), onBack = { navigator.back() }) }
+            stickyHeader { PinnedPageTitle(t("Podcasts and audiobooks"), onBack = { navigator.back() }) }
             val speed = podcasts?.speed ?: books?.speed
             if (speed == null) item { loadFailed?.let { StatusView(it, retry = { attempt++ }) } ?: StatusView() }
             if (speed != null) item {
