@@ -1913,6 +1913,24 @@ button.queue-track:focus-visible {
   }
 }
 
+/* A phone has no room for four buttons beside the title: the row keeps ⋯, whose menu moves and removes the track
+   there (PlaylistsPage's menuFor), and the track's columns draw closer. */
+@media (max-width: 600px) {
+  .playlist-entry .queue-actions .icon-button:not([aria-haspopup]) {
+    display: none;
+  }
+
+  .playlist-entry .queue-actions .icon-button {
+    width: 40px;
+    height: 40px;
+  }
+
+  .playlist-entry .track {
+    grid-template-columns: 24px 44px minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+}
+
 /* The Add to playlist dialog: a title with what's being added under it, each playlist a button with its cover, and a
    one-line form for a new one. Closes from its corner (or Escape, or outside it). */
 .add-to-playlist {
