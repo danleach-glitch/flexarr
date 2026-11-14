@@ -327,7 +327,9 @@ public static class DeviceEndpoints
         var list = new List<DeviceDto>();
         // A family guest sees none of the household's devices, and guests' own devices aren't anyone's to control.
         // Nor does a kids profile: which screens there are, who's on each and what they're playing isn't a child's to follow.
-        if (current.IsGuest || db.ServesKids)
+        // Nor a sign-in that isn't trusted (a Tailscale account linked to another profile): it can't send a device
+        // anything, and the events stream refuses it the same view.
+        if (current.IsGuest || db.ServesKids || !current.IsTrusted)
         {
             return [];
         }

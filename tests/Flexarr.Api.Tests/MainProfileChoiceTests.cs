@@ -125,6 +125,21 @@ public class MainProfileChoiceTests
     }
 
     [Fact]
+    public async Task ATailscaleAccountLinkedToAnotherProfile_IsntShownTheHouseholdsDevices()
+    {
+        using var server = new RemoteAccessFactory();
+        await SetUpAsync(server.Services, guestLogin: "teen@example.com", ownPin: false);
+        var admin = server.CreateClient();
+        admin.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        (await admin.PostAsJsonAsync(Api("/session/device"), new { deviceName = "Family TV" })).EnsureSuccessStatusCode();
+        using var teen = Guest(server, "100.64.0.9", "teen@example.com");
+
+        // Who's on which screen and what they're playing: the events stream refuses it this, and so does the list.
+        Assert.NotEmpty((await admin.GetFromJsonAsync<List<JsonElement>>(Api("/devices")))!);
+        Assert.Empty((await teen.GetFromJsonAsync<List<JsonElement>>(Api("/devices")))!);
+    }
+
+    [Fact]
     public async Task AtHomeWithKids_ABrowserWithNoSignIn_ChoosesTheMainProfileOnlyWithTheAdminPin()
     {
         using var server = new RemoteAccessFactory();
