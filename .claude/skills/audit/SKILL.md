@@ -38,7 +38,7 @@ An audit reads what the branch changed, finds what's wrong or missing, and publi
    - **Write the data** as `audit/data.json` in the scratchpad. `scripts/claude/checklist/example-audit.json` shows every field:
      - `title` (`<Feature> Audit`), `branch`, `commit` (the one audited), `date`, `pr` if there is one, `summary` (the five-line summary from step 2, as a paragraph), `history` (`{date, commit, text}` per audit run, newest last);
      - `mustFix`: the fix-before-landing list, `{ids, title, why}` per line; a line ticks itself when all its ids are done;
-     - `sections`: keys `bug`, `perf`, `sec`, `compat`, `ux`, `land`, each `{items, doneWell}`. A finding is `{id, sev, title, where, what, fix, verified, shots}`: `sev` is High, Medium, Low or Info, `where` is `file:line`, `verified` is `confirmed` or `uncertain`, `shots` is `[{src, caption}]`;
+     - `sections`: keys `bug`, `perf`, `sec`, `compat`, `ux`, `land`, each `{items, doneWell}`. A finding is `{id, sev, title, where, what, fix, verified, shots}`: `sev` is High, Medium, Low or Info, `where` is `file:line`, `verified` is `confirmed` or `uncertain`, `shots` is `[{src, caption}]`, and `issue` (optional) is the link to the finding's GitHub issue, added if the findings are filed later;
      - `screenshots`: `{intro, items: [{src, caption}]}`.
      An audit doesn't suggest ideas or check parity across clients (that's /brief's job), so new pages have no `idea` section and no `parity`. Older pages that have them keep them on a follow-up.
      Ids are numbered in page order and never renumbered. Text can use `**bold**`, `*em*` and `` `code` ``; nothing else is HTML.

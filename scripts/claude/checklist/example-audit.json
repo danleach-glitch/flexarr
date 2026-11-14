@@ -43,6 +43,7 @@
      "what": "The timer listens for `ended`, but autoplay starts the next episode first, so it pauses 2 seconds into it.",
      "fix": "Check the timer before autoplay picks the next item.",
      "verified": "confirmed",
+     "issue": "https://github.com/danleach-glitch/flexarr/issues/1",
      "shots": [
       {
        "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzOTAiIGhlaWdodD0iMjQwIj48cmVjdCB3aWR0aD0iMzkwIiBoZWlnaHQ9IjI0MCIgZmlsbD0iIzFiMjAzMCIvPjxyZWN0IHg9IjI0IiB5PSIyNCIgd2lkdGg9IjE2MCIgaGVpZ2h0PSIxNiIgcng9IjQiIGZpbGw9IiM4ZWE2ZmYiLz48cmVjdCB4PSIyNCIgeT0iNTYiIHdpZHRoPSIzNDIiIGhlaWdodD0iMTIwIiByeD0iOCIgZmlsbD0iIzJhMzE0MiIvPjx0ZXh0IHg9IjE5NSIgeT0iMjE0IiBmaWxsPSIjOTlhMmIzIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+c2NyZWVuc2hvdCBwbGFjZWhvbGRlcjwvdGV4dD48L3N2Zz4=",

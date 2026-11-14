@@ -30,6 +30,7 @@ fails brief "missing brief"     'del d["brief"]'
 fails audit "unknown must-fix"  'd["mustFix"][0]["ids"] = ["bug-9"]'
 fails audit "wrong section"     'd["sections"]["bug"]["items"][1]["id"] = "perf-2"'
 fails audit "bad severity"      'd["sections"]["bug"]["items"][0]["sev"] = "Critical"'
+fails audit "bad issue link"    'd["sections"]["bug"]["items"][0]["issue"] = "#12"'
 echo '{"title": "Checklists"}' > "$tmp/badhub.json"
 if python3 render.py hub "$tmp/badhub.json" "$tmp/bad.html" 2>/dev/null; then echo "FAIL: hub without connector was accepted"; exit 1; fi
 echo "ok: hub without connector refused"

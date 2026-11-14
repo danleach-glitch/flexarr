@@ -102,6 +102,8 @@ def check_audit(data, errors):
             allowed = SIZES if key == "idea" else SEVERITIES
             if f.get("sev") not in allowed:
                 errors.append(f"finding {f.get('id')}: sev must be one of {', '.join(allowed)}")
+            if f.get("issue") and not re.fullmatch(r"https://github\.com/[\w.-]+/[\w.-]+/issues/\d+", f["issue"]):
+                errors.append(f"finding {f.get('id')}: issue must be a GitHub issue link")
             ids.append(f.get("id"))
     check_ids(ids, AUDIT_SECTIONS, errors)
     known = set(ids)
