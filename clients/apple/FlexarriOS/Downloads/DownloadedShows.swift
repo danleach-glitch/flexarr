@@ -82,7 +82,7 @@ struct DownloadedShowRow: View {
 
     var body: some View {
         NavigationLink {
-            DownloadedShowView(showId: show.id)
+            DownloadedShowView(showId: show.id).roomForBottomBars()
         } label: {
             HStack(spacing: sizeClass == .regular ? 16 : 12) {
                 Color.seat
