@@ -48,6 +48,9 @@ struct ProfilePickerView: View {
     @State private var locking = false
     /// The kids profile whose padlock was held: child lock goes on with it.
     @State private var lockTarget: Profile?
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    /// How tall the picker's window is, so its few profiles can sit in the middle of it.
+    @State private var windowHeight: CGFloat = 0
     @State private var switching: String?
     @State private var error: String?
     /// Its PIN is forgotten: the admin PIN is asked for, which takes it off.
@@ -112,7 +115,7 @@ struct ProfilePickerView: View {
                 Text(t("Who’s watching?"))
                     .font(.marquee(40, weight: .heavy))
                     .foregroundStyle(Color.screen)
-                    .padding(.top, Self.centred ? 0 : marksCurrent ? 28 : 80)
+                    .padding(.top, centred ? 0 : marksCurrent ? 28 : 80)
 
                 LazyVGrid(columns: gridColumns, spacing: 28) {
                     ForEach(model.profiles) { profile in
@@ -174,10 +177,9 @@ struct ProfilePickerView: View {
                         #endif
                     }
                 }
-                #if os(macOS)
-                // One row's width at most, so a few profiles sit in the middle; a narrower window wraps them.
-                .frame(maxWidth: CGFloat(min(model.profiles.count, 6)) * 178 - 28)
-                #endif
+                // One row's width at most, so a few profiles sit in the middle rather than starting from the left edge; a
+                // narrower window wraps them. (An iPhone's fill its width as they are.)
+                .frame(maxWidth: centred ? CGFloat(min(model.profiles.count, 6)) * Self.columnStride - Self.columnSpacing : .infinity)
                 .padding(.horizontal, 32)
 
                 if let error {
@@ -190,24 +192,27 @@ struct ProfilePickerView: View {
 
             }
             .frame(maxWidth: .infinity)
-            #if os(macOS)
-            // The whole window: in the middle of it, as the Apple TV's.
-            .containerRelativeFrame(.vertical, alignment: .center)
-            #endif
+            // The whole window: in the middle of it, as the Apple TV's (a picker too long for it scrolls from the top).
+            .frame(minHeight: centred ? windowHeight : nil, alignment: .center)
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { windowHeight = $0 }
     }
 
-    /// The Mac fills its window with the picker, centred, as many to a row as fit (up to six); the phones flow theirs
-    /// from the top.
+    /// The Mac and the iPad fill their window with the picker, centred, as many to a row as fit (up to six); an iPhone
+    /// (and an iPad's narrow split) flows its own from the top.
     #if os(macOS)
-    private static let centred = true
+    private var centred: Bool { true }
+    private static let columnSpacing: CGFloat = 28
     private var gridColumns: [GridItem] {
-        [GridItem(.adaptive(minimum: 130, maximum: 150), spacing: 28)]
+        [GridItem(.adaptive(minimum: 130, maximum: 150), spacing: Self.columnSpacing)]
     }
     #else
-    private static let centred = false
-    private var gridColumns: [GridItem] { [GridItem(.adaptive(minimum: 110, maximum: 150), spacing: 20)] }
+    private var centred: Bool { horizontalSizeClass == .regular }
+    private static let columnSpacing: CGFloat = 20
+    private var gridColumns: [GridItem] { [GridItem(.adaptive(minimum: 110, maximum: 150), spacing: Self.columnSpacing)] }
     #endif
+    /// A column at its widest, with the gap to the next.
+    private static let columnStride: CGFloat = 150 + columnSpacing
 
     /// The padlock at the corner of each kids profile's picture, clear of its initial: open while child lock can be
     /// turned on (it locks to that profile), closed while it's on.
