@@ -2,6 +2,7 @@ package io.github.flexarr
 
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.SystemStatus
+import io.github.flexarr.data.Away
 import kotlinx.coroutines.test.runTest
 import okhttp3.HttpUrl
 import org.junit.Assert.assertEquals
@@ -23,10 +24,14 @@ class RemoteAddressTest {
     private val refusals = mutableListOf<String>()
 
     private suspend fun remote(status: SystemStatus, kept: String? = null, idThere: () -> String?) =
+        away(status, kept?.let { Away(it) }, idThere = idThere)?.url
+
+    private suspend fun away(status: SystemStatus, kept: Away? = null, knownId: String? = null, idThere: () -> String?) =
         AppModel.remoteAddress(
             status,
             home,
             kept = kept,
+            knownId = knownId,
             idAt = { url: HttpUrl -> asked += url.toString(); idThere() },
             refused = { refusals += it },
         )
@@ -49,12 +54,33 @@ class RemoteAddressTest {
 
     @Test
     fun `while nothing answers there, what was kept stays until next time`() = runTest {
-        // Signing in: nothing yet.
-        assertNull(remote(status(tailscale)) { unreachable() })
-        // The server's address has changed since: the old one stays rather than an unchecked new one.
+        // The server's address has changed since: the old one, confirmed, stays rather than an unchecked new one.
         val old = "https://old.tail1234.ts.net/"
         assertEquals(old, remote(status(tailscale), kept = old) { unreachable() })
         assertTrue(refusals.isEmpty())
+    }
+
+    @Test
+    fun `signing in with Tailscale off keeps the address unconfirmed`() = runTest {
+        // Signing in at home with Tailscale off: kept, but to be asked before it's sent the sign-in.
+        assertEquals(Away(tailscale, confirmed = false), away(status(tailscale)) { unreachable() })
+        // Next time, still nothing there: still unconfirmed, and asked again.
+        val unconfirmed = Away(tailscale, confirmed = false)
+        assertEquals(unconfirmed, away(status(tailscale), kept = unconfirmed, knownId = "home-id") { unreachable() })
+        // Tailscale on: confirmed.
+        assertEquals(Away(tailscale), away(status(tailscale), kept = unconfirmed, knownId = "home-id") { "home-id" })
+        assertEquals(listOf(tailscale, tailscale, tailscale), asked)
+        // Or someone else answers there: dropped.
+        assertNull(away(status(tailscale), kept = unconfirmed, knownId = "home-id") { "their-id" })
+        assertEquals(1, refusals.size)
+    }
+
+    @Test
+    fun `a new address has to give the id kept at sign-in, not one the same answer brings`() = runTest {
+        val theirs = "https://theirs.tail9999.ts.net/"
+        assertNull(away(status(theirs, serverId = "their-id"), knownId = "home-id") { "their-id" })
+        assertNull(away(status(theirs, serverId = null), knownId = "home-id") { "their-id" })
+        assertEquals(Away(tailscale), away(status(tailscale, serverId = null), knownId = "home-id") { "home-id" })
     }
 
     @Test

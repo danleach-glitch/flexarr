@@ -58,6 +58,7 @@ import io.github.flexarr.core.podcastPreferences
 import io.github.flexarr.core.podcastStatus
 import io.github.flexarr.core.removeFromUpNext
 import io.github.flexarr.core.upNext
+import io.github.flexarr.data.Away
 import io.github.flexarr.data.CredentialStore
 import io.github.flexarr.downloads.BookDownloads
 import io.github.flexarr.downloads.DownloadStore
@@ -1006,7 +1007,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         // Older than the apps support: not signed in to, and the connect screen says to update it.
         if (ServerSupport.isTooOld(status!!.version)) throw ServerTooOldException()
         // The server's address for away from home comes with its status; it's kept beside this one.
-        credentials = credentials!!.copy(remoteAddress = remoteAddress(status!!, credentials.address), serverId = status.serverId)
+        credentials = credentials!!.withAway(remoteAddress(status!!, credentials.address)).copy(serverId = status.serverId)
         credentials = withOwnToken(credentials)
         store.save(credentials)
         saved = true
@@ -1201,21 +1202,61 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         scope.launch { notifications.checkTimeZone() }
         // A guest only ever reaches the server through its tunnel.
         if (credentials.isGuest) return
-        val status = serverStatus(credentials) ?: return
-        if (ServerSupport.isTooOld(status.version) && this.credentials?.address == credentials.address) serverUpdateNotice = ServerSupport.UPDATE_MESSAGE
-        val remote = remoteAddress(status, credentials.address, kept = credentials.remoteAddress)
+        checkRemoteAddress(credentials, launching = true)
+        confirmRemoteLater()
+    }
+
+    /** Asks the server for its address for away from home and keeps what [remoteAddress] makes of it. */
+    private suspend fun checkRemoteAddress(credentials: ServerCredentials, launching: Boolean = false) {
+        var kept = credentials.away
+        // Requests have already gone there, once it answered with the server's id: it's confirmed.
+        if (kept?.confirmed == false && credentials.client().addresses.remoteHasProven) kept = kept.copy(confirmed = true)
+        val status = serverStatus(credentials)
+        if (status == null) {
+            if (kept != credentials.away) keep(kept, credentials.serverId, credentials)
+            return
+        }
+        if (launching && ServerSupport.isTooOld(status.version) && this.credentials?.address == credentials.address) {
+            serverUpdateNotice = ServerSupport.UPDATE_MESSAGE
+        }
+        // A new one has to answer with the id kept at sign-in, not one this answer brings with it.
+        val remote = remoteAddress(status, credentials.address, kept = kept, knownId = credentials.serverId)
+        // A sign-in from before the app kept the server's id learns it now; one it knows already keeps it (a different
+        // answer from home was already turned away before the sign-in was sent).
+        keep(remote, credentials.serverId ?: status.serverId, credentials)
+    }
+
+    private fun keep(remote: Away?, serverId: String?, credentials: ServerCredentials) {
         // Who's watching may have been chosen meanwhile: what matters is that it's still the same sign-in.
         val now = this.credentials ?: return
         if (now.address != credentials.address || now.apiKey != credentials.apiKey) return
-        // A sign-in from before the app kept the server's id learns it now; one it knows already keeps it (a different
-        // answer from home was already turned away before the sign-in was sent).
-        val serverId = now.serverId ?: status.serverId
-        if (remote == now.remoteAddress && serverId == now.serverId) return
+        if (remote == now.away && serverId == now.serverId) return
         if (saved) {
             store.saveRemoteAddress(remote)
             store.saveServerId(serverId)
         }
-        phase = Phase.SignedIn(now.copy(remoteAddress = remote, serverId = serverId))
+        phase = Phase.SignedIn(now.withAway(remote).copy(serverId = serverId))
+    }
+
+    /**
+     * While the away address isn't confirmed (Tailscale wasn't connected here when the server gave it), it's asked
+     * again now and then through this launch, less often as time goes on, so it's confirmed soon after Tailscale is.
+     */
+    private var remoteRetry: Job? = null
+
+    private fun confirmRemoteLater() {
+        val started = credentials ?: return
+        if (remoteRetry?.isActive == true || started.remoteAddress == null || started.remoteConfirmed) return
+        remoteRetry = scope.launch {
+            var waitMs = 30_000L
+            while (true) {
+                delay(waitMs)
+                val credentials = credentials ?: break
+                if (credentials.address != started.address || credentials.remoteAddress == null || credentials.remoteConfirmed) break
+                checkRemoteAddress(credentials)
+                waitMs = (waitMs * 2).coerceAtMost(600_000L)
+            }
+        }
     }
 
     /**
@@ -1224,6 +1265,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
      */
     fun signOut() {
         if (signOutRefusal(kidsLock) != null) return
+        remoteRetry?.cancel()
+        remoteRetry = null
         dropAllReady()
         // The headset's play button has nothing of this sign-in's to pick up again.
         io.github.flexarr.audio.LastHeard.clear(context)
@@ -2086,18 +2129,25 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         /**
          * The server's address for away from home, from its [status], as a base URL: every request there carries this
          * sign-in. Null when it has none, it's the [address] already in use, it isn't a Tailscale one (see
-         * [FlexarrClient.isAcceptableRemote]), or a different server answers there. A new one is only taken once the
-         * server there gives the same id as this one ([SystemStatus.serverId], asked by [idAt] without the sign-in);
-         * while nothing answers there, the address [kept] until now stays, to be checked again next launch. Servers
-         * before 0.55 have no id, so their address is taken without asking.
+         * [FlexarrClient.isAcceptableRemote]), or a different server answers there. A new one is taken once the server
+         * there gives this server's id (asked by [idAt] without the sign-in). While nothing answers there (Tailscale isn't
+         * connected on this phone just now), an address confirmed before ([kept]) stays; without one, the new address is
+         * kept unconfirmed, to be asked before the first signed-in request goes to it, so a phone that signed in at home
+         * with Tailscale off still finds the server once it's away with Tailscale on.
+         *
+         * The id it has to give is [knownId], the one kept at sign-in ([ServerCredentials.serverId]), whatever [status]
+         * says: a status tampered with on the home network can name a host of its own on Tailscale and an id to match,
+         * but not one that gives the id kept from before. Servers before 0.55 have no id, so their address is taken
+         * without asking.
          */
         internal suspend fun remoteAddress(
             status: SystemStatus,
             address: String,
-            kept: String? = null,
+            kept: Away? = null,
+            knownId: String? = null,
             idAt: suspend (HttpUrl) -> String? = { FlexarrClient.serverIdAt(it) },
             refused: (String) -> Unit = { flexarrLog.warning(it) },
-        ): String? {
+        ): Away? {
             val url = status.remoteUrl?.let { FlexarrClient.normalizeAddress(it) } ?: return null
             if (!FlexarrClient.isAcceptableRemote(url)) {
                 refused("The server's address for away from home isn't a Tailscale one; not using it")
@@ -2105,18 +2155,18 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             }
             val remote = url.toString().takeIf { it != address } ?: return null
             // Checked when it was kept.
-            if (remote == kept) return kept
-            val id = status.serverId ?: return remote
+            if (kept != null && kept.url == remote && kept.confirmed) return kept
+            val id = knownId?.takeIf { it.isNotEmpty() } ?: status.serverId ?: return Away(remote)
             val there = try {
                 idAt(url)
             } catch (_: FlexarrException.Unreachable) {
-                return kept
+                return kept?.takeIf { it.confirmed } ?: Away(remote, confirmed = false)
             }
             if (there != id) {
                 refused("A different server answers at the server's address for away from home; not using it")
                 return null
             }
-            return remote
+            return Away(remote)
         }
     }
 }

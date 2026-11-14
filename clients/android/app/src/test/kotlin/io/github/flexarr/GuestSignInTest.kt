@@ -41,7 +41,7 @@ class GuestSignInTest {
         assertNull(credentials.client().addresses.remote)
 
         store.save(credentials)
-        store.saveRemoteAddress("https://mini.tail.ts.net:8443/")
+        store.saveRemoteAddress(io.github.flexarr.data.Away("https://mini.tail.ts.net:8443/"))
         val loaded = store.load()!!
 
         assertEquals(tunnel, loaded.guest)

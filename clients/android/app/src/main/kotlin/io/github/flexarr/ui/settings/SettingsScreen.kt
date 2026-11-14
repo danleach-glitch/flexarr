@@ -521,6 +521,8 @@ fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit) {
                 Group(
                     footer = if (remote == null) {
                         t("To use Flexarr away from home, turn on remote access with Tailscale in Settings › Remote access on the web; this phone picks the address up by itself.")
+                    } else if (model.credentials?.remoteConfirmed == false) {
+                        t("This phone hasn’t reached the server over Tailscale yet. Connect Tailscale on it to check.")
                     } else {
                         t("Away from home, this phone reaches the server over Tailscale, which needs to be connected on it.")
                     },

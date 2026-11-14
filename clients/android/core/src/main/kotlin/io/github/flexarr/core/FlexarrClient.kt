@@ -572,7 +572,7 @@ class FlexarrClient(
         // server, on this network. Until then, away it is.
         if (primary == addresses.home && !homeTrusted(http)) {
             val remote = alternate ?: throw ConnectException("Something else answers at the server's home address on this network.")
-            val response = http.newCall(request(method, path, query, body, remote, headers)).await()
+            val response = call(http, request(method, path, query, body, remote, headers), remote)
             addresses.reached(remote)
             return response
         }
@@ -580,7 +580,7 @@ class FlexarrClient(
         if (alternate == addresses.home && !addresses.homeTrustedNow) alternate = null
         val first = request(method, path, query, body, primary, headers)
         if (alternate == null) {
-            val response = http.newCall(first).await()
+            val response = call(http, first, primary)
             checkHomeIfDue(http)
             return response
         }
@@ -589,15 +589,36 @@ class FlexarrClient(
             race(http, first to primary, second to alternate)
         } else {
             try {
-                http.newCall(first).await() to primary
+                call(http, first, primary) to primary
             } catch (e: IOException) {
                 if (!couldNotConnect(e)) throw e
-                http.newCall(second).await() to alternate
+                call(http, second, alternate) to alternate
             }
         }
         addresses.reached(reached)
         checkHomeIfDue(http)
         return response
+    }
+
+    /**
+     * Sends [request], made for [base]. An away address kept unconfirmed is asked first who it is, without the sign-in
+     * ([ServerAddresses.checkRemote]); until it answers with the server's id it's as good as not there.
+     */
+    private suspend fun call(http: OkHttpClient, request: Request, base: HttpUrl): Response {
+        if (base == addresses.remote && !remoteTrusted(http)) throw ConnectException("The server's address for away from home hasn't answered as this server.")
+        return http.newCall(request).await()
+    }
+
+    /** Whether the away address may be sent the sign-in, asking it ([verifyRemote]) when it isn't confirmed yet. */
+    private suspend fun remoteTrusted(http: OkHttpClient): Boolean = addresses.checkRemote { verifyRemote(http) }
+
+    /** Whether the server answers at its away address with its id, asked without the sign-in. */
+    private suspend fun verifyRemote(http: OkHttpClient): Boolean {
+        val remote = addresses.remote ?: return false
+        val expected = addresses.serverId ?: return true
+        val quick = http.newBuilder().followRedirects(false).followSslRedirects(false)
+            .callTimeout(REMOTE_PROBE_MS, TimeUnit.MILLISECONDS).build()
+        return runCatching { serverIdAt(remote, quick) == expected }.getOrDefault(false)
     }
 
     /**
@@ -614,13 +635,13 @@ class FlexarrClient(
         val firstFailed = CompletableDeferred<Unit>()
         val jobs = listOf(
             launch {
-                val result = runCatching { http.newCall(first.first).await() }
+                val result = runCatching { call(http, first.first, first.second) }
                 if (result.exceptionOrNull()?.let { it is IOException && couldNotConnect(it) } == true) firstFailed.complete(Unit)
                 answers.send(first.second to result)
             },
             launch {
                 withTimeoutOrNull(ServerAddresses.ALTERNATE_DELAY_MS) { firstFailed.await() }
-                answers.send(second.second to runCatching { http.newCall(second.first).await() })
+                answers.send(second.second to runCatching { call(http, second.first, second.second) })
             },
         )
         try {
@@ -663,8 +684,10 @@ class FlexarrClient(
      */
     internal suspend fun signInBase(): HttpUrl {
         val primary = addresses.current
-        if (primary != addresses.home || homeTrusted(http)) return primary
-        return addresses.alternate(primary) ?: throw ConnectException("Something else answers at the server's home address on this network.")
+        val base = if (primary != addresses.home || homeTrusted(http)) primary
+        else addresses.alternate(primary) ?: throw ConnectException("Something else answers at the server's home address on this network.")
+        if (base == addresses.remote && !remoteTrusted(http)) throw ConnectException("The server's address for away from home hasn't answered as this server.")
+        return base
     }
 
     /**
@@ -744,6 +767,9 @@ class FlexarrClient(
 
         /** How long [isReachable] waits for an answer by default. */
         const val REACHABLE_LIMIT_MS = 4_000L
+
+        /** How long an away address kept unconfirmed has to answer with the server's id (a server slow to wake still counts). */
+        const val REMOTE_PROBE_MS = 10_000L
 
         /**
          * Called whenever a request couldn't reach the server at either address (not when the server answered with an

@@ -20,6 +20,10 @@ import okhttp3.HttpUrl
  * A plain-http home address is only a private address, which another network (a hotel's, say) may use too. So once the
  * server's id is known ([serverId]), the sign-in goes to home only after home has answered, without the sign-in, with
  * that id on the network in use now ([checkHome]); a new network ([networkChanged]) or leaving home asks again.
+ *
+ * The away address is asked the same once, when the app kept it without hearing from it ([remoteConfirmed] false:
+ * Tailscale wasn't connected on the device when the server gave it). Until it answers with the server's id it gets
+ * nothing signed in ([checkRemote]); once it has, it stays trusted (a Tailscale address is only ever on this tailnet).
  */
 class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
     val remote: HttpUrl? = remote?.takeIf { it != home }
@@ -38,6 +42,34 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
     @Volatile
     private var homeVerified = false
     private var homeCheck: Deferred<Boolean>? = null
+
+    /** False while [remote] hasn't yet answered this device with the server's id: it's asked before the sign-in. */
+    @Volatile
+    var remoteConfirmed: Boolean = true
+
+    @Volatile
+    private var remoteVerified = false
+    private var remoteCheck: Deferred<Boolean>? = null
+
+    /** Whether the away address may be sent the sign-in now without asking it first. */
+    val remoteTrustedNow: Boolean get() = remoteConfirmed || remoteVerified || serverId == null
+
+    /** The away address has answered with the server's id since this was made (it needn't be asked again). */
+    val remoteHasProven: Boolean get() = remoteVerified
+
+    /**
+     * Whether the away address may be sent the sign-in, asking it with [verify] (once at a time, however many requests
+     * wait) when it isn't confirmed yet.
+     */
+    internal suspend fun checkRemote(verify: suspend () -> Boolean): Boolean {
+        if (remoteTrustedNow) return true
+        val check = synchronized(this) {
+            remoteCheck?.takeIf { it.isActive } ?: checks.async { verify() }.also { remoteCheck = it }
+        }
+        val ok = runCatching { check.await() }.getOrDefault(false)
+        if (ok) remoteVerified = true
+        return ok
+    }
 
     /** Whether home may be sent the sign-in now without asking it first. */
     val homeTrustedNow: Boolean get() = homeVerified || serverId == null || home.isHttps
