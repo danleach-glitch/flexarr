@@ -19,7 +19,8 @@ struct HomeProofTests {
     /// A signed-in client that knows its server's id. `home`: what the home address answers everywhere but
     /// `/setup` (nil: nothing connects there); `whoIsHome`: the id it gives there (nil: none).
     private func client(home: StubProtocol.Stub?, whoIsHome: String? = HomeProofTests.id, remote: StubProtocol.Stub? = nil,
-                        hasRemote: Bool = false, onUnauthorized: (@Sendable () -> Void)? = nil)
+                        hasRemote: Bool = false, remoteConfirmed: Bool = true, whoIsRemote: String? = nil,
+                        onUnauthorized: (@Sendable () -> Void)? = nil)
         -> (client: FlexarrClient, home: String, remote: String) {
         let homeHost = "home-\(UUID().uuidString.lowercased()).local"
         let remoteHost = "remote-\(UUID().uuidString.lowercased()).ts.net"
@@ -27,12 +28,15 @@ struct HomeProofTests {
             StubProtocol.register(host: homeHost, home)
             StubProtocol.register(host: homeHost, path: "/api/v1/setup", Self.setup(whoIsHome))
         }
-        if let remote { StubProtocol.register(host: remoteHost, remote) }
+        if let remote {
+            StubProtocol.register(host: remoteHost, remote)
+            if !remoteConfirmed { StubProtocol.register(host: remoteHost, path: "/api/v1/setup", Self.setup(whoIsRemote)) }
+        }
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [StubProtocol.self]
         let addresses = ServerAddresses(home: URL(string: "http://\(homeHost):8383")!,
                                         remote: hasRemote || remote != nil ? URL(string: "https://\(remoteHost):8443")! : nil,
-                                        serverId: Self.id)
+                                        serverId: Self.id, remoteConfirmed: remoteConfirmed)
         let client = FlexarrClient(addresses: addresses, apiKey: "secret", profileToken: "profile",
                                    session: URLSession(configuration: configuration), onUnauthorized: onUnauthorized)
         return (client, homeHost, remoteHost)
@@ -70,6 +74,28 @@ struct HomeProofTests {
         #expect(requests[0].value(forHTTPHeaderField: "X-Api-Key") == nil, "asked without the sign-in")
         #expect(requests[0].value(forHTTPHeaderField: "X-Flexarr-Profile") == nil)
         #expect(requests[1].value(forHTTPHeaderField: "X-Api-Key") == "secret")
+    }
+
+    @Test func anUnconfirmedAwayAddressIsAskedWhoItIsBeforeTheSignIn() async throws {
+        // Away: nothing at home, and the away address kept while Tailscale was off.
+        let (client, _, remote) = client(home: nil, remote: Self.status, remoteConfirmed: false, whoIsRemote: Self.id)
+
+        _ = try await client.systemStatus()
+        _ = try await client.systemStatus()
+
+        let requests = StubProtocol.recorded(host: remote)
+        #expect(requests.map { $0.url?.path } == ["/api/v1/setup", "/api/v1/system/status", "/api/v1/system/status"])
+        #expect(requests[0].value(forHTTPHeaderField: "X-Api-Key") == nil, "asked without the sign-in")
+        #expect(client.addresses.remoteHasProven)
+    }
+
+    @Test func anUnconfirmedAwayAddressGivingAnotherIdIsNeverSentTheSignIn() async throws {
+        let (client, _, remote) = client(home: nil, remote: Self.status, remoteConfirmed: false, whoIsRemote: "someone-else")
+
+        await #expect(throws: (any Error).self) { _ = try await client.systemStatus() }
+
+        #expect(signedIn(remote).isEmpty)
+        #expect(!client.addresses.remoteHasProven)
     }
 
     @Test func requestsStartingTogetherAskOnce() async throws {

@@ -73,7 +73,7 @@ struct GuestInviteTests {
             // The Keychain isn't there for command-line tests on every machine; the rest still holds.
             return
         }
-        store.saveRemoteAddress(URL(string: "https://mini.tail.ts.net:8443"))
+        store.saveRemoteAddress(FlexarrClient.Away(URL(string: "https://mini.tail.ts.net:8443")!))
         let loaded = try #require(store.load())
         #expect(loaded.guest == tunnel)
         #expect(loaded.remoteAddress == nil)

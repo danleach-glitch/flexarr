@@ -16,6 +16,10 @@ import Foundation
 /// `proofLasts`, which covers the device having moved to another network. Until home gives the same id it counts as
 /// not there. An https home says who it is by its certificate and isn't asked.
 ///
+/// The away address is asked the same once, when it's one the app kept without hearing from it (`remoteConfirmed`
+/// false: the device couldn't reach it over Tailscale when the server gave it). Until it gives the server's id, it
+/// counts as not there either; once it has, it stays trusted (a Tailscale address is only ever on this tailnet).
+///
 /// Shared by every client made for the same sign-in (see `shared(home:remote:)`), so what one request learns, the
 /// next one uses.
 public final class ServerAddresses: @unchecked Sendable {
@@ -24,6 +28,8 @@ public final class ServerAddresses: @unchecked Sendable {
     /// The id the server at `home` must give before it's sent the sign-in (`SystemStatus.serverId`); nil while the
     /// app doesn't know it (a server before 0.55, a guest's own tunnel), and home is then trusted as it always was.
     public let serverId: String?
+    /// False while `remote` hasn't yet given the server's id to this device: it's asked before it's sent the sign-in.
+    public let remoteConfirmed: Bool
 
     /// How long to wait for the current address before also asking the other one (GETs only).
     public static let alternateDelay: Duration = .milliseconds(2500)
@@ -39,17 +45,19 @@ public final class ServerAddresses: @unchecked Sendable {
     private var _current: URL
     private var homeCheckedAt: Date?
     private var homeProvenAt: Date?
-    private var proofUnderWay = false
-    private var proofWaiters: [AsyncStream<Bool>.Continuation] = []
+    private var remoteProven = false
+    /// Who's waiting on each address's answer while one is being asked.
+    private var proofWaiters: [URL: [AsyncStream<Bool>.Continuation]] = [:]
     /// Where the address that answered last is kept between launches; nil keeps nothing.
     private let memory: UserDefaults?
     static let memoryKey = "io.github.flexarr.server.lastReached"
 
     /// `memory`: where the address that answered last is kept, to start there next launch (nil: always starts at home).
-    public init(home: URL, remote: URL?, serverId: String? = nil, memory: UserDefaults? = nil) {
+    public init(home: URL, remote: URL?, serverId: String? = nil, remoteConfirmed: Bool = true, memory: UserDefaults? = nil) {
         self.home = home
         self.remote = remote == home ? nil : remote
         self.serverId = serverId?.isEmpty == false ? serverId : nil
+        self.remoteConfirmed = remoteConfirmed
         self.memory = memory
         // The same server at either address: its artwork is kept once, under its home address (see `atHome`).
         if let remote = self.remote { Self.pair(remote: remote, home: home) }
@@ -97,21 +105,27 @@ public final class ServerAddresses: @unchecked Sendable {
         }
     }
 
-    // MARK: Home says who it is
+    // MARK: An address says who it is
 
-    /// Whether `url` is asked for the server's id before it's sent the sign-in: the home address, over plain HTTP,
-    /// once the id is known.
+    /// Whether `url` is asked for the server's id before it's sent the sign-in, once the id is known: the home
+    /// address over plain HTTP, and an away address not yet confirmed (see `remoteConfirmed`).
     public func asksProof(of url: URL) -> Bool {
-        url == home && serverId != nil && home.scheme?.lowercased() != "https"
+        guard serverId != nil else { return false }
+        if url == home { return home.scheme?.lowercased() != "https" }
+        return url == remote && !remoteConfirmed
     }
 
     /// Whether `url` must say who it is before the next signed-in request goes to it.
     func needsProof(_ url: URL, now: Date = Date()) -> Bool {
         guard asksProof(of: url) else { return false }
-        return lock.withLock { !isProven(now) }
+        return lock.withLock { !isProven(url, now) }
     }
 
-    private func isProven(_ now: Date) -> Bool {
+    /// The away address has given the server's id since this was made (it needn't be asked again).
+    public var remoteHasProven: Bool { lock.withLock { remoteProven } }
+
+    private func isProven(_ url: URL, _ now: Date) -> Bool {
+        guard url == home else { return remoteProven }
         guard let homeProvenAt else { return false }
         return now.timeIntervalSince(homeProvenAt) < Self.proofLasts
     }
@@ -119,35 +133,38 @@ public final class ServerAddresses: @unchecked Sendable {
     /// `url` answered a signed-in request: home, if it had said who it is, stays trusted from now.
     func answered(from url: URL, now: Date = Date()) {
         guard url == home else { return }
-        lock.withLock { if isProven(now) { homeProvenAt = now } }
+        lock.withLock { if isProven(home, now) { homeProvenAt = now } }
     }
 
-    /// Whether home may be sent the sign-in: true at once when it needn't say who it is, or has lately. Otherwise
-    /// `ask` puts the question (home's address and the id it should give; true when it gave that id), once however
-    /// many requests are waiting on the answer. `fresh` asks even if it said so lately (is it there now?). False when
-    /// home didn't answer, something else did, or the task waiting was cancelled (the question carries on for the
-    /// others).
+    /// Whether home may be sent the sign-in (see `prove`).
     func proveHome(fresh: Bool = false, now: Date = Date(),
                    by ask: @escaping @Sendable (_ home: URL, _ id: String) async -> Bool) async -> Bool {
-        guard let serverId, asksProof(of: home) else { return true }
+        await prove(home, fresh: fresh, now: now, by: ask)
+    }
+
+    /// Whether `url` may be sent the sign-in: true at once when it needn't say who it is, or has lately. Otherwise
+    /// `ask` puts the question (the address and the id it should give; true when it gave that id), once however many
+    /// requests are waiting on the answer. `fresh` asks even if it said so lately (is it there now?). False when it
+    /// didn't answer, something else did, or the task waiting was cancelled (the question carries on for the others).
+    func prove(_ url: URL, fresh: Bool = false, now: Date = Date(),
+               by ask: @escaping @Sendable (_ url: URL, _ id: String) async -> Bool) async -> Bool {
+        guard let serverId, asksProof(of: url) else { return true }
         let (answers, waiter) = AsyncStream<Bool>.makeStream()
         enum Step { case proven, wait, ask }
         let step: Step = lock.withLock {
-            if !fresh, isProven(now) { return .proven }
-            proofWaiters.append(waiter)
-            if proofUnderWay { return .wait }
-            proofUnderWay = true
-            return .ask
+            if !fresh, isProven(url, now) { return .proven }
+            let underWay = proofWaiters[url] != nil
+            proofWaiters[url, default: []].append(waiter)
+            return underWay ? .wait : .ask
         }
         switch step {
         case .proven:
             return true
         case .ask:
-            let home = home
             // On its own, so one request being cancelled doesn't take the answer from the rest.
             Task.detached {
-                let same = await ask(home, serverId)
-                self.proofEnded(same)
+                let same = await ask(url, serverId)
+                self.proofEnded(url, same)
             }
         case .wait:
             break
@@ -156,13 +173,14 @@ public final class ServerAddresses: @unchecked Sendable {
         return false
     }
 
-    private func proofEnded(_ same: Bool) {
+    private func proofEnded(_ url: URL, _ same: Bool) {
         let waiting = lock.withLock {
-            proofUnderWay = false
-            homeProvenAt = same ? Date() : nil
-            let waiting = proofWaiters
-            proofWaiters = []
-            return waiting
+            if url == home {
+                homeProvenAt = same ? Date() : nil
+            } else if same {
+                remoteProven = true
+            }
+            return proofWaiters.removeValue(forKey: url) ?? []
         }
         for waiter in waiting {
             waiter.yield(same)
@@ -177,11 +195,12 @@ public final class ServerAddresses: @unchecked Sendable {
 
     /// The one instance for this pair of addresses (and the server expected there), so clients made at different
     /// times share what they've learnt.
-    public static func shared(home: URL, remote: URL?, serverId: String? = nil) -> ServerAddresses {
-        let key = "\(home.absoluteString)|\(remote?.absoluteString ?? "")|\(serverId ?? "")"
+    public static func shared(home: URL, remote: URL?, serverId: String? = nil, remoteConfirmed: Bool = true) -> ServerAddresses {
+        let key = "\(home.absoluteString)|\(remote?.absoluteString ?? "")|\(serverId ?? "")|\(remoteConfirmed)"
         return registryLock.withLock {
             if let existing = registry[key] { return existing }
-            let made = ServerAddresses(home: home, remote: remote, serverId: serverId, memory: .standard)
+            let made = ServerAddresses(home: home, remote: remote, serverId: serverId, remoteConfirmed: remoteConfirmed,
+                                       memory: .standard)
             registry[key] = made
             return made
         }

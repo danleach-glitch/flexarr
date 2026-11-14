@@ -481,7 +481,7 @@ final class AppModel {
         // Older than the apps support: not signed in to, and the connect screen says to update it.
         guard !ServerSupport.isTooOld(status.version) else { throw ServerTooOld() }
         // The server's address for away from home comes with its status; it's kept beside this one.
-        credentials.remoteAddress = await Self.remoteAddress(for: status, address: url)
+        credentials.away = await Self.remoteAddress(for: status, address: url)
         // So is its id: from now on this address is asked for it before it's sent the sign-in (see `ServerAddresses`).
         credentials.serverId = status.serverId
         let typed = credentials
@@ -499,9 +499,12 @@ final class AppModel {
         resetProfiles()
         signedOutNotice = nil
         phase = .signedIn(credentials)
+        confirmRemoteLater()
     }
 
     func signOut() {
+        remoteRetry?.cancel()
+        remoteRetry = nil
         player.dropReady()
         music.dropReadyBook()
         // Tell the server too, so this device's token stops working; best effort, it's forgotten here either way.
@@ -629,26 +632,61 @@ final class AppModel {
         // A guest only ever reaches its host through the tunnel.
         guard !remoteChecked, let credentials, !credentials.isGuest else { return }
         remoteChecked = true
-        guard let status = try? await credentials.client.systemStatus() else { return }
+        await checkRemoteAddress(credentials)
+        confirmRemoteLater()
+    }
+
+    /// Asks the server for its address for away from home and keeps what `FlexarrClient.remoteAddress` makes of it.
+    private func checkRemoteAddress(_ credentials: ServerCredentials) async {
+        var kept = credentials.away
+        // Requests have already gone there, once it gave the server's id: it's confirmed.
+        if kept?.confirmed == false, credentials.client.addresses.remoteHasProven { kept?.confirmed = true }
+        guard let status = try? await credentials.client.systemStatus() else {
+            if kept != credentials.away { keep(kept, id: credentials.serverId, for: credentials) }
+            return
+        }
         // A new one has to give the id kept at sign-in, not one this answer brings with it.
-        let remote = await Self.remoteAddress(for: status, address: credentials.address, kept: credentials.remoteAddress,
-                                              knownId: credentials.serverId)
+        let remote = await Self.remoteAddress(for: status, address: credentials.address, kept: kept, knownId: credentials.serverId)
         // Never swapped for another: a server whose id has changed is a different server, to be connected to afresh.
-        let id = credentials.serverId ?? status.serverId
+        keep(remote, id: credentials.serverId ?? status.serverId, for: credentials)
+    }
+
+    private func keep(_ remote: FlexarrClient.Away?, id: String?, for credentials: ServerCredentials) {
         // Who's watching may have been chosen meanwhile: what matters is that it's still the same sign-in.
-        guard let now = self.credentials, remote != now.remoteAddress || id != now.serverId,
+        guard let now = self.credentials, remote != now.away || id != now.serverId,
               now.address == credentials.address, now.apiKey == credentials.apiKey else { return }
         var updated = now
-        updated.remoteAddress = remote
+        updated.away = remote
         updated.serverId = id
         store.saveRemoteAddress(remote)
         store.saveServerId(id)
         phase = .signedIn(updated)
     }
 
+    /// While the away address isn't confirmed (Tailscale wasn't connected here when the server gave it), it's asked
+    /// again now and then through this launch, less often as time goes on, so it's confirmed soon after Tailscale is.
+    private var remoteRetry: Task<Void, Never>?
+
+    private func confirmRemoteLater() {
+        guard remoteRetry == nil, let started = credentials, started.remoteAddress != nil, !started.remoteConfirmed else { return }
+        remoteRetry = Task { [weak self] in
+            var wait = Duration.seconds(30)
+            while !Task.isCancelled {
+                try? await Task.sleep(for: wait)
+                guard let self, !Task.isCancelled else { return }
+                guard let credentials = self.credentials, credentials.address == started.address, credentials.remoteAddress != nil,
+                      !credentials.remoteConfirmed else { break }
+                await self.checkRemoteAddress(credentials)
+                wait = min(wait * 2, .seconds(600))
+            }
+            self?.remoteRetry = nil
+        }
+    }
+
     /// The server's address for away from home, once it's a Tailscale one with the same server there (see
     /// `FlexarrClient.remoteAddress`); one that isn't is left out, and said so in the log.
-    private static func remoteAddress(for status: SystemStatus, address: URL, kept: URL? = nil, knownId: String? = nil) async -> URL? {
+    private static func remoteAddress(for status: SystemStatus, address: URL, kept: FlexarrClient.Away? = nil,
+                                      knownId: String? = nil) async -> FlexarrClient.Away? {
         await FlexarrClient.remoteAddress(for: status, address: address, kept: kept, knownId: knownId, refused: { log.warning($0) })
     }
 

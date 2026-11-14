@@ -37,11 +37,26 @@ extension FlexarrClient {
         }
     }
 
+    /// The server's address for away from home, as the app keeps it: the address, and whether it has given the
+    /// server's id to this device yet. One that hasn't (`confirmed` false) is asked before it's sent the sign-in (see
+    /// `ServerAddresses.remoteConfirmed`).
+    public struct Away: Sendable, Equatable {
+        public var url: URL
+        public var confirmed: Bool
+
+        public init(_ url: URL, confirmed: Bool = true) {
+            self.url = url
+            self.confirmed = confirmed
+        }
+    }
+
     /// The server's address for away from home, from its `status`, as a base URL: every request there carries the
     /// sign-in. Nil when it has none, it's the `address` already in use, it isn't a Tailscale one (see
-    /// `isAcceptableRemote`), or a different server answers there. A new one is only taken once the server there
-    /// gives this server's id (asked by `idAt` without the sign-in); while nothing answers there, the address `kept`
-    /// until now stays, to be checked again next launch.
+    /// `isAcceptableRemote`), or a different server answers there. A new one is taken once the server there gives
+    /// this server's id (asked by `idAt` without the sign-in). While nothing answers there (Tailscale isn't connected
+    /// on this device just now), an address confirmed before (`kept`) stays; without one, the new address is kept
+    /// unconfirmed, to be asked before the first signed-in request goes to it, so a device that signed in at home
+    /// with Tailscale off still finds the server once it's away with Tailscale on.
     ///
     /// The id it has to give is `knownId`, the one this device kept when it signed in (`ServerCredentials.serverId`),
     /// whatever `status` says: a status tampered with on the home network can name a host of its own on Tailscale
@@ -51,11 +66,11 @@ extension FlexarrClient {
     public static func remoteAddress(
         for status: SystemStatus,
         address: URL,
-        kept: URL? = nil,
+        kept: Away? = nil,
         knownId: String? = nil,
         idAt: @Sendable (URL) async throws -> String? = { try await serverId(at: $0) },
         refused: @Sendable (String) -> Void
-    ) async -> URL? {
+    ) async -> Away? {
         guard let given = status.remoteUrl?.absoluteString,
               let url = normalizeAddress(given.removingPercentEncoding ?? given) else { return nil }
         guard isAcceptableRemote(url) else {
@@ -64,18 +79,19 @@ extension FlexarrClient {
         }
         guard url != address else { return nil }
         // Checked when it was kept.
-        if url == kept { return kept }
-        guard let id = knownId?.isEmpty == false ? knownId : status.serverId else { return url }
+        if let kept, kept.url == url, kept.confirmed { return kept }
+        guard let id = knownId?.isEmpty == false ? knownId : status.serverId else { return Away(url) }
         let there: String?
         do {
             there = try await idAt(url)
         } catch {
-            return kept
+            if let kept, kept.confirmed { return kept }
+            return Away(url, confirmed: false)
         }
         guard there == id else {
             refused("A different server answers at the server's address for away from home; not using it")
             return nil
         }
-        return url
+        return Away(url)
     }
 }
