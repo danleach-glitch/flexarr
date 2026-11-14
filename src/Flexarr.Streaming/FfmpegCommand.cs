@@ -366,6 +366,16 @@ public static class FfmpegCommand
             ? "zscale=transfer=linear:npl=100,format=gbrpf32le,tonemap=hable:desat=0,zscale=transfer=bt709:matrix=bt709:primaries=bt709:range=tv,"
             : "";
 
+    /// <summary>
+    /// The same, scaled to the picture's target size first: a 4K film going to 1080p is mapped at a quarter of the
+    /// pixels, which is most of the work (in 32-bit float), rather than mapped at full size and shrunk after. Ends at
+    /// the target size, so no scale follows it. Empty when HDR isn't mapped on the CPU.
+    /// </summary>
+    private static string SoftwareToneMapScaled(TranscodePlan plan, TranscodeSettings settings, string width, string height) =>
+        SoftwareToneMap(plan, settings) is { Length: > 0 } toneMap
+            ? $"zscale=w={width}:h={height}:{toneMap["zscale=".Length..]}"
+            : "";
+
     private static void AddVideo(List<string> args, TranscodePlan plan, SubtitleTrack? burn, HardwareAcceleration hw, TranscodeSettings settings, bool fromOpening)
     {
         var height = plan.TargetHeight.ToString(CultureInfo.InvariantCulture);
@@ -390,7 +400,8 @@ public static class FfmpegCommand
             // Software frames scaled (and HDR mapped to SDR) on the CPU, then handed to the hardware encoder.
             args.AddRange(["-map", $"0:{plan.VideoStreamIndex}"]);
             var tail = hw == HardwareAcceleration.Vaapi ? "format=nv12,hwupload" : "format=yuv420p";
-            args.AddRange(["-vf", $"{toneMap}scale={width}:{height},{tail}"]);
+            var scaled = SoftwareToneMapScaled(plan, settings, width, height);
+            args.AddRange(["-vf", scaled.Length > 0 ? $"{scaled}{tail}" : $"scale={width}:{height},{tail}"]);
         }
         else
         {
@@ -401,7 +412,7 @@ public static class FfmpegCommand
                 HardwareAcceleration.VideoToolbox => $"scale_vt=w={width}:h={height}" + (plan.ToneMap ? ":color_matrix=bt709:color_primaries=bt709:color_transfer=bt709" : ""),
                 HardwareAcceleration.Vaapi => $"scale_vaapi=w={width}:h={height}:format=nv12" + (plan.ToneMap ? ",tonemap_vaapi=format=nv12:t=bt709:m=bt709:p=bt709" : ""),
                 HardwareAcceleration.Nvenc => $"scale_cuda={width}:{height}:format=yuv420p",
-                _ => $"{toneMap}scale={width}:{height},format=yuv420p",
+                _ => SoftwareToneMapScaled(plan, settings, width, height) is { Length: > 0 } scaled ? $"{scaled}format=yuv420p" : $"scale={width}:{height},format=yuv420p",
             };
             args.AddRange(["-vf", filter]);
         }
