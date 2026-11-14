@@ -31,6 +31,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Web
 
 - The setup guide now asks before removing a profile, as Settings does.
+- **Coming soon** now shows that it's loading, and says so with **Try again** when it can't load, instead of an empty page.
 
 ## 0.66.0 · 13 November 2026
 
