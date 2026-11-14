@@ -212,8 +212,8 @@ public static class ItemEndpoints
         api.MapGet("/items/{id:guid}", async (Guid id, bool? includeSeason, int? season, FlexarrDbContext db, PlaybackService playback,
             CurrentProfile profile, IOptionsMonitor<FlexarrOptions> options, Watchlist.WatchlistService watchlist, PersonImages images, CancellationToken ct) =>
         {
-            // A kids profile doesn't find subtitles.
-            var bazarr = options.CurrentValue.Bazarr?.Instance is not null && !db.ServesKids;
+            // A kids profile doesn't find subtitles, nor a family guest (the search refuses them).
+            var bazarr = options.CurrentValue.Bazarr?.Instance is not null && !db.ServesKids && !profile.IsGuest;
             var detail = await DetailAsync(id, db, profile, bazarr, images, ct);
             if (detail is null)
             {

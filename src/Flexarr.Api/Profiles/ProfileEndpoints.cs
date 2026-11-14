@@ -649,9 +649,12 @@ public static partial class ProfileEndpoints
             // A sign-in a PIN gave to a browser known only by where it asks from (at home, or over Tailscale) can be had
             // again for the asking by anyone there who knows the main profile's own PIN. So it also goes by that
             // address or login: a fresh one earns no fresh guesses, and its admin PIN guesses count in the day's allowance.
+            // With the browser's own id, as when it had no sign-in: one that has given the right admin PIN before keeps
+            // a count of its own, so the owner isn't held off by someone else's wrong guesses from the same address
+            // (behind a proxy or Docker's port forwarding, everyone's).
             if (held?.PinVerified == true)
             {
-                return ([$"sign-in:{signIn}", .. NetworkNames(http)], null);
+                return ([$"sign-in:{signIn}", .. NetworkNames(http)], BrowserId(http));
             }
 
             // A browser moved over from earlier versions' shared cookie could have another sign-in for the asking, so
@@ -659,6 +662,12 @@ public static partial class ProfileEndpoints
             return (held?.FromSharedCookie == true ? [$"sign-in:{signIn}", $"shared-cookie:{signIn}"] : [$"sign-in:{signIn}"], null);
         }
 
+        return (NetworkNames(http), BrowserId(http));
+    }
+
+    /// <summary>The browser's own random id, from its cookie; it's given one now if it has none.</summary>
+    private static string BrowserId(HttpContext http)
+    {
         var browser = http.Request.Cookies[BrowserCookieName];
         if (browser is not { Length: 32 } || !browser.All(char.IsAsciiHexDigitLower))
         {
@@ -673,7 +682,7 @@ public static partial class ProfileEndpoints
             });
         }
 
-        return (NetworkNames(http), browser);
+        return browser;
     }
 
     /// <summary>What a caller goes by from where it asks: its address (and IPv6 /64), or over Tailscale its login and address.</summary>

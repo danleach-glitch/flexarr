@@ -192,6 +192,8 @@ struct ProfilePickerView: View {
 
             }
             .frame(maxWidth: .infinity)
+            // Too many to fit, they scroll: not from flush against the window's edge.
+            .padding(.vertical, centred ? 28 : 0)
             // The whole window: in the middle of it, as the Apple TV's (a picker too long for it scrolls from the top).
             .frame(minHeight: centred ? windowHeight : nil, alignment: .center)
         }
@@ -209,7 +211,9 @@ struct ProfilePickerView: View {
     #else
     private var centred: Bool { horizontalSizeClass == .regular }
     private static let columnSpacing: CGFloat = 20
-    private var gridColumns: [GridItem] { [GridItem(.adaptive(minimum: 110, maximum: 150), spacing: Self.columnSpacing)] }
+    /// Centred, columns are no narrower than 130: the row's width then holds exactly as many as there are profiles (up
+    /// to six), so they sit in the middle rather than leaving an empty column on the right.
+    private var gridColumns: [GridItem] { [GridItem(.adaptive(minimum: centred ? 130 : 110, maximum: 150), spacing: Self.columnSpacing)] }
     #endif
     /// A column at its widest, with the gap to the next.
     private static let columnStride: CGFloat = 150 + columnSpacing

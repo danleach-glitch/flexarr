@@ -105,6 +105,20 @@ public sealed class SignInStoreTests : IDisposable
     }
 
     [Fact]
+    public void SigningOutTheOthers_SaysWhichEnded_SoTheirPlaybacksGoToo()
+    {
+        var store = Store();
+        var (kept, _) = store.Issue(SignInKind.Browser, "Laptop", NetworkZone.Local, "192.168.1.9");
+        var (lost, _) = store.Issue(SignInKind.Device, "Lost phone", NetworkZone.Local, "192.168.1.10");
+        var ended = new List<string>();
+        store.Revoked += ended.Add;
+
+        Assert.Equal(1, store.RevokeAllExcept(kept.Id));
+
+        Assert.Equal([lost.Id], ended);
+    }
+
+    [Fact]
     public void AnUnreadableFile_IsKeptAside_AndSigningInStillWorks()
     {
         if (OperatingSystem.IsWindows())
