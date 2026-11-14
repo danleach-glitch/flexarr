@@ -20,6 +20,9 @@ protocol OfflineMusicLibrary: AnyObject {
     func localArtwork(for trackId: String) -> PlatformImage?
     /// Where listening to a downloaded podcast episode got to on this device.
     func resumePosition(for trackId: String) -> Double
+    /// Where a downloaded podcast episode carries on from: where this device got to, or where the server says it was
+    /// left when that's further on and nothing heard here is still waiting to be sent.
+    func resumePosition(ofEpisode episode: ItemSummary) -> Double
     /// With no connection, what plays after a podcast episode: the next downloaded, unplayed one of its show.
     func nextDownloadedEpisode(after episode: ItemSummary) -> ItemSummary?
     func record(itemId: String, position: Double, finished: Bool)
@@ -731,7 +734,7 @@ final class MusicPlayer {
             isPlayingOffline = true
             artwork = offlineLibrary?.localArtwork(for: track.id)
             attach(item(url: file))
-            if isPodcast, let resume = offlineLibrary?.resumePosition(for: track.id), resume > 0 { seek(to: resume) }
+            if isPodcast, let resume = offlineLibrary?.resumePosition(ofEpisode: track), resume > 0 { seek(to: resume) }
             if !isPodcast, let startAt { seek(to: startAt) }
             // Played from the phone, so the server isn't asked for it: tell it the episode has left Up Next (when it can).
             if isPodcast, let client { Task { try? await client.removeFromUpNext(track.id) } }

@@ -9,6 +9,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Signing in to Trakt now goes from your server straight to Trakt, with nothing passing through flexarr.io.
 - Using your own Trakt app needs only its Client ID: Trakt no longer needs a Client secret.
 
+### Podcasts
+
+- On iPhone, downloading an episode you're part-way through keeps your place: the download carries on from where you left it, here or on another device, instead of starting again.
+
 ## 0.66.0 · 13 November 2026
 
 ### Apple TV
