@@ -291,6 +291,21 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
     }
 
     [Fact]
+    public async Task A_guest_cant_find_or_resync_subtitles_for_the_household()
+    {
+        var (_, key) = await JoinAsync("Gran subtitles");
+        using var guest = factory.From(RemoteGuestFactory.Guest, key);
+
+        // To a guest, as to a kids profile, Bazarr isn't set up, so the apps don't offer it.
+        Assert.False((await guest.GetFromJsonAsync<JsonElement>("/api/v1/subtitles/status")).GetProperty("configured").GetBoolean());
+        // Refused before the title is even looked up.
+        var item = Guid.NewGuid();
+        Assert.Equal(HttpStatusCode.Forbidden, (await guest.GetAsync($"/api/v1/items/{item}/subtitles/search")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await guest.PostAsJsonAsync($"/api/v1/items/{item}/subtitles/download", new { language = "en" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await guest.PostAsJsonAsync($"/api/v1/items/{item}/subtitles/sync", new { key = "x" })).StatusCode);
+    }
+
+    [Fact]
     public async Task A_guest_assistant_doesnt_see_or_set_the_households_recordings()
     {
         using (var scope = factory.Services.CreateScope())
