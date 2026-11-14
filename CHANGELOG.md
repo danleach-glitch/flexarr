@@ -16,6 +16,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Security
 
 - A damaged or hostile `.nfo` or `.opf` file in a library folder can no longer crash the server during a scan.
+- Family guests can no longer set or see the household's recordings by asking through an assistant.
 
 ## 0.66.0 · 13 November 2026
 

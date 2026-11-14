@@ -291,6 +291,50 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
     }
 
     [Fact]
+    public async Task A_guest_assistant_doesnt_see_or_set_the_households_recordings()
+    {
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            db.Recordings.Add(new Flexarr.Core.LiveTv.Recording
+            {
+                ChannelId = Guid.NewGuid(), ChannelName = "BBC One", Title = "The household's quiz night",
+                Start = DateTime.UtcNow.AddHours(1), End = DateTime.UtcNow.AddHours(2), State = Flexarr.Core.LiveTv.RecordingState.Scheduled,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        async Task<ModelContextProtocol.Protocol.CallToolResult> CallAsync(HttpClient http, string apiKey, string tool, Dictionary<string, object?> arguments)
+        {
+            var options = new ModelContextProtocol.Client.HttpClientTransportOptions
+            {
+                Endpoint = new Uri(http.BaseAddress!, "/api/v1/mcp"),
+                TransportMode = ModelContextProtocol.Client.HttpTransportMode.StreamableHttp,
+                AdditionalHeaders = new Dictionary<string, string> { ["X-Api-Key"] = apiKey },
+            };
+            await using var client = await ModelContextProtocol.Client.McpClient.CreateAsync(
+                new ModelContextProtocol.Client.HttpClientTransport(options, http, ownsHttpClient: false));
+            return await client.CallToolAsync(tool, arguments);
+        }
+
+        static string Text(ModelContextProtocol.Protocol.CallToolResult result) =>
+            string.Concat(result.Content.OfType<ModelContextProtocol.Protocol.TextContentBlock>().Select(t => t.Text));
+
+        using (var admin = factory.Admin())
+        {
+            Assert.Contains("quiz night", Text(await CallAsync(admin, FlexarrApiFactory.ApiKey, "recordings", [])), StringComparison.Ordinal);
+        }
+
+        var (_, key) = await JoinAsync("Gran assistant DVR");
+        using var guest = factory.From(RemoteGuestFactory.Guest, key);
+        var listed = await CallAsync(guest, key, "recordings", []);
+        Assert.NotEqual(true, listed.IsError);
+        Assert.DoesNotContain("quiz night", Text(listed), StringComparison.Ordinal);
+        // Refused before the programme is even looked up, as the API's route is.
+        Assert.True((await CallAsync(guest, key, "record_programme", new() { ["programmeId"] = 1L, ["series"] = true, ["anyChannel"] = true })).IsError);
+    }
+
+    [Fact]
     public async Task A_guest_cant_move_the_sound_of_a_title_for_the_household()
     {
         var (_, key) = await JoinAsync("Gran sync");

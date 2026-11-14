@@ -89,6 +89,12 @@ public static class LiveTvTools
             throw new InvalidOperationException(NotForAgeLimits);
         }
 
+        // As over the API: recordings are the household's to schedule, not a family guest's.
+        if (profile.IsGuest)
+        {
+            throw new InvalidOperationException("Guests can't change recordings.");
+        }
+
         var programme = await db.LiveProgrammes.AsNoTracking().FirstOrDefaultAsync(p => p.Id == programmeId, ct)
             ?? throw new InvalidOperationException("There's no programme with that id (the guide may have moved on).");
         var channel = await db.LiveChannels.AsNoTracking().FirstOrDefaultAsync(c => c.Id == programme.ChannelId, ct)
@@ -131,13 +137,21 @@ public static class LiveTvTools
     private const string NotForAgeLimits = "That isn't available on a profile with an age limit.";
 
     [McpServerTool(Name = "recordings", ReadOnly = true), Description("The DVR: what's set to record (and whether it clashes), the series being recorded, and what's been recorded lately (and why anything didn't).")]
-    public static async Task<McpRecordings> RecordingsAsync(FlexarrDbContext db, DvrService dvr, CancellationToken ct)
+    public static async Task<McpRecordings> RecordingsAsync(FlexarrDbContext db, DvrService dvr, CurrentProfile profile, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(db);
         ArgumentNullException.ThrowIfNull(dvr);
+        ArgumentNullException.ThrowIfNull(profile);
         if (db.IsLimited())
         {
             throw new InvalidOperationException(NotForAgeLimits);
+        }
+
+        // As over the API: a family guest isn't shown the household's recordings, nor a profile the Recordings library
+        // is hidden from.
+        if (profile.IsGuest || await DvrEndpoints.RecordingsHiddenAsync(db, ct))
+        {
+            return new McpRecordings([], [], [], 0);
         }
 
         var streams = await dvr.StreamsAsync(ct);
