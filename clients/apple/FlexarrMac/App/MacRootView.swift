@@ -222,6 +222,16 @@ struct MacRootView: View {
         } message: {
             Text(model.liveTv.errorMessage ?? "")
         }
+        // Music, a book or a podcast episode that wouldn't start (or the last of a queue that failed): said, as a
+        // film's is, rather than a spinner that stops with nothing playing.
+        .alert(t("Couldn’t play this"), isPresented: Binding(
+            get: { model.music.errorMessage != nil },
+            set: { if !$0 { model.music.errorMessage = nil } }
+        )) {
+            Button(t("OK"), role: .cancel) {}
+        } message: {
+            Text(model.music.errorMessage ?? "")
+        }
         .alert(model.player.problem == .takenOver ? t("Stopped for another screen") : t("Couldn’t play this"), isPresented: Binding(
             get: { model.player.errorMessage != nil },
             set: { if !$0 { model.player.errorMessage = nil } }

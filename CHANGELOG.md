@@ -38,6 +38,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 - Converting a 4K HDR film for a screen that can't show HDR is several times lighter on the server's processor: the picture is shrunk before its colours are converted, not after.
 
+### Music, audiobooks and podcasts
+
+- On iPhone, iPad, Apple TV and Mac, a track, book or episode that can't start now says why, instead of the spinner stopping with nothing playing.
+
 ## 0.66.0 · 13 November 2026
 
 ### Apple TV
