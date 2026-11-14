@@ -33,7 +33,18 @@ final class AudioSpectrum: Sendable {
     func tap(_ item: AVPlayerItem) async {
         latest.withLock { $0 = nil }
         guard let track = try? await item.asset.loadTracks(withMediaType: .audio).first else { return }
-        let analyser = Analyser { [latest] bands in latest.withLock { $0 = bands } }
+        guard let made = Self.makeTap(publishingTo: latest) else { return }
+        let parameters = AVMutableAudioMixInputParameters(track: track)
+        parameters.audioTapProcessor = made
+        let mix = AVMutableAudioMix()
+        mix.inputParameters = [parameters]
+        item.audioMix = mix
+    }
+
+    /// The tap and its callbacks. Not the main actor's: MediaToolbox calls them on its own audio queue, and a closure
+    /// written in a main-actor function is taken to be the main actor's and stops the app when it runs anywhere else.
+    private nonisolated static func makeTap(publishingTo latest: OSAllocatedUnfairLock<Bands?>) -> MTAudioProcessingTap? {
+        let analyser = Analyser { bands in latest.withLock { $0 = bands } }
         var callbacks = MTAudioProcessingTapCallbacks(
             version: kMTAudioProcessingTapCallbacksVersion_0,
             clientInfo: Unmanaged.passRetained(analyser).toOpaque(),
@@ -53,13 +64,9 @@ final class AudioSpectrum: Sendable {
         guard MTAudioProcessingTapCreate(kCFAllocatorDefault, &callbacks, kMTAudioProcessingTapCreationFlag_PostEffects, &made) == noErr,
               let made else {
             Unmanaged.passUnretained(analyser).release() // The tap never took it, so finalize won't let it go.
-            return
+            return nil
         }
-        let parameters = AVMutableAudioMixInputParameters(track: track)
-        parameters.audioTapProcessor = made
-        let mix = AVMutableAudioMix()
-        mix.inputParameters = [parameters]
-        item.audioMix = mix
+        return made
     }
 }
 
