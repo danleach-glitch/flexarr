@@ -201,7 +201,7 @@ public static class DvrEndpoints
                 : await next(context));
 
     /// <summary>The Recordings library is one of those hidden from the profile <paramref name="db"/> serves.</summary>
-    private static async Task<bool> RecordingsHiddenAsync(FlexarrDbContext db, CancellationToken ct)
+    internal static async Task<bool> RecordingsHiddenAsync(FlexarrDbContext db, CancellationToken ct)
     {
         if (db.HiddenLibraryIds.Count == 0)
         {

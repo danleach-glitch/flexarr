@@ -645,10 +645,18 @@ public static partial class ProfileEndpoints
     {
         if (current.SignInId is { } signIn)
         {
+            var held = http.RequestServices.GetRequiredService<SignIns>().ById(signIn);
+            // A sign-in a PIN gave to a browser known only by where it asks from (at home, or over Tailscale) can be had
+            // again for the asking by anyone there who knows the main profile's own PIN. So it also goes by that
+            // address or login: a fresh one earns no fresh guesses, and its admin PIN guesses count in the day's allowance.
+            if (held?.PinVerified == true)
+            {
+                return ([$"sign-in:{signIn}", .. NetworkNames(http)], null);
+            }
+
             // A browser moved over from earlier versions' shared cookie could have another sign-in for the asking, so
             // it goes by a second name that isn't a sign-in: the guard counts its admin PIN guesses in the day's allowance.
-            return (http.RequestServices.GetRequiredService<SignIns>().ById(signIn)?.FromSharedCookie == true
-                ? [$"sign-in:{signIn}", $"shared-cookie:{signIn}"] : [$"sign-in:{signIn}"], null);
+            return (held?.FromSharedCookie == true ? [$"sign-in:{signIn}", $"shared-cookie:{signIn}"] : [$"sign-in:{signIn}"], null);
         }
 
         var browser = http.Request.Cookies[BrowserCookieName];
@@ -665,13 +673,19 @@ public static partial class ProfileEndpoints
             });
         }
 
+        return (NetworkNames(http), browser);
+    }
+
+    /// <summary>What a caller goes by from where it asks: its address (and IPv6 /64), or over Tailscale its login and address.</summary>
+    private static string[] NetworkNames(HttpContext http)
+    {
         var address = $"address:{http.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
         if (http.User.FindFirst(FlexarrClaims.TailscaleLogin)?.Value is { } login)
         {
-            return ([$"tailscale:{login.ToLowerInvariant()}", address], browser);
+            return [$"tailscale:{login.ToLowerInvariant()}", address];
         }
 
-        return (PinRange(http.Connection.RemoteIpAddress) is { } range ? [address, range] : [address], browser);
+        return PinRange(http.Connection.RemoteIpAddress) is { } range ? [address, range] : [address];
     }
 
     /// <summary>

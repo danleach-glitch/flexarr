@@ -70,7 +70,16 @@ public static partial class NfoParser
         XElement element;
         try
         {
-            using var reader = XmlReader.Create(new StringReader(text[start..(end + endTag.Length)]),
+            var xml = text[start..(end + endTag.Length)];
+            // Tags inside tags by the thousand: reading their text would run the thread out of stack and end the server,
+            // as a podcast feed's would (FeedParser.MaxDepth). A real .nfo is three or four deep.
+            Stream bytes = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(xml));
+            if (Podcasts.FeedParser.NestedDeeperThan(ref bytes, Podcasts.FeedParser.MaxDepth))
+            {
+                return null;
+            }
+
+            using var reader = XmlReader.Create(new StringReader(xml),
                 new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null });
             element = XElement.Load(reader);
         }

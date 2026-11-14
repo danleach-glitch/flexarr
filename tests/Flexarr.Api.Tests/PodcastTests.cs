@@ -227,6 +227,12 @@ public sealed class PodcastTests : IDisposable
         var token = (await (await client.PostAsJsonAsync(Api($"profiles/{other.GetProperty("id").GetString()}/select"), new { })).Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("token").GetString();
         Assert.Empty((await GetAsync(Client(token), "podcasts")).EnumerateArray());
+        // Nor is it told the feed's whole address, which for a private feed carries its key: only where it's from,
+        // until it follows the podcast itself.
+        Assert.Equal(FeedUrl, (await GetAsync(client, $"podcasts/{id}")).GetProperty("feedUrl").GetString());
+        Assert.Equal("https://feeds.example.com/", (await GetAsync(Client(token), $"podcasts/{id}")).GetProperty("feedUrl").GetString());
+        (await Client(token).PutAsJsonAsync(Api($"podcasts/{id}/subscription"), new { })).EnsureSuccessStatusCode();
+        Assert.Equal(FeedUrl, (await GetAsync(Client(token), $"podcasts/{id}")).GetProperty("feedUrl").GetString());
 
         (await client.DeleteAsync(Api($"podcasts/{id}/subscription"))).EnsureSuccessStatusCode();
         Assert.Empty((await GetAsync(client, "podcasts")).EnumerateArray());

@@ -32,6 +32,7 @@ import { UnlockPrompt } from '../components/UnlockDialog'
 import { Avatar } from '../components/ProfilePicker'
 import { useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
+import { useConfirm } from '../hooks/useConfirm'
 import { appLogos } from '../lib/apps'
 import { libraryTypeLabel } from '../lib/format'
 import { freeColour, profileColours } from '../lib/profileColours'
@@ -639,6 +640,7 @@ function ProfilesStep({ nav }: { nav: StepNav }) {
   const [name, setName] = useState('')
   const [error, setError] = useState<string>()
   const [busy, setBusy] = useState(false)
+  const [ask, confirmDialog] = useConfirm()
 
   async function add(e: FormEvent) {
     e.preventDefault()
@@ -656,6 +658,8 @@ function ProfilesStep({ nav }: { nav: StepNav }) {
   }
 
   async function remove(p: Profile) {
+    // As Settings › Profiles asks: their watch history goes with them, and there's no undoing it.
+    if (!(await ask({ title: t('Remove {name}’s profile? Their watch history goes with it.', { name: p.name }), confirmLabel: t('Remove profile'), danger: true }))) return
     setError(undefined)
     try {
       await deleteProfile(p.id)
@@ -668,6 +672,7 @@ function ProfilesStep({ nav }: { nav: StepNav }) {
   const more = (profiles.data?.length ?? 0) > 1
   return (
     <>
+      {confirmDialog}
       <ul className="onboard-people">
         {profiles.data?.map((p) => (
           <li key={p.id}>

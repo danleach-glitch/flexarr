@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { getDownloads, getUpcoming, imageUrl, type Download, type DownloadState, type UpcomingItem } from '../api/client'
+import { PageError, PageLoading } from '../components/PageStatus'
 import { useApi } from '../hooks/useApi'
 import { friendlyTimeLeft, timeLabel } from '../lib/dates'
 import { episodeCode } from '../lib/format'
@@ -46,6 +47,8 @@ export function UpcomingPage() {
           </ul>
         </section>
       )}
+
+      {!upcoming.data && (upcoming.error ? <PageError error={upcoming.error} onRetry={upcoming.reload} /> : <PageLoading />)}
 
       {upcoming.data && upcoming.data.length === 0 && <p className="muted">{t('Nothing is scheduled. Monitored shows and movies will appear here as their dates approach.')}</p>}
 

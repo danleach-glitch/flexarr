@@ -234,6 +234,23 @@ describe('Setup guide', () => {
     expect(sent(api, 'POST', '/libraries')).toEqual({ name: 'TV shows', type: 'TvShows', folders: ['/data/tv'] })
   })
 
+  it('asks before removing a profile, as Settings does, and keeps it on Cancel', async () => {
+    const ada = { ...main, id: 'ada', name: 'Ada', isMain: false, isCurrent: false, hasPin: false }
+    const api = mockApi({ '/libraries': [podcasts], '/arr/folders': [], '/profiles': [main, ada], 'DELETE /profiles/ada': undefined, 'PUT /setup-guide': undefined })
+    renderAt('profiles')
+    const deleted = () => api.mock.calls.some(([url, init]) => init?.method === 'DELETE' && String(url).endsWith('/profiles/ada'))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove Ada' }))
+    expect(await screen.findByText('Remove Ada’s profile? Their watch history goes with it.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByText('Remove Ada’s profile? Their watch history goes with it.')).not.toBeInTheDocument())
+    expect(deleted()).toBe(false)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Ada' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove profile' }))
+    await waitFor(() => expect(deleted()).toBe(true))
+  })
+
   it('warns about a whole drive or home folder', async () => {
     mockApi({ '/libraries': [podcasts], '/arr/folders': [folder('Radarr', '/Volumes/Media Drive')], 'PUT /setup-guide': undefined })
     renderAt('libraries')

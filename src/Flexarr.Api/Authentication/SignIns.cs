@@ -329,6 +329,12 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
         }
     }
 
+    /// <summary>
+    /// A sign-in was ended (signed out, removed in Settings, a guest's taken away): its id. What it had open, the
+    /// playbacks it started among them, ends with it.
+    /// </summary>
+    public event Action<string>? Revoked;
+
     public bool Revoke(string id)
     {
         lock (_lock)
@@ -342,8 +348,10 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
             Loaded().Remove(found.TokenHash);
             SaveLocked();
             LogRevoked(found.Kind, PathComparison.Printable(found.Name));
-            return true;
         }
+
+        Revoked?.Invoke(id);
+        return true;
     }
 
     /// <summary>Gives a browser or device a name people recognise ("Kitchen iPad"); false if it isn't signed in.</summary>

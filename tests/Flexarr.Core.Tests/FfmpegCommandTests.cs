@@ -95,14 +95,16 @@ public class FfmpegCommandTests
         var nvenc = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan with { SourceVideoCodec = "hevc" }, 0, "/out", Settings(HardwareAcceleration.Nvenc)));
         var qsv = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan with { SourceVideoCodec = "hevc" }, 0, "/out", Settings(HardwareAcceleration.Qsv)));
 
-        Assert.Contains("-vf zscale=transfer=linear", software, StringComparison.Ordinal);
+        // Scaled to the target size first, then mapped: most of the work is the mapping, so it's done on the fewest pixels.
+        Assert.Contains($"-vf zscale=w={Plan.TargetWidth}:h={Plan.TargetHeight}:transfer=linear:npl=100,format=gbrpf32le,tonemap=hable:desat=0,zscale=transfer=bt709:matrix=bt709:primaries=bt709:range=tv,format=yuv420p ", software, StringComparison.Ordinal);
+        Assert.DoesNotContain("scale=" + Plan.TargetWidth, software.Replace("zscale=", "", StringComparison.Ordinal), StringComparison.Ordinal);
         Assert.Contains("-c:v libx264", software, StringComparison.Ordinal);
         // Decoded on the CPU, mapped there, then encoded on the GPU.
         Assert.DoesNotContain("-hwaccel cuda", nvenc, StringComparison.Ordinal);
-        Assert.Contains("zscale=transfer=linear", nvenc, StringComparison.Ordinal);
+        Assert.Contains($"zscale=w={Plan.TargetWidth}:h={Plan.TargetHeight}:transfer=linear", nvenc, StringComparison.Ordinal);
         Assert.Contains("h264_nvenc", nvenc, StringComparison.Ordinal);
         Assert.DoesNotContain("-hwaccel qsv", qsv, StringComparison.Ordinal);
-        Assert.Contains("zscale=transfer=linear", qsv, StringComparison.Ordinal);
+        Assert.Contains($"zscale=w={Plan.TargetWidth}:h={Plan.TargetHeight}:transfer=linear", qsv, StringComparison.Ordinal);
     }
 
     [Fact]

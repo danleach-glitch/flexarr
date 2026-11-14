@@ -818,6 +818,9 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
                                   durationSeconds: remote.durationSeconds, nextId: remote.nextId, state: .preparing(remote.progress),
                                   sizeBytes: remote.sizeBytes, automatic: automatic, manual: automatic ? nil : true)
         if remote.item.id != itemId { local.askedAs = [itemId] }
+        // Part way through already (on this phone or anywhere else): the download carries on from there, as playing it
+        // from the server would, rather than from the start.
+        if !remote.item.userData.watched { local.position = max(0, remote.item.userData.positionSeconds) }
         all.removeAll { $0.id == remote.id }
         all.append(local)
         save()
@@ -1302,6 +1305,14 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     func resumePosition(for trackId: String) -> Double {
         guard let download = entry(for: trackId), download.finishedAt == nil else { return 0 }
         return download.position
+    }
+
+    func resumePosition(ofEpisode episode: ItemSummary) -> Double {
+        guard let download = entry(for: episode.id), download.finishedAt == nil else { return 0 }
+        // Heard here and not yet sent: this phone knows best. Otherwise the server may know of listening elsewhere
+        // since (the episode as the screen just loaded it), as Android's player takes it.
+        if download.unsent != nil || episode.userData.watched { return download.position }
+        return max(download.position, episode.userData.positionSeconds)
     }
 
     func nextDownloadedEpisode(after episode: ItemSummary) -> ItemSummary? {

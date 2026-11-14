@@ -52,6 +52,32 @@ public static class PathComparison
     }
 
     /// <summary>
+    /// Whether <paramref name="path"/> is a link to a file of another kind: "Film.en.ass" pointing at a settings file,
+    /// say, in a folder unpacked from an archive or shared with someone else. A file read as it is and handed to
+    /// whoever plays the title mustn't be one. A link to the same kind of file is as good as the file: libraries built
+    /// of links to another drive are common.
+    /// </summary>
+    public static bool LinksToAnotherKind(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        try
+        {
+            var file = new FileInfo(path);
+            if (file.LinkTarget is null)
+            {
+                return false;
+            }
+
+            return file.ResolveLinkTarget(returnFinalTarget: true) is not { } target
+                || !string.Equals(Path.GetExtension(target.FullName), Path.GetExtension(path), StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return true; // a link that can't be followed isn't read either
+        }
+    }
+
+    /// <summary>
     /// True when the path holds a control character (a null, a line break), a Unicode line or paragraph separator, or a
     /// bidi embedding, override or isolate: no real file's path needs one, path APIs throw on some, and in a log line
     /// they could forge entries or disguise what's written. Paths sent to Flexarr are refused with them.

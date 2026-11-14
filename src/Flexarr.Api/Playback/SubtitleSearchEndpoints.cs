@@ -49,14 +49,20 @@ public static partial class SubtitleSearchEndpoints
     public static RouteGroupBuilder MapSubtitleSearchEndpoints(this RouteGroupBuilder api)
     {
         // Whether Bazarr is set up, so clients can hide "Search for subtitles…" otherwise.
-        api.MapGet("/subtitles/status", async (IOptionsMonitor<FlexarrOptions> options, BazarrClient bazarr, FlexarrDbContext db, CancellationToken ct) =>
+        api.MapGet("/subtitles/status", async (IOptionsMonitor<FlexarrOptions> options, BazarrClient bazarr, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
         {
-            // A kids profile doesn't find subtitles: to it, Bazarr isn't set up.
-            var instance = db.ServesKids ? null : options.CurrentValue.Bazarr?.Instance;
+            // A kids profile doesn't find subtitles, nor a family guest (what's found is saved beside the household's
+            // files): to them, Bazarr isn't set up.
+            var instance = db.ServesKids || profile.IsGuest ? null : options.CurrentValue.Bazarr?.Instance;
             return new { configured = instance is not null, reachable = instance is not null && await SafePingAsync(bazarr, instance, ct) };
         }).WithTags("Subtitles");
 
-        var group = api.MapGroup("/items/{id:guid}/subtitles").WithTags("Subtitles").NotForKids();
+        // Subtitles found are written beside the household's files, and a sync rewrites one: not a family guest's to do.
+        var group = api.MapGroup("/items/{id:guid}/subtitles").WithTags("Subtitles").NotForKids()
+            .AddEndpointFilter(async (context, next) =>
+                context.HttpContext.RequestServices.GetRequiredService<CurrentProfile>().IsGuest
+                    ? Problems.Of("Guests can’t add subtitles.", status: 403)
+                    : await next(context));
 
         group.MapGet("/search", async (Guid id, Guid? fileId, IOptionsMonitor<FlexarrOptions> options, BazarrClient bazarr, FlexarrDbContext db, CurrentProfile profile,
             ILoggerFactory logs, CancellationToken ct) =>

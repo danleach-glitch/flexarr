@@ -2047,8 +2047,9 @@ final class AppModel {
             return
         }
         let id = url.pathComponents.dropFirst().first ?? ""
-        // flexarr://watchlist (the profile's watchlist) has no id; the rest need one.
-        guard !id.isEmpty || host == "watchlist" else { return }
+        // flexarr://watchlist (the profile's watchlist) has no id; the rest need one, and a plain one: it goes into the
+        // paths asked of the server, where a link's "..%2F" would otherwise lead somewhere else.
+        guard host == "watchlist" || FlexarrClient.isPlainId(id) else { return }
         if host == "remote" {
             onOpenRemote?(id)
             return

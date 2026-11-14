@@ -101,6 +101,15 @@ private final class Counter: @unchecked Sendable {
 }
 
 struct FlexarrClientTests {
+    @Test func anIdFromALink_IsOnlyTakenWhenItsPlain() {
+        #expect(FlexarrClient.isPlainId("0195f3c2-7d1e-7c4a-9b1e-3f2a6d5c4b3a"))
+        #expect(FlexarrClient.isPlainId("a1B2_c3-d4"))
+        // What flexarr://item/..%2F..%2Fsystem%2Fstatus decodes to, and its like.
+        for id in ["", "../../system/status", "..", "a/b", "a%2Fb", "a b", "a?b=c", "é"] {
+            #expect(!FlexarrClient.isPlainId(id), "\(id)")
+        }
+    }
+
     @Test func requestsAndTheCommandStream_HaveConnectionsOfTheirOwn_NotArtworks() {
         let client = FlexarrClient(baseURL: URL(string: "http://flexarr.local:8383")!)
         // Artwork loads on the shared session, whose few connections to the server a scroll through posters fills:

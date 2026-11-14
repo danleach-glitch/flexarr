@@ -9,6 +9,39 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Signing in to Trakt now goes from your server straight to Trakt, with nothing passing through flexarr.io.
 - Using your own Trakt app needs only its Client ID: Trakt no longer needs a Client secret.
 
+### Podcasts
+
+- On iPhone, downloading an episode you're part-way through keeps your place: the download carries on from where you left it, here or on another device, instead of starting again.
+
+### Security
+
+- A damaged or hostile `.nfo` or `.opf` file in a library folder can no longer crash the server during a scan.
+- Family guests can no longer set or see the household's recordings by asking through an assistant.
+- Family guests can no longer search for, download or re-sync subtitles: what's found is saved beside the household's own files.
+- Signing a device out now also stops anything it was playing, and a stream's link stops working after a day (or twice the length of a long audiobook), however often it's used.
+- Wrong guesses at the admin PIN are now counted per address at home (and per Tailscale login), so signing a browser in again no longer earns fresh guesses.
+- A subtitle or lyrics file that is really a link to some other kind of file is no longer read.
+- A private podcast feed's full address, which carries its key, is now shown only to profiles that follow it and to the main profile.
+- A Tailscale account linked to a profile other than the main one no longer sees the household's devices and what they're playing.
+- On iPhone, iPad and Apple TV, a link into the app is only followed when it names a title plainly, so a crafted link can't make the app ask the server for something else.
+
+### iPad
+
+- **Who's watching?** now sits in the middle of the screen on iPad, instead of starting from the top left.
+
+### Web
+
+- The setup guide now asks before removing a profile, as Settings does.
+- **Coming soon** now shows that it's loading, and says so with **Try again** when it can't load, instead of an empty page.
+
+### Playback
+
+- Converting a 4K HDR film for a screen that can't show HDR is several times lighter on the server's processor: the picture is shrunk before its colours are converted, not after.
+
+### Music, audiobooks and podcasts
+
+- On iPhone, iPad, Apple TV and Mac, a track, book or episode that can't start now says why, instead of the spinner stopping with nothing playing.
+
 ## 0.66.0 · 13 November 2026
 
 ### Apple TV

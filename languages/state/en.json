@@ -1114,6 +1114,7 @@
   "Green": "w",
   "Guests": "w",
   "Guests can reach Flexarr and nothing else.": "w",
+  "Guests can’t add subtitles.": "s",
   "Guests can’t change PINs.": "s",
   "Guests can’t change a title’s audio sync.": "s",
   "Guests can’t change recordings.": "s",
