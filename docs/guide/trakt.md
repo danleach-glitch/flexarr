@@ -68,6 +68,6 @@ Flexarr uses its own Trakt app, so there's nothing to set up. If you'd rather us
 
 ## Privacy
 
-Your server keeps each connected profile's Trakt sign-in and sync state, and nothing leaves it except to Trakt: signing in goes straight there too. The [privacy policy](https://flexarr.io/privacy#trakt) has the details.
+Your server keeps each connected profile's Trakt sign-in and sync state, and nothing leaves it except to Trakt: signing in goes straight there too. The [Trakt privacy policy](https://flexarr.io/trakt-privacy) has the details.
 
 Flexarr uses Trakt but is not endorsed or certified by Trakt.

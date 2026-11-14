@@ -93,17 +93,13 @@
     <h2 id="trakt">Trakt</h2>
     <p>Trakt is off until someone connects their own Trakt account to their profile, in Settings › Trakt. Each
     profile connects its own, and kids profiles can't. Once connected, the Flexarr server and Trakt exchange what that
-    person has watched, where they're up to, their watchlist and the lists they choose, so the two stay in step.</p>
-    <p>The server keeps that profile's Trakt sign-in (Trakt's access and refresh tokens), their Trakt username, when
-    it last synced, changes waiting to be sent, and the Trakt history of titles the server doesn't have yet, so they
-    arrive already marked watched. All of it stays on that server, under its owner's control, and is used only for
-    keeping that profile in step with Trakt.</p>
-    <p>Everything, signing in included, goes from your server straight to Trakt. Nothing passes through
-    flexarr.io.</p>
-    <p><strong>Disconnect</strong> in Settings › Trakt makes Trakt forget Flexarr and deletes everything above from the
-    server: the sign-in, username, waiting changes, held history and Trakt lists. What you've watched stays as it is, here and on Trakt. To delete your data on
-    Trakt itself, use Trakt's own settings; Trakt handles it under the
-    <a href="https://trakt.tv/privacy">Trakt privacy policy</a>.</p>
+    person has watched, where they're up to, their watchlist and the lists they choose, so the two stay in step. The
+    server keeps that profile's Trakt sign-in and sync state, all of it on that server under its owner's control, and
+    everything, signing in included, goes from your server straight to Trakt: nothing passes through flexarr.io.
+    <strong>Disconnect</strong> in Settings › Trakt makes Trakt forget Flexarr and deletes all of it from the server.</p>
+    <p>The <a href="/trakt-privacy">Flexarr Trakt privacy policy</a> has the whole of it: what Flexarr sends to Trakt,
+    what your server keeps, how long for and how to delete it. Trakt handles what it receives under
+    <a href="https://trakt.tv/privacy">Trakt's own privacy policy</a>.</p>
     <p>Flexarr uses Trakt but is not endorsed or certified by Trakt.</p>
 
     <h2>Optional error reports</h2>
