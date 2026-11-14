@@ -21,6 +21,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Signing a device out now also stops anything it was playing, and a stream's link stops working after a day (or twice the length of a long audiobook), however often it's used.
 - Wrong guesses at the admin PIN are now counted per address at home (and per Tailscale login), so signing a browser in again no longer earns fresh guesses.
 - A subtitle or lyrics file that is really a link to some other kind of file is no longer read.
+- A private podcast feed's full address, which carries its key, is now shown only to profiles that follow it and to the main profile.
 
 ### iPad
 

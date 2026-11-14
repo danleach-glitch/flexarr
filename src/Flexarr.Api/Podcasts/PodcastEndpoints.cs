@@ -595,6 +595,14 @@ public static class PodcastEndpoints
     private static async Task<PodcastDto?> PodcastAsync(FlexarrDbContext db, Guid id, string profileId, CancellationToken ct) =>
         await Podcasts(db.MediaItems.Where(i => i.Id == id), db, profileId).FirstOrDefaultAsync(ct);
 
+    /// <summary>
+    /// A feed's address as a profile is told it: in full for whoever follows it, and for the main profile, which looks
+    /// after them all. A private feed's address carries its key (a paid feed's token), so anyone else gets only where
+    /// it's from ("https://feeds.example.com/").
+    /// </summary>
+    internal static string FeedAddress(string url, bool whole) =>
+        whole ? url : Uri.TryCreate(url, UriKind.Absolute, out var parsed) ? $"{parsed.Scheme}://{parsed.Host}{(parsed.IsDefaultPort ? "" : $":{parsed.Port}")}/" : "";
+
     private static IQueryable<PodcastDto> Podcasts(IQueryable<MediaItem> items, FlexarrDbContext db, string profileId) =>
         items.Where(i => i.Kind == MediaKind.Podcast && i.Feed != null)
             .Select(i => new
@@ -609,7 +617,8 @@ public static class PodcastEndpoints
             })
             .Select(x => new PodcastDto(x.Item.Id, x.Item.Title, x.Item.Studio, x.Item.Overview,
                 ArtworkUrls.For(x.Item.Id, ArtworkUrls.Version(x.Item.MetadataUpdatedAt, x.Item.ArtworkChangedAt), x.Item.PosterUrl != null, false, false, false),
-                x.Item.AccentColor, x.Feed.Link, x.Feed.Categories, x.Feed.Explicit, x.Count, x.Unplayed, x.Latest, x.Feed.ITunesId, x.Feed.Url, x.Feed.CheckedAt,
+                x.Item.AccentColor, x.Feed.Link, x.Feed.Categories, x.Feed.Explicit, x.Count, x.Unplayed, x.Latest, x.Feed.ITunesId,
+                FeedAddress(x.Feed.Url, x.Subscription != null || profileId == PlaybackState.DefaultUser), x.Feed.CheckedAt,
                 x.Feed.Error, x.Subscription));
 
     /// <param name="overview">How much of the notes to carry; null for all of them.</param>
