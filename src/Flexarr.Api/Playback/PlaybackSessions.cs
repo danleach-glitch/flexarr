@@ -104,6 +104,14 @@ public sealed partial class PlaybackSessions
     private static readonly TimeSpan Expiry = TimeSpan.FromHours(12);
 
     /// <summary>
+    /// The longest a playback lasts however often it's heard from: a day, or twice its title's length for a book that
+    /// takes longer. Its address is all a player needs to fetch it, so one that got out (a proxy's log, a cast
+    /// receiver) can't be kept going for good by asking again and again. A player still on it starts another.
+    /// </summary>
+    internal static TimeSpan Lifetime(PlaybackSession session) =>
+        TimeSpan.FromSeconds(Math.Max(TimeSpan.FromHours(24).TotalSeconds, double.IsFinite(session.DurationSeconds) ? session.DurationSeconds * 2 : 0));
+
+    /// <summary>
     /// A playback got ready ahead of Play that no player has taken up is dropped after this long: longer than any app
     /// keeps one to take up (half an hour for the next episode, got ready during the credits).
     /// </summary>
@@ -307,6 +315,22 @@ public sealed partial class PlaybackSessions
         }
     }
 
+    /// <summary>Ends every playback a sign-in started: it was signed out, so what it had open goes too.</summary>
+    public async Task RemoveForSignInAsync(string signInId)
+    {
+        foreach (var session in _sessions.Values.Where(s => s.SignInId == signInId).ToList())
+        {
+            try
+            {
+                await RemoveAsync(session.Id);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                LogExpireFailed(ex, session.Id);
+            }
+        }
+    }
+
     public async Task SweepAsync()
     {
         var now = DateTime.UtcNow;
@@ -325,7 +349,7 @@ public sealed partial class PlaybackSessions
             session.Shown = shows;
         }
 
-        foreach (var session in _sessions.Values.Where(s => now - s.LastSeen > Expiry || (s.Warming && now - s.Created > WarmingExpiry)).ToList())
+        foreach (var session in _sessions.Values.Where(s => now - s.LastSeen > Expiry || now - s.Created > Lifetime(s) || (s.Warming && now - s.Created > WarmingExpiry)).ToList())
         {
             try
             {

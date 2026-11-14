@@ -377,6 +377,9 @@ builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.BrotliCompre
 builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProviderOptions>(o => o.Level = System.IO.Compression.CompressionLevel.Fastest);
 
 var app = builder.Build();
+// A sign-in that's ended takes its playbacks with it: their addresses work without a sign-in, so they'd outlive it.
+app.Services.GetRequiredService<SignIns>().Revoked += signInId =>
+    _ = Task.Run(() => app.Services.GetRequiredService<PlaybackSessions>().RemoveForSignInAsync(signInId));
 // The machine's name, which the server is called until it's named, is looked up now so no request waits for it.
 _ = Task.Run(ServerName.Warm);
 // The Mac app's sandbox can't run other programs, Tailscale's command included.

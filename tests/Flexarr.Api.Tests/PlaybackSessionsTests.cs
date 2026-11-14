@@ -191,6 +191,67 @@ public class PlaybackSessionsTests
         Assert.False(direct.Warming);
     }
 
+    [Fact]
+    public async Task ASignedOutDevicesPlaybacks_GoWithIt_AndNobodyElses()
+    {
+        var cache = Directory.CreateTempSubdirectory("flexarr-sessions-").FullName;
+        await using var transcodes = new TranscodeManager(
+            () => new TranscodeSettings { CacheDirectory = cache, MaxConcurrentTranscodes = 3 }, NullLoggerFactory.Instance);
+        var sessions = new PlaybackSessions(transcodes, NullLogger<PlaybackSessions>.Instance);
+        var lost = Started(DateTime.UtcNow, signIn: "lost-phone");
+        var kept = Started(DateTime.UtcNow, signIn: "living-room");
+        var keyed = Started(DateTime.UtcNow, signIn: null);
+        sessions.Add(lost);
+        sessions.Add(kept);
+        sessions.Add(keyed);
+
+        await sessions.RemoveForSignInAsync("lost-phone");
+
+        Assert.Null(sessions.Get(lost.Id));
+        Assert.NotNull(sessions.Get(kept.Id));
+        Assert.NotNull(sessions.Get(keyed.Id));
+    }
+
+    [Fact]
+    public async Task APlaybackStillAskedFor_EndsAfterADay_UnlessItsTitleIsLongerThanThat()
+    {
+        var cache = Directory.CreateTempSubdirectory("flexarr-sessions-").FullName;
+        await using var transcodes = new TranscodeManager(
+            () => new TranscodeSettings { CacheDirectory = cache, MaxConcurrentTranscodes = 3 }, NullLoggerFactory.Instance);
+        var sessions = new PlaybackSessions(transcodes, NullLogger<PlaybackSessions>.Instance);
+        // Its address is the only thing needed to fetch it: asked for again and again, it would otherwise never end.
+        var film = Started(DateTime.UtcNow.AddHours(-25), signIn: null);
+        var today = Started(DateTime.UtcNow.AddHours(-23), signIn: null);
+        var longBook = Started(DateTime.UtcNow.AddHours(-25), signIn: null, durationSeconds: 30 * 3600);
+        foreach (var session in new[] { film, today, longBook })
+        {
+            sessions.Add(session);
+            Assert.NotNull(sessions.Get(session.Id)); // heard from just now
+        }
+
+        await sessions.SweepAsync();
+
+        Assert.Null(sessions.Get(film.Id));
+        Assert.NotNull(sessions.Get(today.Id));
+        Assert.NotNull(sessions.Get(longBook.Id));
+    }
+
+    private static PlaybackSession Started(DateTime created, string? signIn, double durationSeconds = 600) => new()
+    {
+        Id = Guid.NewGuid().ToString("N"),
+        ItemId = Guid.NewGuid(),
+        ProfileId = "main",
+        FileId = Guid.NewGuid(),
+        FilePath = "/in.mp4",
+        Container = "mp4",
+        DurationSeconds = durationSeconds,
+        Method = PlaybackMethod.DirectPlay,
+        Subtitles = [],
+        CreditsStart = null,
+        Created = created,
+        SignInId = signIn,
+    };
+
     private static PlaybackSession Direct(DateTime created) => new()
     {
         Id = Guid.NewGuid().ToString("N"),
