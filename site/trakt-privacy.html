@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flexarr Trakt Privacy Policy</title>
+  <meta name="description" content="How Flexarr handles Trakt data: what it sends to Trakt, what your own server keeps, and how Disconnect deletes it. Flexarr is self-hosted, so it all stays on your server.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --room: #1b1720;
+      --aisle: #3a3343;
+      --screen: #f2eee7;
+      --usher: #a39aae;
+      --silver: #a9c2ec;
+      --display: 'Big Shoulders Display', 'Arial Narrow', sans-serif;
+      --text: 'Atkinson Hyperlegible Next', system-ui, sans-serif;
+      --edge: clamp(16px, 5vw, 64px);
+      color-scheme: dark;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--room);
+      color: var(--screen);
+      font-family: var(--text);
+      font-size: 1.0625rem;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    p, li { text-wrap: pretty; }
+    a { color: var(--silver); }
+    h1, h2 { text-wrap: balance; font-family: var(--display); font-weight: 800; line-height: 1; margin: 0; }
+    h1 { font-size: clamp(2.5rem, 7vw, 3.5rem); margin-bottom: 0.4em; }
+    h2 { font-size: 1.6rem; margin: 1.6em 0 0.4em; }
+    main { width: min(720px, 100% - 2 * var(--edge)); margin: 0 auto; padding: 56px 0 72px; }
+    .home { display: inline-block; margin-bottom: 40px; color: var(--usher); text-decoration: none; }
+    .home:hover { color: var(--screen); }
+    .updated { color: var(--usher); }
+    footer { border-top: 1px solid var(--aisle); color: var(--usher); font-size: 0.9rem; padding: 24px var(--edge); text-align: center; }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="home" href="/">← Flexarr</a>
+    <h1>Trakt Privacy Policy</h1>
+    <p class="updated">Last updated 14 November 2026</p>
+
+    <p>This policy covers Flexarr's <a href="https://trakt.tv">Trakt</a> integration: what Flexarr sends to Trakt, what it
+    keeps, where that is kept, and how to delete it. Everything else about Flexarr — the apps, Flexarr Server for Mac and
+    the flexarr.io website — is in the <a href="/privacy">Flexarr privacy policy</a>.</p>
+
+    <h2>Flexarr is yours, and so is the data</h2>
+    <p>Flexarr is a media server you run yourself, on your own hardware, with apps for iPhone, iPad, Apple TV, Android and
+    the web. There is no Flexarr cloud and no Flexarr account. Everything described here is kept on the Flexarr server you
+    or whoever invited you runs, under that server owner's control. The Flexarr project receives none of it and has no
+    access to it.</p>
+    <p>Flexarr collects no personal data of its own. It contains no analytics, advertising or tracking, and nothing here is
+    ever sold or shared with anyone but Trakt, at your request.</p>
+
+    <h2>Connecting Trakt is your choice</h2>
+    <p>Trakt is off until someone connects their own Trakt account to their own profile, in <strong>Settings › Trakt</strong>.
+    Each profile connects its own account, one account per profile, and kids profiles can't connect at all. Signing in uses
+    Trakt's device code: the screen shows a code to enter at trakt.tv/activate, so no Trakt password is ever typed into
+    Flexarr or seen by it.</p>
+
+    <h2>What Flexarr sends to Trakt</h2>
+    <p>Once a profile is connected, Flexarr sends that profile's Trakt account only what keeps the two in step:</p>
+    <ul>
+      <li>What that profile has watched, and when, so Trakt's history matches.</li>
+      <li>Where they're up to in something they're part-way through, and, while they're watching, that they're watching it
+      now, how far in they are and whether it's paused (Trakt's scrobbling).</li>
+      <li>Titles they add to or remove from their Flexarr watchlist.</li>
+      <li>The Trakt sign-in token Trakt itself issued, with each request, so Trakt knows whose account it is.</li>
+    </ul>
+    <p>Nothing else goes to Trakt: not your library, your file names or paths, your other profiles, your server's address,
+    or anything anyone else on the server watches. Trakt handles what it receives under the
+    <a href="https://trakt.tv/privacy">Trakt privacy policy</a>.</p>
+
+    <h2>What Flexarr keeps on your server</h2>
+    <p>For each connected profile, the server keeps:</p>
+    <ul>
+      <li>That profile's Trakt sign-in: the access and refresh tokens Trakt issued.</li>
+      <li>Their Trakt username.</li>
+      <li>When it last synced, and what Trakt last changed, so it needn't ask again.</li>
+      <li>Changes waiting to be sent, so nothing is lost while Trakt or the network is down.</li>
+      <li>Trakt plays of titles the server doesn't have yet, so they arrive already marked watched.</li>
+      <li>The Trakt lists chosen to show in Flexarr.</li>
+    </ul>
+    <p>All of it stays on that server, in its database, and is used only for keeping that profile in step with Trakt. The
+    server's backups include it, so a backup should be kept as carefully as the server itself.</p>
+
+    <h2>Nothing passes through flexarr.io</h2>
+    <p>Your server talks straight to Trakt's API. Signing in, renewing the sign-in, revoking it and every sync go directly
+    from your server to trakt.tv. No part of it passes through flexarr.io or any other service the Flexarr project runs, and
+    the Flexarr project never sees your Trakt account, your tokens or your history.</p>
+
+    <h2>How long it's kept, and how to delete it</h2>
+    <p><strong>Disconnect</strong> in <strong>Settings › Trakt</strong> tells Trakt to forget Flexarr and deletes everything
+    above from the server: the sign-in, the username, the sync state, the waiting changes, the held history and the Trakt
+    lists. It happens at once. Making a profile a kids profile, or deleting the profile, disconnects it the same way, and
+    deleting the server or its data folder removes everything with it.</p>
+    <p>Until then it is kept only while the profile stays connected, for as long as the server's owner runs the server.
+    What you have already watched stays as it is in both places: Flexarr keeps its own watch history, and Trakt keeps
+    yours. To delete what is held on Trakt, or to close your Trakt account, use Trakt's own settings.</p>
+
+    <h2>Children</h2>
+    <p>Kids profiles cannot connect Trakt, and Flexarr collects no personal data from anyone, including children.</p>
+
+    <h2>Changes and contact</h2>
+    <p>If this policy changes, this page will show the new date. Questions are welcome on
+    <a href="https://github.com/danleach-glitch/flexarr/issues">GitHub</a>.</p>
+
+    <p>Flexarr uses Trakt but is not endorsed or certified by Trakt.</p>
+  </main>
+  <footer>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.</footer>
+</body>
+</html>
