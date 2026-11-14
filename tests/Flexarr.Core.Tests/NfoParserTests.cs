@@ -5,6 +5,16 @@ namespace Flexarr.Core.Tests;
 public class NfoParserTests
 {
     [Fact]
+    public void TagsInsideTagsByTheThousand_AreNotRead()
+    {
+        // Reading the text of tags this deep runs the thread out of stack, which would end the server mid-scan.
+        var deep = string.Concat(Enumerable.Repeat("<a>", 20_000)) + "x" + string.Concat(Enumerable.Repeat("</a>", 20_000));
+
+        Assert.Null(NfoParser.Parse($"<movie><title>{deep}</title></movie>", "movie"));
+        Assert.Equal("Fine", NfoParser.Parse("<movie><title><b><i>Fine</i></b></title></movie>", "movie")?.Title);
+    }
+
+    [Fact]
     public void Movie_ReadsDetailsAndIds()
     {
         var nfo = NfoParser.Parse("""

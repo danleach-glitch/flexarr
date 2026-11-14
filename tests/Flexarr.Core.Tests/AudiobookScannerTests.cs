@@ -228,6 +228,20 @@ public sealed class AudiobookScannerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AnOpfFileOfTagsInsideTagsByTheThousand_IsLeftUnread()
+    {
+        Touch("Terry Pratchett/Going Postal/01.mp3");
+        _probe.Tags["01.mp3"] = new() { ["album"] = "Going Postal", ["artist"] = "Terry Pratchett" };
+        var deep = string.Concat(Enumerable.Repeat("<a>", 20_000)) + "Not this" + string.Concat(Enumerable.Repeat("</a>", 20_000));
+        File.WriteAllText(Path.Combine(Books, "Terry Pratchett/Going Postal/metadata.opf"),
+            $"<package xmlns=\"http://www.idpf.org/2007/opf\"><metadata xmlns:dc=\"http://purl.org/dc/elements/1.1/\"><dc:title>{deep}</dc:title></metadata></package>");
+
+        await ScanAsync();
+
+        Assert.Equal("Going Postal", (await _db.MediaItems.SingleAsync()).Title);
+    }
+
+    [Fact]
     public async Task AnOpfFile_WinsOverTags()
     {
         Touch("Terry Pratchett/Going Postal/01.mp3", "Terry Pratchett/Going Postal/02.mp3");

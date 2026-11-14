@@ -13,6 +13,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 - On iPhone, downloading an episode you're part-way through keeps your place: the download carries on from where you left it, here or on another device, instead of starting again.
 
+### Security
+
+- A damaged or hostile `.nfo` or `.opf` file in a library folder can no longer crash the server during a scan.
+
 ## 0.66.0 · 13 November 2026
 
 ### Apple TV

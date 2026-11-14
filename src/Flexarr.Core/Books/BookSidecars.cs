@@ -18,6 +18,9 @@ public static partial class BookSidecars
     private static readonly string[] ImageExtensions = [".jpg", ".jpeg", ".png", ".webp"];
     private static readonly string[] CoverNames = ["cover", "folder", "front", "poster"];
 
+    /// <summary>The largest .opf read: real ones are a few kilobytes, so anything far bigger isn't one.</summary>
+    private const long MaxOpfBytes = 4 * 1024 * 1024;
+
     /// <param name="folder">The book's folder.</param>
     public static BookInfo Read(string folder)
     {
@@ -143,8 +146,28 @@ public static partial class BookSidecars
 
         try
         {
-            using var reader = XmlReader.Create(path, new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null });
-            return Opf(XDocument.Load(reader));
+            // A real .opf is a few kilobytes and four or five tags deep. One far bigger isn't one, and tags inside tags
+            // by the thousand would run the thread out of stack when their text is read (FeedParser.MaxDepth).
+            if (new FileInfo(path).Length > MaxOpfBytes)
+            {
+                return null;
+            }
+
+            Stream xml = File.OpenRead(path);
+            try
+            {
+                if (Podcasts.FeedParser.NestedDeeperThan(ref xml, Podcasts.FeedParser.MaxDepth))
+                {
+                    return null;
+                }
+
+                using var reader = XmlReader.Create(xml, new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null });
+                return Opf(XDocument.Load(reader));
+            }
+            finally
+            {
+                xml.Dispose();
+            }
         }
         catch (Exception ex) when (ex is XmlException or IOException or UnauthorizedAccessException)
         {
