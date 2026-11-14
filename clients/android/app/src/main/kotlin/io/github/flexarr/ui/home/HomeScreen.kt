@@ -2,6 +2,8 @@ package io.github.flexarr.ui.home
 
 import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
+import io.github.flexarr.ui.components.StatusBarShade
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -183,11 +185,12 @@ fun HomeScreen(model: AppModel) {
         label = "ambient",
     )
 
+    val list = rememberLazyListState()
     RoomBackground(ambient = { ambient.value }, intensity = 0.28f) {
         Loaded(loader) { content ->
             val home = content.home
             PullToRefreshBox(isRefreshing = loader.refreshing, onRefresh = loader.retry, modifier = Modifier.fillMaxSize()) {
-                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
+                LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
                     // Only when Home has nothing else at all; a profile with an age limit gets one line, not the setup talk.
                     // One or the other: a profile just switched to can briefly have both.
                     val limited = model.currentProfile?.takeIf { it.hasAgeLimit }
@@ -214,6 +217,7 @@ fun HomeScreen(model: AppModel) {
                 }
             }
         }
+        StatusBarShade(list)
         // Locked to one kids profile, the picker is still the way to unlock. A guest stays on its invite's profile.
         if (!model.isGuest && (model.profiles.size > 1 || model.kidsLock)) {
             model.currentProfile?.let { current ->

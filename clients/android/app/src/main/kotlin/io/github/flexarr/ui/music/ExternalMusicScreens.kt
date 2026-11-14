@@ -3,6 +3,9 @@ package io.github.flexarr.ui.music
 import io.github.flexarr.core.i18n.t
 import io.github.flexarr.core.i18n.Words
 
+import io.github.flexarr.ui.components.StatusBarShade
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -534,6 +537,7 @@ fun ExternalArtistScreen(model: AppModel, deezerId: Long) {
     val client = model.client ?: return
     val navigator = LocalNavigator.current
     val page = rememberLoader(deezerId) { client.musicArtist(deezerId) }
+    val grid = rememberLazyGridState()
     RoomBackground(ambient = Flexarr.silver, intensity = 0.3f) {
         when (val state = page.state) {
             is Load.Loaded -> PullToRefreshBox(isRefreshing = page.refreshing, onRefresh = page.retry) {
@@ -543,6 +547,7 @@ fun ExternalArtistScreen(model: AppModel, deezerId: Long) {
                 val keys = listOfNotNull(summary.id, libraryId?.let { "library-artist-$it" })
                 val follow = model.followState(keys, artist.followed || artist.availability == Availability.Requested)
                 CompositionLocalProvider(LocalMusicPaused provides artist.lidarrPaused) { LazyVerticalGrid(
+                    state = grid,
                     columns = GridCells.Adaptive(105.dp),
                     contentPadding = PaddingValues(start = Edge, end = Edge, bottom = 32.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -585,6 +590,7 @@ fun ExternalArtistScreen(model: AppModel, deezerId: Long) {
             is Load.Failed -> StatusView(state.message, page.retry)
             Load.Loading -> StatusView()
         }
+        StatusBarShade(grid)
         BackButton()
     }
 }
@@ -607,12 +613,13 @@ fun ExternalAlbumScreen(model: AppModel, deezerId: Long) {
         AlbumScreen(model, id)
         return
     }
+    val list = rememberLazyListState()
     RoomBackground(ambient = Flexarr.silver, intensity = 0.3f) {
         when (val state = page.state) {
             is Load.Loaded -> PullToRefreshBox(isRefreshing = page.refreshing, onRefresh = page.retry) {
                 val album = state.value
                 val summary = album.summary
-                CompositionLocalProvider(LocalMusicPaused provides album.lidarrPaused) { LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
+                CompositionLocalProvider(LocalMusicPaused provides album.lidarrPaused) { LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 32.dp)) {
                     item {
                         ExternalMusicHeader(
                             model,
@@ -667,6 +674,7 @@ fun ExternalAlbumScreen(model: AppModel, deezerId: Long) {
             is Load.Failed -> StatusView(state.message, page.retry)
             Load.Loading -> StatusView()
         }
+        StatusBarShade(list)
         BackButton()
     }
 }

@@ -2,6 +2,9 @@ package io.github.flexarr.ui.music
 
 import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
+import io.github.flexarr.ui.components.StatusBarShade
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -250,6 +253,7 @@ fun ArtistScreen(model: AppModel, id: String) {
         }
     }
 
+    val grid = rememberLazyGridState()
     RoomBackground(ambient = ambient, intensity = 0.3f) {
         when (val state = page.state) {
             is Load.Loaded -> PullToRefreshBox(isRefreshing = page.refreshing, onRefresh = page.retry) {
@@ -262,6 +266,7 @@ fun ArtistScreen(model: AppModel, id: String) {
                 val followKeys = libraryArtistKeys(id, known?.deezerId)
                 // Lidarr didn't answer for this page: Follow and the album chips wait, and the page says so.
                 CompositionLocalProvider(LocalMusicPaused provides (known?.lidarrPaused == true)) { LazyVerticalGrid(
+                    state = grid,
                     columns = GridCells.Adaptive(105.dp),
                     contentPadding = PaddingValues(start = Edge, end = Edge, bottom = 32.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -333,6 +338,7 @@ fun ArtistScreen(model: AppModel, id: String) {
             is Load.Failed -> StatusView(state.message, page.retry)
             Load.Loading -> StatusView()
         }
+        StatusBarShade(grid)
         BackButton()
     }
 }
@@ -347,6 +353,7 @@ fun AlbumScreen(model: AppModel, id: String) {
     val detail = (page.state as? Load.Loaded)?.value
     val ambient = detail?.item?.let { glowColor(it.accentColor) } ?: Flexarr.silver
 
+    val list = rememberLazyListState()
     RoomBackground(ambient = ambient, intensity = 0.3f) {
         when (val state = page.state) {
             is Load.Loaded -> PullToRefreshBox(isRefreshing = page.refreshing, onRefresh = page.retry) {
@@ -357,7 +364,7 @@ fun AlbumScreen(model: AppModel, id: String) {
                 val input = MusicActions.Input(MusicActions.Kind.ALBUM, hasMusic = true, canRequest = false, platform = MusicActions.Platform.PHONE, canDownload = true, canQueue = tracks.isNotEmpty())
                 val actions = MusicActions.of(input)
                 val more = musicPageMenuActions(item, MusicActions.menu(input))
-                androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
+                androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 32.dp)) {
                     item {
                         MusicHeader(
                             art = { SquareArtwork(item, it.width(240.dp).shadow(20.dp, RoundedCornerShape(Tokens.radiusArt)), imageWidth = 800) },
@@ -418,6 +425,7 @@ fun AlbumScreen(model: AppModel, id: String) {
             is Load.Failed -> StatusView(state.message, page.retry)
             Load.Loading -> StatusView()
         }
+        StatusBarShade(list)
         BackButton()
     }
 }
@@ -450,11 +458,12 @@ fun PlaylistScreen(model: AppModel, id: String) {
 
     val detail: PlaylistDetail? = (loader.state as? Load.Loaded)?.value
     val tracks = detail?.tracks?.map { it.track }.orEmpty()
+    val list = rememberLazyListState()
     RoomBackground(ambient = tracks.firstOrNull()?.let { glowColor(it.accentColor) }, intensity = 0.25f) {
         when (val state = loader.state) {
             is Load.Loaded -> PullToRefreshBox(isRefreshing = loader.refreshing, onRefresh = loader.retry) {
                 val summary = state.value.summary
-                androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
+                androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 32.dp)) {
                     item {
                         MusicHeader(
                             art = { PlaylistArtwork(summary, it.width(240.dp).shadow(20.dp, RoundedCornerShape(Tokens.radiusArt))) },
@@ -490,6 +499,7 @@ fun PlaylistScreen(model: AppModel, id: String) {
             is Load.Failed -> StatusView(state.message, loader.retry)
             Load.Loading -> StatusView()
         }
+        StatusBarShade(list)
         BackButton()
     }
 }

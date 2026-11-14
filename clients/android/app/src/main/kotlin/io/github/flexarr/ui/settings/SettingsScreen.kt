@@ -97,6 +97,7 @@ import io.github.flexarr.ui.components.Load
 import io.github.flexarr.ui.components.Loaded
 import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.PageTitle
+import io.github.flexarr.ui.components.PinnedPageTitle
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.components.rememberLoader
 import io.github.flexarr.ui.profiles.ProfileAvatar
@@ -183,7 +184,7 @@ fun SettingsScreen(
 
     RoomBackground(ambient = null) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-            item { PageTitle(t(Words.settings)) }
+            stickyHeader { PinnedPageTitle(t(Words.settings)) }
             model.currentProfile?.let { current ->
                 item {
                     Group(t("Watching as"), footer = lockProblem) {
@@ -372,7 +373,7 @@ fun DownloadSettingsScreen(model: AppModel) {
 
     RoomBackground(ambient = null) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-            item { PageTitle(t(Words.downloads), onBack = { navigator.back() }) }
+            stickyHeader { PinnedPageTitle(t(Words.downloads), onBack = { navigator.back() }) }
             item {
                 Group(
                     header = t("Movies and episodes"),
@@ -502,7 +503,7 @@ fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit) {
 
     RoomBackground(ambient = null) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-            item { PageTitle(t("Server"), onBack = { navigator.back() }) }
+            stickyHeader { PinnedPageTitle(t("Server"), onBack = { navigator.back() }) }
             // A guest's server is only ever reached through the tunnel: no address to show or change.
             if (guest != null || model.isGuest) item {
                 Group {

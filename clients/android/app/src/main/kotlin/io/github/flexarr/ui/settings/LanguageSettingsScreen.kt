@@ -15,7 +15,7 @@ import io.github.flexarr.AppModel
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.i18n.t
 import io.github.flexarr.ui.components.LocalNavigator
-import io.github.flexarr.ui.components.PageTitle
+import io.github.flexarr.ui.components.PinnedPageTitle
 import io.github.flexarr.ui.theme.RoomBackground
 import kotlinx.coroutines.launch
 
@@ -47,7 +47,7 @@ fun LanguageSettingsScreen(model: AppModel) {
 
     RoomBackground(ambient = null) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-            item { PageTitle(t("Language"), onBack = { navigator.back() }) }
+            stickyHeader { PinnedPageTitle(t("Language"), onBack = { navigator.back() }) }
             item {
                 Group(footer = error ?: t("This profile’s own, on every device.")) {
                     Choice(t("Device language"), selected = model.profileLanguage == null) { choose(null) }

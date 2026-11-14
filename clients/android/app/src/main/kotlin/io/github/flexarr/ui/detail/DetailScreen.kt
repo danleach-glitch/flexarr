@@ -5,6 +5,7 @@ import io.github.flexarr.core.i18n.Words
 
 import io.github.flexarr.ui.GetsReadyAfterAMoment
 
+import io.github.flexarr.ui.components.StatusBarShade
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import io.github.flexarr.player.LocalPlayFrom
@@ -267,6 +268,7 @@ fun DetailScreen(model: AppModel, id: String) {
         }.flatMap { it.children }
     }
 
+    val list = rememberLazyListState()
     CompositionLocalProvider(LocalPlayFrom provides pageToken) {
     RoomBackground(ambient = ambient, intensity = 0.22f) {
         when {
@@ -278,7 +280,7 @@ fun DetailScreen(model: AppModel, id: String) {
                 },
             ) {
                 val episodeColumns = if (isWide) 2 else 1
-                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
+                LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
                     item(key = "header") { Header(item, series, loaded, ambient, nextUp, seasons[selectedSeasonId], allEpisodes) }
                     sections(item, loaded, seasons[selectedSeasonId], selectedSeasonId, { selectedSeasonId = it }, similar, ambient, columns = episodeColumns, missing = missing) {
                         if (item.kind == MediaKind.Series) {
@@ -318,6 +320,7 @@ fun DetailScreen(model: AppModel, id: String) {
             error != null -> StatusView(error, retry = { attempt++ })
             else -> StatusView()
         }
+        StatusBarShade(list)
         IconButton(
             onClick = { navigator.back() },
             modifier = Modifier.statusBarsPadding().padding(8.dp).clip(CircleShape).background(Flexarr.room.copy(alpha = 0.55f)),
@@ -640,25 +643,26 @@ private fun androidx.compose.foundation.lazy.LazyListScope.sections(
 @Composable
 private fun SeasonPicker(seasons: List<ItemSummary>, selected: String?, onSeason: (String) -> Unit, ambient: Color, season: ItemDetail?, count: (ItemSummary) -> String? = { null }) {
     val model = LocalContext.current.appModel
-    // "Download Season 2", on the pills' line at the end, outside their scrolling so it stays in view.
-    val link: @Composable () -> Unit = {
-        season?.takeIf { it.item.id == selected }?.let { SeasonDownloadLink(model, it.item, it.children, Modifier.padding(end = Edge - 4.dp), it.copyIds.orEmpty()) }
+    // "Download Season 2": at the end of a single season's heading, or on its own line under the pills (as on iPhone),
+    // so however long it reads ("Downloading Season 12") it never squeezes them out of view.
+    val link: @Composable (Modifier) -> Unit = { modifier ->
+        season?.takeIf { it.item.id == selected }?.let { SeasonDownloadLink(model, it.item, it.children, modifier, it.copyIds.orEmpty()) }
     }
     if (seasons.size == 1) {
         val only = seasons.first()
         Row(verticalAlignment = Alignment.CenterVertically) {
             SectionHeading(count(only)?.let { "${only.title}: $it" } ?: only.title, Modifier.weight(1f))
-            link()
+            link(Modifier.padding(end = Edge - 4.dp))
         }
         return
     }
     val state = rememberLazyListState()
-    // The chosen season fully in view, clear of the start and of the fade at the end, moving the row only as far as it
+    // The chosen season fully in view, clear of the edges, moving the row only as far as it
     // must: when it's pressed, and once it's known (the show's next-up episode decides it).
     LaunchedEffect(selected) {
         val index = seasons.indexOfFirst { it.id == selected }
         if (index < 0) return@LaunchedEffect
-        // Offsets count from the end of the start padding; the clear room ends where the end padding (the fade) begins.
+        // Offsets count from the end of the start padding; the clear room ends where the end padding begins.
         fun room() = state.layoutInfo.viewportEndOffset - state.layoutInfo.afterContentPadding
         var pill = state.layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }
         if (pill == null) {
@@ -679,19 +683,17 @@ private fun SeasonPicker(seasons: List<ItemSummary>, selected: String?, onSeason
             overEnd > 0 -> state.animateScrollBy(overEnd.coerceAtMost(overStart).toFloat())
         }
     }
-    // With the link beside them, the pills fade out before it (room for the last to scroll clear of the fade).
-    val hasLink = season != null && season.item.id == selected && season.children.any { it.kind == MediaKind.Episode }
-    val fade = 56.dp
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column {
         LazyRow(
-            Modifier.weight(1f).then(if (hasLink) Modifier.fadeEnd(fade) else Modifier),
+            Modifier.fillMaxWidth(),
             state = state,
-            contentPadding = PaddingValues(start = Edge, end = if (hasLink) fade else Edge),
+            contentPadding = PaddingValues(horizontal = Edge),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             items(seasons, key = { it.id }) { season -> PillButton(season.title, season.id == selected, { onSeason(season.id) }, ambient, detail = count(season)) }
         }
-        link()
+        // Its words start at the page's edge, under the first pill (the link pads itself by 4).
+        Box(Modifier.padding(horizontal = Edge - 4.dp)) { link(Modifier) }
     }
 }
 
@@ -794,15 +796,6 @@ internal fun channelsLabel(count: Int) = when (count) {
 internal fun fileSizeLabel(bytes: Long): String {
     val gb = bytes / 1_000_000_000.0
     return if (gb >= 1) String.format(io.github.flexarr.core.i18n.Localization.locale, "%.1f GB", gb) else String.format(io.github.flexarr.core.i18n.Localization.locale, "%.0f MB", bytes / 1_000_000.0)
-}
-
-/** Drawn into its own layer, then faded to nothing over its last [width] at the end (the right, or the left right to left). */
-private fun Modifier.fadeEnd(width: androidx.compose.ui.unit.Dp) = graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen).drawWithContent {
-    drawContent()
-    val edge = width.toPx().coerceAtMost(size.width)
-    val rtl = layoutDirection == androidx.compose.ui.unit.LayoutDirection.Rtl
-    val (from, to) = if (rtl) edge to 0f else (size.width - edge) to size.width
-    drawRect(Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = from, endX = to), blendMode = BlendMode.DstIn)
 }
 
 /** Drawn into its own layer, then faded to nothing over the bottom of it, so there's no seam with the wash behind. */

@@ -2,6 +2,9 @@ package io.github.flexarr.ui.external
 
 import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
+import io.github.flexarr.ui.components.StatusBarShade
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -88,7 +91,9 @@ fun ExternalTitleScreen(model: AppModel, mediaType: String, tmdbId: Int) {
             val inLibrary = detail.libraryItemId
             if (inLibrary != null) return DetailScreen(model, inLibrary)
             RoomBackground(ambient = Flexarr.silver, intensity = 0.2f) {
-                Page(model, detail)
+                val list = rememberLazyListState()
+                Page(model, detail, list)
+                StatusBarShade(list)
                 BackButton()
             }
         }
@@ -104,10 +109,10 @@ fun ExternalTitleScreen(model: AppModel, mediaType: String, tmdbId: Int) {
 }
 
 @Composable
-private fun Page(model: AppModel, detail: ExternalDetail) {
+private fun Page(model: AppModel, detail: ExternalDetail, list: LazyListState) {
     val navigator = LocalNavigator.current
     var overviewExpanded by remember { mutableStateOf(false) }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
         item(key = "header") {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Box(Modifier.fillMaxWidth().heightIn(min = 420.dp)) {
