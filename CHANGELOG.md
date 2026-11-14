@@ -19,6 +19,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Family guests can no longer set or see the household's recordings by asking through an assistant.
 - Family guests can no longer search for, download or re-sync subtitles: what's found is saved beside the household's own files.
 - Signing a device out now also stops anything it was playing, and a stream's link stops working after a day (or twice the length of a long audiobook), however often it's used.
+- Wrong guesses at the admin PIN are now counted per address at home (and per Tailscale login), so signing a browser in again no longer earns fresh guesses.
 
 ## 0.66.0 · 13 November 2026
 

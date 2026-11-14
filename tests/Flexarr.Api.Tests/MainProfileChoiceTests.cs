@@ -95,6 +95,36 @@ public class MainProfileChoiceTests
     }
 
     [Fact]
+    public async Task AtHome_SigningInAgainWithTheMainProfilesOwnPin_EarnsNoFreshGuessesAtTheAdminPin()
+    {
+        var clock = new TestClock(new DateTimeOffset(2026, 11, 14, 12, 0, 0, TimeSpan.Zero));
+        using var home = new RemoteAccessFactory();
+        using var server = home.WithWebHostBuilder(builder => builder.ConfigureServices(services => services.AddSingleton<TimeProvider>(clock)));
+        await SetUpAsync(server.Services);
+        var answers = new List<HttpStatusCode>();
+
+        // Each browser has no sign-in until the main profile's own PIN gives it one, and then guesses at the admin PIN:
+        // slowly enough that only its own count, were it a fresh one each time, would hold it off.
+        for (var i = 0; i < 4; i++)
+        {
+            var browser = server.CreateClient();
+            browser.DefaultRequestHeaders.Add("X-Test-Peer", "192.168.1.60");
+            browser.DefaultRequestHeaders.Add("X-Requested-With", "flexarr");
+            browser.DefaultRequestHeaders.Add("X-Flexarr-Profile-Choice", "1");
+            Assert.Equal(HttpStatusCode.OK, (await ChooseMainAsync(browser, OwnPin)).StatusCode);
+            for (var guess = 0; guess < 2; guess++)
+            {
+                clock.Advance(Flexarr.Api.Profiles.PinGuard.ProfileThrottle + TimeSpan.FromSeconds(1));
+                answers.Add((await browser.PostAsJsonAsync(Api("/admin/unlock"), new { pin = $"99{i}{guess}" })).StatusCode);
+            }
+        }
+
+        // Eight guesses from one address: held off after the first few, however many sign-ins they came from.
+        Assert.DoesNotContain(HttpStatusCode.OK, answers);
+        Assert.Contains(HttpStatusCode.TooManyRequests, answers);
+    }
+
+    [Fact]
     public async Task AtHomeWithKids_ABrowserWithNoSignIn_ChoosesTheMainProfileOnlyWithTheAdminPin()
     {
         using var server = new RemoteAccessFactory();
