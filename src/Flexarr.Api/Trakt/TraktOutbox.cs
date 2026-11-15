@@ -130,6 +130,12 @@ public sealed partial class TraktOutboxWorker(IServiceScopeFactory scopes, ILogg
 
     private static readonly SemaphoreSlim Signal = new(0, 1);
 
+    /// <summary>How soon it looks again while something is waiting to go (retrying, or waiting for a sign-in).</summary>
+    private static readonly TimeSpan RetryWait = TimeSpan.FromSeconds(30);
+
+    /// <summary>How soon it looks again with nothing queued.</summary>
+    private static readonly TimeSpan IdleWait = TimeSpan.FromMinutes(10);
+
     /// <summary>Something was queued: send it now rather than at the next look.</summary>
     public static void Nudge()
     {
@@ -150,17 +156,24 @@ public sealed partial class TraktOutboxWorker(IServiceScopeFactory scopes, ILogg
     {
         while (!stoppingToken.IsCancellationRequested)
         {
+            // Nothing queued (no Trakt connection, or all sent): what's queued next nudges it, so it needn't keep looking.
+            var wait = IdleWait;
             try
             {
                 await using var scope = scopes.CreateAsyncScope();
                 await SendDueAsync(scope.ServiceProvider, logger, stoppingToken);
+                if (await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().TraktOutbox.AnyAsync(stoppingToken))
+                {
+                    wait = RetryWait;
+                }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 LogFailed(ex);
+                wait = RetryWait;
             }
 
-            await Signal.WaitAsync(TimeSpan.FromSeconds(30), stoppingToken);
+            await Signal.WaitAsync(wait, stoppingToken);
         }
     }
 

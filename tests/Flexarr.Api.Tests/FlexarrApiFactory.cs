@@ -63,6 +63,8 @@ public sealed class FlexarrApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Flexarr:ApiKey", ApiKey);
         builder.UseSetting("Flexarr:DataDirectory", DataDirectory);
         builder.UseSetting("Flexarr:AuthenticationRequired", "Enabled");
+        // Fixed, as the default follows the machine's cores when converting in software.
+        builder.UseSetting("Flexarr:Transcoding:MaxConcurrentTranscodes", "3");
         // Never send the tests' errors to Sentry, even with error reports switched on.
         builder.UseSetting("Flexarr:Logs:ErrorReportsDsn", "");
         builder.UseSetting("Flexarr:PathMappings:0:From", "/data");

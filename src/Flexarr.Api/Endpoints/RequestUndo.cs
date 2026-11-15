@@ -105,13 +105,22 @@ public static class RequestUndo
             var asked = open.SelectMany(r => r.Seasons ?? []).Select(s => s.SeasonNumber).Where(n => n > 0).ToHashSet();
             if (tvdbId is { } tvdb)
             {
+                // Each Sonarr works out its own seasons from what was asked: one's (a 4K one with only some) mustn't
+                // become the next one's. The requests the undo covers are those of the seasons any of them took back.
+                var undone = new List<HashSet<int>?>();
                 foreach (var sonarr in options.Arr.Where(a => a.Kind == ArrKind.Sonarr))
                 {
                     foreach (var series in await Call("Sonarr", () => arr.GetSeriesByTvdbIdAsync(sonarr, tvdb, ct)))
                     {
-                        (chosen, var complete) = await UndoSeasonsAsync(arr, sonarr, series, chosen, asked.Count > 0 ? asked : null, ct);
+                        var (scope, complete) = await UndoSeasonsAsync(arr, sonarr, series, chosen, asked.Count > 0 ? asked : null, ct);
+                        undone.Add(scope);
                         onDisk.UnionWith(complete);
                     }
+                }
+
+                if (undone.Count > 0)
+                {
+                    chosen = undone.All(u => u is null) ? null : [.. undone.OfType<HashSet<int>>().SelectMany(u => u)];
                 }
             }
         }

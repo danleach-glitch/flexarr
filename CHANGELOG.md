@@ -6,6 +6,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Apps
 
+- Signed in to a server older than 0.59, the apps' list of devices waiting to connect, recent searches and language list show as empty rather than as an error.
 - On iPad, the Offline notice no longer covers the back button in Downloads: it's now a small pill at the bottom of the page.
 - On iPhone, the mini player no longer hides the bottom of a page: Sign out, an album's last track and each list's last rows stay in reach.
 - On iPhone, a show's page and a downloaded album fit the screen at the largest text sizes.
@@ -124,13 +125,62 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On a phone, the keyboard's focus ring shows whole around a page in Settings' row of pages.
 - Live TV's title is the same size as every other page's, with the same room under it.
 
+### Downloads
+
+- A podcast host that stops answering no longer holds up every download on the server: the episode's download gives up after a minute of silence (or an hour in all) and says why, and the films and episodes behind it get ready again.
+- A podcast episode whose download goes wrong on the server now says it failed, with **Try again**, instead of staying at **Getting ready** for good.
+- A download whose file was replaced on the server (Sonarr or Radarr upgraded it, say) now says so, so it can be downloaded again, instead of failing to fetch for a week.
+- Deleting a download while it's being converted now stops the conversion within seconds, even for a file whose length isn't known.
+- A phone and a tablet of one profile downloading the same title (a podcast's newest episodes, say) now both get it: the server keeps its copy until each has it, instead of the second failing with "This download ran out on the server".
+
 ### Playback
 
 - Converting a 4K HDR film for a screen that can't show HDR is several times lighter on the server's processor: the picture is shrunk before its colours are converted, not after.
+- The limit on videos converted at once now counts only streams whose picture is converted: films played as they are and music no longer fill it, so nobody is told Flexarr is busy while the server is barely working.
+- With Intel Quick Sync, a converted picture is now shrunk on the graphics chip rather than the processor, so a low-power Intel NAS can convert 4K to 1080p.
+- With VA-API, HDR films converted for an SDR screen are mapped from their full 10-bit picture, which stops the conversion failing over to the much slower processor.
+- A 4K HDR film with burned-in subtitles is shrunk before its colours are converted, like one without, so it's several times lighter on the processor.
+- Looking at a title's page gets its stream ready more gently: at low priority with only the opening made, and not at all on a server converting in software while someone is watching a converted stream.
+- MP4 and MOV films that can be played as they are now are from their very first play, instead of being converted the first time while Flexarr reads the whole file; and a film watched now and then isn't read end to end again every few months.
+- When the disk holding Flexarr's cache is nearly full, streams nobody is watching give up their space first, and a new stream says the disk is nearly full instead of every stream failing once it fills.
+- Starting a film with subtitles off no longer reads the whole file in the background for its subtitles, and scrubbing previews and keyframe scans take turns reading files, so a big film on a network drive streams more smoothly on its first play.
+- Finding intros and credits for a new episode now listens to that episode only, rather than the whole season again.
+- A podcast episode heard to the end, or an episode left with **Play now** on Next Episode, now stays played: the player's closing report no longer marks it unplayed again and leaves it in Continue at the very end.
+- On iPhone, iPad and Apple TV, moving on to the next episode on a slow connection no longer leaves the last one unwatched.
+- Scrubbing past the credits and back no longer counts a play or tells Trakt it was watched: landing there counts once the player is still there at its next report.
+- Opening an episode you've already watched for a few seconds no longer drops its show from Continue Watching, and **Mark season as watched** leaves the next season's first episode up next.
+- Linking two copies of a title (4K and 1080p) keeps one you're part way through in Continue Watching, at your place, instead of marking it watched.
+- With a hardware encoder, preparing a download keeps going while someone watches a converted stream, as long as the server has a conversion to spare, instead of starting again from nothing each time.
+- On Linux (Docker, a NAS), hardware acceleration left on Auto now finds a working NVIDIA, VA-API or Quick Sync encoder by itself when the server starts. Converting in software, a picture is made no larger than 1080p, and fewer conversions run at once on a machine with few cores unless you set the limit yourself.
+
+### Server
+
+- Home opens faster while someone else in the household is watching: their progress no longer makes every other profile's Home be worked out again.
+- Home and Coming soon no longer stall while Sonarr or Radarr is asleep or slow: the last answer is shown while a fresh one is fetched, and one that's down is asked again less and less often in the background.
+- Home's **Latest unwatched shows** row and its featured titles are worked out much faster in a big TV library, without checking every episode against what you've watched.
+- Search answers faster as you type in a library with many cast and crew: people are matched by name in memory, and only the best few have their titles counted.
+- In a big library, Collections, a music library's Genres and a long playlist open faster, a new episode arriving no longer makes the server go over the whole library, and scans and forced refreshes use far less memory.
+- An older version of Flexarr now refuses to start on a database a newer version has upgraded, saying so in its log, rather than starting and failing later. Start the newer version again or restore its pre-upgrade backup.
+
+### Libraries
+
+- Deleting a film, show or episode through Radarr or Sonarr first checks that their record is really that title, so a record that has come to point at another one (after Radarr's database was rebuilt, say) can no longer take that title's files with it.
+- Deleting an artist through Lidarr is refused when their folder there also holds music filed under another artist, which Lidarr would delete too.
+- Deleting a file that holds two episodes stops Sonarr wanting both, so the second isn't downloaded again.
+- Taking back a show request with two Sonarrs stops the right seasons in each.
+- Changing a library's folders no longer throws away what was in them. A folder swapped for one holding the same files keeps every title as it was, with its plays, playlists, progress, bookmarks and hand edits; titles in a folder taken out are hidden for a day before they go, so putting it back in time brings them back.
+- Removing a library keeps its films' and shows' watch history for a while, so adding its folders again brings it back.
+- Renaming an artist's or album's folder keeps its tracks' plays and places in playlists, whichever folder is scanned first.
+- A film or show that comes back under a new folder keeps its Fix match, edited details and chosen poster along with its watch history, and one matched by hand is found again by its folder's name.
+- While a library folder is held because most of it seemed to vanish, a scan of one title in it (after a download) no longer hides that title, and scanning one folder no longer touches another whose name differs only in capital letters.
+- A music folder holding tracks from several albums, such as a Singles folder, now shows each album on its own, instead of filing every track under the first one's album and artist.
+- Episodes numbered 1000 or more (S01E1071) and shows whose seasons are years (S2024E05, Season 2024) are now added to the library as the right episode, and "Show S01E05 24 Hours" is no longer read as episodes 5 to 24.
+- A show matched by hand to a TVmaze result with no TVDB id keeps that match once a Sonarr is added.
 
 ### Music, audiobooks and podcasts
 
 - On iPhone, iPad, Apple TV and Mac, a track, book or episode that can't start now says why, instead of the spinner stopping with nothing playing.
+- In the web player, a book left playing or paused for days carries on when you press Play, rather than stopping on the second time its playback has to be started again.
 
 ## 0.66.0 · 13 November 2026
 

@@ -38,21 +38,25 @@ public sealed record VideoFacts(
 public sealed record RemuxInfo(IReadOnlyList<double> Keyframes, VideoFacts Video, int FactsVersion = 0);
 
 /// <summary>
-/// Finds and remembers each file's <see cref="RemuxInfo"/>. MKVs index their keyframes, which is read in milliseconds;
-/// other files need every packet scanned, which is done in the background (one at a time) for next time.
+/// Finds and remembers each file's <see cref="RemuxInfo"/>. MKVs and MP4s index their keyframes, which is read in
+/// milliseconds; other files (MPEG-TS recordings, AVI) need every packet scanned, which is done in the background (one whole-file
+/// read at a time, see <see cref="WholeFileReads"/>) for next time.
 /// </summary>
 public sealed partial class RemuxIndex(TranscodeSettings settings, string ffprobePath, ILogger<RemuxIndex> logger) : IDisposable
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private readonly ConcurrentDictionary<string, RemuxInfo> _known = new();
     private readonly ConcurrentDictionary<string, bool> _scanning = new();
+    private readonly ConcurrentDictionary<string, DateTime> _touched = new();
     private readonly ConcurrentDictionary<(string Key, int Stream), double?> _firstPackets = new();
-    private readonly SemaphoreSlim _scan = new(1, 1);
 
     /// <summary>The facts as this server reads them: with the HEVC record and the frame rate.</summary>
     public const int FactsVersion = 1;
 
-    public void Dispose() => _scan.Dispose();
+    public void Dispose()
+    {
+        // Nothing of its own to free: background scans share WholeFileReads.Gate.
+    }
 
     /// <summary>The file's info, or null when it isn't known yet (a scan is then started for next time).</summary>
     public async Task<RemuxInfo?> GetAsync(string path, CancellationToken ct)
@@ -71,11 +75,16 @@ public sealed partial class RemuxIndex(TranscodeSettings settings, string ffprob
             {
                 known = Remember(key, known with { Video = refreshed, FactsVersion = FactsVersion });
             }
+            else
+            {
+                Touch(key);
+            }
 
             return known;
         }
 
-        var keyframes = await Task.Run(() => MatroskaCues.Read(path), ct).ConfigureAwait(false);
+        // MKVs index their keyframes in the Cues, and MP4s and MOVs in their sample tables: read in milliseconds.
+        var keyframes = await Task.Run(() => MatroskaCues.Read(path) ?? Mp4SyncSamples.Read(path), ct).ConfigureAwait(false);
         if (keyframes is null)
         {
             ScanLater(path, key);
@@ -172,7 +181,7 @@ public sealed partial class RemuxIndex(TranscodeSettings settings, string ffprob
 
         _ = Task.Run(async () =>
         {
-            await _scan.WaitAsync().ConfigureAwait(false);
+            await WholeFileReads.Gate.WaitAsync().ConfigureAwait(false);
             try
             {
                 var started = Stopwatch.StartNew();
@@ -189,14 +198,45 @@ public sealed partial class RemuxIndex(TranscodeSettings settings, string ffprob
             }
             finally
             {
-                _scan.Release();
+                WholeFileReads.Gate.Release();
                 _scanning.TryRemove(key, out _);
             }
         });
     }
 
+    /// <summary>How often a file's saved index is marked as used: the cache janitor deletes those unused for a long while.</summary>
+    internal static readonly TimeSpan TouchEvery = TimeSpan.FromDays(1);
+
+    /// <summary>
+    /// Marks the saved index as just used, so the janitor's age limit counts from its last play, not from when it was
+    /// written: a film watched now and then isn't scanned again (a full read of a non-MKV file) every few months.
+    /// </summary>
+    private void Touch(string key)
+    {
+        var now = DateTime.UtcNow;
+        if (_touched.TryGetValue(key, out var last) && now - last < TouchEvery)
+        {
+            return;
+        }
+
+        _touched[key] = now;
+        try
+        {
+            var file = Path.Combine(CacheDirectory, key + ".json");
+            if (File.Exists(file) && now - File.GetLastWriteTimeUtc(file) >= TouchEvery)
+            {
+                File.SetLastWriteTimeUtc(file, now);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Read again after the janitor's limit at worst.
+        }
+    }
+
     private RemuxInfo Remember(string key, RemuxInfo info)
     {
+        _touched[key] = DateTime.UtcNow;
         _known[key] = info;
         try
         {

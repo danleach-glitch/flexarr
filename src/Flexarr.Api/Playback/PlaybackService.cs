@@ -75,6 +75,8 @@ public sealed class PlaybackService(
         // What playing a given file would take. Versions differ, so it's asked for each before choosing one. Subtitle files
         // beside a file only change that when one would be shown, and looking for them can wake a sleeping drive holding a
         // version that isn't even chosen, so otherwise only the file chosen is looked beside.
+        // Converting in software, a picture is made no taller than 1080p (see TranscodeSettings.MaxConvertedHeight).
+        var maxConverted = PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue).MaxConvertedHeight;
         var sidecarsMatter = request.SubtitleKey is not "off" && (request.SubtitleKey is not null || preferences.Subtitle is not null);
         var plans = new Dictionary<Guid, Plan>();
         Plan PlanFor(MediaFile candidate)
@@ -113,7 +115,8 @@ public sealed class PlaybackService(
             var caps = new[] { request.MaxBitrate ?? 0, transcoding.MaxStreamingBitrate, slowLink }.Where(b => b > 0).DefaultIfEmpty(0).Min();
             var cap = new[] { caps, awayCap }.Where(b => b > 0).DefaultIfEmpty(0).Min();
             var shaping = request.Sound is { } shaped ? shaped with { MaxChannels = shaped.MaxChannels is { } max ? Math.Clamp(max, 1, 8) : null } : null;
-            var opts = new PlaybackOptions(audioTrack, subtitle, cap, request.MaxHeight, request.ForceTranscode, candidate.AudioDelaySeconds, shaping);
+            var opts = new PlaybackOptions(audioTrack, subtitle, cap, request.MaxHeight, request.ForceTranscode, candidate.AudioDelaySeconds, shaping,
+                maxConverted);
             return new Plan(tracks, audio, audioTrack, subtitle, awayCap, caps, opts, PlaybackDecider.Decide(candidate, request.Profile, tracks, opts));
         }
 
@@ -153,7 +156,12 @@ public sealed class PlaybackService(
                 markerQueue.Prioritize(seasonId); // Analyse this season now so skip-intro is ready for the next episode.
             }
 
-            subtitleCache.Prefetch(file, subtitles);
+            // Only when subtitles are likely to be shown: extracting them reads the whole file, as the stream starts.
+            // Turned on later, a track is read when it's asked for.
+            if (subtitleKey is not null || (request.SubtitleKey is not "off" && preferences.Subtitle is not null))
+            {
+                subtitleCache.Prefetch(file, subtitles);
+            }
         }
 
         if (!request.Prepare)
@@ -505,6 +513,11 @@ public sealed class PlaybackService(
             return;
         }
 
+        if (AfterTheEnd(session, progress))
+        {
+            return;
+        }
+
         for (var attempt = 0; ; attempt++)
         {
             var state = await db.PlaybackStates.FirstOrDefaultAsync(p => p.UserId == session.ProfileId && p.MediaItemId == session.ItemId, ct);
@@ -583,19 +596,49 @@ public sealed class PlaybackService(
         return true;
     }
 
+    /// <summary>
+    /// A plain report after the player said it reached the end, and not clearly back from there: the one players send
+    /// as they close (or move on to the next episode), which would otherwise make it unfinished again where a podcast's
+    /// feed gives no length, or the end came before the watched point. Ignored.
+    /// </summary>
+    private static bool AfterTheEnd(PlaybackSession session, ProgressRequest progress)
+    {
+        lock (session)
+        {
+            if (progress.Ended)
+            {
+                session.EndedAt = progress.PositionSeconds;
+                return false;
+            }
+
+            if (session.EndedAt is { } end && progress.PositionSeconds >= end - EndedRewindSeconds)
+            {
+                return true;
+            }
+
+            session.EndedAt = null; // gone back to watch some again: its reports count
+            return false;
+        }
+    }
+
+    /// <summary>How far back from the end a report must be, after an ended one, to count as watching again.</summary>
+    private const double EndedRewindSeconds = 30;
+
     /// <summary>Applies a progress report to the state; true when it counted a new play.</summary>
     private static bool ApplyProgress(PlaybackState state, PlaybackSession session, ProgressRequest progress)
     {
-
         var duration = session.DurationSeconds > 0 ? session.DurationSeconds : (double?)null;
         // A podcast's last minutes are often still the conversation, so it counts as played only at the very end.
         var threshold = session.RemoteUrl is null ? WatchedThreshold : 0.98;
+        // A scrub that lands past the credits or the watched point isn't the end until the next report is there too:
+        // overshooting and coming back mustn't count a play (or tell Trakt).
         var finished = progress.Ended
-            || (duration is { } d && progress.PositionSeconds >= d * threshold)
-            || (session.CreditsStart is { } credits && progress.PositionSeconds >= credits);
+            || (!session.JumpedAhead
+                && ((duration is { } d && progress.PositionSeconds >= d * threshold)
+                    || (session.CreditsStart is { } credits && progress.PositionSeconds >= credits)));
 
+        var (wasWatched, wasAt) = (state.Watched, state.PositionSeconds);
         state.DurationSeconds = duration;
-        state.LastPlayedAt = DateTime.UtcNow;
         state.AudioLanguage = session.AudioLanguage ?? state.AudioLanguage;
         state.SubtitleLanguage = session.SubtitleLanguage;
 
@@ -603,6 +646,7 @@ public sealed class PlaybackService(
         {
             state.Watched = true;
             state.PositionSeconds = 0;
+            state.LastPlayedAt = DateTime.UtcNow;
             if (!session.CountedAsPlay)
             {
                 state.PlayCount++;
@@ -613,6 +657,13 @@ public sealed class PlaybackService(
         {
             state.PositionSeconds = progress.PositionSeconds;
             state.Watched = false;
+        }
+
+        // Played when something changed: an old watched episode opened for a few seconds doesn't become the show's last
+        // one watched, which would leave Up next with nothing after it.
+        if (state.Watched != wasWatched || state.PositionSeconds != wasAt)
+        {
+            state.LastPlayedAt = DateTime.UtcNow;
         }
 
         return false;
@@ -640,11 +691,15 @@ public sealed class PlaybackService(
         var targets = item.Kind switch
         {
             // Each episode once, across the show's copies: saving writes it to the other copies, and history gets one entry.
-            MediaKind.Series when item.LinkGroupId is { } show => await db.MediaItems.Where(e => e.Parent!.Parent!.LinkGroupId == show).OnePerTitle().Select(e => e.Id).ToListAsync(ct),
-            MediaKind.Series => await db.MediaItems.Where(e => e.Parent!.ParentId == itemId).Select(e => e.Id).ToListAsync(ct),
-            MediaKind.Season or MediaKind.Podcast => await db.MediaItems.ChildrenOf(itemId, item.LinkGroupId).Select(e => e.Id).ToListAsync(ct),
+            MediaKind.Series when item.LinkGroupId is { } show => await InOrder(db.MediaItems.Where(e => e.Parent!.Parent!.LinkGroupId == show).OnePerTitle()).ToListAsync(ct),
+            MediaKind.Series => await InOrder(db.MediaItems.Where(e => e.Parent!.ParentId == itemId)).ToListAsync(ct),
+            MediaKind.Season or MediaKind.Podcast => await InOrder(db.MediaItems.ChildrenOf(itemId, item.LinkGroupId)).ToListAsync(ct),
             _ => [itemId],
         };
+
+        // Marked in episode order, each a moment after the one before: Up next takes the latest watched as where the
+        // viewer got to, so it's the last episode, not whichever came back from the database last.
+        var markedAt = DateTime.UtcNow;
 
         var existing = await db.PlaybackStates.Where(p => p.UserId == profile.Id && targets.Contains(p.MediaItemId))
             .ToDictionaryAsync(p => p.MediaItemId, ct);
@@ -676,7 +731,8 @@ public sealed class PlaybackService(
 
             state.Watched = watched;
             state.PositionSeconds = 0;
-            state.LastPlayedAt = DateTime.UtcNow;
+            markedAt = markedAt.AddTicks(10);
+            state.LastPlayedAt = markedAt;
             if (watched && state.PlayCount == 0)
             {
                 state.PlayCount = 1;
@@ -699,6 +755,10 @@ public sealed class PlaybackService(
         await db.SaveChangesAsync(ct);
         return true;
     }
+
+    /// <summary>Episodes in the order they're watched: by season, then number, then air date.</summary>
+    private static IQueryable<Guid> InOrder(IQueryable<MediaItem> episodes) =>
+        episodes.OrderBy(e => e.Parent!.SeasonNumber).ThenBy(e => e.EpisodeNumber).ThenBy(e => e.AirDate).Select(e => e.Id);
 
     /// <summary>
     /// Takes a title out of Continue Watching without marking it watched: forgets the place reached in it and, for an

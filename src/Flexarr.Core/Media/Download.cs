@@ -71,4 +71,11 @@ public sealed class Download
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? ReadyAt { get; set; }
+
+    /// <summary>
+    /// The sign-ins (devices) that asked for it and haven't yet said they have it, separated by spaces: a phone and a
+    /// tablet of one profile asking for the same title share one download, and its file is kept until the last of them
+    /// has it. Null on downloads made before this was kept, which go when the first device has them, as they did.
+    /// </summary>
+    public string? Requesters { get; set; }
 }

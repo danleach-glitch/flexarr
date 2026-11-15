@@ -113,7 +113,7 @@ public static partial class DeleteEndpoints
             try
             {
                 var owner = await OwnerAsync(db, copy, options.CurrentValue, arr, lists, ct);
-                if (await DeleteOneAsync(db, copy, owner, options, arr, logs, converter, cache, ct) is Microsoft.AspNetCore.Http.HttpResults.ProblemHttpResult problem)
+                if (await DeleteOneAsync(db, copy, owner, options, arr, logs, converter, cache, ct, lists) is Microsoft.AspNetCore.Http.HttpResults.ProblemHttpResult problem)
                 {
                     if (copies.Count == 1)
                     {
@@ -406,8 +406,9 @@ public static partial class DeleteEndpoints
 
     /// <summary>Deletes one title and its files.</summary>
     /// <param name="owner">The app holding its files, if one does.</param>
+    /// <param name="lists">Radarr's and Sonarr's lists, when the caller has fetched them already.</param>
     private static async Task<IResult> DeleteOneAsync(FlexarrDbContext db, MediaItem item, (ArrInstance? Instance, int? ArrId) owner, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, ILoggerFactory logs,
-        Books.BookFileConverter converter, Microsoft.Extensions.Caching.Memory.IMemoryCache cache, CancellationToken ct)
+        Books.BookFileConverter converter, Microsoft.Extensions.Caching.Memory.IMemoryCache cache, CancellationToken ct, ArrLists? lists = null)
     {
         if (item.Kind is not (MediaKind.Movie or MediaKind.Series or MediaKind.Episode or MediaKind.Audiobook or MediaKind.Album or MediaKind.Artist))
         {
@@ -452,6 +453,34 @@ public static partial class DeleteEndpoints
             return await DeleteFromDiskAsync(db, item, logs.CreateLogger("Flexarr.Delete"), ct);
         }
 
+        // The id on record can be another title's (Radarr's database rebuilt, a refresh that matched by TMDB id, an
+        // episode renumbered since), and Radarr or Sonarr would delete that one's folder: it's checked first.
+        SonarrEpisode? checkedEpisode = null;
+        if (item.Kind is MediaKind.Movie or MediaKind.Series or MediaKind.Episode)
+        {
+            RecordCheck check;
+            try
+            {
+                check = await CheckRecordAsync(db, item, instance, arrId, options.CurrentValue, arr, lists ?? new ArrLists(arr), ct);
+            }
+            catch (HttpRequestException ex)
+            {
+                return Problems.Of("{name} didn’t answer ({status}). Nothing was deleted.", new { name = instance.Name, status = (int?)ex.StatusCode ?? 0 }, status: 502);
+            }
+
+            switch (check.State)
+            {
+                case RecordState.Gone:
+                    return await DeleteFromDiskAsync(db, item, logs.CreateLogger("Flexarr.Delete"), ct);
+                case RecordState.Other:
+                    return Problems.Of("{name}’s record for this is another title, so Flexarr won’t delete through it. Refresh its details, then try again. Nothing was deleted.", new { name = instance.Name }, status: 409);
+                default:
+                    arrId = check.ArrId!.Value;
+                    checkedEpisode = check.Episode;
+                    break;
+            }
+        }
+
         // Lidarr has nothing of it to delete (it never imported these files, or no longer has the artist): Flexarr
         // deletes them itself once Lidarr has stopped wanting them.
         var fromDisk = false;
@@ -493,6 +522,14 @@ public static partial class DeleteEndpoints
                         return Problems.Of("{name}’s folder for this artist doesn’t hold their albums here, so it may be another artist’s. Check Fix match, then try again. Nothing was deleted.", new { name = instance.Name }, status: 409);
                     }
 
+                    // Lidarr deletes the whole folder: albums in it that Flexarr files under another artist (their
+                    // album-artist tag says so) would go too.
+                    if (await OtherArtistsFileAsync(db, item, artistFolder, ct) is { } other)
+                    {
+                        return Problems.Of("{name}’s folder for this artist also holds music filed under another artist here ({file}), which deleting would take too. Nothing was deleted.",
+                            new { name = instance.Name, file = Path.GetFileName(other) }, status: 409);
+                    }
+
                     await arr.DeleteAsync(instance, $"artist/{arrId}?deleteFiles=true&addImportListExclusion=false", ct);
                     break;
                 case MediaKind.Album:
@@ -528,9 +565,10 @@ public static partial class DeleteEndpoints
 
                     break;
                 default:
-                    // Unmonitor first, or Sonarr would download the episode again.
-                    var episode = await arr.GetEpisodeAsync(instance, arrId, ct);
-                    await arr.SetEpisodesMonitoredAsync(instance, [arrId], monitored: false, ct);
+                    // Unmonitor first, or Sonarr would download the episode again: every episode in its file (S01E01-E02),
+                    // or the second would come back.
+                    var episode = checkedEpisode ?? await arr.GetEpisodeAsync(instance, arrId, ct);
+                    await arr.SetEpisodesMonitoredAsync(instance, await SharingFileAsync(arr, instance, item, episode, ct), monitored: false, ct);
                     if (episode.EpisodeFileId > 0)
                     {
                         await arr.DeleteAsync(instance, $"episodefile/{episode.EpisodeFileId}", ct);
@@ -565,6 +603,163 @@ public static partial class DeleteEndpoints
 
         LogDeleted(logs.CreateLogger("Flexarr.Delete"), item.Kind, Name(item), instance.Name);
         return Results.NoContent();
+    }
+
+    private enum RecordState
+    {
+        /// <summary>The record (or another of the app's, which holds its files) is this title.</summary>
+        Matches,
+
+        /// <summary>The app has no record of it: it isn't the app's to delete.</summary>
+        Gone,
+
+        /// <summary>The record is of another title, and none of the app's others is this one.</summary>
+        Other,
+    }
+
+    /// <param name="ArrId">The id to delete it by, when it matches.</param>
+    /// <param name="Episode">An episode's record, fetched while checking it.</param>
+    private sealed record RecordCheck(RecordState State, int? ArrId = null, SonarrEpisode? Episode = null);
+
+    /// <summary>
+    /// Whether the record a film, show or episode has in its Radarr or Sonarr is really it. A record whose folder holds
+    /// its files is; otherwise the record must not say otherwise: its folder (where Flexarr can see it) mustn't be one
+    /// without them, its TMDB, TVDB or IMDb ids mustn't all differ, an episode's show and number must be its own. With
+    /// the record wrong or gone, another of the app's that is this title is used instead; an episode with none has its
+    /// id cleared, so a refresh finds it again.
+    /// </summary>
+    private static async Task<RecordCheck> CheckRecordAsync(FlexarrDbContext db, MediaItem item, ArrInstance instance, int arrId, FlexarrOptions options, ArrClient arr, ArrLists lists, CancellationToken ct)
+    {
+        if (item.Kind == MediaKind.Episode)
+        {
+            return await CheckEpisodeAsync(db, item, instance, arrId, arr, ct);
+        }
+
+        var files = await FilesAsync(db, item, ct);
+        if (files.Count == 0 && item.Path is { } own)
+        {
+            files = [own];
+        }
+
+        bool Holds(string? folder) => folder is not null && files.Any(f => PathComparison.IsUnder(f, PathMapper.Map(folder, options.PathMappings)));
+        // A folder Flexarr can see that doesn't hold them is another one's; one it can't (no path mapping) proves nothing.
+        bool Elsewhere(string? folder) => files.Count > 0 && folder is not null && !Holds(folder) && Directory.Exists(PathMapper.Map(folder, options.PathMappings));
+
+        var records = item.Kind == MediaKind.Movie
+            ? (await lists.MoviesAsync(instance, ct)).Select(m => new ArrRecord(m.Id, m.Path, Ids(m.TmdbId, 0, m.ImdbId))).ToList()
+            : (await lists.SeriesAsync(instance, ct)).Select(s => new ArrRecord(s.Id, s.Path, Ids(s.TmdbId, s.TvdbId, s.ImdbId))).ToList();
+        var mine = Ids(item.TmdbId, item.Kind == MediaKind.Movie ? null : item.TvdbId, item.ImdbId);
+        if (records.Find(r => Holds(r.Path)) is { } holder)
+        {
+            return new RecordCheck(RecordState.Matches, holder.Id);
+        }
+
+        if (records.Find(r => r.Id == arrId) is { } record)
+        {
+            return Elsewhere(record.Path) || IdsDiffer(mine, record.Ids) ? new RecordCheck(RecordState.Other) : new RecordCheck(RecordState.Matches, arrId);
+        }
+
+        // Not there by that id any more (its database rebuilt, say): by its ids, unless that one's folder is plainly another.
+        return records.Find(r => IdsAgree(mine, r.Ids) && !Elsewhere(r.Path)) is { } same
+            ? new RecordCheck(RecordState.Matches, same.Id)
+            : new RecordCheck(RecordState.Gone);
+    }
+
+    private sealed record ArrRecord(int Id, string? Path, (string? Tmdb, string? Tvdb, string? Imdb) Ids);
+
+    /// <summary>
+    /// <see cref="CheckRecordAsync"/> for an episode: Sonarr's episode by that id must be of its show, and of its number
+    /// (or date) where both say. Otherwise the show's episode of that number is used, or (with none) Sonarr doesn't
+    /// have it, and the episode's id is cleared.
+    /// </summary>
+    private static async Task<RecordCheck> CheckEpisodeAsync(FlexarrDbContext db, MediaItem item, ArrInstance instance, int arrId, ArrClient arr, CancellationToken ct)
+    {
+        var showId = item.Parent?.Parent?.ArrId;
+        SonarrEpisode? episode;
+        try
+        {
+            episode = await arr.GetEpisodeAsync(instance, arrId, ct);
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            episode = null;
+        }
+
+        if (episode is not null && (showId is null || episode.SeriesId == showId) && Fits(item, episode))
+        {
+            return new RecordCheck(RecordState.Matches, arrId, episode);
+        }
+
+        if (showId is not { } seriesId || (item.EpisodeNumber is null && item.AirDate is null))
+        {
+            return episode is null ? new RecordCheck(RecordState.Gone) : new RecordCheck(RecordState.Other); // Nothing to find it by.
+        }
+
+        var right = (await arr.GetEpisodesAsync(instance, seriesId, ct)).FirstOrDefault(e => Fits(item, e) && (item.EpisodeNumber is not null || e.AirDate is not null));
+        await db.MediaItems.IgnoreQueryFilters().Where(i => i.Id == item.Id).ExecuteUpdateAsync(u => u.SetProperty(i => i.ArrId, right == null ? null : right.Id), ct);
+        return right is null ? new RecordCheck(RecordState.Gone) : new RecordCheck(RecordState.Matches, right.Id);
+    }
+
+    /// <summary>Whether Sonarr's episode has the episode's season and number, or (a daily show's) its date, where both say.</summary>
+    private static bool Fits(MediaItem item, SonarrEpisode episode)
+    {
+        if (item.EpisodeNumber is { } number && item.SeasonNumber is { } season)
+        {
+            return episode.SeasonNumber == season && episode.EpisodeNumber == number;
+        }
+
+        return item.AirDate is not { } date || episode.AirDate is null
+            || episode.AirDate == date.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>A title's TMDB, TVDB and IMDb ids, those it has.</summary>
+    private static (string? Tmdb, string? Tvdb, string? Imdb) Ids(int tmdb, int tvdb, string? imdb) =>
+        (tmdb > 0 ? tmdb.ToString(System.Globalization.CultureInfo.InvariantCulture) : null, tvdb > 0 ? tvdb.ToString(System.Globalization.CultureInfo.InvariantCulture) : null,
+            string.IsNullOrWhiteSpace(imdb) ? null : imdb);
+
+    private static (string? Tmdb, string? Tvdb, string? Imdb) Ids(string? tmdb, string? tvdb, string? imdb) =>
+        (string.IsNullOrWhiteSpace(tmdb) ? null : tmdb, string.IsNullOrWhiteSpace(tvdb) ? null : tvdb, string.IsNullOrWhiteSpace(imdb) ? null : imdb);
+
+    private static IEnumerable<(string? A, string? B)> Pairs((string? Tmdb, string? Tvdb, string? Imdb) a, (string? Tmdb, string? Tvdb, string? Imdb) b) =>
+        new[] { (a.Tmdb, b.Tmdb), (a.Tvdb, b.Tvdb), (a.Imdb, b.Imdb) }.Where(p => p.Item1 is not null && p.Item2 is not null);
+
+    /// <summary>Some id both have is the same.</summary>
+    private static bool IdsAgree((string? Tmdb, string? Tvdb, string? Imdb) a, (string? Tmdb, string? Tvdb, string? Imdb) b) =>
+        Pairs(a, b).Any(p => string.Equals(p.A, p.B, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Both have ids to compare, and none is the same.</summary>
+    private static bool IdsDiffer((string? Tmdb, string? Tvdb, string? Imdb) a, (string? Tmdb, string? Tvdb, string? Imdb) b) =>
+        Pairs(a, b).Any() && !IdsAgree(a, b);
+
+    /// <summary>The Sonarr episodes in the episode's file: more than its own when it's a multi-episode file (S01E01-E02).</summary>
+    private static async Task<List<int>> SharingFileAsync(ArrClient arr, ArrInstance sonarr, MediaItem item, SonarrEpisode episode, CancellationToken ct)
+    {
+        if (episode.EpisodeFileId <= 0 || item.EpisodeNumberEnd is null || episode.SeriesId <= 0)
+        {
+            return [episode.Id];
+        }
+
+        try
+        {
+            var sharing = (await arr.GetEpisodesAsync(sonarr, episode.SeriesId, ct)).Where(e => e.EpisodeFileId == episode.EpisodeFileId).Select(e => e.Id).ToList();
+            return sharing.Contains(episode.Id) ? sharing : [.. sharing.Append(episode.Id)];
+        }
+        catch (HttpRequestException)
+        {
+            return [episode.Id]; // Its own, at least.
+        }
+    }
+
+    /// <summary>A file in <paramref name="folder"/> the artist's library files under another artist, if there is one.</summary>
+    private static async Task<string?> OtherArtistsFileAsync(FlexarrDbContext db, MediaItem artist, string folder, CancellationToken ct)
+    {
+        var prefix = folder.TrimEnd('/') + "/";
+        // A LIKE in SQLite, which ignores case: the exact test is made here.
+        var paths = await db.MediaFiles.IgnoreQueryFilters()
+            .Where(f => f.MediaItem!.LibraryId == artist.LibraryId && f.Path.StartsWith(prefix)
+                && !(f.MediaItem.ParentId != null && f.MediaItem.Parent!.ParentId == artist.Id) && f.MediaItem.ParentId != artist.Id)
+            .Select(f => f.Path).ToListAsync(ct);
+        return paths.FirstOrDefault(p => PathComparison.IsUnder(p, folder));
     }
 
     /// <summary>The Radarr or Sonarr that manages the title (episodes through their show), and its id there.</summary>

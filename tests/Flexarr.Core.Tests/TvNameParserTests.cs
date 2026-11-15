@@ -86,6 +86,12 @@ public class TvNameParserTests
     [InlineData("Show - S01E02-E04.mkv", 1, 2, 4, null)]
     [InlineData("Show S02E11E12E13.mkv", 2, 11, 13, null)]
     [InlineData("Show - 2x05.mkv", 2, 5, null, null)]
+    [InlineData("Show - S01E1071 - Title.mkv", 1, 1071, null, null)]
+    [InlineData("Show - S01E1071-E1072.mkv", 1, 1071, 1072, null)]
+    [InlineData("Show - S01E05-06.mkv", 1, 5, 6, null)]
+    [InlineData("Show S01E05 24 Hours.mkv", 1, 5, null, null)]
+    [InlineData("Show (2010) - S2024E05 - Title [WEBDL-1080p].mkv", 2024, 5, null, null)]
+    [InlineData("Show - 1x1071.mkv", 1, 1071, null, null)]
     [InlineData("Daily Show - 2026-10-24.mkv", 2026, 0, null, "10/24/2026")]
     [InlineData("Daily.Show.2026.10.24.mp4", 2026, 0, null, "10/24/2026")]
     public void ParseEpisode_ReadsSeasonEpisodeForms(string file, int season, int episode, int? end, string? airDate)
@@ -137,6 +143,7 @@ public class TvNameParserTests
     [InlineData("Season 02", 2)]
     [InlineData("Season 1", 1)]
     [InlineData("Specials", 0)]
+    [InlineData("Season 2024", 2024)]
     [InlineData("Extras", null)]
     public void ParseSeasonFolder_ReadsSeasonFolders(string folder, int? season) =>
         Assert.Equal(season, TvNameParser.ParseSeasonFolder(folder));

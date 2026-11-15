@@ -154,7 +154,7 @@ public sealed class PlaybackEvents
                 {
                     session.InCredits = false;
                 }
-                else if (!session.InCredits)
+                else if (!session.InCredits && !session.JumpedAhead) // a scrub past it is the credits once the next report agrees
                 {
                     session.InCredits = true;
                     Notice(PlaybackEventKind.Credits, session);

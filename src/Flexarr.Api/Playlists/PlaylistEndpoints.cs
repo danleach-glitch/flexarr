@@ -61,14 +61,16 @@ public static class PlaylistEndpoints
         group.MapGet("/", async (FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
             await SummariesAsync(db, profile.Id, ct));
 
-        group.MapGet("/{id:guid}", async (Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        // skip and take page a long playlist's tracks (its summary still counts them all). Older apps send neither and
+        // get every track, as before.
+        group.MapGet("/{id:guid}", async (Guid id, int? skip, int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
         {
             if (await Mine(db, profile).FirstOrDefaultAsync(p => p.Id == id, ct) is not { } playlist)
             {
                 return Results.NotFound();
             }
 
-            return Results.Ok(await DetailAsync(db, profile.Id, playlist, ct));
+            return Results.Ok(await DetailAsync(db, profile.Id, playlist, Math.Max(0, skip ?? 0), Math.Clamp(take ?? MaxTracks, 0, MaxTracks), ct));
         });
 
         group.MapPost("/", async (PlaylistCreateRequest request, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
@@ -359,11 +361,13 @@ public static class PlaylistEndpoints
         return result;
     }
 
-    private static async Task<PlaylistDetailDto> DetailAsync(FlexarrDbContext db, string profileId, Playlist playlist, CancellationToken ct)
+    /// <param name="skip">Tracks to leave out from the start.</param>
+    /// <param name="take">The most tracks to give.</param>
+    private static async Task<PlaylistDetailDto> DetailAsync(FlexarrDbContext db, string profileId, Playlist playlist, int skip, int take, CancellationToken ct)
     {
         // Tracks in libraries this profile can't see drop out through the library filter on MediaItems.
-        var entries = await db.PlaylistItems.Where(i => i.PlaylistId == playlist.Id && i.MediaItem != null).OrderBy(i => i.Position)
-            .Select(i => new { i.Id, i.MediaItemId }).ToListAsync(ct);
+        var entries = await db.PlaylistItems.Where(i => i.PlaylistId == playlist.Id && i.MediaItem != null).OrderBy(i => i.Position).ThenBy(i => i.Id)
+            .Skip(skip).Take(take).Select(i => new { i.Id, i.MediaItemId }).ToListAsync(ct);
         var ids = entries.Select(e => e.MediaItemId).Distinct().ToList();
         var tracks = await db.MediaItems.Where(i => ids.Contains(i.Id)).Summaries(profileId).ToDictionaryAsync(i => i.Id, ct);
         var inOrder = entries.Where(e => tracks.ContainsKey(e.MediaItemId)).Select(e => new PlaylistTrackDto(e.Id, tracks[e.MediaItemId])).ToList();

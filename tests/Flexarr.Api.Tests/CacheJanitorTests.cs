@@ -46,6 +46,12 @@ public sealed class CacheJanitorTests : IDisposable
             File.SetLastWriteTimeUtc(old, longAgo);
         }
 
+        // A stream's folder that couldn't be deleted when it ended; one just made is for a stream starting now.
+        var leftStream = Directory.CreateDirectory(Path.Combine(cache, "transcodes", "00112233445566778899aabbccddeeff")).FullName;
+        Write(Path.Combine(leftStream, "seg0.ts"));
+        Directory.SetLastWriteTimeUtc(leftStream, DateTime.UtcNow - TimeSpan.FromHours(2));
+        var newStream = Directory.CreateDirectory(Path.Combine(cache, "transcodes", "ffeeddccbbaa99887766554433221100")).FullName;
+
         await _factory.Services.GetRequiredService<CacheJanitor>().RunOnceAsync(CancellationToken.None);
 
         Assert.True(Directory.Exists(keptPreviews));
@@ -56,6 +62,8 @@ public sealed class CacheJanitorTests : IDisposable
         Assert.False(File.Exists(stale));
         Assert.False(File.Exists(staleIndex));
         Assert.False(File.Exists(staleLogo));
+        Assert.False(Directory.Exists(leftStream));
+        Assert.True(Directory.Exists(newStream));
     }
 
     [Fact]

@@ -117,8 +117,10 @@ public class PlaybackSessionsTests
     public async Task AStreamGotReadyAheadOfPlay_GivesWayToARealStart_AndItsPlaybackGoes()
     {
         var cache = Directory.CreateTempSubdirectory("flexarr-sessions-").FullName;
+        // A hardware encoder: in software nothing is got ready while someone watches a conversion.
         await using var transcodes = new TranscodeManager(
-            () => new TranscodeSettings { CacheDirectory = cache, MaxConcurrentTranscodes = 2 }, NullLoggerFactory.Instance);
+            () => new TranscodeSettings { CacheDirectory = cache, MaxConcurrentTranscodes = 2, HardwareAcceleration = HardwareAcceleration.VideoToolbox },
+            NullLoggerFactory.Instance);
         var sessions = new PlaybackSessions(transcodes, NullLogger<PlaybackSessions>.Instance);
         var watching = await transcodes.CreateAsync("other", "/in.mkv", 600, Plan);
         var warm = await transcodes.CreateAsync("main", "/in.mkv", 600, Plan, preparing: true);

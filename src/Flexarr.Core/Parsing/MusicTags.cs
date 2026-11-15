@@ -11,6 +11,9 @@ namespace Flexarr.Core.Parsing;
 public sealed record TrackInfo(string Artist, string Album, string Title, int? Disc, int? Track, int? Year, string? AlbumMusicBrainzId, string? ArtistMusicBrainzId,
     string? TrackArtist = null)
 {
+    /// <summary>Whether <see cref="Album"/> came from an album tag, rather than the folder's name.</summary>
+    public bool AlbumTagged { get; init; }
+
     /// <summary>The genres the tags name ("Rock; Indie" is two), for an album no Lidarr describes.</summary>
     public IReadOnlyList<string> Genres { get; init; } = [];
 }
@@ -35,7 +38,8 @@ public static partial class MusicTags
         var artist = Tag("album_artist", "albumartist", "album artist")
             ?? (IsCompilation(Tag("compilation")) ? VariousArtists : trackArtist)
             ?? folderArtist ?? "Unknown artist";
-        var album = Tag("album") ?? (folderAlbum is null ? "Unknown album" : StripYear(folderAlbum));
+        var albumTag = Tag("album");
+        var album = albumTag ?? (folderAlbum is null ? "Unknown album" : StripYear(folderAlbum));
         return new TrackInfo(
             artist,
             album,
@@ -47,6 +51,7 @@ public static partial class MusicTags
             Tag("musicbrainz_albumartistid", "musicbrainz_artistid", "MusicBrainz Album Artist Id", "MusicBrainz Artist Id"),
             trackArtist)
         {
+            AlbumTagged = albumTag is not null,
             Genres = Tag("genre") is { } genre
                 ? genre.Split([';', '\0'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct(StringComparer.OrdinalIgnoreCase).Take(5).ToList()
                 : [],

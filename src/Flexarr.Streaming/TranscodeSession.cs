@@ -253,8 +253,8 @@ public sealed partial class TranscodeSession : IAsyncDisposable
                     coming = false;
                 }
 
-                // A copied stream got ready ahead of Play runs with only a short head start: taken up by a player, it
-                // starts again here with the full one.
+                // A stream got ready ahead of Play runs with only a short head start, at low priority: taken up by a
+                // player, it starts again here with the full one.
                 if (coming && !Warming && _burst < FfmpegCommand.RunAheadSeconds)
                 {
                     coming = false;
@@ -523,7 +523,7 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         }
         catch (IOException)
         {
-            // Files may still be open briefly on some platforms; the cleanup sweep retries.
+            // Files may still be open briefly on some platforms; the cache janitor retries (DeleteOrphans).
         }
     }
 
@@ -563,12 +563,11 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         DeleteSegments();
 
         var start = new ProcessStartInfo(_settings.FfmpegPath) { UseShellExecute = false, RedirectStandardError = true, RedirectStandardInput = false };
-        // The full burst even when got ready ahead of Play: the sweep stops that run once it has enough to open on (see
-        // StopWarmRunAsync), and one taken up while it's still going keeps the whole run-ahead. Not a copied stream's:
-        // copying gets through the whole burst before the sweep comes round, reading and writing minutes of the film for
-        // a page looked at, so it starts with just enough to open on, and again with the full burst once taken up.
+        // Got ready ahead of Play, a run starts with just enough to open on, and below normal priority: a page looked
+        // at mustn't compete at full speed with someone watching. Taken up by a player, it starts again at the first
+        // segment it hasn't made, with the full burst at normal priority (see GetSegmentAsync).
         var pace = Speed;
-        var burst = Warming && Plan.Repackage is not null ? FfmpegCommand.WarmingRunAheadSeconds : FfmpegCommand.RunAheadSeconds;
+        var burst = Warming ? FfmpegCommand.WarmingRunAheadSeconds : FfmpegCommand.RunAheadSeconds;
         foreach (var arg in FfmpegCommand.Hls(Input, Plan, segment, Directory, _settings, Opening, burst, pace))
         {
             start.ArgumentList.Add(arg);
@@ -582,6 +581,18 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         _startSegment = segment;
         _released = false;
         var process = Process.Start(start) ?? throw new InvalidOperationException($"Could not start {_settings.FfmpegPath}");
+        if (Warming)
+        {
+            try
+            {
+                process.PriorityClass = ProcessPriorityClass.BelowNormal;
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or PlatformNotSupportedException)
+            {
+                // Already gone, or not allowed here: it just runs at normal priority.
+            }
+        }
+
         process.ErrorDataReceived += (_, e) =>
         {
             if (!string.IsNullOrWhiteSpace(e.Data))

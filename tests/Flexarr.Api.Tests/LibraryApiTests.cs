@@ -62,7 +62,7 @@ public class LibraryApiTests(FlexarrApiFactory factory) : IClassFixture<FlexarrA
     }
 
     [Fact]
-    public async Task RemovingAFolder_TakesItsArtistsAndMissingFilesWithIt()
+    public async Task RemovingAFolder_HidesItsTitles_WhichWaitOutTheGracePeriod()
     {
         var gone = Directory.CreateDirectory(Path.Combine(factory.MediaDirectory, "music-" + Guid.NewGuid())).FullName;
         var kept = Directory.CreateDirectory(Path.Combine(factory.MediaDirectory, "music-" + Guid.NewGuid())).FullName;
@@ -95,10 +95,89 @@ public class LibraryApiTests(FlexarrApiFactory factory) : IClassFixture<FlexarrA
         using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
-            var left = await db.MediaItems.IgnoreQueryFilters().Where(i => i.LibraryId == id).Select(i => i.Title).ToListAsync();
-            Assert.Equal(["Album", "Song", "Staying"], left.Order(StringComparer.Ordinal));
-            Assert.False(await db.MediaFiles.IgnoreQueryFilters().AnyAsync(f => f.Path.StartsWith(gone + "/")));
+            // Nothing deleted yet: put back within the grace period, they'd be as they were.
+            var showing = await db.MediaItems.IgnoreQueryFilters().Where(i => i.LibraryId == id && i.MissingSince == null).Select(i => i.Title).ToListAsync();
+            Assert.Equal(["Album", "Song", "Staying"], showing.Order(StringComparer.Ordinal));
+            Assert.Equal(9, await db.MediaItems.IgnoreQueryFilters().CountAsync(i => i.LibraryId == id));
+            Assert.False(await db.MediaFiles.IgnoreQueryFilters().AnyAsync(f => f.Path.StartsWith(gone + "/") && f.MissingSince == null));
         }
+    }
+
+    [Fact]
+    public async Task SwappingAFolderForAnotherWithTheSameFiles_KeepsEverythingAboutThem()
+    {
+        var old = Directory.CreateDirectory(Path.Combine(factory.MediaDirectory, "music-" + Guid.NewGuid())).FullName;
+        var created = await (await Client().PostAsJsonAsync(new Uri("/api/v1/libraries", UriKind.Relative),
+            new { name = $"Music {Guid.NewGuid():N}", type = "Music", folders = new[] { old } })).Content.ReadFromJsonAsync<LibraryDto>(Json);
+        var id = created!.Id;
+        // The same music, mounted somewhere new; one track didn't come across.
+        var moved = Directory.CreateDirectory(Path.Combine(factory.MediaDirectory, "music-" + Guid.NewGuid())).FullName;
+        Directory.CreateDirectory(Path.Combine(moved, "Artist", "Album"));
+        await File.WriteAllTextAsync(Path.Combine(moved, "Artist", "Album", "01.flac"), "sound");
+        await File.WriteAllTextAsync(Path.Combine(moved, "Artist", "Album", "cover.jpg"), "cover");
+        Guid track, lost;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var artist = new MediaItem { LibraryId = id, Kind = MediaKind.Artist, Title = "Artist", SortTitle = "artist" };
+            var album = new MediaItem
+            {
+                LibraryId = id, Kind = MediaKind.Album, Title = "Album", SortTitle = "album", ParentId = artist.Id, Path = $"{old}/Artist/Album",
+                PosterUrl = $"file://{old}/Artist/Album/cover.jpg", DetailsLocked = true,
+            };
+            var one = new MediaItem { LibraryId = id, Kind = MediaKind.Track, Title = "One", SortTitle = "1", ParentId = album.Id, Path = $"{old}/Artist/Album/01.flac" };
+            one.Files.Add(new MediaFile { Path = one.Path });
+            var two = new MediaItem { LibraryId = id, Kind = MediaKind.Track, Title = "Two", SortTitle = "2", ParentId = album.Id, Path = $"{old}/Artist/Album/02.flac" };
+            two.Files.Add(new MediaFile { Path = two.Path });
+            db.AddRange(artist, album, one, two);
+            db.PlaybackStates.Add(new PlaybackState { MediaItemId = one.Id, PlayCount = 4 });
+            await db.SaveChangesAsync();
+            (track, lost) = (one.Id, two.Id);
+        }
+
+        var response = await Client().PutAsJsonAsync(new Uri($"/api/v1/libraries/{id}", UriKind.Relative),
+            new { name = created.Name, type = "Music", folders = new[] { moved } });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var file = await db.MediaFiles.IgnoreQueryFilters().SingleAsync(f => f.MediaItemId == track);
+            Assert.Equal(Path.Combine(moved, "Artist", "Album", "01.flac"), file.Path);
+            Assert.Null(file.MissingSince);
+            Assert.Equal(4, (await db.PlaybackStates.SingleAsync(p => p.MediaItemId == track)).PlayCount);
+            var album = await db.MediaItems.IgnoreQueryFilters().SingleAsync(i => i.LibraryId == id && i.Kind == MediaKind.Album);
+            Assert.Equal(Path.Combine(moved, "Artist", "Album"), album.Path);
+            Assert.Equal($"file://{moved}/Artist/Album/cover.jpg", album.PosterUrl);
+            Assert.True(album.DetailsLocked);
+            // The one that didn't come across is missing, not gone.
+            Assert.NotNull((await db.MediaItems.IgnoreQueryFilters().SingleAsync(i => i.Id == lost)).MissingSince);
+        }
+    }
+
+    [Fact]
+    public async Task DeletingALibrary_KeepsItsFilmsHistory_ForWhenTheyreAddedAgain()
+    {
+        var folder = Directory.CreateDirectory(Path.Combine(factory.MediaDirectory, "films-" + Guid.NewGuid())).FullName;
+        var created = await (await Client().PostAsJsonAsync(new Uri("/api/v1/libraries", UriKind.Relative),
+            new { name = $"Films {Guid.NewGuid():N}", type = "Movies", folders = new[] { folder } })).Content.ReadFromJsonAsync<LibraryDto>(Json);
+        var tmdb = Random.Shared.Next(1_000_000, 9_000_000).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var film = new MediaItem { LibraryId = created!.Id, Kind = MediaKind.Movie, Title = "Film", SortTitle = "film", TmdbId = tmdb, Path = $"{folder}/Film" };
+            film.Files.Add(new MediaFile { Path = $"{folder}/Film/Film.mkv" });
+            db.MediaItems.Add(film);
+            db.PlaybackStates.Add(new PlaybackState { MediaItemId = film.Id, Watched = true, PlayCount = 1 });
+            await db.SaveChangesAsync();
+        }
+
+        var response = await Client().DeleteAsync(new Uri($"/api/v1/libraries/{created!.Id}", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        using var check = factory.Services.CreateScope();
+        var after = check.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        Assert.True(await after.WatchTombstones.AnyAsync(t => t.TmdbId == tmdb && t.Kind == MediaKind.Movie));
     }
 
     [Fact]

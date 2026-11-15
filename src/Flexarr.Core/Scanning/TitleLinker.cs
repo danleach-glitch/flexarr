@@ -396,9 +396,8 @@ public static class TitleLinker
     }
 
     /// <summary>
-    /// Copies that have just linked agree what's been watched, for each profile: watched if any copy was (and it wasn't
-    /// since marked unwatched), and the place
-    /// and details of whichever was played last.
+    /// Copies that have just linked agree what's been watched, for each profile: the place, details and watched state of
+    /// whichever was played last, with the most plays any copy had.
     /// </summary>
     private static async Task ShareWatchStateAsync(FlexarrDbContext db, ILookup<Guid, Guid> members, CancellationToken ct)
     {
@@ -414,8 +413,9 @@ public static class TitleLinker
         foreach (var group in states.GroupBy(s => (s.UserId, Group: groupOf[s.MediaItemId])))
         {
             var newest = group.OrderByDescending(s => s.LastPlayedAt).First();
-            // Unless the latest thing done to it was marking it unwatched: a copy coming back mustn't undo that.
-            var watched = group.Any(s => s.Watched) && newest is not { Watched: false, PositionSeconds: 0 };
+            // Watched only when the copy played last is: one marked unwatched since mustn't be undone by a copy coming
+            // back, and one part way through keeps its place in Continue Watching rather than becoming watched.
+            var watched = newest.Watched;
             var plays = group.Max(s => s.PlayCount);
             foreach (var copy in members[group.Key.Group])
             {

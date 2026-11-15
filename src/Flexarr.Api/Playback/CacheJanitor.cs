@@ -10,13 +10,16 @@ namespace Flexarr.Api.Playback;
 /// <summary>
 /// Keeps the cache folders from growing for ever: scrubbing previews of files no longer in the library, subtitles,
 /// keyframe indexes and channel logos not made again for a long while (their names include the file's path and time, so
-/// every replaced file leaves its old ones behind), Live TV folders a crash left, and prepared downloads whose download
-/// has gone (deleted with its profile or title). Shortly after starting, then daily.
+/// every replaced file leaves its old ones behind), Live TV and stream folders left by a crash or a failed delete, and
+/// prepared downloads whose download has gone (deleted with its profile or title). Shortly after starting, then daily.
 /// </summary>
 public sealed partial class CacheJanitor(IServiceScopeFactory scopes, IOptionsMonitor<FlexarrOptions> options, LiveStreams live,
-    ILogger<CacheJanitor> logger) : BackgroundService
+    Flexarr.Streaming.TranscodeManager transcodes, ILogger<CacheJanitor> logger) : BackgroundService
 {
-    /// <summary>A cached subtitle, keyframe index or logo older than this is deleted; anything still wanted is made again.</summary>
+    /// <summary>
+    /// A cached subtitle, keyframe index, logo or episode's sound fingerprint unused for this long is deleted; anything
+    /// still wanted is made again.
+    /// </summary>
     public static readonly TimeSpan KeptFor = TimeSpan.FromDays(90);
 
     /// <summary>Half-made scrubbing previews older than this were left by a run that stopped.</summary>
@@ -63,6 +66,9 @@ public sealed partial class CacheJanitor(IServiceScopeFactory scopes, IOptionsMo
             deleted += Delete(folder);
         }
 
+        // Stream folders whose session has ended but couldn't be deleted then (a file still open): the next round.
+        deleted += transcodes.DeleteOrphans(olderThan: TimeSpan.FromHours(1));
+
         // Scrubbing previews (and the note that they couldn't be made) are by file: gone with the file.
         var trickplay = Path.Combine(cache, "trickplay");
         if (Directory.Exists(trickplay))
@@ -107,7 +113,7 @@ public sealed partial class CacheJanitor(IServiceScopeFactory scopes, IOptionsMo
 
         // Keyed by the file's path and time (or a logo's address): an old one is for a file that's since changed, or
         // is made again in moments.
-        foreach (var folder in new[] { "subtitles", "remux-index", "livetv-logos" })
+        foreach (var folder in new[] { "subtitles", "remux-index", "livetv-logos", "fingerprints" })
         {
             var root = Path.Combine(cache, folder);
             if (!Directory.Exists(root))

@@ -13,7 +13,11 @@ public sealed record DetectedMarker(MarkerType Type, double Start, double End, s
 /// otherwise episodes of a season are compared with each other by audio fingerprint, since a show's
 /// theme tune and credits music repeat while everything else differs.
 /// </summary>
-public sealed partial class MarkerDetector(string ffmpegPath, string ffprobePath)
+/// <param name="fingerprintCache">
+/// Folder where each file's fingerprints are kept, so a new episode is compared with its season without decoding every
+/// other episode's sound again; null to keep none.
+/// </param>
+public sealed partial class MarkerDetector(string ffmpegPath, string ffprobePath, string? fingerprintCache = null)
 {
     private const double IntroWindow = 480;   // intros start in the first few minutes
     private const double CreditsWindow = 300; // credits live in the last five
@@ -61,19 +65,24 @@ public sealed partial class MarkerDetector(string ffmpegPath, string ffprobePath
             foreach (var file in episodes)
             {
                 var hasTail = needsCredits.Count >= 2 && file.DurationSeconds is > CreditsWindow * 2;
-                if (giveWay is not null && (needsIntro.Count >= 2 || hasTail))
+                var head = needsIntro.Count >= 2 ? Kept(file, fromEnd: false) : null;
+                var tail = hasTail ? Kept(file, fromEnd: true) : null;
+                var decodes = (needsIntro.Count >= 2 && head is null) || (hasTail && tail is null);
+                if (giveWay is not null && decodes)
                 {
                     await giveWay(ct).ConfigureAwait(false);
                 }
 
                 if (needsIntro.Count >= 2)
                 {
-                    heads[file.Id] = AudioFingerprint.Compute(await PcmAsync(file.Path, fromEnd: false, IntroWindow, ct).ConfigureAwait(false));
+                    heads[file.Id] = head ?? Keep(file, fromEnd: false,
+                        AudioFingerprint.Compute(await PcmAsync(file.Path, fromEnd: false, IntroWindow, ct).ConfigureAwait(false)));
                 }
 
                 if (hasTail)
                 {
-                    tails[file.Id] = AudioFingerprint.Compute(await PcmAsync(file.Path, fromEnd: true, CreditsWindow, ct).ConfigureAwait(false));
+                    tails[file.Id] = tail ?? Keep(file, fromEnd: true,
+                        AudioFingerprint.Compute(await PcmAsync(file.Path, fromEnd: true, CreditsWindow, ct).ConfigureAwait(false)));
                 }
             }
 
@@ -108,6 +117,77 @@ public sealed partial class MarkerDetector(string ffmpegPath, string ffprobePath
         }
 
         return result;
+    }
+
+    /// <summary>Which reading of the sound a kept fingerprint is: bumped when the windows or the fingerprint change.</summary>
+    private const int FingerprintVersion = 1;
+
+    /// <summary>
+    /// Where a file's opening or closing fingerprint is kept: by its id (so the cache janitor can tell when the file has
+    /// gone), its size and time (a replaced file gets new ones) and <see cref="FingerprintVersion"/>.
+    /// </summary>
+    internal string? FingerprintPath(MediaFile file, bool fromEnd)
+    {
+        if (fingerprintCache is null)
+        {
+            return null;
+        }
+
+        var version = string.Create(CultureInfo.InvariantCulture, $"{file.Size}|{file.ModifiedAt.Ticks}|{FingerprintVersion}");
+        var hash = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(version)))[..16];
+        return Path.Combine(fingerprintCache, $"{file.Id:N}-{(fromEnd ? "tail" : "head")}-{hash}.fp");
+    }
+
+    /// <summary>The file's fingerprint as kept from an earlier season's analysis, or null.</summary>
+    private uint[]? Kept(MediaFile file, bool fromEnd)
+    {
+        if (FingerprintPath(file, fromEnd) is not { } path)
+        {
+            return null;
+        }
+
+        try
+        {
+            if (!File.Exists(path))
+            {
+                return null;
+            }
+
+            var bytes = File.ReadAllBytes(path);
+            if (bytes.Length == 0 || bytes.Length % sizeof(uint) != 0)
+            {
+                return null;
+            }
+
+            // Read now and then: its age (the janitor's limit) counts from its last use.
+            File.SetLastWriteTimeUtc(path, DateTime.UtcNow);
+            return System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>(bytes).ToArray();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Keeps a fingerprint for next time (not an empty one: the sound may not have been readable this time).</summary>
+    private uint[] Keep(MediaFile file, bool fromEnd, uint[] fingerprint)
+    {
+        if (fingerprint.Length > 0 && FingerprintPath(file, fromEnd) is { } path)
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                var temp = path + ".tmp";
+                File.WriteAllBytes(temp, System.Runtime.InteropServices.MemoryMarshal.AsBytes(fingerprint.AsSpan()).ToArray());
+                File.Move(temp, path, overwrite: true);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Decoded again next time.
+            }
+        }
+
+        return fingerprint;
     }
 
     /// <summary>Markers from chapter titles alone (used for movies, and first for episodes).</summary>

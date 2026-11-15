@@ -74,10 +74,11 @@ public static partial class DiscoveryEndpoints
             var options = services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions>>().CurrentValue;
             // The profile's own rows, or the server's while it hasn't chosen.
             var cache = services.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>();
-            // Kept a minute, until anything is written or the settings change (see HomeCache).
+            // Kept a minute, until anything is written, this profile watches something or the settings change (see HomeCache).
             var version = DataVersion.Current;
+            var profileVersion = DataVersion.ForProfile(me);
             var homeKey = HomeCache.Key(db, profile, listening, DateTime.UtcNow);
-            if (HomeCache.TryGet(cache, homeKey, version, options, out var kept))
+            if (HomeCache.TryGet(cache, homeKey, version, profileVersion, options, out var kept))
             {
                 return kept;
             }
@@ -219,7 +220,7 @@ public static partial class DiscoveryEndpoints
             }
 
             // Featured: well-rated things with full artwork, unseen first, a new handful daily.
-            var rotation = await FeaturedAsync(titles, me, day, ct);
+            var rotation = await FeaturedAsync(db, titles, me, day, ct);
             (rotation, var resume) = await LeadWithContinueWatchingAsync(db, me, continueWatching, rotation, ct);
             var overviews = await OverviewsAsync(db, rotation, ct);
             var resumes = await ResumesAsync(db, me, rotation, resume, ct);
@@ -271,7 +272,7 @@ public static partial class DiscoveryEndpoints
             }
 
             var home = new HomeDto(rotation, overviews, arranged, upcoming, downloading, resume, resumes, PlacesPodcasts: true);
-            HomeCache.Set(cache, homeKey, version, options, home, DateTime.UtcNow);
+            HomeCache.Set(cache, homeKey, version, profileVersion, options, home, DateTime.UtcNow);
             return home;
         }).WithTags("Discovery");
 
@@ -338,7 +339,7 @@ public static partial class DiscoveryEndpoints
             if (On("recent"))
             {
                 rows.Add(new HomeRowDto("recent", Loc.T("{kind, select, movies {Latest unwatched movies} home {Latest unwatched home videos} other {Latest unwatched shows}}", new { kind = noun }), "poster",
-                    await LatestUnwatched(topLevel, movies, me).Take(RowSize).Summaries(me).ToListAsync(ct), $"{all}&sort=added"));
+                    await InOrderAsync(topLevel, await LatestUnwatchedAsync(topLevel, movies, me, RowSize, ct), me, ct), $"{all}&sort=added"));
             }
 
             // Coming soon to this library: its titles travel in Upcoming, as on Home. A bonus, so Sonarr or Radarr
@@ -394,7 +395,7 @@ public static partial class DiscoveryEndpoints
             }
 
             var day = DateOnly.FromDateTime(DateTime.UtcNow).DayNumber;
-            var rotation = await FeaturedAsync(topLevel, me, day, ct);
+            var rotation = await FeaturedAsync(db, topLevel, me, day, ct);
             (rotation, var resume) = await LeadWithContinueWatchingAsync(db, me, continueWatching, rotation, ct);
             var overviews = await OverviewsAsync(db, rotation, ct);
             var resumes = await ResumesAsync(db, me, rotation, resume, ct);
@@ -455,16 +456,8 @@ public static partial class DiscoveryEndpoints
                 : await Search.NamedItems.Searched(db).OnePerMatch(i => i.Kind == MediaKind.Episode && EF.Functions.Like(i.Title, contains))
                 .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).ThenBy(i => i.Id).Take(8).Summaries(profile.Id).ToListAsync(ct);
             // People in titles this profile may see: not those only in a hidden library, or only above its age limit.
-            // Each credit's title is looked up by its id. Asking whether the id is in the list of every visible title
-            // (visible.Contains) had SQLite build that whole list first, once for each place it was asked.
-            var people = await db.People.Where(p => EF.Functions.Like(p.Name, contains))
-                .Select(p => new { Person = p, Credits = p.Credits.Count(c => db.MediaItems.Any(i => i.Id == c.MediaItemId
-                    && (i.LinkGroupId == null || !i.LinkGroup!.Items.Any(o => o.Id.CompareTo(i.Id) < 0 && db.Credits.Any(x => x.PersonId == c.PersonId && x.MediaItemId == o.Id))))) })
-                .Where(p => p.Credits > 0)
-                .OrderByDescending(p => EF.Functions.Like(p.Person.Name, prefix)).ThenByDescending(p => p.Credits)
-                .Take(8)
-                .Select(p => new SearchPersonDto(p.Person.Id, p.Person.Name, ArtworkUrls.Person(p.Person.Id, p.Person.ImageUrl != null, p.Person.ImageChangedAt), p.Credits))
-                .ToListAsync(ct);
+            // Their names are matched in memory (the search index), and only the best few have their credits counted.
+            var people = await PeopleNamedAsync(db, index, term.Replace("%", "", StringComparison.Ordinal).Replace("_", "", StringComparison.Ordinal), 8, ct);
             var genres = await db.Genres.Where(g => EF.Functions.Like(g.Name, contains)).Select(g => g.Name).Take(5).ToListAsync(ct);
 
             // Albums and tracks by name; their summaries carry the artist and borrow the album's cover.
@@ -498,10 +491,7 @@ public static partial class DiscoveryEndpoints
             {
                 var close = await index.FindAsync(db, term, Search.SearchIndex.Group.Person, 8 - people.Count, people.Select(p => p.Id).ToHashSet(), ct);
                 var ids = close.Select(m => m.Id).ToList();
-                var found = await db.People.Where(p => ids.Contains(p.Id) && p.Credits.Any(c => db.MediaItems.Any(i => i.Id == c.MediaItemId)))
-                    .Select(p => new SearchPersonDto(p.Id, p.Name, ArtworkUrls.Person(p.Id, p.ImageUrl != null, p.ImageChangedAt), p.Credits.Count(c => db.MediaItems.Any(i => i.Id == c.MediaItemId
-                        && (i.LinkGroupId == null || !i.LinkGroup!.Items.Any(o => o.Id.CompareTo(i.Id) < 0 && db.Credits.Any(x => x.PersonId == c.PersonId && x.MediaItemId == o.Id)))))))
-                    .ToListAsync(ct);
+                var found = await PeopleSeenAsync(db, ids, ct);
                 people.AddRange(found.OrderBy(p => ids.IndexOf(p.Id)));
             }
 
@@ -741,17 +731,28 @@ public static partial class DiscoveryEndpoints
     /// logo come before those without. The order is a shuffle fixed for the profile and the day, so every device on
     /// a profile shows the same five. The ids are picked first, so only the five shown are summarised.
     /// </summary>
-    private static async Task<List<ItemSummaryDto>> FeaturedAsync(IQueryable<MediaItem> topLevel, string profileId, int day, CancellationToken ct)
+    private static async Task<List<ItemSummaryDto>> FeaturedAsync(FlexarrDbContext db, IQueryable<MediaItem> topLevel, string profileId, int day, CancellationToken ct)
     {
-        var candidates = await topLevel.Where(i => i.BackdropUrl != null && i.Overview != null && i.CommunityRating >= 7.3)
-            .Select(i => new FeaturedCandidate(
+        var found = await topLevel.Where(i => i.BackdropUrl != null && i.Overview != null && i.CommunityRating >= 7.3)
+            .Select(i => new
+            {
                 i.Id,
-                i.Kind == MediaKind.Series
-                    ? i.Children.SelectMany(s => s.Children).Any()
-                        && !i.Children.SelectMany(s => s.Children).Any(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched))
-                    : i.PlaybackStates.Any(p => p.UserId == profileId && p.Watched),
-                i.LogoUrl != null))
+                Series = i.Kind == MediaKind.Series,
+                Watched = i.Kind != MediaKind.Series && i.PlaybackStates.Any(p => p.UserId == profileId && p.Watched),
+                HasLogo = i.LogoUrl != null,
+            })
             .ToListAsync(ct);
+        // A show can only be all seen if this profile has watched one of its episodes, so every episode is checked only
+        // for those, not for every well-rated show in the library.
+        var shows = found.Where(c => c.Series).Select(c => c.Id).ToList();
+        var started = shows.Count == 0 ? [] : await db.PlaybackStates
+            .Where(p => p.UserId == profileId && p.Watched && p.MediaItem!.Kind == MediaKind.Episode && p.MediaItem.Parent!.ParentId != null
+                && shows.Contains(p.MediaItem.Parent.ParentId.Value))
+            .Select(p => p.MediaItem!.Parent!.ParentId!.Value).Distinct().ToListAsync(ct);
+        var seen = started.Count == 0 ? [] : (await topLevel.Where(i => started.Contains(i.Id)
+                && !i.Children.SelectMany(s => s.Children).Any(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched)))
+            .Select(i => i.Id).ToListAsync(ct)).ToHashSet();
+        var candidates = found.Select(c => new FeaturedCandidate(c.Id, c.Series ? seen.Contains(c.Id) : c.Watched, c.HasLogo));
         var picks = PickFeatured(candidates, profileId, day);
         var items = await topLevel.Where(i => picks.Contains(i.Id)).Summaries(profileId).ToDictionaryAsync(i => i.Id, ct);
         return picks.Where(items.ContainsKey).Select(id => items[id]).ToList();
@@ -861,24 +862,111 @@ public static partial class DiscoveryEndpoints
     /// Newest first, leaving out what you've seen: films you've watched, and shows with no unwatched episodes. A show's
     /// newest unwatched episode bubbles it up, rather than listing every episode. Only unwatched: an episode's date
     /// added is its file's, so Sonarr upgrading one you've seen would otherwise bring an old show back to the front.
+    /// The first <paramref name="take"/> ids, in order.
     /// </summary>
-    private static IOrderedQueryable<MediaItem> LatestUnwatched(IQueryable<MediaItem> topLevel, bool movies, string profileId) => movies
-        ? topLevel.Where(i => i.Kind == MediaKind.Movie && !i.PlaybackStates.Any(p => p.UserId == profileId && p.Watched)).OrderByDescending(i => i.AddedAt)
-        : topLevel.Where(i => i.Children.SelectMany(s => s.Children).Any(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched)))
-            .OrderByDescending(i => i.Children.SelectMany(s => s.Children)
-                .Where(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched)).Max(e => (DateTime?)e.AddedAt));
+    private static async Task<List<Guid>> LatestUnwatchedAsync(IQueryable<MediaItem> topLevel, bool movies, string profileId, int take, CancellationToken ct)
+    {
+        if (movies)
+        {
+            return await topLevel.Where(i => i.Kind == MediaKind.Movie && !i.PlaybackStates.Any(p => p.UserId == profileId && p.Watched))
+                .OrderByDescending(i => i.AddedAt).Take(take).Select(i => i.Id).ToListAsync(ct);
+        }
+
+        // Each show's newest episode of all is never older than its newest unwatched one. So shows are looked at newest
+        // episode first, a few at a time, and the watched ones are only looked for in those: once the next show's newest
+        // episode is older than the last of the best so far, no show further on can beat it. Seen most of the library
+        // or not, the episodes aren't each checked against this profile's watch state.
+        var newest = await topLevel.Select(i => new { i.Id, At = i.Children.SelectMany(s => s.Children).Max(e => (DateTime?)e.AddedAt) })
+            .Where(x => x.At != null).OrderByDescending(x => x.At).ToListAsync(ct);
+        var best = new List<(Guid Id, DateTime At, int Rank)>();
+        const int batch = 50;
+        for (var from = 0; from < newest.Count; from += batch)
+        {
+            if (best.Count >= take && newest[from].At < best[take - 1].At)
+            {
+                break;
+            }
+
+            var ids = newest.Skip(from).Take(batch).Select(x => x.Id).ToList();
+            var unwatched = await topLevel.Where(i => ids.Contains(i.Id))
+                .Select(i => new
+                {
+                    i.Id,
+                    At = i.Children.SelectMany(s => s.Children).Where(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched)).Max(e => (DateTime?)e.AddedAt),
+                })
+                .Where(x => x.At != null).ToListAsync(ct);
+            // Ties keep the order the shows were looked at in.
+            best = [.. best.Concat(unwatched.Select(x => (x.Id, x.At!.Value, from + ids.IndexOf(x.Id))))
+                .OrderByDescending(x => x.Item2).ThenBy(x => x.Item3).Take(take)];
+        }
+
+        return [.. best.Select(x => x.Id)];
+    }
 
     /// <summary>
-    /// <see cref="LatestUnwatched"/> across libraries, with a title that's in two of them (an HD and a 4K copy) shown
+    /// <see cref="LatestUnwatchedAsync"/> across libraries, with a title that's in two of them (an HD and a 4K copy) shown
     /// once: its newest copy.
     /// </summary>
     private static async Task<List<ItemSummaryDto>> LatestUnwatchedOnceAsync(IQueryable<MediaItem> topLevel, bool movies, string profileId, CancellationToken ct)
     {
-        var newest = await LatestUnwatched(topLevel, movies, profileId).Select(i => new { i.Id, i.LinkGroupId, i.TmdbId, i.TvdbId, i.ImdbId }).Take(RowSize * 3).ToListAsync(ct);
+        var order = await LatestUnwatchedAsync(topLevel, movies, profileId, RowSize * 3, ct);
+        var known = await topLevel.Where(i => order.Contains(i.Id)).Select(i => new { i.Id, i.LinkGroupId, i.TmdbId, i.TvdbId, i.ImdbId }).ToDictionaryAsync(i => i.Id, ct);
+        var newest = order.Where(known.ContainsKey).Select(id => known[id]);
         var ids = newest.DistinctBy(i => i.LinkGroupId is not null ? $"link:{i.LinkGroupId}" : i.TmdbId is not null ? $"tmdb:{i.TmdbId}" : i.TvdbId is not null ? $"tvdb:{i.TvdbId}" : i.ImdbId is not null ? $"imdb:{i.ImdbId}" : i.Id.ToString())
             .Take(RowSize).Select(i => i.Id).ToList();
         var items = await topLevel.Where(i => ids.Contains(i.Id)).Summaries(profileId).ToListAsync(ct);
         return [.. items.OrderBy(i => ids.IndexOf(i.Id))];
+    }
+
+    /// <summary>
+    /// <paramref name="ids"/> as people this profile may see, each with the titles it's credited in that the profile can
+    /// see (a title in two libraries counted once). Those with none it can see are left out. Each credit's title is
+    /// looked up by its id: asking whether the id is in the list of every visible title (visible.Contains) had SQLite
+    /// build that whole list first, once for each place it was asked.
+    /// </summary>
+    private static async Task<List<SearchPersonDto>> PeopleSeenAsync(FlexarrDbContext db, List<Guid> ids, CancellationToken ct)
+    {
+        var people = await db.People.Where(p => ids.Contains(p.Id))
+            .Select(p => new SearchPersonDto(p.Id, p.Name, ArtworkUrls.Person(p.Id, p.ImageUrl != null, p.ImageChangedAt), p.Credits.Count(c => db.MediaItems.Any(i => i.Id == c.MediaItemId
+                && (i.LinkGroupId == null || !i.LinkGroup!.Items.Any(o => o.Id.CompareTo(i.Id) < 0 && db.Credits.Any(x => x.PersonId == c.PersonId && x.MediaItemId == o.Id)))))))
+            .ToListAsync(ct);
+        return [.. people.Where(p => p.Credits > 0)];
+    }
+
+    /// <summary>
+    /// The <paramref name="take"/> people whose names hold <paramref name="term"/>, those starting with it first, then
+    /// by how many titles this profile can see them in. Names are matched in memory, and credits counted a few people
+    /// at a time, most credited first: a person's credits in every library are never fewer than those this profile can
+    /// see, so once the last of the best so far has at least as many as the next one has in all, no one further on
+    /// can beat it.
+    /// </summary>
+    private static async Task<List<SearchPersonDto>> PeopleNamedAsync(FlexarrDbContext db, Search.SearchIndex index, string term, int take, CancellationToken ct)
+    {
+        var named = await index.ContainingAsync(db, term, Search.SearchIndex.Group.Person, ct);
+        var best = new List<(SearchPersonDto Person, bool Starts, int Rank)>();
+        const int batch = 24;
+        for (var from = 0; from < named.Count; from += batch)
+        {
+            var next = named[from];
+            if (best.Count >= take && best[take - 1] is var last && ((last.Starts && !next.Starts) || (last.Starts == next.Starts && last.Person.Credits >= next.Rank)))
+            {
+                break;
+            }
+
+            var chunk = named.Skip(from).Take(batch).ToList();
+            var seen = (await PeopleSeenAsync(db, [.. chunk.Select(c => c.Id)], ct)).ToDictionary(p => p.Id);
+            best = [.. best.Concat(chunk.Select((c, i) => (c, i)).Where(x => seen.ContainsKey(x.c.Id)).Select(x => (seen[x.c.Id], x.c.Starts, from + x.i)))
+                .OrderByDescending(x => x.Item2).ThenByDescending(x => x.Item1.Credits).ThenBy(x => x.Item3).Take(take)];
+        }
+
+        return [.. best.Select(b => b.Person)];
+    }
+
+    /// <summary>The summaries of <paramref name="ids"/>, in that order.</summary>
+    private static async Task<List<ItemSummaryDto>> InOrderAsync(IQueryable<MediaItem> items, List<Guid> ids, string profileId, CancellationToken ct)
+    {
+        var found = await items.Where(i => ids.Contains(i.Id)).Summaries(profileId).ToDictionaryAsync(i => i.Id, ct);
+        return [.. ids.Where(found.ContainsKey).Select(id => found[id])];
     }
 
     /// <summary>Audience rating, nudged by critics where Rotten Tomatoes has a score.</summary>

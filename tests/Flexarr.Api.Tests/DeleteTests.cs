@@ -661,6 +661,202 @@ public class DeleteTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFa
         Directory.Delete(root, recursive: true);
     }
 
+    /// <summary>A film in a library of its own, on record as Radarr's film 7, with its file on disk.</summary>
+    private static async Task<(Guid Film, string Folder, string Root)> AddRadarrFilmAsync(Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> app)
+    {
+        var root = Directory.CreateTempSubdirectory("flexarr-record-").FullName;
+        var folder = Directory.CreateDirectory(Path.Combine(root, "Film A (2020)")).FullName;
+        var video = Path.Combine(folder, "Film A (2020).mkv");
+        File.WriteAllText(video, "video");
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var library = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = root }] };
+        var film = new MediaItem
+        {
+            LibraryId = library.Id, Kind = MediaKind.Movie, Title = "Film A", SortTitle = "film a", TmdbId = "100", MetadataSource = "Radarr", ArrId = 7,
+            Files = [new MediaFile { Path = video, Height = 1080 }],
+        };
+        db.AddRange(library, film);
+        await db.SaveChangesAsync();
+        return (film.Id, folder, root);
+    }
+
+    [Fact]
+    public async Task AFilmWhoseRadarrIdIsNowAnotherFilms_IsntDeletedThroughIt()
+    {
+        var arr = new FakeArr();
+        arr.Responses["DELETE /api/v3/movie/7?deleteFiles=true&addImportExclusion=false"] = "{}";
+        using var app = arr.Serve(factory);
+        var (film, folder, root) = await AddRadarrFilmAsync(app);
+        // Radarr's database was rebuilt: 7 is film B now, in a folder of its own Flexarr can see.
+        var other = Directory.CreateDirectory(Path.Combine(root, "Film B (2021)")).FullName;
+        arr.Responses["GET /api/v3/movie"] = System.Text.Json.JsonSerializer.Serialize(new[] { new { id = 7, title = "Film B", tmdbId = 200, path = other } });
+
+        var response = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{film}", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.DoesNotContain(arr.Requests, r => r.StartsWith("DELETE", StringComparison.Ordinal));
+        Assert.True(Directory.Exists(folder));
+        Assert.True(await InScopeAsync(app, db => db.MediaItems.AnyAsync(i => i.Id == film)));
+        Directory.Delete(root, recursive: true);
+    }
+
+    [Fact]
+    public async Task AFilmWhoseRadarrIdHasChanged_IsDeletedThroughTheRecordHoldingIt()
+    {
+        var arr = new FakeArr();
+        arr.Responses["DELETE /api/v3/movie/12?deleteFiles=true&addImportExclusion=false"] = "{}";
+        using var app = arr.Serve(factory);
+        var (film, folder, root) = await AddRadarrFilmAsync(app);
+        arr.Responses["GET /api/v3/movie"] = System.Text.Json.JsonSerializer.Serialize(new[]
+        {
+            new { id = 7, title = "Film B", tmdbId = 200, path = "/movies/Film B (2021)" },
+            new { id = 12, title = "Film A", tmdbId = 100, path = folder },
+        });
+
+        var response = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{film}", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Contains("DELETE /api/v3/movie/12?deleteFiles=true&addImportExclusion=false", arr.Requests);
+        Assert.DoesNotContain("DELETE /api/v3/movie/7?deleteFiles=true&addImportExclusion=false", arr.Requests);
+        Directory.Delete(root, recursive: true);
+    }
+
+    [Fact]
+    public async Task AFilmOnRecordWithoutAPathMapping_StillGoesThroughRadarr()
+    {
+        var arr = new FakeArr();
+        arr.Responses["DELETE /api/v3/movie/7?deleteFiles=true&addImportExclusion=false"] = "{}";
+        using var app = arr.Serve(factory);
+        var (film, _, root) = await AddRadarrFilmAsync(app);
+        // Radarr's own view of the folder, which Flexarr can't see: nothing says it's another film.
+        arr.Responses["GET /api/v3/movie"] = System.Text.Json.JsonSerializer.Serialize(new[] { new { id = 7, title = "Film A", tmdbId = 100, path = "/movies/Film A (2020)" } });
+
+        var response = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{film}", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Contains("DELETE /api/v3/movie/7?deleteFiles=true&addImportExclusion=false", arr.Requests);
+        Directory.Delete(root, recursive: true);
+    }
+
+    /// <summary>A show on record as Sonarr's 2, with one episode (Sonarr's 5 on record) of the numbers given.</summary>
+    private static async Task<(Guid Episode, string Root)> AddSonarrEpisodeAsync(Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> app, int number, int? numberEnd = null)
+    {
+        var root = Directory.CreateTempSubdirectory("flexarr-episode-").FullName;
+        var season = Directory.CreateDirectory(Path.Combine(root, "Show", "Season 1")).FullName;
+        var video = Path.Combine(season, $"Show S01E0{number}.mkv");
+        File.WriteAllText(video, "video");
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var library = new Library { Name = $"TV {Guid.NewGuid():N}", Type = LibraryType.TvShows, Folders = [new LibraryFolder { Path = root }] };
+        var show = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Series, Title = "Show", SortTitle = "show", MetadataSource = "Sonarr", ArrId = 2 };
+        var one = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Season, Title = "Season 1", SortTitle = "1", SeasonNumber = 1, Parent = show };
+        var episode = new MediaItem
+        {
+            LibraryId = library.Id, Kind = MediaKind.Episode, Title = "Episode", SortTitle = "1", SeasonNumber = 1, EpisodeNumber = number, EpisodeNumberEnd = numberEnd,
+            Parent = one, ArrId = 5, MetadataSource = "Sonarr", Files = [new MediaFile { Path = video, Height = 1080 }],
+        };
+        db.AddRange(library, show, one, episode);
+        await db.SaveChangesAsync();
+        return (episode.Id, root);
+    }
+
+    [Fact]
+    public async Task AnEpisodeWhoseSonarrIdIsAnotherEpisode_GoesThroughItsOwn_AndKeepsTheRightId()
+    {
+        var arr = new FakeArr();
+        // Sonarr's 5 is episode 3 now; this is episode 4, Sonarr's 6.
+        arr.Responses["GET /api/v3/episode/5"] = """{"id":5,"seriesId":2,"seasonNumber":1,"episodeNumber":3,"episodeFileId":8}""";
+        arr.Responses["GET /api/v3/episode?seriesId=2&includeImages=true"] = """[{"id":5,"seriesId":2,"seasonNumber":1,"episodeNumber":3,"episodeFileId":8},{"id":6,"seriesId":2,"seasonNumber":1,"episodeNumber":4,"episodeFileId":9}]""";
+        arr.Responses["GET /api/v3/episode/6"] = """{"id":6,"seriesId":2,"seasonNumber":1,"episodeNumber":4,"episodeFileId":9}""";
+        arr.Responses["PUT /api/v3/episode/monitor"] = "[]";
+        arr.Responses["DELETE /api/v3/episodefile/9"] = "{}";
+        using var app = arr.Serve(factory);
+        var (episode, root) = await AddSonarrEpisodeAsync(app, 4);
+
+        var response = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{episode}", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Contains("DELETE /api/v3/episodefile/9", arr.Requests);
+        Assert.DoesNotContain("DELETE /api/v3/episodefile/8", arr.Requests);
+        Directory.Delete(root, recursive: true);
+    }
+
+    [Fact]
+    public async Task AnEpisodeSonarrNoLongerHas_LosesItsId_AndIsntDeletedThroughAnother()
+    {
+        var arr = new FakeArr();
+        arr.Responses["GET /api/v3/episode/5"] = """{"id":5,"seriesId":2,"seasonNumber":1,"episodeNumber":3,"episodeFileId":8}""";
+        arr.Responses["GET /api/v3/episode?seriesId=2&includeImages=true"] = """[{"id":5,"seriesId":2,"seasonNumber":1,"episodeNumber":3,"episodeFileId":8}]""";
+        using var app = arr.Serve(factory);
+        var (episode, root) = await AddSonarrEpisodeAsync(app, 4);
+
+        var response = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{episode}", UriKind.Relative));
+
+        // Sonarr has no episode 4: it goes from disk, as one Sonarr doesn't manage does.
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.DoesNotContain(arr.Requests, r => r.StartsWith("DELETE", StringComparison.Ordinal) || r.StartsWith("PUT", StringComparison.Ordinal));
+        Assert.False(File.Exists(Path.Combine(root, "Show", "Season 1", "Show S01E04.mkv")));
+        Directory.Delete(root, recursive: true);
+    }
+
+    [Fact]
+    public async Task AMultiEpisodeFile_UnmonitorsEveryEpisodeInIt()
+    {
+        var arr = new FakeArr();
+        string? monitorBody = null;
+        arr.OnRequest = r =>
+        {
+            if (r.Method == HttpMethod.Put && r.RequestUri!.AbsolutePath.EndsWith("/episode/monitor", StringComparison.Ordinal))
+            {
+                monitorBody = r.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            }
+        };
+        arr.Responses["GET /api/v3/episode/5"] = """{"id":5,"seriesId":2,"seasonNumber":1,"episodeNumber":1,"episodeFileId":8}""";
+        arr.Responses["GET /api/v3/episode?seriesId=2&includeImages=true"] = """[{"id":5,"seriesId":2,"seasonNumber":1,"episodeNumber":1,"episodeFileId":8},{"id":6,"seriesId":2,"seasonNumber":1,"episodeNumber":2,"episodeFileId":8},{"id":7,"seriesId":2,"seasonNumber":1,"episodeNumber":3,"episodeFileId":9}]""";
+        arr.Responses["PUT /api/v3/episode/monitor"] = "[]";
+        arr.Responses["DELETE /api/v3/episodefile/8"] = "{}";
+        using var app = arr.Serve(factory);
+        var (episode, root) = await AddSonarrEpisodeAsync(app, 1, numberEnd: 2);
+
+        var response = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{episode}", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        var ids = System.Text.Json.JsonDocument.Parse(monitorBody!).RootElement.GetProperty("episodeIds").EnumerateArray().Select(e => e.GetInt32()).Order().ToList();
+        Assert.Equal([5, 6], ids);
+        Directory.Delete(root, recursive: true);
+    }
+
+    [Fact]
+    public async Task AnArtistWhoseLidarrFolderHoldsAnotherArtistsAlbum_IsntDeletedThere()
+    {
+        var arr = new FakeArr();
+        arr.Responses["DELETE /api/v1/artist/3?deleteFiles=true&addImportListExclusion=false"] = "{}";
+        using var app = WithLidarr(arr, factory);
+        var (artist, album) = await AddMusicAsync(app, managed: true);
+        var folder = await InScopeAsync(app, db => db.LibraryFolders.Where(f => f.LibraryId == artist.LibraryId).Select(f => f.Path).SingleAsync());
+        arr.Responses["GET /api/v1/artist/3"] = $$"""{"id":3,"artistName":"Wet Leg","path":"{{folder.Replace("/Volumes/Media/data", "/data", StringComparison.Ordinal)}}/Wet Leg"}""";
+        await InScopeAsync(app, async db =>
+        {
+            (await db.MediaItems.SingleAsync(i => i.Id == album.Id)).Path = folder + "/Wet Leg/moisturizer";
+            // A split single in their folder, whose album-artist tag files it under someone else.
+            var other = new MediaItem { LibraryId = artist.LibraryId, Kind = MediaKind.Artist, Title = "Various", SortTitle = "various" };
+            var single = new MediaItem { LibraryId = artist.LibraryId, Kind = MediaKind.Album, Title = "Split", SortTitle = "split", Parent = other, Path = folder + "/Wet Leg/Split" };
+            var track = new MediaItem
+            {
+                LibraryId = artist.LibraryId, Kind = MediaKind.Track, Title = "Side A", SortTitle = "1", Parent = single,
+                Files = [new MediaFile { Path = folder + "/Wet Leg/Split/01 Side A.flac" }],
+            };
+            db.AddRange(other, single, track);
+            return await db.SaveChangesAsync();
+        });
+
+        var refused = await Admin(app).DeleteAsync(new Uri($"/api/v1/items/{artist.Id}", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.DoesNotContain(arr.Requests, r => r.StartsWith("DELETE", StringComparison.Ordinal));
+    }
+
     private static async Task SetHiddenAsync(Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> app, List<Guid> hidden)
     {
         using var scope = app.Services.CreateScope();

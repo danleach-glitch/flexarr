@@ -4,6 +4,7 @@ using Flexarr.Api.Profiles;
 using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Flexarr.Api.Localization;
 
@@ -112,84 +113,19 @@ public static class ItemEndpoints
 
         // A music library's genres by album, for its Genres view: an album's own, or its artist's when it has none. The
         // backdrop is an artist's fanart; a genre none of whose artists has any gets up to three album covers instead.
-        api.MapGet("/libraries/{id:guid}/album-genres", async (Guid id, FlexarrDbContext db, CancellationToken ct) =>
+        api.MapGet("/libraries/{id:guid}/album-genres", async (Guid id, FlexarrDbContext db, IMemoryCache cache, CancellationToken ct) =>
         {
-            // Worked out here rather than in SQL, which can't count across both sides; a library has a few thousand albums at most.
-            var albums = await db.MediaItems.Where(a => a.LibraryId == id && a.Kind == MediaKind.Album)
-                .OrderByDescending(a => a.AddedAt)
-                .Select(a => new { a.Id, a.ParentId, Cover = a.PosterUrl != null, a.MetadataUpdatedAt, a.ArtworkChangedAt, Genres = a.Genres.Select(g => g.Name).ToList() })
-                .ToListAsync(ct);
-            var artists = await db.MediaItems.Where(a => a.LibraryId == id && a.Kind == MediaKind.Artist && !a.Placeholder)
-                .OrderByDescending(a => a.CommunityRating ?? 0).ThenBy(a => a.SortTitle)
-                .Select(a => new { a.Id, Fanart = a.BackdropUrl != null, a.MetadataUpdatedAt, a.ArtworkChangedAt, Genres = a.Genres.Select(g => g.Name).ToList() })
-                .ToListAsync(ct);
-            var artistGenres = artists.ToDictionary(a => a.Id, a => a.Genres);
-
-            // One pass: each genre's album count, and the artists it belongs to (an album's artist, or the artist's own
-            // genre), for its picture.
-            var counts = new Dictionary<string, int>();
-            var artistsOf = new Dictionary<string, HashSet<Guid>>();
-            // Each genre's album covers, newest first (the albums come newest first), for one without fanart.
-            var coversOf = new Dictionary<string, List<string>>();
-            void Note(string genre, Guid? artist)
+            // Kept until anything is written (a scan, a refresh, an edit) or for ten minutes, apart for what the profile may see.
+            var key = string.Join('|', "album-genres", id, DataVersion.Current, string.Join(',', db.HiddenLibraryIds.Order()), string.Join(',', db.KidsLibraryIds.Order()),
+                db.MaxRatingAge?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "", db.ServesKids, LibraryVisibility.KidsSettingsVersion);
+            if (cache.TryGetValue(key, out List<LibraryGenreDto>? kept) && kept is not null)
             {
-                if (artist is { } a)
-                {
-                    if (!artistsOf.TryGetValue(genre, out var set))
-                    {
-                        artistsOf[genre] = set = [];
-                    }
-
-                    set.Add(a);
-                }
+                return kept;
             }
 
-            foreach (var album in albums)
-            {
-                // Its own genres, or its artist's when it has none (as InGenre).
-                var genres = album.Genres.Count > 0 ? album.Genres
-                    : album.ParentId is { } artist && artistGenres.TryGetValue(artist, out var theirs) ? theirs : [];
-                foreach (var genre in genres.Distinct())
-                {
-                    counts[genre] = counts.GetValueOrDefault(genre) + 1;
-                    Note(genre, album.ParentId);
-                    if (album.Cover)
-                    {
-                        if (!coversOf.TryGetValue(genre, out var covers))
-                        {
-                            coversOf[genre] = covers = [];
-                        }
-
-                        if (covers.Count < 3)
-                        {
-                            covers.Add(ArtworkUrls.For(album.Id, ArtworkUrls.Version(album.MetadataUpdatedAt, album.ArtworkChangedAt), true, false, false, false).Poster!);
-                        }
-                    }
-                }
-            }
-
-            foreach (var artist in artists)
-            {
-                foreach (var genre in artist.Genres)
-                {
-                    Note(genre, artist.Id);
-                }
-            }
-
-            // The artists come best-rated first, so the first with fanart is the best picture; each genre its own where it can.
-            var withFanart = artists.Where(a => a.Fanart).ToList();
-            var used = new HashSet<Guid>();
-            return counts.OrderByDescending(g => g.Value).ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
-                .Select(g =>
-                {
-                    var theirs = artistsOf.GetValueOrDefault(g.Key) ?? [];
-                    var candidates = withFanart.Where(a => theirs.Contains(a.Id)).ToList();
-                    var cover = candidates.FirstOrDefault(c => used.Add(c.Id)) ?? candidates.FirstOrDefault();
-                    return cover is null
-                        ? new LibraryGenreDto(g.Key, g.Value, null, coversOf.GetValueOrDefault(g.Key) ?? [])
-                        : new LibraryGenreDto(g.Key, g.Value,
-                            ArtworkUrls.For(cover.Id, ArtworkUrls.Version(cover.MetadataUpdatedAt, cover.ArtworkChangedAt), false, true, false, false).Backdrop);
-                }).ToList();
+            var genres = await AlbumGenresAsync(db, id, ct);
+            cache.Set(key, genres, TimeSpan.FromMinutes(10));
+            return genres;
         }).WithTags("Items");
 
         // A genre's tracks in a music library, for its Play and Shuffle: by artist, album and track, or shuffled. 200 at most.
@@ -442,4 +378,85 @@ public static class ItemEndpoints
             .Select(s => new StreamDto(s.Index, s.Type, s.Codec, s.Profile, s.Language, s.Title, s.IsDefault, s.IsForced, s.Width, s.Height, s.Channels))
             .ToList(),
         f.Hdr10Plus == true);
+
+    /// <summary>A music library's genres by album, for its Genres view (see /libraries/{id}/album-genres).</summary>
+    private static async Task<List<LibraryGenreDto>> AlbumGenresAsync(FlexarrDbContext db, Guid id, CancellationToken ct)
+    {
+        // Worked out here rather than in SQL, which can't count across both sides; a library has a few thousand albums at most.
+        var albums = await db.MediaItems.Where(a => a.LibraryId == id && a.Kind == MediaKind.Album)
+            .OrderByDescending(a => a.AddedAt)
+            .Select(a => new { a.Id, a.ParentId, Cover = a.PosterUrl != null, a.MetadataUpdatedAt, a.ArtworkChangedAt, Genres = a.Genres.Select(g => g.Name).ToList() })
+            .ToListAsync(ct);
+        var artists = await db.MediaItems.Where(a => a.LibraryId == id && a.Kind == MediaKind.Artist && !a.Placeholder)
+            .OrderByDescending(a => a.CommunityRating ?? 0).ThenBy(a => a.SortTitle)
+            .Select(a => new { a.Id, Fanart = a.BackdropUrl != null, a.MetadataUpdatedAt, a.ArtworkChangedAt, Genres = a.Genres.Select(g => g.Name).ToList() })
+            .ToListAsync(ct);
+        var artistGenres = artists.ToDictionary(a => a.Id, a => a.Genres);
+
+        // One pass: each genre's album count, and the artists it belongs to (an album's artist, or the artist's own
+        // genre), for its picture.
+        var counts = new Dictionary<string, int>();
+        var artistsOf = new Dictionary<string, HashSet<Guid>>();
+        // Each genre's album covers, newest first (the albums come newest first), for one without fanart.
+        var coversOf = new Dictionary<string, List<string>>();
+        void Note(string genre, Guid? artist)
+        {
+            if (artist is { } a)
+            {
+                if (!artistsOf.TryGetValue(genre, out var set))
+                {
+                    artistsOf[genre] = set = [];
+                }
+
+                set.Add(a);
+            }
+        }
+
+        foreach (var album in albums)
+        {
+            // Its own genres, or its artist's when it has none (as InGenre).
+            var genres = album.Genres.Count > 0 ? album.Genres
+                : album.ParentId is { } artist && artistGenres.TryGetValue(artist, out var theirs) ? theirs : [];
+            foreach (var genre in genres.Distinct())
+            {
+                counts[genre] = counts.GetValueOrDefault(genre) + 1;
+                Note(genre, album.ParentId);
+                if (album.Cover)
+                {
+                    if (!coversOf.TryGetValue(genre, out var covers))
+                    {
+                        coversOf[genre] = covers = [];
+                    }
+
+                    if (covers.Count < 3)
+                    {
+                        covers.Add(ArtworkUrls.For(album.Id, ArtworkUrls.Version(album.MetadataUpdatedAt, album.ArtworkChangedAt), true, false, false, false).Poster!);
+                    }
+                }
+            }
+        }
+
+        foreach (var artist in artists)
+        {
+            foreach (var genre in artist.Genres)
+            {
+                Note(genre, artist.Id);
+            }
+        }
+
+        // The artists come best-rated first, so the first with fanart is the best picture; each genre its own where it can.
+        var withFanart = artists.Where(a => a.Fanart).ToList();
+        var used = new HashSet<Guid>();
+        return counts.OrderByDescending(g => g.Value).ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(g =>
+            {
+                var theirs = artistsOf.GetValueOrDefault(g.Key) ?? [];
+                var candidates = withFanart.Where(a => theirs.Contains(a.Id)).ToList();
+                var cover = candidates.FirstOrDefault(c => used.Add(c.Id)) ?? candidates.FirstOrDefault();
+                return cover is null
+                    ? new LibraryGenreDto(g.Key, g.Value, null, coversOf.GetValueOrDefault(g.Key) ?? [])
+                    : new LibraryGenreDto(g.Key, g.Value,
+                        ArtworkUrls.For(cover.Id, ArtworkUrls.Version(cover.MetadataUpdatedAt, cover.ArtworkChangedAt), false, true, false, false).Backdrop);
+            }).ToList();
+    }
 }

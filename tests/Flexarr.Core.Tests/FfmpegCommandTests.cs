@@ -65,8 +65,8 @@ public class FfmpegCommandTests
         var args = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan with { BurnSubtitle = burn }, 0, "/out", Settings(HardwareAcceleration.VideoToolbox)));
 
         Assert.DoesNotContain("hwaccel_output_format", args, StringComparison.Ordinal);
-        // HDR is mapped to SDR on the CPU before the subtitles go on.
-        Assert.Contains("-filter_complex [0:0]zscale=transfer=linear:npl=100,format=gbrpf32le,tonemap=hable:desat=0,zscale=transfer=bt709:matrix=bt709:primaries=bt709:range=tv[sdr];"
+        // HDR is mapped to SDR on the CPU before the subtitles go on, at the target size.
+        Assert.Contains("-filter_complex [0:0]zscale=w=1920:h=1080:filter=bicubic:transfer=linear:npl=100,format=gbrpf32le,tonemap=hable:desat=0,zscale=transfer=bt709:matrix=bt709:primaries=bt709:range=tv[sdr];"
             + "[0:3][sdr]scale2ref=w=oh*mdar:h=rh[sub][base];[base][sub]overlay=(W-w)/2:(H-h)/2,scale=1920:1080,format=yuv420p[v] -map [v]", args, StringComparison.Ordinal);
 
         var sdr = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan with { BurnSubtitle = burn, ToneMap = false }, 0, "/out", Settings(HardwareAcceleration.VideoToolbox)));
@@ -105,6 +105,35 @@ public class FfmpegCommandTests
         Assert.Contains("h264_nvenc", nvenc, StringComparison.Ordinal);
         Assert.DoesNotContain("-hwaccel qsv", qsv, StringComparison.Ordinal);
         Assert.Contains($"zscale=w={Plan.TargetWidth}:h={Plan.TargetHeight}:filter=bicubic:transfer=linear", qsv, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void QuickSync_DecodesScalesAndEncodesOnTheGpu()
+    {
+        var sdr = Plan with { ToneMap = false, SourceVideoCodec = "hevc" };
+        var args = string.Join(' ', FfmpegCommand.Hls("/in.mkv", sdr, 0, "/out", Settings(HardwareAcceleration.Qsv)));
+        var mp4 = string.Join(' ', FfmpegCommand.Mp4("/in.mkv", sdr with { SourceVideoCodec = "h264" }, 0, null, null, [], "/out.mp4", Settings(HardwareAcceleration.Qsv)));
+
+        Assert.Contains("-hwaccel qsv -hwaccel_output_format qsv -c:v hevc_qsv", args, StringComparison.Ordinal);
+        Assert.Contains("-vf scale_qsv=w=1920:h=1080:format=nv12 -c:v h264_qsv", args, StringComparison.Ordinal);
+        Assert.Contains("-hwaccel qsv -hwaccel_output_format qsv -c:v h264_qsv", mp4, StringComparison.Ordinal);
+        Assert.Contains("-vf scale_qsv=w=1920:h=1080:format=nv12", mp4, StringComparison.Ordinal);
+
+        // Burning subtitles in needs the frames on the CPU, so they're scaled there.
+        var burn = new SubtitleTrack("e3", 3, null, "hdmv_pgs_subtitle", "eng", null, false, false);
+        var burned = string.Join(' ', FfmpegCommand.Hls("/in.mkv", sdr with { BurnSubtitle = burn }, 0, "/out", Settings(HardwareAcceleration.Qsv)));
+        Assert.DoesNotContain("hwaccel_output_format", burned, StringComparison.Ordinal);
+        Assert.DoesNotContain("scale_qsv", burned, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Vaapi_TonemapsFrom10Bit_ThenMakes8Bit()
+    {
+        var hdr = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan with { SourceVideoCodec = "hevc" }, 0, "/out", Settings(HardwareAcceleration.Vaapi)));
+        var sdr = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan with { SourceVideoCodec = "hevc", ToneMap = false }, 0, "/out", Settings(HardwareAcceleration.Vaapi)));
+
+        Assert.Contains("-vf scale_vaapi=w=1920:h=1080:format=p010,tonemap_vaapi=format=nv12:t=bt709:m=bt709:p=bt709 ", hdr, StringComparison.Ordinal);
+        Assert.Contains("-vf scale_vaapi=w=1920:h=1080:format=nv12 ", sdr, StringComparison.Ordinal);
     }
 
     [Fact]

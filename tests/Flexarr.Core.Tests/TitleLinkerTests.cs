@@ -345,8 +345,9 @@ public sealed class TitleLinkerTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task OnFirstLink_ACopyWatchedCounts_AndTheNewestPlaceWins()
+    public async Task OnFirstLink_TheNewestPlaceWins_PartWayThroughStaysInContinueWatching()
     {
+        // Watched once, then started again on the other copy: part way through, with its place and both plays.
         var hd = Add(_hd, MediaKind.Movie, "Film", tmdb: "1");
         var uhd = Add(_uhd, MediaKind.Movie, "Film", tmdb: "1");
         await _db.SaveChangesAsync();
@@ -358,10 +359,24 @@ public sealed class TitleLinkerTests : IAsyncLifetime
         foreach (var copy in new[] { hd, uhd })
         {
             var state = await _db.PlaybackStates.AsNoTracking().SingleAsync(p => p.MediaItemId == copy.Id);
-            Assert.True(state.Watched);
+            Assert.False(state.Watched);
             Assert.Equal(500, state.PositionSeconds);
             Assert.Equal(2, state.PlayCount);
         }
+    }
+
+    [Fact]
+    public async Task OnFirstLink_ACopyWatchedLast_IsWatchedOnBoth()
+    {
+        var hd = Add(_hd, MediaKind.Movie, "Film", tmdb: "1");
+        var uhd = Add(_uhd, MediaKind.Movie, "Film", tmdb: "1");
+        await _db.SaveChangesAsync();
+        _db.PlaybackStates.AddRange(
+            new PlaybackState { MediaItemId = hd.Id, Watched = true, PlayCount = 1, PositionSeconds = 0, LastPlayedAt = DateTime.UtcNow },
+            new PlaybackState { MediaItemId = uhd.Id, PositionSeconds = 500, PlayCount = 0, LastPlayedAt = DateTime.UtcNow.AddDays(-9) });
+        await LinkAsync();
+
+        Assert.All(await _db.PlaybackStates.AsNoTracking().ToListAsync(), state => Assert.Equal((true, 0d, 1), (state.Watched, state.PositionSeconds, state.PlayCount)));
     }
 
     [Fact]

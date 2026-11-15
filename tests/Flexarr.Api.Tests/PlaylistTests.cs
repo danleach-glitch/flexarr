@@ -70,6 +70,26 @@ public class PlaylistTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApi
     }
 
     [Fact]
+    public async Task ALongPlaylist_CanBeReadAPageAtATime_WhileWithoutAPageItComesWhole()
+    {
+        var music = await SeedAsync();
+        var client = Client();
+        var created = await (await client.PostAsJsonAsync(Api("/playlists"), new { name = "Paged", itemIds = new[] { music.Tender, music.DifferentClass, music.Tender } }))
+            .Content.ReadFromJsonAsync<PlaylistSummaryDto>(Json);
+
+        var whole = await client.GetFromJsonAsync<PlaylistDetailDto>(Api($"/playlists/{created!.Id}"), Json);
+        Assert.Equal(["Tender", "Common People", "Disco 2000", "Tender"], whole!.Tracks.Select(t => t.Track.Title));
+
+        var page = await client.GetFromJsonAsync<PlaylistDetailDto>(Api($"/playlists/{created.Id}?skip=1&take=2"), Json);
+        Assert.Equal(["Common People", "Disco 2000"], page!.Tracks.Select(t => t.Track.Title));
+        Assert.Equal(whole.Tracks.Skip(1).Take(2).Select(t => t.EntryId), page.Tracks.Select(t => t.EntryId));
+        Assert.Equal(4, page.Summary.TrackCount); // the summary counts them all
+
+        var past = await client.GetFromJsonAsync<PlaylistDetailDto>(Api($"/playlists/{created.Id}?skip=10&take=5"), Json);
+        Assert.Empty(past!.Tracks);
+    }
+
+    [Fact]
     public async Task MovesAndRemovals_KeepTheOrderAListWould_WithOrWithoutGapsInThePositions()
     {
         var music = await SeedAsync();

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
 using Flexarr.Core.Books;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
@@ -95,6 +96,9 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         var held = false; // A folder looked unmounted: remove nothing this time.
         var incomplete = false;
         var unreadableFolders = new List<string>();
+        // In a scan of part of the library, the items it could have changed (those of the files it knew of or found),
+        // so the tidying after it is only of them: one imported episode doesn't go over the whole library.
+        var touched = scope is null ? null : new HashSet<Guid>();
 
         foreach (var (root, target) in targets)
         {
@@ -120,6 +124,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             var existing = new Dictionary<string, MediaFile>(StringComparer.Ordinal);
             var duplicates = new List<MediaFile>();
             var known = await KnownFilesAsync(library.Id, root, target, cancellationToken).ConfigureAwait(false);
+            touched?.UnionWith(known.Select(f => f.MediaItemId));
             foreach (var file in known)
             {
                 if (!existing.TryAdd(PathComparison.Key(file.Path), file))
@@ -295,6 +300,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                         state.ChangedBooks.Add(item.Id);
                     }
 
+                    touched?.Add(item.Id);
                     var mediaFile = new MediaFile { Path = file.FullName, MediaItemId = item.Id, BookProbe = bookProbe?.ToJson() };
                     Apply(mediaFile, file, result, error, music);
                     db.MediaFiles.Add(mediaFile);
@@ -325,7 +331,14 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             }
 
             var holding = false;
-            if (!released && full && existing.Count >= MassRemovalMinimum && gone.Count * 2 > existing.Count)
+            if (!full && !deleted && folder is { Hold: not null, ReleasedAt: null } && gone.Count > 0)
+            {
+                // A full scan holds the folder as mostly gone (or unmounted): a scan of one corner of it (a webhook's)
+                // hides nothing either. Only Radarr, Sonarr or Lidarr saying they deleted it lets that go through.
+                holding = true;
+                held = true;
+            }
+            else if (!released && full && existing.Count >= MassRemovalMinimum && gone.Count * 2 > existing.Count)
             {
                 // Most of a library vanishing at once is far likelier a mount or permissions problem than a clear-out.
                 suspicious = true;
@@ -363,8 +376,14 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             removed = await RemoveExpiredAsync(library.Id, roots, scope is null ? null : targets.Select(t => t.Scope).ToList(), unreadableFolders, cancellationToken).ConfigureAwait(false);
         }
 
-        await PruneEmptyItemsAsync(db, library.Id, cancellationToken).ConfigureAwait(false);
-        await MarkMissingItemsAsync(library.Id, cancellationToken).ConfigureAwait(false);
+        if (library.Type == LibraryType.Music && !held)
+        {
+            await ReconcileMovedTracksAsync(library.Id, touched, cancellationToken).ConfigureAwait(false);
+        }
+
+        var within = touched is null ? null : await WithParentsAsync(touched, cancellationToken).ConfigureAwait(false);
+        await PruneEmptyItemsAsync(db, library.Id, cancellationToken, within).ConfigureAwait(false);
+        await MarkMissingItemsAsync(db, library.Id, cancellationToken, within).ConfigureAwait(false);
         if (library.Type == LibraryType.HomeVideos)
         {
             await NumberHomeVideosAsync(library.Id, cancellationToken).ConfigureAwait(false);
@@ -380,8 +399,12 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             await BookCarryOver.CarryOverAsync(db, library.Id, cancellationToken).ConfigureAwait(false);
         }
 
-        // Ids from folder names are known now; those from Radarr/Sonarr after the metadata refresh, which does this again.
-        await WatchHistoryCarryOver.CarryOverAsync(db, cancellationToken).ConfigureAwait(false);
+        // Ids from folder names are known now; those from Radarr/Sonarr after the metadata refresh, which does this again
+        // (LibraryScanWorker, after every scan): a scan of part of the library leaves it to that.
+        if (scope is null)
+        {
+            await WatchHistoryCarryOver.CarryOverAsync(db, cancellationToken).ConfigureAwait(false);
+        }
         await NoticeReplacedArtworkAsync(library.Id, scope is null ? null : targets.Select(t => t.Scope).ToList(), cancellationToken).ConfigureAwait(false);
 
         library.LastScannedAt = DateTime.UtcNow;
@@ -448,7 +471,9 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         var files = db.MediaFiles.IgnoreQueryFilters().AsNoTracking().Where(f => f.MediaItem!.LibraryId == libraryId);
         if (Directory.Exists(target) || File.Exists(target))
         {
-            return Tracked(await files.Where(f => f.Path == target || f.Path.StartsWith(target + "/")).ToListAsync(ct).ConfigureAwait(false));
+            // StartsWith is a LIKE, which ignores case: /music/Abba isn't under /music/ABBA, so the exact test is made here.
+            return Tracked([.. (await files.Where(f => f.Path == target || f.Path.StartsWith(target + "/")).ToListAsync(ct).ConfigureAwait(false))
+                .Where(f => f.Path == target || PathComparison.IsUnder(f.Path, target))]);
         }
 
         var prefix = Path.GetDirectoryName(target);
@@ -728,13 +753,113 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
     }
 
     /// <summary>
+    /// Tracks whose files have all gone, matched to new tracks of the same artist, album, disc and number (or title,
+    /// without one) elsewhere in the library: an artist's or album's folder renamed, whose new folder a scan of its own
+    /// found first (a scan of the old one then sees only what went). The gone track takes the new one's files and
+    /// place, keeping its plays and its places in playlists; the new one, with none of its own yet, goes. A track
+    /// someone has played or added to a playlist already is left as it is.
+    /// </summary>
+    /// <param name="libraryId">The library.</param>
+    /// <param name="touched">What a scan of part of the library changed, which the tracks and albums changed here join.</param>
+    /// <param name="ct">Stops it.</param>
+    private async Task ReconcileMovedTracksAsync(Guid libraryId, HashSet<Guid>? touched, CancellationToken ct)
+    {
+        var tracks = db.MediaItems.IgnoreQueryFilters().Where(i => i.LibraryId == libraryId && i.Kind == MediaKind.Track && i.ParentId != null && i.Files.Any());
+        var gone = await tracks.Where(i => i.Files.All(f => f.MissingSince != null))
+            .Select(i => new MovedTrack(i.Id, i.ParentId!.Value, i.Parent!.Title, i.Parent.Parent!.Title, i.DiscNumber, i.TrackNumber, i.Title))
+            .ToListAsync(ct).ConfigureAwait(false);
+        if (gone.Count == 0)
+        {
+            return;
+        }
+
+        var albums = gone.Select(g => g.Album).Distinct().ToList();
+        var found = await tracks.Where(i => albums.Contains(i.Parent!.Title) && i.Files.All(f => f.MissingSince == null)
+                && !i.PlaybackStates.Any() && !db.PlaylistItems.Any(p => p.MediaItemId == i.Id) && !db.CollectionItems.Any(c => c.MediaItemId == i.Id))
+            .Select(i => new MovedTrack(i.Id, i.ParentId!.Value, i.Parent!.Title, i.Parent.Parent!.Title, i.DiscNumber, i.TrackNumber, i.Title))
+            .ToListAsync(ct).ConfigureAwait(false);
+        var pool = found.GroupBy(f => f.Key).ToDictionary(g => g.Key, g => new Queue<MovedTrack>(g));
+        foreach (var old in gone)
+        {
+            if (!pool.TryGetValue(old.Key, out var waiting) || !waiting.TryDequeue(out var now))
+            {
+                continue;
+            }
+
+            var newer = await db.MediaItems.IgnoreQueryFilters().AsNoTracking().FirstAsync(i => i.Id == now.Id, ct).ConfigureAwait(false);
+            await db.MediaFiles.IgnoreQueryFilters().Where(f => f.MediaItemId == now.Id)
+                .ExecuteUpdateAsync(u => u.SetProperty(f => f.MediaItemId, old.Id), ct).ConfigureAwait(false);
+            await db.MediaItems.IgnoreQueryFilters().Where(i => i.Id == old.Id).ExecuteUpdateAsync(u => u
+                .SetProperty(i => i.ParentId, now.AlbumId)
+                .SetProperty(i => i.Path, newer.Path)
+                .SetProperty(i => i.Title, newer.Title)
+                .SetProperty(i => i.SortTitle, newer.SortTitle)
+                .SetProperty(i => i.Year, newer.Year)
+                .SetProperty(i => i.TrackArtist, newer.TrackArtist)
+                .SetProperty(i => i.MissingSince, (DateTime?)null), ct).ConfigureAwait(false);
+            await db.MediaItems.IgnoreQueryFilters().Where(i => i.Id == now.Id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+
+            // What the scan has tracked of them is out of date now: forgotten, so nothing saves it back.
+            foreach (var entry in db.ChangeTracker.Entries<MediaItem>().Where(e => e.Entity.Id == old.Id || e.Entity.Id == now.Id).ToList())
+            {
+                entry.State = EntityState.Detached;
+            }
+
+            foreach (var entry in db.ChangeTracker.Entries<MediaFile>().Where(e => e.Entity.MediaItemId == now.Id || e.Entity.MediaItemId == old.Id).ToList())
+            {
+                entry.State = EntityState.Detached;
+            }
+
+            touched?.UnionWith([old.Id, old.AlbumId, now.AlbumId]);
+            LogTrackMoved(PathComparison.Printable(newer.Path ?? newer.Title));
+        }
+    }
+
+    /// <param name="Album">Its album's title.</param>
+    /// <param name="Artist">Its album's artist's name.</param>
+    private sealed record MovedTrack(Guid Id, Guid AlbumId, string Album, string Artist, int? Disc, int? Number, string Title)
+    {
+        public (string, string, int, int?, string?) Key =>
+            (MusicKeys.Fold(Artist), MusicKeys.Fold(Album), Disc ?? 1, Number, Number is null ? MusicKeys.Fold(Title) : null);
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "A track gone from its folder turned up at {Path}: it keeps its plays and playlists")]
+    private partial void LogTrackMoved(string path);
+
+    /// <summary><paramref name="items"/> with their parents and grandparents (an episode's season and show, a track's album and artist).</summary>
+    private async Task<HashSet<Guid>> WithParentsAsync(HashSet<Guid> items, CancellationToken ct)
+    {
+        var all = new HashSet<Guid>(items);
+        var level = items.ToList();
+        for (var up = 0; up < 2 && level.Count > 0; up++)
+        {
+            var parents = new List<Guid>();
+            foreach (var chunk in level.Chunk(500))
+            {
+                parents.AddRange(await db.MediaItems.IgnoreQueryFilters().Where(i => chunk.Contains(i.Id) && i.ParentId != null)
+                    .Select(i => i.ParentId!.Value).Distinct().ToListAsync(ct).ConfigureAwait(false));
+            }
+
+            level = [.. parents.Where(all.Add)];
+        }
+
+        return all;
+    }
+
+    /// <summary>
     /// Hides playable items whose files are all missing, then the seasons/albums and series/artists with nothing left
     /// to show; and brings back any whose files have reappeared.
     /// </summary>
-    private async Task MarkMissingItemsAsync(Guid libraryId, CancellationToken ct)
+    /// <param name="within">Only these items (what a scan of part of the library touched); null for the whole library.</param>
+    public static async Task MarkMissingItemsAsync(FlexarrDbContext db, Guid libraryId, CancellationToken ct, IReadOnlyCollection<Guid>? within = null)
     {
+        ArgumentNullException.ThrowIfNull(db);
         var now = DateTime.UtcNow;
         var items = db.MediaItems.IgnoreQueryFilters().Where(i => i.LibraryId == libraryId);
+        if (within is not null)
+        {
+            items = items.Where(i => within.Contains(i.Id));
+        }
 
         var playable = items.Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Episode || i.Kind == MediaKind.Track || i.Kind == MediaKind.Audiobook);
         await playable.Where(i => i.MissingSince == null && i.Files.All(f => f.MissingSince != null))
@@ -793,19 +918,21 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
     /// Removes a library's playable items left without files, then the seasons/albums and series/artists left empty
     /// (their history kept a while, by id, as a scan does).
     /// </summary>
-    public static async Task PruneEmptyItemsAsync(FlexarrDbContext db, Guid libraryId, CancellationToken ct)
+    /// <param name="within">Only these items (what a scan of part of the library touched); null for the whole library.</param>
+    public static async Task PruneEmptyItemsAsync(FlexarrDbContext db, Guid libraryId, CancellationToken ct, IReadOnlyCollection<Guid>? within = null)
     {
         ArgumentNullException.ThrowIfNull(db);
         // Missing files still count: their items wait out the grace period with them.
         // Their history and collections are kept a while, by id, in case the title comes back under a new path.
-        var items = db.MediaItems.IgnoreQueryFilters().Where(i => i.LibraryId == libraryId);
+        var library = db.MediaItems.IgnoreQueryFilters().Where(i => i.LibraryId == libraryId);
+        var items = within is null ? library : library.Where(i => within.Contains(i.Id));
         var playable = items.Where(i => (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Episode || i.Kind == MediaKind.Track || i.Kind == MediaKind.Audiobook) && !i.Files.Any());
         await WatchHistoryCarryOver.BuryAsync(db, playable, ct).ConfigureAwait(false);
         await playable.ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await items.Where(i => (i.Kind == MediaKind.Season || i.Kind == MediaKind.Album) && !i.Children.Any()).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         // A placeholder whose artist turned up as a separate artist after all (by MusicBrainz id) is no longer needed.
         var placeholders = items.Where(i => i.Kind == MediaKind.Artist && i.Placeholder && !i.Children.Any() && i.MusicBrainzId != null);
-        await placeholders.Where(p => items.Any(o => o.Kind == MediaKind.Artist && !o.Placeholder && o.MusicBrainzId == p.MusicBrainzId))
+        await placeholders.Where(p => library.Any(o => o.Kind == MediaKind.Artist && !o.Placeholder && o.MusicBrainzId == p.MusicBrainzId))
             .ExecuteDeleteAsync(ct).ConfigureAwait(false);
         // An artist's first album arriving makes a followed artist's placeholder an ordinary artist.
         await items.Where(i => i.Kind == MediaKind.Artist && i.Placeholder && i.Children.Any())
@@ -837,9 +964,15 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
     private partial void LogUnmatched(string path);
 
     /// <summary>In-memory index of a library's items so a scan resolves parents without a query per file.</summary>
-    private sealed class ItemIndex(FlexarrDbContext db)
+    private sealed partial class ItemIndex(FlexarrDbContext db)
     {
         private readonly Dictionary<string, MediaItem> _byPath = new(StringComparer.Ordinal);
+
+        /// <summary>Every album with a folder, by that folder: a flat or Singles folder holds several.</summary>
+        private readonly Dictionary<string, List<MediaItem>> _albumsIn = new(StringComparer.Ordinal);
+
+        /// <summary>The folders of albums merged into others (in Library health), and the album each now means.</summary>
+        private readonly Dictionary<string, MediaItem> _mergedFolders = new(StringComparer.Ordinal);
         private readonly Dictionary<(Guid Parent, int Number), MediaItem> _byNumber = [];
 
         /// <param name="db">The database.</param>
@@ -889,7 +1022,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                     {
                         if (alias.Key.StartsWith(MusicKeys.PathPrefix, StringComparison.Ordinal))
                         {
-                            index._byPath.TryAdd(alias.Key[MusicKeys.PathPrefix.Length..], target);
+                            index._mergedFolders.TryAdd(alias.Key[MusicKeys.PathPrefix.Length..], target);
                         }
                         else
                         {
@@ -904,8 +1037,8 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 return index;
             }
 
-            // Untracked: a scan only finds parents among them and never changes them, and tracking every season and
-            // episode of a big library held them all, twice over, for the whole scan.
+            // Untracked, and only in part: a scan only finds parents among them and never changes them, and tracking
+            // every season and episode of a big library held them all, twice over, for the whole scan.
             var seasons = items.AsNoTracking().Where(i => i.Kind == MediaKind.Season);
             var episodes = items.AsNoTracking().Where(i => i.Kind == MediaKind.Episode);
             if (folders is not null && folders.All(f => f is not null))
@@ -918,9 +1051,17 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 episodes = episodes.Where(i => i.Parent!.ParentId != null && seriesIds.Contains(i.Parent.ParentId.Value));
             }
 
-            (await seasons.ToListAsync(ct).ConfigureAwait(false)).ForEach(index.Track);
-            (await episodes.ToListAsync(ct).ConfigureAwait(false)).ForEach(index.Track);
+            // Only what finding them by number or path takes: a scan returns an episode it found for a new file to be
+            // hung on, and changes nothing else about it. Overviews and the rest of 50,000 episodes stay in the database.
+            (await Light(seasons).ToListAsync(ct).ConfigureAwait(false)).ForEach(index.Track);
+            (await Light(episodes).ToListAsync(ct).ConfigureAwait(false)).ForEach(index.Track);
             return index;
+
+            static IQueryable<MediaItem> Light(IQueryable<MediaItem> query) => query.Select(i => new MediaItem
+            {
+                Id = i.Id, LibraryId = i.LibraryId, ParentId = i.ParentId, Kind = i.Kind, Title = i.Title, SortTitle = i.SortTitle,
+                SeasonNumber = i.SeasonNumber, EpisodeNumber = i.EpisodeNumber, AirDate = i.AirDate, Path = i.Path,
+            });
         }
 
         /// <summary>Artists whose albums have been loaded, in a scan of part of the library; null when they all were.</summary>
@@ -994,10 +1135,15 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             var info = MusicTags.Read(probe?.Tags ?? new Dictionary<string, string>(), root, filePath);
             var albumDirectory = Path.GetDirectoryName(filePath)!;
 
-            // An album folder is one album whatever its tags say, so a title Lidarr corrected (or a stray tag on one
-            // track) doesn't split it in two; and the album's artist is its artist, under whichever name.
+            // An album folder is one album whatever its artist tags say, so a title Lidarr corrected (or a stray
+            // "(Remaster)" on one track) doesn't split it in two; and the album's artist is its artist, under whichever
+            // name. But a flat or Singles folder holds several albums: a track whose tags name another album is that one.
             MediaItem? artist = null;
-            if (_byPath.TryGetValue(PathComparison.Key(albumDirectory), out var album) && album.ParentId is { } artistId)
+            var folderKey = PathComparison.Key(albumDirectory);
+            var album = (_albumsIn.TryGetValue(folderKey, out var here) ? here.FirstOrDefault(a => !NamesAnotherAlbum(a, info)) : null)
+                ?? _mergedFolders.GetValueOrDefault(folderKey);
+
+            if (album?.ParentId is { } artistId)
             {
                 _artistsById.TryGetValue(artistId, out artist);
             }
@@ -1172,6 +1318,28 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
             return files;
         }
+
+        /// <summary>
+        /// Whether a track's tags name an album other than <paramref name="album"/>, one its folder holds: an album tag
+        /// that matches neither of the album's names, once bracketed editions ("(Remaster)", "[Deluxe]") are set aside.
+        /// A track with no album tag, or the album's MusicBrainz id, names none. (Differing ids prove nothing: Lidarr's
+        /// is the release group's, a tag's often the release's.)
+        /// </summary>
+        private static bool NamesAnotherAlbum(MediaItem album, TrackInfo info)
+        {
+            if (!info.AlbumTagged || (album.MusicBrainzId is { Length: > 0 } albumId && string.Equals(albumId, info.AlbumMusicBrainzId, StringComparison.OrdinalIgnoreCase)))
+            {
+                return false;
+            }
+
+            var tagged = AlbumName(info.Album);
+            return tagged.Length > 0 && tagged != AlbumName(album.Title) && (album.OriginalTitle is not { } original || tagged != AlbumName(original));
+
+            static string AlbumName(string title) => Fold(Editions().Replace(title, " ")).Replace("  ", " ", StringComparison.Ordinal).Trim();
+        }
+
+        [GeneratedRegex(@"\s*[\(\[][^\)\]]*[\)\]]")]
+        private static partial Regex Editions();
 
         private static bool IsNamed(MediaItem artist, string name) =>
             MusicTags.SameArtist(artist.Title, name) || (artist.OriginalTitle is { } original && MusicTags.SameArtist(original, name));
@@ -1440,7 +1608,12 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
                     if (item.Path is not null)
                     {
-                        _byPath[PathComparison.Key(item.Path)] = item;
+                        var folder = PathComparison.Key(item.Path);
+                        var here = _albumsIn.TryGetValue(folder, out var list) ? list : _albumsIn[folder] = [];
+                        if (!here.Contains(item))
+                        {
+                            here.Add(item);
+                        }
                     }
 
                     break;

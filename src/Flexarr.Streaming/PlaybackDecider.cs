@@ -41,8 +41,12 @@ public sealed record SubtitleTrack(string Key, int? StreamIndex, string? Externa
     public bool InVideo { get; init; }
 }
 
+/// <param name="MaxConvertedHeight">
+/// Tallest a converted picture is made, whatever the device takes (<see cref="TranscodeSettings.MaxConvertedHeight"/>):
+/// unlike <paramref name="MaxHeight"/>, a file that plays as it is still does.
+/// </param>
 public sealed record PlaybackOptions(int? AudioStreamIndex = null, string? SubtitleKey = null, long? MaxBitrate = null, int? MaxHeight = null, bool ForceTranscode = false,
-    double AudioDelaySeconds = 0, SoundShaping? Sound = null);
+    double AudioDelaySeconds = 0, SoundShaping? Sound = null, int? MaxConvertedHeight = null);
 
 /// <summary>
 /// The listener's sound settings, for a stream the server converts: the player can't shape a stream it doesn't decode
@@ -360,7 +364,7 @@ public static class PlaybackDecider
         var sourceWidth = file.Width ?? 1920;
         var sourceHeight = file.Height ?? 1080;
         var equivalent = Math.Max(sourceHeight, sourceWidth * 9 / 16);
-        var scale = Math.Min(1.0, (double)maxHeight / equivalent);
+        var scale = Math.Min(1.0, (double)Math.Min(maxHeight, options.MaxConvertedHeight ?? int.MaxValue) / equivalent);
         var targetHeight = Even(sourceHeight * scale);
         var targetWidth = Even(sourceWidth * scale);
         var bitrate = BitrateFor(Math.Max(targetHeight, targetWidth * 9 / 16));

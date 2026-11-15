@@ -48,6 +48,47 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
     public const int MaxWarmingPerProfile = 2;
 
     /// <summary>
+    /// Least free space on the cache's disk for a stream to start (an 80 Mbps copy keeps about 8 GB): below it, streams
+    /// nobody is playing free theirs first, and a new one is refused rather than every ffmpeg failing when it fills.
+    /// </summary>
+    public const long MinFreeBytes = 2L << 30;
+
+    /// <summary>Free bytes on the disk holding a folder; null when that can't be told (nothing is refused then).</summary>
+    internal Func<string, long?> FreeBytes { get; set; } = FreeBytesOn;
+
+    private static long? FreeBytesOn(string folder)
+    {
+        try
+        {
+            System.IO.Directory.CreateDirectory(folder);
+            return new DriveInfo(folder).AvailableFreeSpace;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return null;
+        }
+    }
+
+    private bool LowOnSpace() => FreeBytes(Path.Combine(settings().CacheDirectory, "transcodes")) is { } free && free < MinFreeBytes;
+
+    /// <summary>
+    /// With the disk nearly full, frees the segments of streams nobody has asked for a while (stopped, not ended: a
+    /// viewer back from a pause carries on from there), longest unused first, until there's room again.
+    /// </summary>
+    private async Task FreeSpaceAsync()
+    {
+        foreach (var session in _sessions.Values.Where(s => DateTime.UtcNow - s.LastAccess > StopAfterIdle).OrderBy(s => s.LastAccess).ToList())
+        {
+            if (!LowOnSpace())
+            {
+                return;
+            }
+
+            await session.ReleaseAsync(StopAfterIdle).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
     /// Transcodes using the machine: ffmpeg running (or paused for being far ahead), or just created or restarted.
     /// One left paused long enough for ffmpeg to stop, or created and never played, doesn't count.
     /// </summary>
@@ -86,15 +127,32 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
     public async Task<TranscodeSession> CreateAsync(string profileId, string input, double durationSeconds, TranscodePlan plan, bool restarting = false,
         bool preparing = false)
     {
+        if (LowOnSpace())
+        {
+            await FreeSpaceAsync().ConfigureAwait(false);
+            if (LowOnSpace())
+            {
+                throw new TranscodeLimitException(Loc.T("The server’s disk is nearly full, so this can’t be played right now."));
+            }
+        }
+
         var current = settings();
-        var limit = current.MaxConcurrentTranscodes;
+        // Only converting the picture counts towards the limit: a repackaged stream or a song costs next to nothing,
+        // so it neither waits for a slot nor holds one.
+        var limit = plan.EncodesVideo ? current.MaxConcurrentTranscodes : 0;
         TranscodeSession session;
         List<TranscodeSession> ended = [];
         List<TranscodeSession> yielded = [];
         lock (_createLock)
         {
-            var active = _sessions.Values.Where(s => s.IsActive).ToList();
+            var active = _sessions.Values.Where(s => s.IsActive && s.Plan.EncodesVideo).ToList();
             var others = otherWork?.Invoke() ?? 0;
+            if (preparing && plan.EncodesVideo && current.Resolved == HardwareAcceleration.None && (EncodingCount + others) > 0)
+            {
+                // Converting in software, a page looked at would take the processor from someone watching.
+                throw new TranscodeLimitException(Loc.T("Flexarr is busy playing on other screens, so this wasn’t got ready ahead of time."));
+            }
+
             if (preparing)
             {
                 // One profile keeps only its newest few: browsing doesn't pile up conversions.
@@ -195,11 +253,11 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
     /// <exception cref="TranscodeLimitException">The others are using every slot.</exception>
     private void Reserve(TranscodeSession session)
     {
-        var limit = settings().MaxConcurrentTranscodes;
+        var limit = session.Plan.EncodesVideo ? settings().MaxConcurrentTranscodes : 0;
         List<TranscodeSession> yielded = [];
         lock (_createLock)
         {
-            var others = _sessions.Values.Where(s => s != session && s.IsActive).ToList();
+            var others = _sessions.Values.Where(s => s != session && s.IsActive && s.Plan.EncodesVideo).ToList();
             var outside = otherWork?.Invoke() ?? 0;
             if (limit > 0 && others.Count + outside >= limit && !session.Warming)
             {
@@ -248,6 +306,18 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
             }
         }
 
+        if (LowOnSpace())
+        {
+            try
+            {
+                await FreeSpaceAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                LogSweepFailed(ex, "low on space");
+            }
+        }
+
         foreach (var session in _sessions.Values)
         {
             try
@@ -276,26 +346,39 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
         }
     }
 
-    /// <summary>Removes transcode folders left behind by a previous run of the server.</summary>
-    public void DeleteOrphans()
+    /// <summary>
+    /// Removes transcode folders no session owns: left behind by a previous run of the server, or by a session whose
+    /// folder couldn't be deleted when it ended. With <paramref name="olderThan"/>, only folders untouched that long
+    /// (so one being made for a session starting right now is safe). Returns how many went.
+    /// </summary>
+    public int DeleteOrphans(TimeSpan? olderThan = null)
     {
         var root = Path.Combine(settings().CacheDirectory, "transcodes");
         if (!Directory.Exists(root))
         {
-            return;
+            return 0;
         }
 
+        var deleted = 0;
         foreach (var dir in Directory.EnumerateDirectories(root).Where(d => !_sessions.ContainsKey(Path.GetFileName(d))))
         {
             try
             {
+                if (olderThan is { } age && DateTime.UtcNow - Directory.GetLastWriteTimeUtc(dir) < age)
+                {
+                    continue;
+                }
+
                 Directory.Delete(dir, recursive: true);
+                deleted++;
             }
-            catch (IOException)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                // Retried on the next start.
+                // Retried by the cache janitor.
             }
         }
+
+        return deleted;
     }
 
     public async ValueTask DisposeAsync()

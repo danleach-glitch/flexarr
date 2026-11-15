@@ -134,7 +134,7 @@ public static partial class LiveRecorder
         }
 
         using var process = Process.Start(start) ?? throw new LiveStreamException($"Could not start {ffmpeg}");
-        var stderr = process.StandardError.ReadToEndAsync(CancellationToken.None);
+        var stderr = TailAsync(process.StandardError);
         try
         {
             await process.WaitForExitAsync(ct).ConfigureAwait(false);
@@ -158,6 +158,31 @@ public static partial class LiveRecorder
         }
 
         return (process.ExitCode, (await stderr.ConfigureAwait(false)).Trim());
+    }
+
+    /// <summary>Most lines of ffmpeg's output kept for the log: a flaky source over three hours prints without end.</summary>
+    internal const int KeptErrorLines = 20;
+
+    /// <summary>Reads <paramref name="reader"/> to its end a line at a time, keeping only the last few lines.</summary>
+    internal static async Task<string> TailAsync(TextReader reader)
+    {
+        var kept = new Queue<string>(KeptErrorLines);
+        while (await reader.ReadLineAsync(CancellationToken.None).ConfigureAwait(false) is { } line)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
+            if (kept.Count == KeptErrorLines)
+            {
+                kept.Dequeue();
+            }
+
+            kept.Enqueue(line);
+        }
+
+        return string.Join('\n', kept);
     }
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Recording: the stream stopped early (ffmpeg {Code}): {Error}")]

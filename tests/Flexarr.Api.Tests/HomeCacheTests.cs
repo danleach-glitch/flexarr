@@ -17,7 +17,7 @@ namespace Flexarr.Api.Tests;
 [CollectionDefinition(nameof(HomeCacheTests), DisableParallelization = true)]
 public sealed class HomeCacheCollection;
 
-/// <summary>Home is kept a minute per profile, and dropped by any write: what comes back is always what working it out afresh gives.</summary>
+/// <summary>Home is kept a minute per profile, and dropped by any write but another profile's watch state: what comes back is always what working it out afresh gives.</summary>
 [Collection(nameof(HomeCacheTests))]
 public sealed class HomeCacheTests : IDisposable
 {
@@ -179,16 +179,61 @@ public sealed class HomeCacheTests : IDisposable
         {
             var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
             using var quietly = DataVersion.Quietly();
-            var before = DataVersion.Current;
+            var before = DataVersion.ForProfile(PlaybackState.DefaultUser);
             db.PlaybackStates.Add(new PlaybackState { MediaItemId = films[1], PositionSeconds = 60, LastPlayedAt = DateTime.UtcNow });
             await db.SaveChangesAsync();
-            Assert.True(DataVersion.Current > before, "watch state saved quietly didn't move it");
+            Assert.True(DataVersion.ForProfile(PlaybackState.DefaultUser) > before, "watch state saved quietly didn't move the profile's number");
 
             before = DataVersion.Current;
             db.MediaItems.Add(new MediaItem { LibraryId = library, Kind = MediaKind.Movie, Title = "Quiet", SortTitle = "quiet" });
             await db.SaveChangesAsync();
             Assert.True(DataVersion.Current > before, "a title saved quietly didn't move it");
         }
+    }
+
+    [Fact]
+    public async Task AnotherProfilesProgress_KeepsThisProfilesHome_ButItsOwnDropsIt()
+    {
+        var (_, films) = await SeedAsync();
+        var created = await (await Client().PostAsJsonAsync(Api("/profiles"), new { name = "Someone else" })).Content.ReadFromJsonAsync<JsonElement>();
+        var other = created.GetProperty("id").GetString()!;
+        var mine = DataVersion.ForProfile(PlaybackState.DefaultUser);
+
+        // Another profile's place saved (as its player reports every few seconds): only its own number moves. Other
+        // tests' servers in this process move the shared one too, so it's tried a few times.
+        var kept = false;
+        for (var i = 0; i < 20 && !kept; i++)
+        {
+            using var scope = factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var state = await db.PlaybackStates.FirstOrDefaultAsync(p => p.UserId == other && p.MediaItemId == films[0]);
+            if (state is null)
+            {
+                state = new PlaybackState { UserId = other, MediaItemId = films[0] };
+                db.PlaybackStates.Add(state);
+            }
+
+            state.PositionSeconds = 120 + i;
+            state.LastPlayedAt = DateTime.UtcNow;
+            var before = DataVersion.Current;
+            var theirs = DataVersion.ForProfile(other);
+            await db.SaveChangesAsync();
+            Assert.True(DataVersion.ForProfile(other) > theirs, "their progress didn't move their own number");
+            kept = DataVersion.Current == before;
+        }
+
+        Assert.True(kept, "another profile's progress moved everyone's number");
+        Assert.Equal(mine, DataVersion.ForProfile(PlaybackState.DefaultUser));
+
+        // This profile's own progress drops its Home, which then matches working it out afresh.
+        var client = Client();
+        var first = await HomeAsync();
+        (await client.PostAsJsonAsync(Api($"/items/{films[2]}/offline-progress"),
+            new { positionSeconds = 1200, finished = false, playedAt = DateTime.UtcNow })).EnsureSuccessStatusCode();
+        Assert.True(DataVersion.ForProfile(PlaybackState.DefaultUser) > mine);
+        var after = await HomeAsync();
+        Assert.NotEqual(first, after);
+        Assert.Equal(await FreshAsync(), after);
     }
 
     [Fact]

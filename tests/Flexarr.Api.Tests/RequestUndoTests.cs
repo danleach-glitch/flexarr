@@ -225,6 +225,54 @@ public sealed class RequestUndoTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AShowInTwoSonarrs_StopsEachOnesOwnSeasons_NotTheFirstOnes()
+    {
+        AShow(8010, 7, """[{"id":6,"status":2,"type":"tv","seasons":[{"seasonNumber":1},{"seasonNumber":2}]}]""",
+            """[{"seasonNumber":1,"monitored":true},{"seasonNumber":2,"monitored":true}]""",
+            """
+            [{"id":101,"seasonNumber":1,"episodeNumber":1,"hasFile":true,"monitored":true},
+             {"id":201,"seasonNumber":2,"episodeNumber":1,"hasFile":false,"monitored":true}]
+            """);
+        // A 4K Sonarr with the show too, none of it in yet.
+        var series = """{"id":9,"title":"Show","seasons":[{"seasonNumber":1,"monitored":true},{"seasonNumber":2,"monitored":true}]}""";
+        _arr.Responses["GET //sonarr2.test/api/v3/series?tvdbId=8010"] = $"[{series}]";
+        _arr.Responses["GET //sonarr2.test/api/v3/series/9"] = series;
+        _arr.Responses["PUT //sonarr2.test/api/v3/series/9"] = series;
+        _arr.Responses["PUT //sonarr2.test/api/v3/episode/monitor"] = "[]";
+        _arr.Responses["GET //sonarr2.test/api/v3/episode?seriesId=9&includeImages=true"] = """[{"id":901,"seasonNumber":1,"episodeNumber":1,"hasFile":false,"monitored":true},{"id":902,"seasonNumber":2,"episodeNumber":1,"hasFile":false,"monitored":true}]""";
+        _arr.Responses["GET //sonarr2.test/api/v3/queue?page=1&pageSize=200&includeSeries=true&includeEpisode=true"] = NoRecords;
+        string? put4k = null;
+        var first = _arr.OnRequest;
+        _arr.OnRequest = r =>
+        {
+            first?.Invoke(r);
+            if (r.Method == HttpMethod.Put && r.RequestUri!.Host == "sonarr2.test" && r.RequestUri.AbsolutePath == "/api/v3/series/9")
+            {
+                put4k = r.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            }
+        };
+        Deletes("/api/v1/request/6");
+        using var server = _server.WithWebHostBuilder(b =>
+        {
+            b.UseSetting("Flexarr:Arr:2:Name", "Sonarr 4K");
+            b.UseSetting("Flexarr:Arr:2:Kind", "Sonarr");
+            b.UseSetting("Flexarr:Arr:2:BaseUrl", "http://sonarr2.test");
+            b.UseSetting("Flexarr:Arr:2:ApiKey", "key");
+        });
+        var client = server.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+
+        var response = await client.PostAsJsonAsync(Api("/requests/unrequest"), new { mediaType = "tv", tmdbId = 8010 });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        // The first had season 1 in, so stopped only season 2; the 4K one stops both of its own.
+        var seasons4k = JsonDocument.Parse(put4k!).RootElement.GetProperty("seasons").EnumerateArray()
+            .ToDictionary(s => s.GetProperty("seasonNumber").GetInt32(), s => s.GetProperty("monitored").GetBoolean());
+        Assert.Equal(new Dictionary<int, bool> { [1] = false, [2] = false }, seasons4k);
+        Assert.Contains("DELETE /api/v1/request/6", _arr.Requests);
+    }
+
+    [Fact]
     public async Task AWholeShow_StopsAPartlyDownloadedSeason_AndKeepsItsFiles()
     {
         var (seasons, episodes) = AShow(8004, 8, """[{"id":5,"status":2,"type":"tv","seasons":[{"seasonNumber":1},{"seasonNumber":2},{"seasonNumber":3}]}]""",

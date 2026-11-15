@@ -188,7 +188,7 @@ var transcodeSlots = new Lock();
 builder.Services.AddSingleton(sp => new Flexarr.Streaming.Live.LiveStreams(
     () => PlaybackEndpoints.TranscodeSettingsFor(sp.GetRequiredService<IOptionsMonitor<FlexarrOptions>>().CurrentValue),
     sp.GetRequiredService<ILoggerFactory>(),
-    () => sp.GetRequiredService<TranscodeManager>().ActiveCount,
+    () => sp.GetRequiredService<TranscodeManager>().EncodingCount,
     transcodeSlots));
 builder.Services.AddHostedService<LiveTvSweeper>();
 builder.Services.AddSingleton<DvrSignal>();
@@ -331,6 +331,7 @@ builder.Services.AddSingleton<LoudnessCache>();
 builder.Services.AddHostedService<LoudnessBackfill>();
 builder.Services.AddHostedService<Flexarr.Api.Scanning.TitleLinkBackfill>();
 builder.Services.AddHostedService<TrickplayWorker>();
+builder.Services.AddHostedService<HardwareProbeStartup>();
 builder.Services.AddScoped<PlaybackService>();
 builder.Services.AddScoped<WatchlistService>();
 builder.Services.AddSingleton(sp => new Flexarr.Streaming.Remux.RemuxIndex(
@@ -404,6 +405,9 @@ using (var scope = app.Services.CreateScope())
     {
         backups.LogRestored();
     }
+
+    // A database a newer Flexarr has migrated isn't this build's to run on: stop before anything reads or writes it.
+    await Flexarr.Core.Data.SchemaCheck.EnsureNotNewerAsync(db, CancellationToken.None);
 
     // An upgrade is about to change the database: keep a copy of it as it was, to go back to.
     var migrating = (await db.Database.GetPendingMigrationsAsync()).Any();

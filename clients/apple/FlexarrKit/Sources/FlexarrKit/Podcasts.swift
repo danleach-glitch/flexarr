@@ -85,6 +85,7 @@ public struct Podcast: Codable, Sendable, Hashable, Identifiable {
     public let unplayedCount: Int
     public let latestEpisodeAt: Date?
     public let iTunesId: Int64?
+    /// In full only for a follower or the main profile; anyone else gets just where it's from (servers after 0.66).
     public let feedUrl: String
     public let checkedAt: Date?
     /// Why the feed couldn't be fetched last time, in words for the listener.

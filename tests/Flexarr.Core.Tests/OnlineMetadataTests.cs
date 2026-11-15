@@ -18,6 +18,7 @@ public sealed class OnlineMetadataTests : IAsyncLifetime
     private FlexarrDbContext _db = null!;
     private string? _tmdbKey = "key123";
     private string? _country;
+    private IReadOnlyList<ArrInstance> _arrs = [];
 
     public async Task InitializeAsync()
     {
@@ -203,6 +204,23 @@ public sealed class OnlineMetadataTests : IAsyncLifetime
         Assert.Equal(2005, (await _db.MediaItems.SingleAsync()).Year);
     }
 
+    [Fact]
+    public async Task ShowFixedByHandWithNoTvdbId_IsNotReplacedBySonarrsFirstTitleHit()
+    {
+        _arrs = [new ArrInstance { Name = "Sonarr", Kind = ArrKind.Sonarr, BaseUrl = new Uri("http://sonarr.test"), ApiKey = "k" }];
+        var (library, _) = await AddAsync(LibraryType.TvShows,
+            new MediaItem { Kind = MediaKind.Series, Title = "The Office", SortTitle = "office", Path = "/nowhere/The Office", TvMazeId = "526", MatchLocked = true });
+        _web.Responses["sonarr.test/api/v3/series"] = "[]";
+        _web.Responses["sonarr.test/api/v3/series/lookup?term=The Office"] = """[{"title":"The Office (UK)","year":2001,"tvdbId":78107}]""";
+        _web.Responses["api.tvmaze.com/shows/526"] = """{"id":526,"name":"The Office","premiered":"2005-03-24"}""";
+
+        await Refresher().RefreshLibraryAsync(library, force: false, default);
+
+        Assert.DoesNotContain(_web.Asked, a => a.Contains("series/lookup", StringComparison.Ordinal));
+        var show = await _db.MediaItems.SingleAsync();
+        Assert.Equal((2005, null), (show.Year, show.TvdbId));
+    }
+
     [Theory]
     [InlineData("<p>One</p><p>Two &amp; three</p>", "One\n\nTwo & three")]
     [InlineData("", null)]
@@ -224,17 +242,17 @@ public sealed class OnlineMetadataTests : IAsyncLifetime
 
     private MetadataRefresher Refresher()
     {
-        var settings = new Settings(_dir, _tmdbKey, _country);
+        var settings = new Settings(_dir, _tmdbKey, _country, _arrs);
         return new MetadataRefresher(_db, new ArrClient(new HttpClient(_web)), new TvMazeClient(new HttpClient(_web)),
             new ImageCache(new HttpClient(_web), settings, NullLogger<ImageCache>.Instance), settings, NullLogger<MetadataRefresher>.Instance,
             new TmdbClient(new HttpClient(_web)));
     }
 
-    private sealed class Settings(string cache, string? tmdbKey, string? country) : IMetadataSettings
+    private sealed class Settings(string cache, string? tmdbKey, string? country, IReadOnlyList<ArrInstance> arrs) : IMetadataSettings
     {
         public string? Country => country;
 
-        public IReadOnlyList<ArrInstance> ArrInstances { get; } = [];
+        public IReadOnlyList<ArrInstance> ArrInstances => arrs;
         public IReadOnlyList<PathMapping> PathMappings { get; } = [];
         public string CacheDirectory => cache;
         public string FfmpegPath => "ffmpeg";

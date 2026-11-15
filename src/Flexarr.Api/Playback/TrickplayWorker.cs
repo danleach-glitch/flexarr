@@ -66,7 +66,18 @@ public sealed partial class TrickplayWorker(TrickplayQueue queue, IServiceScopeF
 
                 var started = TimeProvider.System.GetTimestamp();
                 var tenBit = file.Streams.Any(s => s.Type == StreamType.Video && s.Profile?.Contains("10", StringComparison.Ordinal) == true);
-                var manifest = await Trickplay.GenerateAsync(file.Path, file.Id, file.Width.Value, file.Height.Value, file.VideoRange != VideoRange.Sdr, tenBit, settings, stoppingToken);
+                // One whole-file read at a time (a keyframe scan may be reading this same file).
+                await WholeFileReads.Gate.WaitAsync(stoppingToken);
+                TrickplayManifest? manifest;
+                try
+                {
+                    manifest = await Trickplay.GenerateAsync(file.Path, file.Id, file.Width.Value, file.Height.Value, file.VideoRange != VideoRange.Sdr, tenBit, settings, stoppingToken);
+                }
+                finally
+                {
+                    WholeFileReads.Gate.Release();
+                }
+
                 if (manifest is null)
                 {
                     LogFailed(file.Path);

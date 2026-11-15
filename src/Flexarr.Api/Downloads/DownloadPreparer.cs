@@ -43,6 +43,15 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
     /// <summary>The room the downloads folder's drive keeps to spare once a copy is made.</summary>
     internal const long SpareBytes = 2L << 30;
 
+    /// <summary>
+    /// How long a podcast's host may go without sending anything before the fetch gives up: one host that accepts the
+    /// connection and then says nothing would otherwise hold the preparing loop, and every conversion behind it, for good.
+    /// </summary>
+    internal TimeSpan PodcastStall { get; set; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>The longest an episode's fetch may take, however steadily a slow host trickles it out.</summary>
+    internal TimeSpan PodcastFetchCap { get; set; } = TimeSpan.FromHours(1);
+
     /// <summary>How much room the drive holding a folder has (tests say).</summary>
     internal Func<string, long> FreeBytes { get; set; } = folder => new DriveInfo(folder).AvailableFreeSpace;
 
@@ -164,9 +173,9 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
     internal async Task<bool> RunOnceAsync(CancellationToken ct)
     {
         await ExpireAsync(ct);
-        // Someone's watching something whose picture is being converted: they come first. A repackaged stream (the
-        // picture copied as it is) or a song costs next to nothing, and a conversion needn't stop for it.
-        if (transcodes.EncodingCount == 0)
+        // Someone's watching something whose picture is being converted: they come first (see MakesWay). A repackaged
+        // stream (the picture copied as it is) or a song costs next to nothing, and a conversion needn't stop for it.
+        if (!MakesWay(PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue)))
         {
             return await PrepareNextAsync(ct);
         }
@@ -268,7 +277,18 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
         var file = await DownloadSource.ForAsync(db, download.MediaItemId, download.Quality, download.ProfileId, ct);
         if (file is null && await db.PodcastEpisodes.AsNoTracking().FirstOrDefaultAsync(e => e.MediaItemId == download.MediaItemId, ct) is { } enclosure)
         {
-            await PreparePodcastAsync(scope.ServiceProvider, db, download, enclosure, ct);
+            try
+            {
+                await PreparePodcastAsync(scope.ServiceProvider, db, download, enclosure, ct);
+            }
+            catch (Exception ex) when (!ct.IsCancellationRequested)
+            {
+                // A feed's address that isn't one, a folder it can't write to: the download says it failed rather than
+                // sitting at "Getting ready" until a restart, which would only try it again. Its partials are swept at the next start.
+                LogPrepareFailed(ex, download.Id);
+                await MarkFailedAsync(download.Id, "The episode couldn't be fetched.", CancellationToken.None);
+            }
+
             return true;
         }
 
@@ -318,7 +338,7 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
             // again) rather than sitting at "Preparing 0%" with its partial file until the server restarts.
             LogPrepareFailed(ex, download.Id);
             TryDelete(partial);
-            await MarkFailedAsync(download.Id, CancellationToken.None);
+            await MarkFailedAsync(download.Id, "Converting this file didn't work.", CancellationToken.None);
         }
 
         return true;
@@ -335,7 +355,7 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
             : FfmpegCommand.Mp4(file.Path, plan.Convert, plan.VideoIndex, plan.AudioIndex, plan.VideoCodec, plan.Subtitles, partial, current);
 
         // Someone starting to watch something converted takes precedence: the conversion stops and goes back in the queue.
-        var error = await RunAsync(settings.FfmpegPath, Args(settings), file.DurationSeconds ?? 0, download.Id, ct, yieldTo: () => transcodes.EncodingCount > 0);
+        var error = await RunAsync(settings.FfmpegPath, Args(settings), file.DurationSeconds ?? 0, download.Id, ct, yieldTo: () => MakesWay(settings));
 
         // The hardware encoder failed (busy, out of sessions, a codec it won't take): once more in software, as streams do.
         if (error is not null && !ReferenceEquals(error, Yielded) && !plan.IsAudioOnly && plan.Convert is { VideoStreamIndex: >= 0 }
@@ -345,14 +365,14 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
             LogSoftwareFallback(download.Id, settings.Resolved.ToString());
             TryDelete(partial);
             settings = settings with { HardwareAcceleration = HardwareAcceleration.None };
-            error = await RunAsync(settings.FfmpegPath, Args(settings), file.DurationSeconds ?? 0, download.Id, ct, yieldTo: () => transcodes.EncodingCount > 0);
+            error = await RunAsync(settings.FfmpegPath, Args(settings), file.DurationSeconds ?? 0, download.Id, ct, yieldTo: () => MakesWay(settings));
         }
 
         if (ReferenceEquals(error, Yielded))
         {
             File.Delete(partial);
             await db.Entry(download).ReloadAsync(ct);
-            if (db.Entry(download).State != EntityState.Detached)
+            if (StillPreparing(db, download))
             {
                 download.Status = DownloadStatus.Queued;
                 download.Progress = 0;
@@ -365,7 +385,7 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
 
         // Deleted while it was being made? Then there's nothing to keep.
         await db.Entry(download).ReloadAsync(ct);
-        if (error is null && db.Entry(download).State != EntityState.Detached && File.Exists(partial))
+        if (error is null && StillPreparing(db, download) && File.Exists(partial))
         {
             File.Move(partial, finished, overwrite: true);
             download.FilePath = finished;
@@ -377,12 +397,22 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
         else
         {
             File.Delete(partial);
-            download.Status = DownloadStatus.Failed;
-            download.Error = error ?? "Converting this file didn't work.";
+            if (StillPreparing(db, download))
+            {
+                download.Status = DownloadStatus.Failed;
+                download.Error = error ?? "Converting this file didn't work.";
+            }
         }
 
         await db.SaveChangesAsync(ct);
     }
+
+    /// <summary>
+    /// Whether a download just reloaded is still the one being prepared: not deleted, and not taken off the phone (a
+    /// podcast episode's row stays, as Removed, and must stay so: it keeps auto-download from handing it back).
+    /// </summary>
+    private static bool StillPreparing(FlexarrDbContext db, Download download) =>
+        db.Entry(download).State != EntityState.Detached && download.Status == DownloadStatus.Preparing;
 
     private static void TryDelete(string path)
     {
@@ -397,7 +427,7 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
     }
 
     /// <summary>Marks a download failed in a fresh context (the one it was being prepared in may be what broke).</summary>
-    private async Task MarkFailedAsync(Guid id, CancellationToken ct)
+    private async Task MarkFailedAsync(Guid id, string error, CancellationToken ct)
     {
         try
         {
@@ -406,7 +436,7 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
             await db.Downloads.IgnoreQueryFilters().Where(d => d.Id == id && d.Status == DownloadStatus.Preparing)
                 .ExecuteUpdateAsync(u => u
                     .SetProperty(d => d.Status, DownloadStatus.Failed)
-                    .SetProperty(d => d.Error, "Converting this file didn't work."), ct);
+                    .SetProperty(d => d.Error, error), ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -482,7 +512,7 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
         }
 
         await db.Entry(download).ReloadAsync(ct);
-        if (error is null && finished is not null && db.Entry(download).State != EntityState.Detached)
+        if (error is null && finished is not null && StillPreparing(db, download))
         {
             download.FilePath = finished;
             download.IsLibraryFile = false;
@@ -498,8 +528,12 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
                 File.Delete(finished); // deleted while it was being fetched
             }
 
-            download.Status = DownloadStatus.Failed;
-            download.Error = error ?? "The episode couldn't be fetched.";
+            // Taken off the phone meanwhile, it stays as that left it: removed (a podcast episode's), or gone.
+            if (StillPreparing(db, download))
+            {
+                download.Status = DownloadStatus.Failed;
+                download.Error = error ?? "The episode couldn't be fetched.";
+            }
         }
 
         await db.SaveChangesAsync(ct);
@@ -508,9 +542,14 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
     /// <summary>Fetches an episode's file from its host, noting progress; null when it worked, else why not.</summary>
     private async Task<string?> FetchAsync(Podcasts.PodcastFetcher fetcher, Core.Podcasts.PodcastEpisode enclosure, string path, Guid id, CancellationToken ct)
     {
+        // The stall clock starts again with every read; the overall cap doesn't.
+        using var overall = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        overall.CancelAfter(PodcastFetchCap);
+        using var stall = CancellationTokenSource.CreateLinkedTokenSource(overall.Token);
+        stall.CancelAfter(PodcastStall);
         try
         {
-            var (response, _, _) = await fetcher.GetAsync(new Uri(enclosure.AudioUrl), null, ct);
+            var (response, _, _) = await fetcher.GetAsync(new Uri(enclosure.AudioUrl), null, stall.Token);
             using (response)
             {
                 if (!response.IsSuccessStatusCode)
@@ -524,14 +563,20 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
                     return "This episode's file is too big to keep on a phone.";
                 }
 
-                await using var body = await response.Content.ReadAsStreamAsync(ct);
+                await using var body = await response.Content.ReadAsStreamAsync(stall.Token);
                 await using var output = File.Create(path);
                 var buffer = new byte[81920];
                 long done = 0;
                 var lastSaved = DateTime.UtcNow;
                 int read;
-                while ((read = await body.ReadAsync(buffer, ct)) > 0)
+                while (true)
                 {
+                    stall.CancelAfter(PodcastStall);
+                    if ((read = await body.ReadAsync(buffer, stall.Token)) <= 0)
+                    {
+                        break;
+                    }
+
                     done += read;
                     if (done > MaxPodcastBytes)
                     {
@@ -539,10 +584,11 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
                     }
 
                     await output.WriteAsync(buffer.AsMemory(0, read), ct);
-                    if (total > 0 && DateTime.UtcNow - lastSaved > TimeSpan.FromSeconds(2))
+                    // With no length to go by, still asked every few seconds: it may have been deleted meanwhile.
+                    if (DateTime.UtcNow - lastSaved > TimeSpan.FromSeconds(2))
                     {
                         lastSaved = DateTime.UtcNow;
-                        if (!await SaveProgressAsync(id, Math.Clamp((double)done / total.Value, 0, 0.99), ct))
+                        if (!await SaveProgressAsync(id, total > 0 ? Math.Clamp((double)done / total.Value, 0, 0.99) : 0, ct))
                         {
                             return "Deleted while it was being fetched.";
                         }
@@ -562,6 +608,12 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
             LogPodcastFetchFailed(id, ex.Message);
             return "The episode couldn't be saved on the server.";
         }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            var timedOut = overall.IsCancellationRequested;
+            LogPodcastFetchFailed(id, timedOut ? "took too long" : "the host stopped sending");
+            return timedOut ? "The podcast's host took too long to send this episode." : "The podcast's host stopped answering.";
+        }
     }
 
     /// <summary>A show's title as a folder name: without characters file systems refuse, and never empty.</summary>
@@ -577,6 +629,23 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
     /// what's left of it (at low priority) costs the stream less than starting again later would cost the queue.
     /// </summary>
     internal const double NearlyDone = 0.9;
+
+    /// <summary>
+    /// Whether a download's conversion waits (or stops, going back in the queue) for people watching converted streams.
+    /// Converting in software, it does for anyone: the processor is theirs. With a hardware encoder it carries on, below
+    /// them, while the server has a conversion slot to spare (<see cref="TranscodeSettings.MaxConcurrentTranscodes"/>),
+    /// so a household that streams most evenings doesn't restart a long film's conversion every time.
+    /// </summary>
+    internal bool MakesWay(TranscodeSettings settings)
+    {
+        var encoding = transcodes.EncodingCount;
+        if (encoding == 0)
+        {
+            return false;
+        }
+
+        return settings.Resolved == HardwareAcceleration.None || (settings.MaxConcurrentTranscodes > 0 && encoding >= settings.MaxConcurrentTranscodes);
+    }
 
     /// <summary>What <see cref="RunAsync"/> gives back when it stopped to make way for someone watching.</summary>
     private static readonly string Yielded = new("yielded".ToCharArray());
@@ -617,13 +686,14 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
                     return Yielded;
                 }
 
-                if (!line.StartsWith("out_time_us=", StringComparison.Ordinal) || duration <= 0
-                    || !long.TryParse(line.AsSpan("out_time_us=".Length), NumberStyles.Integer, CultureInfo.InvariantCulture, out var micros))
+                if (line.StartsWith("out_time_us=", StringComparison.Ordinal) && duration > 0
+                    && long.TryParse(line.AsSpan("out_time_us=".Length), NumberStyles.Integer, CultureInfo.InvariantCulture, out var micros))
                 {
-                    continue;
+                    done = Math.Clamp(micros / 1_000_000.0 / duration, 0, 0.99);
                 }
 
-                done = Math.Clamp(micros / 1_000_000.0 / duration, 0, 0.99);
+                // Every few seconds whatever ffmpeg said (it writes its progress twice a second): with no duration to
+                // measure by there's no fraction to save, but it's still how a deletion meanwhile is noticed.
                 if (DateTime.UtcNow - lastSaved < TimeSpan.FromSeconds(3))
                 {
                     continue;
@@ -663,13 +733,14 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
         return "Converting this file didn't work.";
     }
 
-    /// <summary>Saves how far it's got; false if the download has been deleted.</summary>
+    /// <summary>Saves how far it's got; false if the download has been deleted (or, a podcast episode's, taken off the phone).</summary>
     private async Task<bool> SaveProgressAsync(Guid id, double progress, CancellationToken ct)
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
         using var quietly = DataVersion.Quietly(); // every few seconds, and nothing Home shows
-        return await db.Downloads.IgnoreQueryFilters().Where(d => d.Id == id).ExecuteUpdateAsync(u => u.SetProperty(d => d.Progress, progress), ct) > 0;
+        return await db.Downloads.IgnoreQueryFilters().Where(d => d.Id == id && d.Status == DownloadStatus.Preparing)
+            .ExecuteUpdateAsync(u => u.SetProperty(d => d.Progress, progress), ct) > 0;
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Download {Id} stopped to make way for someone watching; it starts again when they're done")]

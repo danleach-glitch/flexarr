@@ -271,6 +271,15 @@ export function PlayerPage() {
   const lastPosition = useRef<number | null>(null)
   const seeked = useRef(false)
   const movedOn = useRef(false)
+  // Where an ended report was sent from: the report as the player closes is skipped unless it's clearly back from
+  // there, or it would count the episode unwatched again (before the credits marker and the watched point).
+  const endReportedAt = useRef<number | null>(null)
+  /** Tells the server this episode was played to its end (or moved on from), at `at`. */
+  const reportEnd = (at: number) => {
+    if (!session.current) return
+    endReportedAt.current = at
+    void reportProgress(session.current, at, true, true).catch(() => undefined)
+  }
   const upNextTick = useRef<(position: number) => void>(() => undefined)
   // The video ended (with a next episode to go to).
   const [ended, setEnded] = useState(false)
@@ -529,6 +538,7 @@ export function PlayerPage() {
     lastPosition.current = null
     seeked.current = false
     movedOn.current = false
+    endReportedAt.current = null
     setEnded(false)
     setEndCountdown(null)
     // The last title's position goes too: left over, it would put the next episode in its own credits at once (Skip
@@ -564,7 +574,10 @@ export function PlayerPage() {
         // Where it stopped, then the end of the session; the page that loads next waits a moment for them.
         const ending = session.current
         sendingFinalReport(
-          (at > 0 ? reportProgress(ending, at, true).catch(() => undefined) : Promise.resolve()).then(() => stopPlayback(ending)),
+          (at > 0 && !(endReportedAt.current !== null && at >= endReportedAt.current - 30)
+            ? reportProgress(ending, at, true).catch(() => undefined)
+            : Promise.resolve()
+          ).then(() => stopPlayback(ending)),
         )
         session.current = undefined
       }
@@ -674,7 +687,7 @@ export function PlayerPage() {
       else setError({ message: t('This file couldn’t be played.'), kind: 'other' })
     }
     const onEnded = () => {
-      if (session.current) void reportProgress(session.current, el.currentTime, true, true).catch(() => undefined)
+      reportEnd(el.currentTime)
       if (info?.next) setEnded(true)
     }
     // Scrubbing back from the end plays on.
@@ -1056,7 +1069,7 @@ export function PlayerPage() {
   const moveOn = () => {
     if (!info?.next || movedOn.current) return
     movedOn.current = true
-    if (session.current && !ended) void reportProgress(session.current, video.current?.currentTime ?? time, true, true).catch(() => undefined)
+    if (!ended) reportEnd(video.current?.currentTime ?? time)
     playNext()
   }
 
@@ -1076,7 +1089,7 @@ export function PlayerPage() {
       // Skip credits with auto-play off: the episode is over as the credits start, which closes the player.
       movedOn.current = true
       video.current?.pause()
-      if (session.current) void reportProgress(session.current, position, true, true).catch(() => undefined)
+      reportEnd(position)
       exit()
     }
   }

@@ -317,10 +317,13 @@ class FlexarrClient(
     /** How this client signed in, which profile it acts for, and whether it may manage the server. */
     suspend fun me(): SignInInfo = get("me")
 
-    /** The languages this server offers, English first. Empty from servers before 0.61 (which answer 404). */
+    /**
+     * The languages this server offers, English first. Empty from servers before 0.61, which answer 404 (or, before
+     * 0.59, with the web app's page: UnexpectedResponse).
+     */
     suspend fun languages(): List<io.github.flexarr.core.i18n.LanguageInfo> =
         runCatching { get<io.github.flexarr.core.i18n.LanguageList>("languages").languages }.getOrElse {
-            if (it is FlexarrException.Http && it.status == 404) emptyList() else throw it
+            if ((it is FlexarrException.Http && it.status == 404) || it is FlexarrException.UnexpectedResponse) emptyList() else throw it
         }
 
     /** A language's strings for the Android apps. */
