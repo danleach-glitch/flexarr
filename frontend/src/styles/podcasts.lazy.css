@@ -49,6 +49,17 @@
   width: min(420px, 80vw);
 }
 
+/* On a phone the search takes the whole row under the heading, so its hint isn't cut short. */
+@media (max-width: 600px) {
+  .podcasts-page .library-tools {
+    flex: 1 1 100%;
+  }
+
+  .library-tools .podcast-search {
+    width: 100%;
+  }
+}
+
 /* ---------- Cards: shows and directory results ---------- */
 
 .podcast-card .card-link {

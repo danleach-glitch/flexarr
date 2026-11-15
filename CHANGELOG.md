@@ -43,6 +43,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Web
 
+- On a phone, Podcasts › Browse's search box spans the screen, so its hint isn't cut short.
 - On a phone, Settings' row of pages shows the page you're on and fades at its edges, so it's plain there's more to scroll to.
 - On a tablet held upright, the player's Audio menu stays on screen, with both audio sync buttons in reach.
 - On a phone, a playlist's tracks show their titles: each row keeps its ⋯ menu, which now holds Move up, Move down and Remove.
