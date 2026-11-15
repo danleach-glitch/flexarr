@@ -242,4 +242,23 @@ describe('SearchPalette', () => {
     fireEvent.keyDown(field, { key: 'Enter' })
     expect(screen.getByText('At /item/dc')).toBeInTheDocument()
   })
+  it('says it’s searching while it waits, and clears the field from its own button', async () => {
+    let answer: ((v: unknown) => void) | null = null
+    mockApi({ '/search': () => new Promise((resolve) => (answer = resolve)) })
+    renderPalette()
+    const field = screen.getByLabelText('Search your library')
+    expect(screen.queryByRole('button', { name: 'Clear search' })).toBeNull()
+    fireEvent.change(field, { target: { value: 'pulp' } })
+    expect(screen.getByText('Searching…')).toBeInTheDocument()
+    await vi.waitFor(() => expect(answer).not.toBeNull(), { timeout: 2000 })
+    expect(screen.getByText('Searching…')).toBeInTheDocument()
+    await act(async () => answer!({ titles: [summary({ id: 'p', kind: 'Movie', title: 'Pulp Fiction' })], episodes: [], people: [], genres: [], albums: [], tracks: [] }))
+    expect(await screen.findByText('Pulp Fiction', {}, { timeout: 2000 })).toBeInTheDocument()
+    expect(screen.queryByText('Searching…')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear search' }))
+    expect(field).toHaveValue('')
+    expect(field).toHaveFocus()
+    expect(screen.queryByText('Pulp Fiction')).toBeNull()
+  })
 })

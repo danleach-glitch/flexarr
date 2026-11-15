@@ -1720,6 +1720,27 @@ kbd {
   padding: 8px;
 }
 
+/* Nothing typed and no recent searches: no empty strip under the field. */
+.palette-results:empty {
+  display: none;
+}
+
+/* The app's own clear button, in place of the browser's bold cross. */
+.palette-input input::-webkit-search-cancel-button {
+  appearance: none;
+  display: none;
+}
+
+.palette-clear-query {
+  flex: none;
+  color: var(--usher);
+}
+
+.palette-clear-query svg {
+  width: 18px;
+  height: 18px;
+}
+
 .palette-group {
   padding: 12px 10px 6px;
   font-family: var(--text);
