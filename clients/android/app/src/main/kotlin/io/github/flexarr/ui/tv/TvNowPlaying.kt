@@ -214,7 +214,7 @@ private fun Timeline(music: MusicPlayer) {
             Text(Format.timestamp(music.position), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, style = Tabular)
             Spacer(Modifier.weight(1f))
             if (music.duration > 0) {
-                Text("-" + Format.timestamp((music.duration - music.position).coerceAtLeast(0.0)), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, style = Tabular)
+                Text("−" + Format.timestamp((music.duration - music.position).coerceAtLeast(0.0)), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, style = Tabular)
             }
         }
     }

@@ -141,6 +141,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Android phones and tablets, the Cast chooser is dark with rounded corners in the app’s colours, instead of a white box when the phone is in light mode.
 - On Android phones and tablets, Now Playing for music, audiobooks and podcasts is lit right to the bottom of the screen, with no paler strip behind the gesture bar or across the first song in Up next.
 - On Android phones and tablets, the last line of the Play on sheet has room under it instead of sitting on the gesture bar.
+- On Android phones, tablets and TVs, the time left in music, audiobooks and podcasts starts with a minus sign (−), as it does in the video player.
 
 ### Trakt
 

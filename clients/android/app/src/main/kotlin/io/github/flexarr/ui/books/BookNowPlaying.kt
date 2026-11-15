@@ -377,7 +377,7 @@ private fun Scrubber(player: BookPlayer, chapters: List<BookChapter>, scrubbing:
                 val ends = endsFormat(context).format(Date(System.currentTimeMillis() + (left * 1000).toLong()))
                 Text(if (wholeBook || chapters.isEmpty()) t("Ends {time}", "time" to ends) else t("Chapter"), style = caption)
             }
-            Text("-" + Format.timestamp(((span.second - shown).coerceAtLeast(0.0)) / rate), style = caption, textAlign = TextAlign.End, modifier = Modifier.weight(1f))
+            Text("−" + Format.timestamp(((span.second - shown).coerceAtLeast(0.0)) / rate), style = caption, textAlign = TextAlign.End, modifier = Modifier.weight(1f))
         }
     }
 }

@@ -280,7 +280,7 @@ private fun Scrubber(music: MusicPlayer) {
         Row(Modifier.fillMaxWidth()) {
             Text(Format.timestamp(shown), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, style = Tabular)
             Spacer(Modifier.weight(1f))
-            if (music.duration > 0) Text("-" + Format.timestamp((music.duration - shown).coerceAtLeast(0.0)), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, style = Tabular)
+            if (music.duration > 0) Text("−" + Format.timestamp((music.duration - shown).coerceAtLeast(0.0)), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, style = Tabular)
         }
     }
 }
