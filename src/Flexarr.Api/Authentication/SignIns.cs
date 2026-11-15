@@ -71,6 +71,13 @@ public sealed class SignIn
     /// </summary>
     public bool AwaitsProfile { get; set; }
 
+    /// <summary>
+    /// Its app has said it can ask who's watching (<see cref="ApiKeyAuthenticationHandler.ProfileChoiceHeader"/>) while
+    /// <see cref="AwaitsProfile"/>: from then on it's answered as no profile chosen whether or not a request says so, so
+    /// leaving the header off doesn't make it the main profile.
+    /// </summary>
+    public bool AsksProfile { get; set; }
+
     /// <summary>For a device, what it is, as its app last said; null until an app that says has used it.</summary>
     public DeviceType? DeviceType { get; set; }
 
@@ -296,6 +303,22 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
         }
     }
 
+    /// <summary>Notes that the sign-in's app asks who's watching (see <see cref="SignIn.AsksProfile"/>).</summary>
+    public void NoteAsksProfile(SignIn signIn)
+    {
+        ArgumentNullException.ThrowIfNull(signIn);
+        if (signIn.AsksProfile)
+        {
+            return;
+        }
+
+        lock (_lock)
+        {
+            signIn.AsksProfile = true;
+            SaveLocked();
+        }
+    }
+
     /// <summary>Notes what a device says it is (an app that has started saying, or a sign-in moved to a new device).</summary>
     public void NoteDeviceType(SignIn signIn, DeviceType? type)
     {
@@ -513,6 +536,19 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
                 signIn.AwaitsProfile = false;
                 SaveLocked();
             }
+        }
+    }
+
+    /// <summary>
+    /// The SHA-256 of the token of the sign-in an app calls <paramref name="keyId"/> (see <see cref="Security.ServerProof"/>),
+    /// or null when there's none.
+    /// </summary>
+    public string? TokenHashKnownAs(string keyId)
+    {
+        lock (_lock)
+        {
+            return Loaded().Keys.Select(h => h.StartsWith(GuestHashPrefix, StringComparison.Ordinal) ? h[GuestHashPrefix.Length..] : h)
+                .FirstOrDefault(h => Security.ServerProof.KeyId(h) == keyId);
         }
     }
 

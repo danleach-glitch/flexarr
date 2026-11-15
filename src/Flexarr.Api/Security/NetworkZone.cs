@@ -73,7 +73,76 @@ public static class NetworkZones
             return NetworkZone.Internet;
         }
 
-        return Classify(http.Connection.RemoteIpAddress);
+        var zone = Classify(http.Connection.RemoteIpAddress);
+        // A tailnet address is only believed on a connection that came in over Tailscale (to this machine's own tailnet
+        // address), or from a proxy here that said so: anything else with one (another network that uses the same
+        // range) is someone else.
+        return zone == NetworkZone.Tailnet && !resolved && !ArrivedOverTailscale(http) ? NetworkZone.Internet : zone;
+    }
+
+    /// <summary>
+    /// Whether a direct connection from a tailnet address came in on this machine's own tailnet address. In a
+    /// container it can't be told (the host's port forwarding hands it over to the container's own address), nor when
+    /// the address it came in on isn't known.
+    /// </summary>
+    private static bool ArrivedOverTailscale(HttpContext http)
+    {
+        var local = Normalize(http.Connection.LocalIpAddress);
+        return local is null || local.Equals(IPAddress.Any) || local.Equals(IPAddress.IPv6Any) || IsTailnetAddress(local) || InContainer(http);
+    }
+
+    /// <summary>
+    /// Whether this request reached the container Flexarr runs in straight from its gateway: the host's own port
+    /// forwarding, which on some setups (Docker Desktop's, or a forwarder on the host that says nothing about who it's
+    /// for) hands over every visitor's request, from the internet as well as from home. So it never counts as the home
+    /// network signing in on its own.
+    /// </summary>
+    public static bool FromContainerGateway(HttpContext http) => FromContainerGateway(http, ContainerGateways.Value);
+
+    internal static bool FromContainerGateway(HttpContext http, IReadOnlySet<IPAddress> gateways)
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        ArgumentNullException.ThrowIfNull(gateways);
+        return InContainer(http) && Normalize(http.Connection.RemoteIpAddress) is { } remote
+            && Equals(Normalize(RequestPeer.Of(http)), remote) && gateways.Contains(remote);
+    }
+
+    private static bool InContainer(HttpContext http) =>
+        http.RequestServices?.GetService<Updates.IInstallEnvironment>()?.Kind == Updates.InstallKind.Docker;
+
+    /// <summary>The container's gateways, from the kernel's routing table (none where it can't be read).</summary>
+    private static readonly Lazy<IReadOnlySet<IPAddress>> ContainerGateways = new(() =>
+    {
+        try
+        {
+            return File.Exists("/proc/net/route") ? Gateways(File.ReadAllLines("/proc/net/route")) : new HashSet<IPAddress>();
+        }
+        catch (IOException)
+        {
+            return new HashSet<IPAddress>();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return new HashSet<IPAddress>();
+        }
+    });
+
+    /// <summary>The gateways in a copy of <c>/proc/net/route</c>: its third column, the address's bytes read as a little-endian number.</summary>
+    internal static IReadOnlySet<IPAddress> Gateways(IEnumerable<string> routeTable)
+    {
+        ArgumentNullException.ThrowIfNull(routeTable);
+        var gateways = new HashSet<IPAddress>();
+        foreach (var line in routeTable.Skip(1))
+        {
+            var columns = line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            if (columns.Length > 2 && uint.TryParse(columns[2], System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out var gateway)
+                && gateway != 0)
+            {
+                gateways.Add(new IPAddress(gateway));
+            }
+        }
+
+        return gateways;
     }
 
     public static NetworkZone Classify(IPAddress? address)

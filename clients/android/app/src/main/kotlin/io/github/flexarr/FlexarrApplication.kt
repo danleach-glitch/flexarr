@@ -33,6 +33,14 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
         io.github.flexarr.core.i18n.Localization.deviceLanguages = android.os.LocaleList.getDefault().toLanguageTags().split(',')
         io.github.flexarr.core.i18n.Localization.startWithLastShown()
         FlexarrClient.deviceType = deviceType()
+        // Which servers have shown they hold this device's key, kept so an address that can't is never believed again.
+        val proofs = getSharedPreferences("server-proofs", Context.MODE_PRIVATE)
+        io.github.flexarr.core.ServerProof.memory = object : io.github.flexarr.core.ServerProof.Memory {
+            override fun hasAnswered(serverId: String) = proofs.getBoolean(serverId, false)
+            override fun answered(serverId: String) {
+                if (!hasAnswered(serverId)) proofs.edit().putBoolean(serverId, true).apply()
+            }
+        }
         DeviceCapabilities.warm()
         LogHub.start(this)
         // Read once (decrypting it takes a moment) for both.

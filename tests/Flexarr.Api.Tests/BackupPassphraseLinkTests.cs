@@ -67,4 +67,22 @@ public class BackupPassphraseLinkTests
         Assert.Equal("application/zip", download.Content.Headers.ContentType?.MediaType);
         Assert.Equal(name, download.Content.Headers.ContentDisposition?.FileName?.Trim('"'));
     }
+
+    [Fact]
+    public async Task Moving_backups_to_another_folder_takes_the_admin_PIN()
+    {
+        await using var factory = new FlexarrApiFactory();
+        var (browser, _) = await SignedInBrowserAsync(factory);
+        var share = Path.Combine(factory.DataDirectory, "share");
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await browser.PutAsJsonAsync(Api("/backups/settings"), new { folder = share })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await browser.PutAsJsonAsync(Api("/backups/settings"), new { folder = share, pin = "0000" })).StatusCode);
+        Assert.False(Directory.Exists(share));
+
+        Assert.Equal(HttpStatusCode.OK, (await browser.PutAsJsonAsync(Api("/backups/settings"), new { folder = share, pin = "5319" })).StatusCode);
+        // The same folder again, the nightly switch, and going back to the data folder don't ask.
+        Assert.Equal(HttpStatusCode.OK, (await browser.PutAsJsonAsync(Api("/backups/settings"), new { folder = share + Path.DirectorySeparatorChar })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await browser.PutAsJsonAsync(Api("/backups/settings"), new { nightly = false })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await browser.PutAsJsonAsync(Api("/backups/settings"), new { folder = "" })).StatusCode);
+    }
 }

@@ -98,6 +98,21 @@ struct HomeProofTests {
         #expect(!client.addresses.remoteHasProven)
     }
 
+    @Test func homeIsAskedToShowItHoldsTheKey_AndAReplayedAnswerIsNeverSentTheSignIn() async throws {
+        // Something at the home address elsewhere that gives the server's id and an answer it saw once before.
+        let (client, home, _) = client(home: Self.status)
+        StubProtocol.register(host: home, path: "/api/v1/setup", .init(status: 200, body: Data(
+            #"{"open":false,"serverId":"\#(Self.id)","proof":"7991230abbbdddd2888885e97b6dad0651507d6da3f6f3467d198caaa5378e01"}"#.utf8)))
+
+        await #expect(throws: (any Error).self) { _ = try await client.systemStatus() }
+
+        let asked = try #require(StubProtocol.recorded(host: home).first?.url)
+        let query = URLComponents(url: asked, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        #expect(query.first { $0.name == "challenge" }?.value?.count == 32)
+        #expect(query.first { $0.name == "keyId" }?.value == ServerProof.keyId(ServerProof.hash(of: "secret")), "which key, never the key")
+        #expect(signedIn(home).isEmpty)
+    }
+
     @Test func requestsStartingTogetherAskOnce() async throws {
         let (client, home, _) = client(home: Self.status)
 

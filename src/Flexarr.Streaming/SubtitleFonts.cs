@@ -31,6 +31,15 @@ public static class SubtitleFonts
     private const int MostKnown = 256;
 
     /// <summary>
+    /// The biggest attached font kept: a full CJK font is a few tens of megabytes, so anything far bigger isn't a font
+    /// a player should be sent.
+    /// </summary>
+    public const long MaxFontBytes = 64L * 1024 * 1024;
+
+    /// <summary>Whether FFmpeg wrote a font worth keeping at <paramref name="path"/>: some bytes, and not too many.</summary>
+    private static bool Usable(string path) => File.Exists(path) && new FileInfo(path).Length is > 0 and <= MaxFontBytes;
+
+    /// <summary>
     /// The attachments that are fonts, read from the file's header with ffprobe once for the file as it is now (a file
     /// that changes is read again), however many of its fonts are asked for together.
     /// </summary>
@@ -173,7 +182,7 @@ public static class SubtitleFonts
             foreach (var (_, target) in wanted)
             {
                 var partial = $"{target}.{run}.tmp";
-                if (File.Exists(partial) && new FileInfo(partial).Length > 0)
+                if (Usable(partial))
                 {
                     File.Move(partial, target, overwrite: true);
                 }
@@ -210,7 +219,7 @@ public static class SubtitleFonts
         // FFmpeg dumps the attachment as it opens the file, then complains that no output was given: the file is what counts.
         await RunAsync(settings.FfmpegPath, ["-hide_banner", "-v", "error", "-nostdin", "-y", "-protocol_whitelist", "file",
             $"-dump_attachment:{font.StreamIndex}", partial, "-i", file.Path], null, ct).ConfigureAwait(false);
-        if (!File.Exists(partial) || new FileInfo(partial).Length == 0)
+        if (!Usable(partial))
         {
             File.Delete(partial);
             return null;

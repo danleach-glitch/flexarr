@@ -31,9 +31,21 @@ public sealed partial class ProfileImages(IOptionsMonitor<FlexarrOptions> option
         var output = $"{target}.{Guid.NewGuid():N}.jpg";
         try
         {
+            // However it arrives (a Plex avatar may not say its length), no more than an upload may be.
             await using (var file = File.Create(source))
             {
-                await image.CopyToAsync(file, ct);
+                var buffer = new byte[81920];
+                long total = 0;
+                int read;
+                while ((read = await image.ReadAsync(buffer, ct)) > 0)
+                {
+                    if ((total += read) > MaxUploadBytes)
+                    {
+                        return false;
+                    }
+
+                    await file.WriteAsync(buffer.AsMemory(0, read), ct);
+                }
             }
 
             // Read as the kind of image it is (HEIC and AVIF from phones through the mov demuxer), never as a
@@ -44,7 +56,9 @@ public sealed partial class ProfileImages(IOptionsMonitor<FlexarrOptions> option
             }
 
             // Centre-crop to a square, then scale: avatars are always shown as circles.
-            string[] args = ["-v", "error", "-y", "-protocol_whitelist", "file", "-f", format, "-i", source,
+            // A small file can still be a huge picture: past ImageCache's limit, it isn't drawn at all.
+            string[] args = ["-v", "error", "-y", "-protocol_whitelist", "file",
+                "-max_pixels", Flexarr.Metadata.ImageCache.MaxPixels.ToString(System.Globalization.CultureInfo.InvariantCulture), "-f", format, "-i", source,
                 "-vf", $"crop='min(iw,ih)':'min(iw,ih)',scale={size}:{size}", "-frames:v", "1", "-update", "1", "-q:v", "3", output];
             if (!await RunFfmpegAsync(args, ct) || !File.Exists(output))
             {

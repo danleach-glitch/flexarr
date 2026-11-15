@@ -159,4 +159,25 @@ public sealed class RecordingNamesTests
         // 22:30 in London (summer time); the colon and question mark aren't safe in a file name.
         Assert.Equal(Path.Combine("The News- Tonight-", "The News- Tonight- - 2026-07-01 - 22.30.mkv"), RecordingNames.RelativePath(recording, London));
     }
+
+    [Fact]
+    public void A_long_title_still_makes_a_file_name_the_disk_takes()
+    {
+        // 255 bytes is the most a file name may be: a long Greek title and episode title are two bytes a letter.
+        var recording = new Recording
+        {
+            ChannelName = "ERT1", Title = new string('Ω', 120), Subtitle = "Επεισόδιο " + new string('έ', 110), Season = 1, Episode = 2,
+            Start = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc),
+        };
+
+        var path = RecordingNames.RelativePath(recording, London);
+
+        foreach (var piece in path.Split(Path.DirectorySeparatorChar))
+        {
+            Assert.InRange(System.Text.Encoding.UTF8.GetByteCount(piece.Normalize(System.Text.NormalizationForm.FormD) + " (2).partial"), 1, 255);
+        }
+
+        Assert.EndsWith(".mkv", path, StringComparison.Ordinal);
+        Assert.Equal("Bath 12", RecordingNames.Clean("Bath 12"));
+    }
 }

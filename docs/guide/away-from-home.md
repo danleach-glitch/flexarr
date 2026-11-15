@@ -78,7 +78,7 @@ To be safe, also set this in `config.json`:
 Then a request from the same computer that doesn't say who it's for counts as the internet, so a badly set up proxy can't let anyone in. A browser on the server itself then needs the API key too.
 
 > **Important**
-> In **Settings › Security**, **Ask for it** set to **Only away from home** lets devices on your home network in as the main profile without a key. With a reverse proxy, that makes the settings above matter. If in doubt, leave it on **Always**.
+> In **Settings › Security**, **Ask for it** set to **Only away from home** lets devices on your home network in as the main profile without a key. With a reverse proxy, that makes the settings above matter. If in doubt, leave it on **Always**. In Docker, a request handed over by the container's own gateway (as Docker Desktop does with everyone's) still needs a key, since it could come from anywhere.
 
 ## Why not forward a port?
 

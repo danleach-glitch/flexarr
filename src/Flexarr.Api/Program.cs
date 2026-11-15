@@ -195,6 +195,7 @@ builder.Services.AddSingleton<DvrSignal>();
 builder.Services.AddSingleton<DvrService>();
 builder.Services.AddHostedService<DvrScheduler>();
 builder.Services.AddSingleton<PodcastRefreshQueue>();
+builder.Services.AddSingleton<PodcastPace>();
 builder.Services.AddHostedService<PodcastRefreshWorker>();
 builder.Services.AddHostedService<PodcastChartWarmer>();
 builder.Services.AddSingleton<Flexarr.Api.Endpoints.MusicRequests.MusicImportRetry>();

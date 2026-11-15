@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mockApi } from '../../test/mockApi'
 import { BackupSection } from './BackupSection'
@@ -90,7 +90,13 @@ describe('Folder settings in the Mac app', () => {
     expect(screen.queryByRole('textbox', { name: 'Backups folder' })).not.toBeInTheDocument()
     fireEvent.click(await screen.findByRole('button', { name: 'Choose a folder on the Mac…' }))
 
-    await waitFor(() => expect(saved).toEqual([{ folder: '/Volumes/Backup/Flexarr' }]))
+    // Backups hold every key, so another folder takes the admin PIN first.
+    const dialog = await screen.findByRole('alertdialog', { name: 'Keep backups in this folder?' })
+    expect(saved).toEqual([])
+    fireEvent.change(within(dialog).getByLabelText('Admin PIN'), { target: { value: '5319' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(saved).toEqual([{ folder: '/Volumes/Backup/Flexarr', pin: '5319', confirm: true }]))
   })
 
   it('chooses the server side of a path mapping on the Mac instead of typing it', async () => {

@@ -63,6 +63,7 @@ enum WidgetBridge {
         }
         let snapshot = PodcastSnapshot(current: current, isPlaying: (music.isPodcast || music.isBook) && music.isPlaying, upNext: next, updatedAt: Date())
         let previous = PodcastSnapshot.load()
+        PodcastSnapshot.saveLinkKey(OwnLinks.key)
         snapshot.save()
         removeUnusedArtwork(keeping: snapshot)
         // Progress alone moving isn't worth spending the widgets' refresh budget on.

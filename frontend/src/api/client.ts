@@ -67,7 +67,7 @@ import type {
   SystemStatus,
   UpcomingItem,
 } from './types'
-import { forgetOtherProfiles, forgetPlayed, PROFILE_STORAGE } from '../lib/profileScope'
+import { chosenProfileId, forgetOtherProfiles, forgetPlayed, LEGACY_PROFILE_STORAGE, PROFILE_STORAGE } from '../lib/profileScope'
 import { session } from '../lib/session'
 
 export type * from './types'
@@ -116,18 +116,43 @@ function stored(name: string): string | null {
   }
 }
 
-/** The chosen profile's token (sent as X-Flexarr-Profile); null means the main profile. */
-export const profileToken = () => stored(PROFILE_STORAGE)
+export { chosenProfileId }
 
-export function saveProfileToken(token: string | null) {
+/**
+ * The chosen profile's token as earlier versions kept it, readable by the page. Sent as X-Flexarr-Profile until the
+ * server has moved it into its HttpOnly cookie (see forgetLegacyProfileToken); null once it has.
+ */
+export const legacyProfileToken = () => stored(LEGACY_PROFILE_STORAGE)
+
+/**
+ * Remembers which profile was chosen here (null: the main profile). The server keeps the proof, the token, in an
+ * HttpOnly cookie when it's chosen, so only the id is kept here.
+ */
+export function saveProfileChoice(profileId: string | null) {
   try {
-    if (token) localStorage.setItem(PROFILE_STORAGE, token)
+    if (profileId) localStorage.setItem(PROFILE_STORAGE, profileId)
     else localStorage.removeItem(PROFILE_STORAGE)
+    localStorage.removeItem(LEGACY_PROFILE_STORAGE)
   } catch {
     // Storage unavailable: the profile lasts until the page reloads.
   }
   // Another profile now: what the last one played here isn't left for it to find.
   forgetOtherProfiles()
+}
+
+/**
+ * Forgets the token earlier versions kept, once the server has honoured it (and so moved it into its cookie), keeping
+ * which profile it was for.
+ */
+export function forgetLegacyProfileToken() {
+  const id = chosenProfileId()
+  try {
+    if (localStorage.getItem(LEGACY_PROFILE_STORAGE) === null) return
+    if (id) localStorage.setItem(PROFILE_STORAGE, id)
+    localStorage.removeItem(LEGACY_PROFILE_STORAGE)
+  } catch {
+    // Storage unavailable.
+  }
 }
 
 /**
@@ -213,7 +238,9 @@ export function authHeaders(): Record<string, string> {
   // The server answers in the language shown here (the profile's own choice wins over it, server side).
   // X-Flexarr-Profile-Choice: this app asks who's watching when nobody has chosen here yet (see Me.chooseProfile).
   const headers: Record<string, string> = { 'X-Requested-With': 'flexarr', 'Accept-Language': currentLanguage().code, 'X-Flexarr-Profile-Choice': '1' }
-  const profile = profileToken()
+  // The profile chosen here travels in the server's cookie; a token an earlier version kept goes in the header until
+  // the server has moved it there.
+  const profile = legacyProfileToken()
   if (profile) headers['X-Flexarr-Profile'] = profile
   return headers
 }
@@ -491,7 +518,7 @@ const pages = new Map<string, unknown>()
  * changed meanwhile. Only the last few pages are kept.
  */
 export function keepPage(key: string, value: unknown) {
-  const full = `${profileToken() ?? ''} ${key}`
+  const full = `${chosenProfileId() ?? ''} ${key}`
   pages.delete(full)
   pages.set(full, value)
   for (const old of pages.keys()) {
@@ -500,11 +527,11 @@ export function keepPage(key: string, value: unknown) {
   }
 }
 
-export const keptPage = <T>(key: string) => pages.get(`${profileToken() ?? ''} ${key}`) as T | undefined
+export const keptPage = <T>(key: string) => pages.get(`${chosenProfileId() ?? ''} ${key}`) as T | undefined
 
 /** Forgets one page's kept state. */
 export function forgetPage(key: string) {
-  pages.delete(`${profileToken() ?? ''} ${key}`)
+  pages.delete(`${chosenProfileId() ?? ''} ${key}`)
 }
 
 /** Forgets every page's kept state. */
@@ -521,7 +548,7 @@ const answers = new Map<string, unknown>()
  * Like keepPage, it outlives the cache and goes with the profile.
  */
 export function keepAnswer(key: string, value: unknown) {
-  const full = `${profileToken() ?? ''} ${key}`
+  const full = `${chosenProfileId() ?? ''} ${key}`
   answers.delete(full)
   answers.set(full, value)
   for (const old of answers.keys()) {
@@ -530,7 +557,7 @@ export function keepAnswer(key: string, value: unknown) {
   }
 }
 
-export const keptAnswer = <T>(key: string) => answers.get(`${profileToken() ?? ''} ${key}`) as T | undefined
+export const keptAnswer = <T>(key: string) => answers.get(`${chosenProfileId() ?? ''} ${key}`) as T | undefined
 
 /** Runs `load` with its cached GETs fetched afresh (a page reloading on purpose); they must start synchronously. */
 export function freshly<T>(load: () => T): T {
@@ -549,7 +576,7 @@ export function freshly<T>(load: () => T): T {
  */
 function cachedGet<T>(path: string, signal?: AbortSignal, freshMs = FRESH_MS): Promise<T> {
   // Answers depend on the profile, which a header chooses.
-  const key = `${profileToken() ?? ''} ${path}`
+  const key = `${chosenProfileId() ?? ''} ${path}`
   let entry = cache.get(key)
   if (entry && (bypass || (!entry.pending && Date.now() - entry.at > entry.freshMs))) entry = undefined
   if (entry) {
@@ -1347,7 +1374,8 @@ export interface SettingsImportResult {
   problems: string[]
 }
 export const getBackups = (signal?: AbortSignal) => apiGet<Backups>('/backups', signal)
-export const saveBackupSettings = (update: { folder?: string; nightly?: boolean }) => request<Backups>('PUT', '/backups/settings', update)
+/** Moving backups to another folder takes the admin PIN (or a yes, when there's none), as downloading one does. */
+export const saveBackupSettings = (update: { folder?: string; nightly?: boolean } & Partial<KeyConfirmation>) => request<Backups>('PUT', '/backups/settings', update)
 export const backUpNow = () => request<Backup>('POST', '/backups')
 export const deleteBackup = (name: string) => request<void>('DELETE', `/backups/${encodeURIComponent(name)}`)
 /**
@@ -2134,9 +2162,9 @@ export const removeProfileImage = (id: string) => request<Profile>('DELETE', `/p
  */
 export async function selectProfile(id: string, pin?: string, parentPin?: string) {
   const result = await request<{ token: string; profile: Profile }>('POST', `/profiles/${seg(id)}/select`, { pin, parentPin })
-  // The main profile needs no token: it's the default, and over Tailscale its PIN signs this browser in instead (an
-  // HttpOnly cookie). Its token is the same in every browser, so it isn't kept where scripts can read it.
-  saveProfileToken(result.profile.isMain ? null : result.token)
+  // The server keeps the choice in an HttpOnly cookie. The main profile needs none: it's the default, and over
+  // Tailscale its PIN signs this browser in instead.
+  saveProfileChoice(result.profile.isMain ? null : result.profile.id)
   // This browser may have just been signed in, which the cache can't tell from the token: ask afresh.
   clearApiCache()
   return result.profile
@@ -2172,7 +2200,7 @@ export function takeParentPin() {
 /** Locks this browser to kids profiles, choosing one (else the one chosen here, or the first). */
 export async function lockToKids(pin?: string, profileId?: string) {
   const result = await request<{ token: string; profile: Profile }>('POST', '/profiles/kids-lock', { pin, profileId })
-  saveProfileToken(result.token)
+  saveProfileChoice(result.profile.id)
   clearApiCache()
   return result.profile
 }
@@ -2382,7 +2410,7 @@ export const signOutOthers = () => request<{ signedOut: number }>('POST', '/sign
  */
 export async function signOut() {
   await request<void>('DELETE', '/session')
-  saveProfileToken(null)
+  saveProfileChoice(null)
   forgetPlayed({ signedOut: true })
   try {
     session.remove('flexarr.profileChosen')

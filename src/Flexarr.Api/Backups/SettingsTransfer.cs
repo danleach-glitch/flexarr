@@ -64,6 +64,12 @@ public static class SettingsTransfer
         [KeysSection] = ["apiKey", "webhookSecret", "imageSecret"],
     };
 
+    /// <summary>
+    /// Programs this server runs. A file can only name programs on the machine it came from, and whatever it names
+    /// would be run here, so importing one leaves this server's as they are.
+    /// </summary>
+    private static readonly HashSet<string> ProgramPaths = new(StringComparer.OrdinalIgnoreCase) { "ffmpegPath", "ffprobePath" };
+
     /// <summary>Settings added to a section later: a file without them leaves this server's as they are.</summary>
     private static readonly HashSet<string> KeptUnlessGiven = new(StringComparer.OrdinalIgnoreCase) { "trakt", "tmdb", "musicRequests", "watchFolders" };
 
@@ -82,6 +88,19 @@ public static class SettingsTransfer
             }
 
             return live;
+        }
+
+        // Only whether notifications are on: where they're sent (and every phone's device token with them) is this
+        // server's own, so a file can't send them to another address.
+        if (key.Equals("notifications", StringComparison.OrdinalIgnoreCase) && value is JsonObject notifications)
+        {
+            var on = new JsonObject();
+            if (notifications.FirstOrDefault(p => p.Key.Equals("enabled", StringComparison.OrdinalIgnoreCase)).Value is { } enabled)
+            {
+                on["enabled"] = enabled.DeepClone();
+            }
+
+            return on;
         }
 
         if (!key.Equals("trakt", StringComparison.OrdinalIgnoreCase) || value is not JsonObject trakt)
@@ -112,6 +131,12 @@ public static class SettingsTransfer
         var key = live.FirstOrDefault(p => p.Key.Equals("adminApiKey", StringComparison.OrdinalIgnoreCase)).Value?.ToString();
         return string.IsNullOrEmpty(key) ? null : (live.FirstOrDefault(p => p.Key.Equals("baseUrl", StringComparison.OrdinalIgnoreCase)).Value?.ToString(), key);
     }
+
+    /// <summary>The notification relay this server's settings name, if they name one.</summary>
+    private static string? RelayKeep(JsonObject config) =>
+        config.FirstOrDefault(p => p.Key.Equals("notifications", StringComparison.OrdinalIgnoreCase)).Value is JsonObject notifications
+            ? notifications.FirstOrDefault(p => p.Key.Equals("relayUrl", StringComparison.OrdinalIgnoreCase)).Value?.ToString()
+            : null;
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
@@ -285,16 +310,17 @@ public static class SettingsTransfer
             {
                 // A file never carries Dispatcharr's admin key: for the same address it's still the one saved here.
                 var adminKey = DispatcharrKeep(config);
+                var relay = RelayKeep(config);
                 foreach (var section in chosen.Where(s => settings.Any(p => SectionOf(p.Key) == s)))
                 {
                     // The section as the file has it: settings it doesn't have go back to their defaults, except ones a
                     // file from before they were exported can't have had (your own Trakt app, the TMDB key).
-                    foreach (var key in config.Select(p => p.Key).Where(k => SectionOf(k) == section && !(KeptUnlessGiven.Contains(k) && !settings.ContainsKey(k))).ToList())
+                    foreach (var key in config.Select(p => p.Key).Where(k => SectionOf(k) == section && !ProgramPaths.Contains(k) && !(KeptUnlessGiven.Contains(k) && !settings.ContainsKey(k))).ToList())
                     {
                         config.Remove(key);
                     }
 
-                    foreach (var (key, value) in settings.Where(p => SectionOf(p.Key) == section))
+                    foreach (var (key, value) in settings.Where(p => SectionOf(p.Key) == section && !ProgramPaths.Contains(p.Key)))
                     {
                         config[key] = Portable(key, value?.DeepClone());
                     }
@@ -306,6 +332,11 @@ public static class SettingsTransfer
                     && Endpoints.SettingsEndpoints.SameServer(kept.BaseUrl, imported.FirstOrDefault(p => p.Key.Equals("baseUrl", StringComparison.OrdinalIgnoreCase)).Value?.ToString()))
                 {
                     imported["adminApiKey"] = kept.Key;
+                }
+
+                if (relay is { } keptRelay && config.FirstOrDefault(p => p.Key.Equals("notifications", StringComparison.OrdinalIgnoreCase)).Value is JsonObject notifications)
+                {
+                    notifications["relayUrl"] = keptRelay;
                 }
 
                 if (BindProblem(config) is { } problem)

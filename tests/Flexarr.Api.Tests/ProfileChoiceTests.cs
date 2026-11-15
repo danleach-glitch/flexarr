@@ -117,6 +117,28 @@ public class ProfileChoiceTests
     }
 
     [Fact]
+    public async Task AnAppThatHasSaidItCanAsk_LeavingTheHeaderOffLater_IsStillAnsweredAsNoProfileChosen()
+    {
+        using var server = new FlexarrApiFactory();
+        await SetUpAsync(server.Services);
+        var token = await PairAsync(server);
+        Assert.True((await MeAsync(Device(server, token, asks: true))).GetProperty("chooseProfile").GetBoolean());
+        var withoutHeader = Device(server, token, asks: false);
+
+        var me = await MeAsync(withoutHeader);
+        var libraries = await withoutHeader.GetAsync(Api("/libraries"));
+        var home = await withoutHeader.GetAsync(Api("/home"));
+
+        Assert.True(me.GetProperty("chooseProfile").GetBoolean());
+        Assert.Equal(HttpStatusCode.Forbidden, libraries.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, home.StatusCode);
+
+        // Once its own PIN is given, the choice is kept and the header no longer matters.
+        Assert.Equal(HttpStatusCode.OK, (await Device(server, token, asks: true).PostAsJsonAsync(Api("/profiles/owner/select"), new { pin = OwnPin })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await withoutHeader.GetAsync(Api("/libraries"))).StatusCode);
+    }
+
+    [Fact]
     public async Task WithoutAPinOfItsOwn_TheMainProfileIsChosenAsBefore()
     {
         using var server = new FlexarrApiFactory();

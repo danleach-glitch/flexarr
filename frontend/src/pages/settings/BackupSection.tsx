@@ -49,7 +49,7 @@ const sections: { id: string; label: string; help: string; off?: boolean }[] = [
   { id: 'podcasts', label: tk('Country'), help: tk('The names of age limits, podcast charts and the Audible store.') },
   { id: 'notifications', label: tk('Notifications'), help: tk('Push notifications to phones.') },
   { id: 'access', label: tk('Access'), help: tk('When to ask for the API key, and trusted proxies. Asks for the admin PIN.') },
-  { id: 'machine', label: tk('This machine’s paths'), help: tk('ffmpeg, the cache and backups folders. Usually wrong on another machine, and it asks for the admin PIN.'), off: true },
+  { id: 'machine', label: tk('This machine’s paths'), help: tk('The cache and backups folders. Usually wrong on another machine, and it asks for the admin PIN.'), off: true },
   {
     id: 'keys',
     label: tk('Server keys'),
@@ -154,7 +154,16 @@ export function BackupSection() {
         ))}
       </SettingsGroup>
 
-      {backups.data && <Automatic nightly={backups.data.nightly} keep={backups.data.keepNightly} folder={backups.data.folderSetting} folderInUse={backups.data.folder} onSaved={backups.reload} />}
+      {backups.data && (
+        <Automatic
+          nightly={backups.data.nightly}
+          keep={backups.data.keepNightly}
+          folder={backups.data.folderSetting}
+          folderInUse={backups.data.folder}
+          mainHasPin={mainHasPin}
+          onSaved={backups.reload}
+        />
+      )}
 
       <SettingsGroup title={t('Settings file')} note={t('Libraries and server settings, without profiles or history. Handy for setting up another server.')}>
         <SettingRow as="div" label={t('Export settings')} help={t('Saves a file to this computer.')}>
@@ -219,21 +228,41 @@ export function BackupSection() {
 }
 
 /** Nightly backups, and where backups go. */
-function Automatic({ nightly, keep, folder, folderInUse, onSaved }: { nightly: boolean; keep: number; folder: string | null; folderInUse: string; onSaved: () => void }) {
+function Automatic({
+  nightly,
+  keep,
+  folder,
+  folderInUse,
+  mainHasPin,
+  onSaved,
+}: {
+  nightly: boolean
+  keep: number
+  folder: string | null
+  folderInUse: string
+  mainHasPin: boolean
+  onSaved: () => void
+}) {
   const [path, setPath] = useState(folder ?? '')
   const [error, setError] = useState<string>()
   const [saved, setSaved] = useState<string>()
   const [choosing, setChoosing] = useState(false)
+  // A folder other than the data folder, waiting for the admin PIN (or a yes) before backups go there.
+  const [moving, setMoving] = useState<{ folder: string; done?: () => void }>()
   // The Mac app reaches only folders chosen in macOS's folder window: there the folder is chosen, never typed.
   const onMac = useChoosesOnMac()
+
+  function showSaved() {
+    setSaved(t('Saved'))
+    setTimeout(() => setSaved(undefined), 3000)
+    onSaved()
+  }
 
   async function save(update: { folder?: string; nightly?: boolean }) {
     setError(undefined)
     try {
       await saveBackupSettings(update)
-      setSaved(t('Saved'))
-      setTimeout(() => setSaved(undefined), 3000)
-      onSaved()
+      showSaved()
       return true
     } catch (e) {
       setError(errorText(e))
@@ -241,9 +270,16 @@ function Automatic({ nightly, keep, folder, folderInUse, onSaved }: { nightly: b
     }
   }
 
-  function saveFolder(e: FormEvent) {
+  /** Every backup holds the server's keys, so moving them anywhere but the data folder asks first. */
+  function saveFolder(chosen: string, done?: () => void) {
+    if (!chosen || chosen === (folder ?? '')) return void save({ folder: chosen }).then((ok) => ok && done?.())
+    setError(undefined)
+    setMoving({ folder: chosen, done })
+  }
+
+  function submitFolder(e: FormEvent) {
     e.preventDefault()
-    return save({ folder: path.trim() })
+    saveFolder(path.trim())
   }
 
   return (
@@ -279,7 +315,7 @@ function Automatic({ nightly, keep, folder, folderInUse, onSaved }: { nightly: b
           </span>
         </SettingRow>
       ) : (
-        <form className="setting-row static backup-folder" onSubmit={(e) => void saveFolder(e)}>
+        <form className="setting-row static backup-folder" onSubmit={submitFolder}>
           <span className="setting-text">
             <strong>{t('Folder')}</strong>
             <span className="muted">{t('A folder on another drive, or a share, survives this one failing. Empty for the data folder.')}</span>
@@ -302,7 +338,7 @@ function Automatic({ nightly, keep, folder, folderInUse, onSaved }: { nightly: b
           <FolderPicker
             onPick={(picked) => {
               setPath(picked)
-              void save({ folder: picked }).then((ok) => ok && setChoosing(false))
+              saveFolder(picked, () => setChoosing(false))
             }}
           />
           <button type="button" className="text-button" onClick={() => setChoosing(false)}>
@@ -315,7 +351,58 @@ function Automatic({ nightly, keep, folder, folderInUse, onSaved }: { nightly: b
           {error}
         </p>
       )}
+      {moving && (
+        <MoveBackupsDialog
+          folder={moving.folder}
+          mainHasPin={mainHasPin}
+          onMove={async (confirmation) => {
+            await saveBackupSettings({ folder: moving.folder, ...confirmation })
+            moving.done?.()
+            showSaved()
+          }}
+          onClose={() => setMoving(undefined)}
+        />
+      )}
     </SettingsGroup>
+  )
+}
+
+/** The admin PIN (or a yes) before backups, which hold every key, are kept in a folder outside the data folder. */
+function MoveBackupsDialog({
+  folder,
+  mainHasPin,
+  onMove,
+  onClose,
+}: {
+  folder: string
+  mainHasPin: boolean
+  onMove: (confirmation: { pin?: string; confirm: boolean }) => Promise<void>
+  onClose: () => void
+}) {
+  const [pin, setPin] = useState('')
+  const [error, setError] = useState<string>()
+
+  async function move() {
+    if (mainHasPin && !pin) return setError(t('Enter the admin PIN.'))
+    setError(undefined)
+    try {
+      await onMove({ pin: pin || undefined, confirm: true })
+      onClose()
+    } catch (e) {
+      setError(errorText(e))
+    }
+  }
+
+  return (
+    <ConfirmDialog title={t('Keep backups in this folder?')} confirmLabel={t('Save')} error={error} onConfirm={move} onClose={onClose}>
+      <p>{t('Backups hold the server’s keys and every sign-in. Anyone who can open {folder} can read them.', { folder })}</p>
+      {mainHasPin && (
+        <label className="field">
+          <span className="field-label">{t('Admin PIN')}</span>
+          <input type="password" inputMode="numeric" autoComplete="off" value={pin} onChange={(e) => setPin(e.target.value)} />
+        </label>
+      )}
+    </ConfirmDialog>
   )
 }
 

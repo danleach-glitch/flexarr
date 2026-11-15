@@ -36,6 +36,22 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A private podcast feed's full address, which carries its key, is now shown only to profiles that follow it and to the main profile.
 - A Tailscale account linked to a profile other than the main one no longer sees the household's devices and what they're playing.
 - On iPhone, iPad and Apple TV, a link into the app is only followed when it names a title plainly, so a crafted link can't make the app ask the server for something else.
+- Every profile's PIN now has a daily limit on wrong guesses from devices that aren't signed in, as the admin PIN does. Signed-in devices, and a browser that has given that PIN before, still get in.
+- A request from a Tailscale address is only treated as one of your devices when it really came in over Tailscale. In Docker, with **Only away from home**, a request handed over by the container's own gateway (as Docker Desktop does with everyone's) now needs a key, since it could come from anywhere.
+- Before an iPhone, iPad, Apple TV or Android device sends its sign-in to your server's home address, the server now shows it holds that device's key, not just its name. Once your server has done so, something else answering at the same address on another network gets nothing.
+- A settings file now carries only whether notifications are on. Where they're sent stays as each server has it, so importing someone else's file can't redirect your notifications.
+- Keeping backups in a folder other than the data folder now asks for the admin PIN (or a yes, when there's none), as downloading a backup does: every backup holds the server's keys.
+- Each profile can now add up to 60 new podcasts an hour and follow up to 1,000, and pulling to refresh a show that was checked moments ago no longer fetches it again. A profile watches up to four Live TV channels at once: starting a fifth stops the one it started longest ago, and that screen says why.
+- The Live TV guide and channel list, a book's description files, fonts inside a video and uploaded pictures now each have a size limit, so an oversized or malformed one can't tie up the server. Trying teletext page after page no longer holds up subtitles for everyone else.
+- Through an assistant, a kids profile has no watchlist or Live TV, as in the apps, and a profile with an age limit no longer looks up films and shows outside the library.
+- Error reports, when they're on, now leave out server names given with a port (`sonarr.example.net:8989`), not only full addresses.
+- A Live TV programme with a very long title, or one in a script that takes more room on disk, now records: its file name is kept short enough, and a recording that can't be saved no longer leaves its pieces behind.
+- A TV waiting for a family invite by its code now keeps its secret out of the relay's request logs, and on Android, **Open in Flexarr** on an invite's page hands the invite only to Flexarr.
+- On Android, a notification the phone can't open (one not meant for it) is no longer shown as "Something new is ready."
+- On iPhone, iPad, Apple TV and Mac, the profile chosen on the device is now kept in the Keychain on that device only, so it no longer travels in backups.
+- On the web, the profile chosen in a browser is now kept in a cookie the page's scripts can't read, rather than in the browser's storage.
+- Importing a settings file no longer changes where the server finds ffmpeg and ffprobe: those stay as each server has them.
+- On iPhone, iPad, Apple TV and Mac, a `flexarr://` link from another app, a web page, a shortcut or an NFC tag opens the title's page rather than starting it, and a profile it names is asked about first, as on Android. Flexarr's own Top Shelf, widgets and Siri still play straight away.
 
 ### iPad
 

@@ -1034,6 +1034,9 @@ public struct SetupStatus: Decodable, Sendable, Equatable {
     public var codeRequired: Bool? = nil
     /// The server's id, as `SystemStatus.serverId`; anyone may ask for it. Absent from servers before 0.55.
     public var serverId: String? = nil
+    /// Asked with a challenge, the answer showing the server holds the app's key (see `ServerProof`). Absent from
+    /// servers before 0.67.
+    public var proof: String? = nil
 }
 
 public struct PairingStatus: Decodable, Sendable, Equatable {

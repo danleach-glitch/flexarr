@@ -20,7 +20,10 @@ namespace Flexarr.Api.Backups;
 public sealed record BackupsDto(string Folder, string? FolderSetting, bool Nightly, int KeepNightly, IReadOnlyList<BackupInfo> Backups, string? FolderProblem = null);
 
 /// <param name="Folder">Empty for the default, in the data folder.</param>
-public sealed record BackupSettingsUpdate(string? Folder, bool? Nightly);
+/// <param name="Pin">The admin PIN, when it has one, for moving backups to another folder: every backup there holds every
+/// key (see SettingsEndpoints.ConfirmKeyAsync). Absent from web apps before 0.67.</param>
+/// <param name="Confirm">The person said yes to that, when the main profile has no admin PIN.</param>
+public sealed record BackupSettingsUpdate(string? Folder, bool? Nightly, string? Pin = null, bool Confirm = false);
 
 /// <param name="Passphrase">Protects the file with this passphrase; without one it's saved as it is.</param>
 /// <param name="Pin">The admin PIN, when it has one: the file holds every key, so it asks again (see SettingsEndpoints.ConfirmKeyAsync).</param>
@@ -49,6 +52,25 @@ public static class BackupEndpoints
 {
     private static readonly JsonSerializerOptions Indented = new() { WriteIndented = true };
 
+    /// <summary>Whether a folder typed now is the one already chosen.</summary>
+    private static bool SameFolder(string folder, string? current)
+    {
+        if (current is null || !Path.IsPathFullyQualified(folder))
+        {
+            return false;
+        }
+
+        try
+        {
+            return string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder)), Path.TrimEndingDirectorySeparator(Path.GetFullPath(current)),
+                OperatingSystem.IsLinux() ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return false;
+        }
+    }
+
     public static RouteGroupBuilder MapBackupEndpoints(this RouteGroupBuilder api)
     {
         var group = api.MapGroup("/backups").WithTags("Backups").RequireAuthorization(FlexarrClaims.AdminPolicy);
@@ -56,10 +78,20 @@ public static class BackupEndpoints
         group.MapGet("/", (BackupStore store, IOptionsMonitor<FlexarrOptions> options) => ToDto(store, options.CurrentValue));
 
 
-        group.MapPut("/settings", async (BackupSettingsUpdate update, BackupStore store, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
+        group.MapPut("/settings", async (BackupSettingsUpdate update, BackupStore store, IOptionsMonitor<FlexarrOptions> options, HttpContext http, FlexarrDbContext db,
+            CurrentProfile profile, PinGuard guard, CancellationToken ct) =>
         {
             var current = options.CurrentValue;
             var folder = update.Folder is null ? current.Backups.Folder : update.Folder.Trim() is { Length: > 0 } chosen ? chosen : null;
+            // Every backup holds every key and sign-in, so sending them to another folder (a share others can open) asks
+            // again, as downloading one does. Going back to the data folder doesn't.
+            if (folder is not null && !SameFolder(folder, current.Backups.Folder)
+                && await SettingsEndpoints.ConfirmKeyAsync(new KeyRequest(update.Pin, update.Confirm), http, db, profile, guard, ct,
+                    Loc.Mark("keep backups in another folder")) is { } refused)
+            {
+                return refused;
+            }
+
             // Checked before the folder is made: nothing of Flexarr's goes where the web app is served from. And again once
             // it's there, when a file in it can show what its path didn't: that it's the same folder by another name.
             var there = folder is not null && Directory.Exists(folder);

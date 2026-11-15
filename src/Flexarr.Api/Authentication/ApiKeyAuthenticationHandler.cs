@@ -55,7 +55,8 @@ public sealed class ApiKeyAuthenticationHandler(
     /// a browser let in by the home network or the owner's Tailscale account), such a client is answered as no profile
     /// chosen: <c>/me</c> says <c>chooseProfile</c>, and everything but choosing one is refused with 403 and
     /// <c>chooseProfile: true</c> (see <see cref="ProfileChoiceGate"/>). Without the header, the main profile, as before,
-    /// so apps that don't send it are unchanged.
+    /// so apps that don't send it are unchanged; but a paired device or browser whose app has sent it once is held to it
+    /// (see <see cref="SignIn.AsksProfile"/>).
     /// </summary>
     public const string ProfileChoiceHeader = "X-Flexarr-Profile-Choice";
 
@@ -158,10 +159,13 @@ public sealed class ApiKeyAuthenticationHandler(
         return AuthenticateResult.NoResult();
     }
 
-    /// <summary>"Only away from home" is chosen and this request is from home, addressed to one of the server's own names.</summary>
+    /// <summary>
+    /// "Only away from home" is chosen and this request is from home, addressed to one of the server's own names, and
+    /// not handed over by a container's gateway (which can't tell home from the internet).
+    /// </summary>
     private bool HomeNetworkSignsIn(FlexarrOptions options) =>
         options.AuthenticationRequired == AuthenticationRequired.DisabledForLocalAddresses && NetworkZones.Of(Context) == NetworkZone.Local
-        && NetworkZones.AddressedToKnownHost(Context, options.KnownHosts);
+        && NetworkZones.AddressedToKnownHost(Context, options.KnownHosts) && !NetworkZones.FromContainerGateway(Context);
 
     /// <summary>The cookie earlier versions gave every browser: derived from the API key, and the same for all of them.</summary>
     public static string LegacySessionValue(string apiKey) =>
@@ -359,7 +363,14 @@ public sealed class ApiKeyAuthenticationHandler(
         }
 
         var guest = signIn is { Guest: true };
-        var choose = mainByDefault && !admin && Request.Headers[ProfileChoiceHeader].ToString() == "1"
+        // A sign-in whose app has once said it can ask is held to that, so leaving the header off doesn't get round it.
+        var asks = Request.Headers[ProfileChoiceHeader].ToString() == "1";
+        if (asks && mainByDefault && signIn is not null)
+        {
+            signIns.NoteAsksProfile(signIn);
+        }
+
+        var choose = mainByDefault && !admin && (asks || signIn is { AsksProfile: true })
             && await db.Profiles.AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.PinHash != null, Context.RequestAborted);
         var canUnlock = !admin && !guest && profile == PlaybackState.DefaultUser;
         var claims = new List<Claim> { new(FlexarrClaims.Method, method), new(FlexarrClaims.Profile, profile) };
@@ -421,7 +432,11 @@ public sealed class ApiKeyAuthenticationHandler(
     /// <summary>The profile named by a valid <c>X-Flexarr-Profile</c> token, if it still exists.</summary>
     private async Task<string?> ChosenProfileAsync(FlexarrDbContext db)
     {
-        var token = Request.Headers[CurrentProfile.Header].FirstOrDefault();
+        // The web app keeps its choice in a cookie (see CurrentProfile.CookieName); a header, from apps and from web
+        // pages loaded before, wins.
+        var header = Request.Headers[CurrentProfile.Header].FirstOrDefault();
+        var fromWebApp = CurrentProfile.FromWebApp(Request);
+        var token = header ?? (fromWebApp ? Request.Cookies[CurrentProfile.CookieName] : null);
         var dot = token?.LastIndexOf('.') ?? -1;
         if (token is null || dot <= 0)
         {
@@ -436,7 +451,19 @@ public sealed class ApiKeyAuthenticationHandler(
             return null;
         }
 
-        return CurrentProfile.Verifies(options.ApiKey, id, Profile.TokenPinHashOf(id, found.PinHash, found.AdminPinHash), token[(dot + 1)..], options.AcceptsLegacySignIns(DateTime.UtcNow)) ? id : null;
+        if (!CurrentProfile.Verifies(options.ApiKey, id, Profile.TokenPinHashOf(id, found.PinHash, found.AdminPinHash), token[(dot + 1)..], options.AcceptsLegacySignIns(DateTime.UtcNow)))
+        {
+            return null;
+        }
+
+        // The web app from before kept the token where its scripts could read it, and sends it in the header: kept in
+        // the cookie from now on, so the page can forget it.
+        if (fromWebApp && header is not null && Request.Cookies[CurrentProfile.CookieName] != header)
+        {
+            CurrentProfile.KeepForWebApp(Context, header);
+        }
+
+        return id;
     }
 
     private static bool IsApiKey(string provided, string? key) =>

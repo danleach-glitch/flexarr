@@ -118,6 +118,22 @@ struct GuestInviteTests {
         #expect(String(data: opened, encoding: .utf8) == vector["plaintext"])
     }
 
+    @Test func aTvPollsWithItsSecretInAHeaderNotTheAddress() async throws {
+        let host = "relay-\(UUID().uuidString.lowercased()).local"
+        StubProtocol.register(host: host, StubProtocol.Stub(status: 204, body: Data()))
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubProtocol.self]
+        let tv = GuestTvCode()
+
+        let answer = try await tv.poll(session: URLSession(configuration: configuration), relay: URL(string: "https://\(host)/api/pair")!)
+
+        guard case .waiting = answer else { Issue.record("expected waiting"); return }
+        let request = try #require(StubProtocol.recorded(host: host).first)
+        let query = URLComponents(url: try #require(request.url), resolvingAgainstBaseURL: false)?.queryItems ?? []
+        #expect(query.map(\.name) == ["code"])
+        #expect(request.value(forHTTPHeaderField: "X-Pair-Secret") == tv.secret)
+    }
+
     @Test func aTvCodeIsEightLettersThatCantBeMisread() {
         let tv = GuestTvCode()
         #expect(tv.code.count == 8)

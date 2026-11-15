@@ -620,7 +620,7 @@ class FlexarrClient(
         val expected = addresses.serverId ?: return true
         val quick = http.newBuilder().followRedirects(false).followSslRedirects(false)
             .callTimeout(REMOTE_PROBE_MS, TimeUnit.MILLISECONDS).build()
-        return runCatching { serverIdAt(remote, quick) == expected }.getOrDefault(false)
+        return runCatching { isServerAt(remote, expected, quick) }.getOrDefault(false)
     }
 
     /**
@@ -703,7 +703,7 @@ class FlexarrClient(
         return withTimeoutOrNull(ServerAddresses.HOME_PROBE_MS) {
             runCatching {
                 if (expected != null) {
-                    serverIdAt(addresses.home, quick) == expected
+                    isServerAt(addresses.home, expected, quick)
                 } else {
                     val probe = Request.Builder().url(addresses.home.newBuilder().addPathSegments("api/v1/system/status").build())
                         .header("Accept", "application/json").build()
@@ -711,6 +711,24 @@ class FlexarrClient(
                 }
             }.getOrDefault(false)
         } ?: false
+    }
+
+    /**
+     * Whether the server answering at [url], asked without the sign-in, is this one: it gives [expected] for its id
+     * and shows it holds this device's key ([ServerProof]). Throws [FlexarrException.Unreachable] when nothing answered.
+     */
+    private suspend fun isServerAt(url: HttpUrl, expected: String, http: OkHttpClient): Boolean {
+        val key = apiKey?.takeIf { it.isNotEmpty() }
+        val challenge = ServerProof.challenge()
+        val query = if (key == null) emptyMap() else mapOf("challenge" to challenge, "keyId" to ServerProof.keyId(ServerProof.hash(key)))
+        val setup = try {
+            FlexarrClient(url, http = http).get<SetupStatus>("setup", query)
+        } catch (e: FlexarrException.Unreachable) {
+            throw e
+        } catch (_: FlexarrException) {
+            return false
+        }
+        return ServerProof.accepts(setup.serverId, setup.proof, expected, key, challenge)
     }
 
     /** The answer's text, for callers in this module that read it themselves (an empty answer meaning none). */

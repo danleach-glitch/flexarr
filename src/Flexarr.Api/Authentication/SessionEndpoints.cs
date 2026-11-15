@@ -60,6 +60,8 @@ public static class SessionEndpoints
             }
 
             http.Response.Cookies.Delete(ApiKeyAuthenticationHandler.SessionCookieName, new CookieOptions { Path = "/", SameSite = SameSiteMode.Strict, HttpOnly = true });
+            // The profile chosen here goes too.
+            http.Response.Cookies.Delete(CurrentProfile.CookieName, new CookieOptions { Path = "/", SameSite = SameSiteMode.Strict, HttpOnly = true });
             return Results.NoContent();
         }).WithTags("System").AllowAnonymous();
 

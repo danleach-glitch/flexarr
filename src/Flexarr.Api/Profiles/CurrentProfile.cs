@@ -17,6 +17,53 @@ public sealed class CurrentProfile(IHttpContextAccessor http, IOptionsMonitor<Fl
 {
     public const string Header = "X-Flexarr-Profile";
 
+    /// <summary>
+    /// Where the web app's chosen profile is kept: an HttpOnly cookie, so the token isn't left where the page's scripts
+    /// (or a copy of the browser's storage) can read it. Only the web app's own requests read it or are given it (see
+    /// <see cref="FromWebApp"/>): apps send the header, and a request another site's page starts can't say it's the web app.
+    /// </summary>
+    public const string CookieName = "flexarr.profile";
+
+    /// <summary>The web app's own request: it sends <c>X-Requested-With: flexarr</c>, which another site's page can't add.</summary>
+    public static bool FromWebApp(HttpRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return request.Headers[Authentication.ApiKeyAuthenticationHandler.RequestedWithHeader].ToString() == "flexarr";
+    }
+
+    /// <summary>
+    /// Keeps <paramref name="token"/> (nil forgets it) as the web app's chosen profile, when <paramref name="http"/> is
+    /// one of its requests.
+    /// </summary>
+    public static void KeepForWebApp(HttpContext http, string? token)
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        if (!FromWebApp(http.Request))
+        {
+            return;
+        }
+
+        var cookie = new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = RequestPeer.SaysHttps(http),
+            SameSite = SameSiteMode.Strict,
+            Path = "/",
+        };
+        if (string.IsNullOrEmpty(token))
+        {
+            if (http.Request.Cookies.ContainsKey(CookieName))
+            {
+                http.Response.Cookies.Delete(CookieName, cookie);
+            }
+
+            return;
+        }
+
+        cookie.MaxAge = TimeSpan.FromDays(400);
+        http.Response.Cookies.Append(CookieName, token, cookie);
+    }
+
     public string Id => http.HttpContext?.User.FindFirst(FlexarrClaims.Profile)?.Value ?? PlaybackState.DefaultUser;
 
     /// <summary>

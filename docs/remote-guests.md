@@ -83,7 +83,7 @@ The server accepts the redeem only from a tailnet address that `tailscale whois`
    - AES-256-GCM.
 
    It posts `{serverPublicKey, sealed}` back (`POST /api/pair/<code>/invite`).
-3. The TV polls (`GET /api/pair/<code>/invite` with its own secret), collects the invite once, opens it and joins as a phone would.
+3. The TV polls (`GET /api/pair?code=<code>` with its own secret in an `X-Pair-Secret` header, kept out of request logs; TV apps before that put it in the query), collects the invite once, opens it and joins as a phone would.
 
 The relay sees public keys and ciphertext only. With a random code, whoever runs it could in theory swap the TV's key during those 10 minutes. The code made from the key, below, closes that.
 

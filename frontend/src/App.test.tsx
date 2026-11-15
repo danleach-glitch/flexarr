@@ -1819,7 +1819,9 @@ describe('Profiles', () => {
 
     expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
     expect(sentPin).toBe('2468')
-    expect(localStorage.getItem('flexarr.profile')).toBe('c1.sig')
+    // Only which profile: the token itself is the server's cookie's.
+    expect(localStorage.getItem('flexarr.profileId')).toBe('c1')
+    expect(localStorage.getItem('flexarr.profile')).toBeNull()
   })
 
   it('asks again when the server no longer honours the profile chosen here', async () => {
@@ -1838,6 +1840,26 @@ describe('Profiles', () => {
 
     expect(await screen.findByRole('button', { name: /Sam/ })).toBeInTheDocument()
     expect(localStorage.getItem('flexarr.profile')).toBeNull()
+  })
+
+  it('forgets a token an earlier version kept once the server honours it, keeping which profile it was', async () => {
+    localStorage.setItem('flexarr.profile', 'c1.sig')
+    mockApi({
+      '/system/status': status,
+      '/profiles': [
+        { id: 'owner', name: 'Dan', color: '#a9c2ec', hasPin: false, isMain: true, isCurrent: false, hiddenLibraryIds: [] },
+        { id: 'c1', name: 'Sam', color: '#e8a0bf', hasPin: false, isMain: false, isCurrent: true, hiddenLibraryIds: [] },
+      ],
+      '/me': { profileId: 'c1', method: 'local', zone: 'Local', isAdmin: false, tailscaleLogin: null },
+      '/libraries': [],
+      '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+    })
+
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
+    expect(localStorage.getItem('flexarr.profile')).toBeNull()
+    expect(localStorage.getItem('flexarr.profileId')).toBe('c1')
   })
 
   const pinnedMain = { id: 'owner', name: 'Dan', color: '#a9c2ec', hasPin: true, isMain: true, isCurrent: true, hiddenLibraryIds: [], image: null }

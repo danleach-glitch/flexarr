@@ -2,6 +2,7 @@ using System.ComponentModel;
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Profiles;
 using Flexarr.Api.Watchlist;
+using Flexarr.Core.Data;
 using Flexarr.Core.Media;
 using Flexarr.Integrations.Arr;
 using Microsoft.Extensions.Options;
@@ -26,16 +27,27 @@ public sealed record McpWatchlistEntry(Guid Id, string Kind, string Title, int? 
 [McpServerToolType]
 public static class WatchlistTools
 {
-    [McpServerTool(Name = "watchlist", ReadOnly = true), Description("This profile's watchlist: films and shows it wants to watch, newest first, with whether each is ready to play (in the library), on its way, coming out later, or not available.")]
-    public static async Task<IReadOnlyList<McpWatchlistEntry>> ListAsync(WatchlistService watchlist, CurrentProfile profile, CancellationToken ct)
+    /// <summary>A kids profile has no watchlist, as over HTTP (<c>NotForKids</c>).</summary>
+    private static void RefuseKids(FlexarrDbContext db)
     {
+        ArgumentNullException.ThrowIfNull(db);
+        if (db.ServesKids)
+        {
+            throw new InvalidOperationException("That isn't available on a kids profile.");
+        }
+    }
+
+    [McpServerTool(Name = "watchlist", ReadOnly = true), Description("This profile's watchlist: films and shows it wants to watch, newest first, with whether each is ready to play (in the library), on its way, coming out later, or not available.")]
+    public static async Task<IReadOnlyList<McpWatchlistEntry>> ListAsync(WatchlistService watchlist, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct)
+    {
+        RefuseKids(db);
         ArgumentNullException.ThrowIfNull(watchlist);
         ArgumentNullException.ThrowIfNull(profile);
         return (await watchlist.ListAsync(profile.Id, ct)).Select(McpWatchlistEntry.From).ToList();
     }
 
     [McpServerTool(Name = "add_to_watchlist"), Description("Adds a film or show to this profile's watchlist (which can request it, if the profile asks for that). Give a library title's id (from search_library); or, for one not in the library, its TMDB id with its kind; or a title to look up among every film and show, with its year and kind if known. A title that doesn't match exactly answers with candidates to choose from by TMDB id. The result says whether it was also requested.")]
-    public static async Task<string> AddAsync(WatchlistService watchlist, SeerrClient seerr, IOptionsMonitor<FlexarrOptions> options, CurrentProfile profile, CancellationToken ct,
+    public static async Task<string> AddAsync(WatchlistService watchlist, SeerrClient seerr, IOptionsMonitor<FlexarrOptions> options, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct,
         [Description("A film's or show's id, from search_library")] Guid? itemId = null,
         [Description("A TMDB id, from an earlier answer's candidates; give kind too")] int? tmdbId = null,
         [Description("With tmdbId: the person chose this one from the candidates, so it may be requested")] bool chosen = false,
@@ -47,6 +59,7 @@ public static class WatchlistTools
         ArgumentNullException.ThrowIfNull(seerr);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(profile);
+        RefuseKids(db);
 
         var mediaType = kind?.Trim().ToUpperInvariant() switch
         {
@@ -65,6 +78,13 @@ public static class WatchlistTools
         }
         else if (!string.IsNullOrWhiteSpace(title))
         {
+            // Seerr's titles have no age Flexarr can check: a profile with an age limit gets no outside search, as over
+            // HTTP, so not even the candidates.
+            if (db.IsLimited())
+            {
+                throw new InvalidOperationException("Looking up titles that aren't in the library isn't available on a profile with an age limit. Use search_library.");
+            }
+
             if (options.CurrentValue.Seerr?.Instance is not { } instance)
             {
                 throw new InvalidOperationException("Looking up titles that aren't in the library needs a Seerr server. Use search_library for ones that are.");
@@ -117,8 +137,9 @@ public static class WatchlistTools
     }
 
     [McpServerTool(Name = "remove_from_watchlist"), Description("Takes a title off this profile's watchlist. It doesn't cancel a request.")]
-    public static async Task<string> RemoveAsync([Description("The entry's id, from watchlist")] Guid id, WatchlistService watchlist, CurrentProfile profile, CancellationToken ct)
+    public static async Task<string> RemoveAsync([Description("The entry's id, from watchlist")] Guid id, WatchlistService watchlist, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct)
     {
+        RefuseKids(db);
         ArgumentNullException.ThrowIfNull(watchlist);
         ArgumentNullException.ThrowIfNull(profile);
         return await watchlist.RemoveAsync(profile.Id, id, ct) ? "Removed from the watchlist." : throw new InvalidOperationException("That isn't on the watchlist.");

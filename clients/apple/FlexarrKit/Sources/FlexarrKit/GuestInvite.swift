@@ -207,8 +207,11 @@ public struct GuestTvCode: Sendable {
     /// Asks the relay whether the invite has arrived.
     public func poll(session: URLSession = .shared, relay: URL = Self.relay) async throws -> Answer {
         var url = URLComponents(url: relay, resolvingAgainstBaseURL: false)!
-        url.queryItems = [URLQueryItem(name: "code", value: code), URLQueryItem(name: "secret", value: secret)]
-        let (data, response) = try await session.data(from: url.url!)
+        url.queryItems = [URLQueryItem(name: "code", value: code)]
+        // The secret in a header, which request logs leave out, where an address is kept.
+        var request = URLRequest(url: url.url!)
+        request.setValue(secret, forHTTPHeaderField: "X-Pair-Secret")
+        let (data, response) = try await session.data(for: request)
         switch (response as? HTTPURLResponse)?.statusCode ?? 0 {
         case 204: return .waiting
         case 404: return .expired

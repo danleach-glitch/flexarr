@@ -38,7 +38,7 @@ struct FlexarrTVApp: App {
                 .environment(\.layoutDirection, language.isRightToLeft ? .rightToLeft : .leftToRight)
                 .environment(model)
                 .preferredColorScheme(.dark)
-                .onOpenURL { model.open(url: $0) }
+                .onOpenURL { model.openLink($0) }
         }
     }
 }

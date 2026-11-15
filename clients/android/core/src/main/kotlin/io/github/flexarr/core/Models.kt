@@ -829,6 +829,8 @@ data class SetupStatus(
     val codeRequired: Boolean? = null,
     /** The server's id, as [SystemStatus.serverId]; anyone may ask for it. Absent from servers before 0.55. */
     val serverId: String? = null,
+    /** Asked with a challenge, the answer showing the server holds the app's key (see [ServerProof]). Absent from servers before 0.67. */
+    val proof: String? = null,
 )
 
 @Serializable

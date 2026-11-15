@@ -40,12 +40,15 @@
     document.getElementById('lede').textContent = `Watch movies and shows on ${server}, from wherever you are.`;
   }
 
-  // The app's own address for the invite, for when the link was opened somewhere that doesn't hand it to the app.
-  document.getElementById('open').href = `flexarr://join#${raw}`;
-
   const agent = navigator.userAgent;
   const apple = /iPhone|iPad|iPod/.test(agent) || (/Macintosh/.test(agent) && navigator.maxTouchPoints > 1);
   const android = /Android/.test(agent);
+
+  // The app's own address for the invite, for when the link was opened somewhere that doesn't hand it to the app. On
+  // Android it names Flexarr's package, so the invite goes to Flexarr and no other app that claims flexarr:// links.
+  document.getElementById('open').href = android
+    ? `intent://join#${raw}#Intent;scheme=flexarr;package=com.danleach.flexarr;end`
+    : `flexarr://join#${raw}`;
   if (android) document.getElementById('app-store').hidden = true;
   if (apple) document.getElementById('android').hidden = true;
   if (!apple && !android) document.getElementById('desktop').hidden = false;

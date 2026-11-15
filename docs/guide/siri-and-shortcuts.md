@@ -101,7 +101,9 @@ Flexarr's links open the app on the iPhone, iPad or Apple TV they're opened on. 
 | `flexarr://item/<id>` | Shows a title's page. |
 | `flexarr://play/<id>` | Plays a movie or episode, or a show's next episode. Add `?t=<seconds>` to start at a time, or `?shuffle=1` to shuffle a show. |
 
-Add `profile=<name>` (or the profile's id) to either to switch to that profile first, for example `flexarr://play/<id>?profile=Sam`. If the profile has a PIN, Flexarr asks for it before going on. A title's id is the last part of its address on the web, after `/item/`.
+Add `profile=<name>` (or the profile's id) to either to switch to that profile first, for example `flexarr://play/<id>?profile=Sam`. Flexarr asks who's watching before going on. A title's id is the last part of its address on the web, after `/item/`.
+
+A link from outside Flexarr (Shortcuts, an NFC tag, a web page, a message) never starts anything by itself: a `play` link opens the title's page, with **Play** ready. To start playing straight away, use Shortcuts' **Play a movie or show** action instead.
 
 ## If Siri doesn't understand
 

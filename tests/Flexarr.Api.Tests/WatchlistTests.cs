@@ -560,7 +560,8 @@ public sealed class WatchlistTests : IAsyncLifetime
         using var scope = _server.Services.CreateScope();
         var services = scope.ServiceProvider;
         Task<string> add(string title, int? year) => Mcp.WatchlistTools.AddAsync(services.GetRequiredService<WatchlistService>(), services.GetRequiredService<SeerrClient>(),
-            services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions>>(), services.GetRequiredService<Profiles.CurrentProfile>(),
+            services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions>>(), services.GetRequiredService<FlexarrDbContext>(),
+            services.GetRequiredService<Profiles.CurrentProfile>(),
             CancellationToken.None, title: title, year: year);
 
         var ambiguous = await Assert.ThrowsAsync<InvalidOperationException>(() => add("dune", null));
@@ -570,6 +571,33 @@ public sealed class WatchlistTests : IAsyncLifetime
         Assert.Contains("tmdbId 841", ambiguous.Message, StringComparison.Ordinal);
         Assert.StartsWith("Added Dune (2021)", added, StringComparison.Ordinal);
         Assert.Equal(0, Requests());
+    }
+
+    [Fact]
+    public async Task AnAssistant_OnAProfileWithAnAgeLimit_LooksNothingUpOutside_AndAKidsProfileHasNoWatchlist()
+    {
+        _seerr.Responses["GET /api/v1/search?query=dune&page=1"] =
+            """{"page":1,"totalPages":1,"results":[{"id":438631,"mediaType":"movie","title":"Dune","releaseDate":"2021-09-15"},{"id":841,"mediaType":"movie","title":"Dune","releaseDate":"1984-12-14"}]}""";
+        using var scope = _server.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var db = services.GetRequiredService<FlexarrDbContext>();
+        Task<string> add() => Mcp.WatchlistTools.AddAsync(services.GetRequiredService<WatchlistService>(), services.GetRequiredService<SeerrClient>(),
+            services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions>>(), db,
+            services.GetRequiredService<Profiles.CurrentProfile>(), CancellationToken.None, title: "dune");
+        var searched = _seerr.Requests.Count;
+
+        db.MaxRatingAge = 12;
+        var limited = await Assert.ThrowsAsync<InvalidOperationException>(add);
+        db.ServesKids = true;
+        var kids = await Assert.ThrowsAsync<InvalidOperationException>(add);
+        var list = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            Mcp.WatchlistTools.ListAsync(services.GetRequiredService<WatchlistService>(), db, services.GetRequiredService<Profiles.CurrentProfile>(), CancellationToken.None));
+
+        Assert.DoesNotContain("tmdbId", limited.Message, StringComparison.Ordinal);
+        Assert.Contains("age limit", limited.Message, StringComparison.Ordinal);
+        Assert.Contains("kids profile", kids.Message, StringComparison.Ordinal);
+        Assert.Contains("kids profile", list.Message, StringComparison.Ordinal);
+        Assert.Equal(searched, _seerr.Requests.Count);
     }
 
     [Fact]
@@ -724,7 +752,8 @@ public sealed class WatchlistTests : IAsyncLifetime
         using var scope = _server.Services.CreateScope();
         var services = scope.ServiceProvider;
         Task<string> add(bool chosen) => Mcp.WatchlistTools.AddAsync(services.GetRequiredService<WatchlistService>(), services.GetRequiredService<SeerrClient>(),
-            services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions>>(), services.GetRequiredService<Profiles.CurrentProfile>(),
+            services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions>>(), services.GetRequiredService<FlexarrDbContext>(),
+            services.GetRequiredService<Profiles.CurrentProfile>(),
             CancellationToken.None, tmdbId: 9301, kind: "film", chosen: chosen);
 
         var guessed = await add(false);

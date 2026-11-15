@@ -233,7 +233,9 @@ public static partial class ProfileEndpoints
             unlocks.Lock(signInId);
             // A phone handed down keeps telling of new titles for the profile it was set up as: it hears the child's now.
             await db.NotificationDevices.Where(d => d.SignInId == signInId).ExecuteUpdateAsync(u => u.SetProperty(d => d.ProfileId, chosen.Id), ct);
-            return Results.Ok(new { token = current.TokenFor(chosen), profile = ToDto(chosen, current) with { IsCurrent = true } });
+            var lockedToken = current.TokenFor(chosen);
+            CurrentProfile.KeepForWebApp(http, lockedToken);
+            return Results.Ok(new { token = lockedToken, profile = ToDto(chosen, current) with { IsCurrent = true } });
         });
 
         // A forgotten PIN, from the profile picker: the admin PIN takes it off, so the profile can be chosen and given a new
@@ -556,7 +558,7 @@ public static partial class ProfileEndpoints
                         browser);
                     if (result == PinCheck.Right && ownTried)
                     {
-                        guard.Forgive(profile.Id, callers, current.IsAdmin);
+                        guard.Forgive(profile.Id, callers, current.IsAdmin, browser);
                     }
                 }
 
@@ -603,7 +605,11 @@ public static partial class ProfileEndpoints
                 unlocks.Lock(signInId);
             }
 
-            return Results.Ok(new { token = current.TokenFor(profile), profile = ToDto(profile, current) with { IsCurrent = true } });
+            var token = current.TokenFor(profile);
+            // The web app keeps the choice in a cookie. Not the main profile's: it's the default, and its token is the
+            // same in every browser.
+            CurrentProfile.KeepForWebApp(http, profile.IsMain ? null : token);
+            return Results.Ok(new { token, profile = ToDto(profile, current) with { IsCurrent = true } });
         });
 
         return api;

@@ -6,6 +6,8 @@ import FlexarrKit
 /// rows of posters, or of wide artwork with each title's logo on it (Settings › Home screen), each with how far
 /// through it is. Selecting one opens it in Flexarr; Play resumes it. With neither, the Home screen's featured titles.
 final class ContentProvider: TVTopShelfContentProvider {
+    private var linkKey = ""
+
     override func loadTopShelfContent() async -> (any TVTopShelfContent)? {
         // tvOS gives the Top Shelf no shared container with the app: the Apple TV's own language, from the packs built in.
         Localization.shared.showDeviceLanguage()
@@ -13,6 +15,7 @@ final class ContentProvider: TVTopShelfContentProvider {
         // The Top Shelf has a cache file of its own, where an earlier version kept its answers and the sign-in: gone, once.
         FlexarrClient.forgetAnswersKeptBefore()
         let client = FlexarrClient(baseURL: signIn.address, apiKey: signIn.apiKey, profileToken: signIn.profileToken)
+        linkKey = OwnLinks.key
         guard let home = try? await client.home() else { return nil }
         let style = TopShelfStyle.current
         let watching = home.rows.first(where: { $0.id == "continue" })?.items ?? []
@@ -54,7 +57,9 @@ final class ContentProvider: TVTopShelfContentProvider {
 
     private func item(for summary: ItemSummary, style: TopShelfStyle, client: FlexarrClient) -> TVTopShelfSectionedItem? {
         guard let (shape, small, large) = artwork(for: summary, style: style, client: client),
-              let open = URL(string: "flexarr://item/\(summary.id)"), let play = URL(string: "flexarr://play/\(summary.id)") else { return nil }
+              let open = URL(string: "flexarr://item/\(summary.id)"), let unsignedPlay = URL(string: "flexarr://play/\(summary.id)") else { return nil }
+        // With the app's link key, so the app knows Play is its own and plays rather than only opening the page.
+        let play = OwnLinks.signed(unsignedPlay, key: linkKey)
         let item = TVTopShelfSectionedItem(identifier: summary.id)
         item.imageShape = shape
         item.setImageURL(small, for: .screenScale1x)

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { saveProfileToken } from '../api/client'
+import { saveProfileChoice } from '../api/client'
 import { forgetOtherProfiles, forgetPlayed, keepsPlayed, profileKey, startKeepingPlayed, storedKeys } from './profileScope'
 
 afterEach(() => {
@@ -12,6 +12,10 @@ describe('what this browser keeps for a profile', () => {
     expect(profileKey('flexarr.musicQueue')).toBe('flexarr.musicQueue')
     localStorage.setItem('flexarr.profile', 'kid-1.signature')
     expect(profileKey('flexarr.musicQueue')).toBe('flexarr.musicQueue.p-kid-1')
+    // Only the id is kept now; a token an earlier version kept still counts until it's moved.
+    localStorage.clear()
+    localStorage.setItem('flexarr.profileId', 'kid-2')
+    expect(profileKey('flexarr.musicQueue')).toBe('flexarr.musicQueue.p-kid-2')
   })
 
   it('lists every key under a name, however many are removed along the way', () => {
@@ -77,9 +81,9 @@ describe('what this browser keeps for a profile', () => {
   it('on a change of profile, forgets the book places and queues of every other profile, and keeps the settings', () => {
     keepForEveryone()
 
-    saveProfileToken('kid-1.signature')
+    saveProfileChoice('kid-1')
 
-    expect(Object.keys(localStorage).sort()).toEqual(['flexarr.bookPlace.book-2.p-kid-1', 'flexarr.language.choice', 'flexarr.profile', 'flexarr.sound'])
+    expect(Object.keys(localStorage).sort()).toEqual(['flexarr.bookPlace.book-2.p-kid-1', 'flexarr.language.choice', 'flexarr.profileId', 'flexarr.sound'])
     expect(Object.keys(sessionStorage).sort()).toEqual(['flexarr.musicQueue.p-kid-1', 'flexarr.musicQueueTracks.p-kid-1', 'flexarr.profileChosen'])
   })
 
@@ -87,7 +91,7 @@ describe('what this browser keeps for a profile', () => {
     keepForEveryone()
     localStorage.setItem('flexarr.profile', 'kid-1.signature')
 
-    saveProfileToken(null)
+    saveProfileChoice(null)
 
     expect(Object.keys(localStorage).sort()).toEqual(['flexarr.bookPlace.book-1', 'flexarr.language.choice', 'flexarr.sound'])
     expect(Object.keys(sessionStorage).sort()).toEqual(['flexarr.musicQueue', 'flexarr.musicQueueTracks', 'flexarr.profileChosen'])

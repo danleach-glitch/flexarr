@@ -391,6 +391,53 @@ public class PinTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiFacto
     }
 
     [Fact]
+    public async Task AGuesserChangingAddress_RunsOutOfAProfilesPinGuessesForTheDay_ButItsOwnerStillGetsIn()
+    {
+        var clock = new ManualClock();
+        var guard = new PinGuard(clock);
+        // The sibling's browser at home (no sign-in) has given their PIN before.
+        await guard.CheckAsync("sibling", "address:192.168.1.20", () => true, CancellationToken.None, browser: "siblings-laptop");
+        // A fresh address for every guess, each past the profile's throttle.
+        for (var i = 0; i < PinGuard.ProfileDailyAllowance; i++)
+        {
+            var (wrong, _) = await guard.CheckAsync("sibling", $"address:10.1.{i / 250}.{i % 250}", () => false, CancellationToken.None);
+            Assert.Equal(PinCheck.Wrong, wrong);
+            clock.Now += PinGuard.ProfileThrottle;
+        }
+
+        var (spent, retryAfter) = await guard.CheckAsync("sibling", "address:10.2.0.1", () => true, CancellationToken.None);
+        var laptop = await guard.CheckAsync("sibling", "address:192.168.1.20", () => true, CancellationToken.None, browser: "siblings-laptop");
+        var tv = await guard.CheckAsync("sibling", "sign-in:living-room-tv", () => true, CancellationToken.None);
+        // Other profiles' PINs aren't held up.
+        var other = await guard.CheckAsync("kid", "address:10.2.0.1", () => true, CancellationToken.None);
+        clock.Now += retryAfter;
+        var tomorrow = await guard.CheckAsync("sibling", "address:10.2.0.1", () => true, CancellationToken.None);
+
+        Assert.Equal(PinCheck.LockedOut, spent);
+        Assert.True(retryAfter > TimeSpan.FromHours(23));
+        Assert.Equal(PinCheck.Right, laptop.Result);
+        Assert.Equal(PinCheck.Right, tv.Result);
+        Assert.Equal(PinCheck.Right, other.Result);
+        Assert.Equal(PinCheck.Right, tomorrow.Result);
+    }
+
+    [Fact]
+    public async Task ChoosingTheMainProfileWithTheAdminPin_TakesBackTheGuessAtItsOwnPin_FromTheDaysAllowance()
+    {
+        var clock = new ManualClock();
+        var guard = new PinGuard(clock);
+        for (var i = 0; i < PinGuard.ProfileDailyAllowance + 5; i++)
+        {
+            // Its own PIN is wrong, the admin PIN right: what choosing the main profile with the admin PIN does.
+            await guard.CheckAsync("owner", $"address:10.1.0.{i}", () => false, CancellationToken.None);
+            guard.Forgive("owner", [$"address:10.1.0.{i}"], mayManage: false);
+            clock.Now += PinGuard.ProfileThrottle;
+        }
+
+        Assert.Equal(PinCheck.Right, (await guard.CheckAsync("owner", "address:10.2.0.1", () => true, CancellationToken.None)).Result);
+    }
+
+    [Fact]
     public async Task OnceTheDaysAdminPinGuessesAreSpent_TheOwnersSignedInDevices_AndABrowserThatGaveItBefore_StillGetIn()
     {
         var clock = new ManualClock();

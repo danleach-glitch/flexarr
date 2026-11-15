@@ -231,6 +231,32 @@ public sealed class EventTests : IDisposable
     }
 
     [Fact]
+    public async Task SigningOut_EndsTheStream_ItHadOpen()
+    {
+        var token = (await (await Admin().PostAsJsonAsync(Api("/session/device"), new { deviceName = "Kitchen" })).Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("token").GetString()!;
+        var kitchen = factory.CreateClient();
+        kitchen.DefaultRequestHeaders.Add("X-Api-Key", token);
+        var events = await ListenAsync(kitchen);
+        var (session, _) = await PlayingAsync("Living room");
+        await ReportAsync(session, 5);
+        Assert.Equal("Started", (await NextEventAsync(events)).GetProperty("kind").GetString());
+
+        Assert.Equal(HttpStatusCode.NoContent, (await kitchen.DeleteAsync(Api("/session"))).StatusCode);
+        await ReportAsync(session, 20, paused: true);
+
+        // Nothing more is told: the stream ends instead.
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        string? line;
+        do
+        {
+            line = await events.ReadLineAsync(timeout.Token);
+            Assert.NotEqual("event: playback", line);
+        }
+        while (line is not null);
+    }
+
+    [Fact]
     public async Task TheStream_NeedsSigningIn()
     {
         var response = await factory.CreateClient().GetAsync(Api("/events"));

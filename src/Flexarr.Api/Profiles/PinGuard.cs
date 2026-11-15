@@ -25,17 +25,18 @@ public enum PinCheck
 /// </para>
 /// <para>
 /// Callers without a sign-in are told apart by address, which several people can share (a household's devices behind
-/// one gateway). A browser that has given the right admin PIN before gets a count of its own for it, so
+/// one gateway). A browser that has given a profile's right PIN before gets a count of its own for that profile, so
 /// someone else's guesses from the same address don't lock it out. A browser that hasn't shares the address's count,
-/// so throwing away its cookie doesn't earn a guesser fresh attempts. Only browsers that gave the admin PIN are remembered,
-/// so knowing a profile's PIN doesn't let anyone crowd the owner's browser out of the list.
+/// so throwing away its cookie doesn't earn a guesser fresh attempts. Each profile remembers its own browsers, so
+/// knowing one profile's PIN doesn't let anyone crowd the owner's browser out of the admin PIN's list.
 /// </para>
 /// <para>
-/// A caller that keeps changing address starts afresh each time, so the admin PIN (which guards the API key) also has
-/// a daily allowance of wrong guesses from callers told apart only by address: once it's spent, none of them may try
-/// the admin PIN until the day is out. Callers that may manage the server still get in, and so do those with a count
-/// they can't shed (a browser or device with a sign-in, a browser that has given the right admin PIN before): they
-/// neither spend the allowance nor are held off by it, so a guesser can't use it to lock the owner out for the day.
+/// A caller that keeps changing address starts afresh each time, so every PIN (the admin PIN, which guards the API key,
+/// and each profile's) also has a daily allowance of wrong guesses from callers told apart only by address: once it's
+/// spent, none of them may try that PIN until the day is out. Callers that may manage the server still get in, and so
+/// do those with a count they can't shed (a browser or device with a sign-in, a browser that has given that PIN right
+/// before): they neither spend the allowance nor are held off by it, so a guesser can't use it to lock the profile's
+/// owner out for the day.
 /// </para>
 /// </summary>
 public sealed class PinGuard(TimeProvider clock)
@@ -58,6 +59,9 @@ public sealed class PinGuard(TimeProvider clock)
     /// <summary>Wrong admin PINs a day from callers told apart only by address, after which none of them may try it.</summary>
     public const int AdminDailyAllowance = 100;
 
+    /// <summary>Wrong PINs a day at one profile from callers told apart only by address, after which none of them may try it.</summary>
+    public const int ProfileDailyAllowance = 100;
+
     /// <summary>
     /// Wrong PINs a day from one caller at one profile, after which it may not try that profile's PIN until the day is
     /// out. Strikes halve with each quiet spell, so without it a caller that paces itself would get well over a hundred
@@ -77,11 +81,17 @@ public sealed class PinGuard(TimeProvider clock)
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _gates = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, Strikes> _strikes = new(StringComparer.Ordinal);
 
-    /// <summary>The day's wrong admin PINs from callers told apart only by address (only touched inside the admin PIN's gate).</summary>
-    private (DateTime Since, int Count) _adminDaily;
+    /// <summary>Each PIN's wrong guesses today from callers told apart only by address.</summary>
+    private readonly ConcurrentDictionary<string, Daily> _daily = new(StringComparer.Ordinal);
 
-    /// <summary>Browsers that have given the right admin PIN, and when they last did.</summary>
-    private readonly ConcurrentDictionary<string, DateTime> _knownBrowsers = new(StringComparer.Ordinal);
+    /// <summary>For each PIN, the browsers that have given it right, and when they last did.</summary>
+    private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, DateTime>> _knownBrowsers = new(StringComparer.Ordinal);
+
+    private sealed class Daily
+    {
+        public DateTime Since;
+        public int Count;
+    }
 
     private sealed class Strikes
     {
@@ -113,10 +123,8 @@ public sealed class PinGuard(TimeProvider clock)
     {
         ArgumentNullException.ThrowIfNull(callers);
         ArgumentNullException.ThrowIfNull(check);
-        var remembers = browser is not null && profileId == AdminKey;
-        var known = remembers && _knownBrowsers.ContainsKey(browser!);
-        // Per profile, so a right PIN for your own profile doesn't wipe your wrong ones at someone else's.
-        string[] callerKeys = known ? [$"browser:{profileId}|{browser}"] : [.. callers.Select(c => $"caller:{profileId}|{c}")];
+        var known = Known(profileId, browser);
+        var callerKeys = CallerKeys(profileId, callers, browser, known);
         var profileKey = $"profile:{profileId}";
         var managersKey = $"managers:{profileId}";
 
@@ -132,18 +140,22 @@ public sealed class PinGuard(TimeProvider clock)
             wait = callerDay > wait ? callerDay : wait;
             var shared = mayManage ? HeldOff(managersKey, now, throttleOnly: false) : HeldOff(profileKey, now, throttleOnly: true);
             wait = shared > wait ? shared : wait;
-            // Only callers that could start afresh from another address: a sign-in, or a browser known by its right
-            // admin PIN, keeps its own count wherever it asks from. A caller that also goes by a name that isn't a
-            // sign-in (a browser moved over from earlier versions' shared cookie, which could ask for another) doesn't.
-            var daily = !mayManage && profileId == AdminKey && !known && !(callers.Count > 0 && callers.All(c => c.StartsWith("sign-in:", StringComparison.Ordinal)));
-            if (daily && now - _adminDaily.Since >= TimeSpan.FromDays(1))
+            var daily = CountsDaily(mayManage, known, callers) ? _daily.GetOrAdd(profileId, _ => new Daily()) : null;
+            if (daily is not null)
             {
-                _adminDaily = (now, 0);
-            }
+                lock (daily)
+                {
+                    if (now - daily.Since >= TimeSpan.FromDays(1))
+                    {
+                        (daily.Since, daily.Count) = (now, 0);
+                    }
 
-            if (daily && _adminDaily.Count >= AdminDailyAllowance && _adminDaily.Since + TimeSpan.FromDays(1) - now is var dayOut && dayOut > wait)
-            {
-                wait = dayOut;
+                    var allowance = profileId == AdminKey ? AdminDailyAllowance : ProfileDailyAllowance;
+                    if (daily.Count >= allowance && daily.Since + TimeSpan.FromDays(1) - now is var dayOut && dayOut > wait)
+                    {
+                        wait = dayOut;
+                    }
+                }
             }
 
             if (wait > TimeSpan.Zero)
@@ -158,9 +170,9 @@ public sealed class PinGuard(TimeProvider clock)
                     _strikes.TryRemove(key, out _);
                 }
 
-                if (remembers)
+                if (browser is not null)
                 {
-                    Remember(browser!, now);
+                    Remember(profileId, browser, now);
                 }
 
                 return (PinCheck.Right, TimeSpan.Zero);
@@ -172,9 +184,12 @@ public sealed class PinGuard(TimeProvider clock)
             }
 
             _ = Strike(mayManage ? managersKey : profileKey, now, mayManage ? ManagersFreeAttempts : FreeAttempts);
-            if (daily)
+            if (daily is not null)
             {
-                _adminDaily.Count++;
+                lock (daily)
+                {
+                    daily.Count++;
+                }
             }
 
             // Inside the gate, so guesses at one profile can't run side by side.
@@ -191,10 +206,19 @@ public sealed class PinGuard(TimeProvider clock)
     /// Takes back the wrong guess just counted at <paramref name="profileId"/> from these callers: the PIN they gave
     /// was the right one for another check (the admin PIN, given to choose the main profile).
     /// </summary>
-    public void Forgive(string profileId, IReadOnlyList<string> callers, bool mayManage)
+    public void Forgive(string profileId, IReadOnlyList<string> callers, bool mayManage, string? browser = null)
     {
         ArgumentNullException.ThrowIfNull(callers);
-        foreach (var key in callers.Select(c => $"caller:{profileId}|{c}").Append(mayManage ? $"managers:{profileId}" : $"profile:{profileId}"))
+        var known = Known(profileId, browser);
+        if (CountsDaily(mayManage, known, callers) && _daily.TryGetValue(profileId, out var daily))
+        {
+            lock (daily)
+            {
+                daily.Count = Math.Max(0, daily.Count - 1);
+            }
+        }
+
+        foreach (var key in CallerKeys(profileId, callers, browser, known).Append(mayManage ? $"managers:{profileId}" : $"profile:{profileId}"))
         {
             if (_strikes.TryGetValue(key, out var strikes))
             {
@@ -211,17 +235,38 @@ public sealed class PinGuard(TimeProvider clock)
         }
     }
 
-    /// <summary>Notes that a browser gave the admin PIN. When the list is full, the one longest unseen goes.</summary>
-    private void Remember(string browser, DateTime now)
+    /// <summary>Whether <paramref name="browser"/> has given <paramref name="profileId"/>'s PIN right before.</summary>
+    private bool Known(string profileId, string? browser) =>
+        browser is not null && _knownBrowsers.TryGetValue(profileId, out var known) && known.ContainsKey(browser);
+
+    /// <summary>
+    /// What a caller's guesses at <paramref name="profileId"/> count under. Per profile, so a right PIN for your own
+    /// profile doesn't wipe your wrong ones at someone else's.
+    /// </summary>
+    private static string[] CallerKeys(string profileId, IReadOnlyList<string> callers, string? browser, bool known) =>
+        known ? [$"browser:{profileId}|{browser}"] : [.. callers.Select(c => $"caller:{profileId}|{c}")];
+
+    /// <summary>
+    /// Whether a caller's wrong guesses count in the PIN's day's allowance: only callers that could start afresh from
+    /// another address. A sign-in, or a browser known by its right PIN, keeps its own count wherever it asks from. A
+    /// caller that also goes by a name that isn't a sign-in (a browser moved over from earlier versions' shared cookie,
+    /// which could ask for another) doesn't.
+    /// </summary>
+    private static bool CountsDaily(bool mayManage, bool known, IReadOnlyList<string> callers) =>
+        !mayManage && !known && !(callers.Count > 0 && callers.All(c => c.StartsWith("sign-in:", StringComparison.Ordinal)));
+
+    /// <summary>Notes that a browser gave a PIN right. When that PIN's list is full, the one longest unseen goes.</summary>
+    private void Remember(string profileId, string browser, DateTime now)
     {
-        lock (_knownBrowsers)
+        var known = _knownBrowsers.GetOrAdd(profileId, _ => new ConcurrentDictionary<string, DateTime>(StringComparer.Ordinal));
+        lock (known)
         {
-            if (!_knownBrowsers.ContainsKey(browser) && _knownBrowsers.Count >= MaxKnownBrowsers)
+            if (!known.ContainsKey(browser) && known.Count >= MaxKnownBrowsers)
             {
-                _knownBrowsers.TryRemove(_knownBrowsers.MinBy(b => b.Value).Key, out _); // it shares its address's count again
+                known.TryRemove(known.MinBy(b => b.Value).Key, out _); // it shares its address's count again
             }
 
-            _knownBrowsers[browser] = now;
+            known[browser] = now;
         }
     }
 

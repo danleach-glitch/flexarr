@@ -121,6 +121,13 @@ public static class PodcastEndpoints
     /// <summary>How much of an episode's notes lists carry.</summary>
     private const int ListOverview = 300;
 
+    private static IResult TooManyNewFeeds() =>
+        Problems.Of("That’s a lot of new podcasts in an hour. Try again in a while.", status: StatusCodes.Status429TooManyRequests);
+
+    private static IResult FollowingTooMany() =>
+        Problems.Of("This profile follows {count, number} podcasts, the most it can. Unfollow some to follow more.", new { count = PodcastPace.MaxFollowed },
+            status: StatusCodes.Status409Conflict);
+
     public static RouteGroupBuilder MapPodcastEndpoints(this RouteGroupBuilder api)
     {
         // A kids profile has no podcasts (its status says they aren't available: see LibraryVisibility).
@@ -142,7 +149,7 @@ public static class PodcastEndpoints
         });
 
         group.MapPost("/", async (AddPodcastRequest request, PodcastLibrary library, PodcastDirectory directory, FlexarrDbContext db,
-            CurrentProfile profile, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
+            CurrentProfile profile, IOptionsMonitor<FlexarrOptions> options, PodcastPace pace, CancellationToken ct) =>
         {
             var feedUrl = request.FeedUrl?.Trim();
             string? artwork = null;
@@ -175,6 +182,12 @@ public static class PodcastEndpoints
             if (string.IsNullOrEmpty(feedUrl))
             {
                 return Problems.Field("Give the podcast’s feed address.", field: "feedUrl");
+            }
+
+            // A feed the server doesn't have yet is fetched and stored whole: each profile adds only so many an hour.
+            if (!(FeedParser.WebUrl(feedUrl) is { } address && await db.PodcastFeeds.AnyAsync(f => f.Url == address, ct)) && !pace.TryAdd(profile.Id))
+            {
+                return TooManyNewFeeds();
             }
 
             var result = await library.AddAsync(feedUrl, request.ITunesId, artwork, ct);
@@ -308,6 +321,11 @@ public static class PodcastEndpoints
             }
 
             var subscription = await db.PodcastSubscriptions.FirstOrDefaultAsync(s => s.ProfileId == profile.Id && s.FeedId == id, ct);
+            if (subscription is null && await db.PodcastSubscriptions.CountAsync(s => s.ProfileId == profile.Id, ct) >= PodcastPace.MaxFollowed)
+            {
+                return FollowingTooMany();
+            }
+
             if (subscription is null)
             {
                 subscription = new PodcastSubscription { ProfileId = profile.Id, FeedId = id };
@@ -366,14 +384,21 @@ public static class PodcastEndpoints
             await db.MediaItems.Where(i => i.Id == id && i.Kind == MediaKind.Podcast).ExecuteDeleteAsync(ct) > 0 ? Results.NoContent() : Results.NotFound())
             .RequireAuthorization(Security.FlexarrClaims.AdminPolicy);
 
-        group.MapPost("/{id:guid}/refresh", async (Guid id, PodcastLibrary library, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        group.MapPost("/{id:guid}/refresh", async (Guid id, PodcastLibrary library, FlexarrDbContext db, CurrentProfile profile, TimeProvider clock, PodcastPace pace,
+            CancellationToken ct) =>
         {
             if (!await db.MediaItems.AnyAsync(i => i.Id == id && i.Kind == MediaKind.Podcast, ct))
             {
                 return Results.NotFound();
             }
 
-            await library.RefreshAsync(id, ct);
+            // Just checked (by someone pulling to refresh, or the server's own round): what's here is already up to date.
+            var checkedAt = await db.PodcastFeeds.Where(f => f.MediaItemId == id).Select(f => f.CheckedAt).FirstOrDefaultAsync(ct);
+            if (checkedAt is null || clock.GetUtcNow().UtcDateTime - checkedAt >= pace.RefreshAtMostEvery)
+            {
+                await library.RefreshAsync(id, ct);
+            }
+
             return Results.Ok(await PodcastAsync(db, id, profile.Id, ct));
         });
 
@@ -517,7 +542,8 @@ public static class PodcastEndpoints
         }).Produces<string>(contentType: "text/x-opml");
 
         // Subscriptions from another app's export: each feed is added (if need be) and followed.
-        group.MapPost("/opml", async (HttpRequest http, PodcastLibrary library, FlexarrDbContext db, CurrentProfile profile, PodcastRefreshQueue queue, CancellationToken ct) =>
+        group.MapPost("/opml", async (HttpRequest http, PodcastLibrary library, FlexarrDbContext db, CurrentProfile profile, PodcastRefreshQueue queue, PodcastPace pace,
+            CancellationToken ct) =>
         {
             if (await library.LibraryAsync(ct) is null)
             {
@@ -546,10 +572,19 @@ public static class PodcastEndpoints
 
             int added = 0, already = 0;
             var failed = new List<string>();
+            var following = await db.PodcastSubscriptions.CountAsync(s => s.ProfileId == profile.Id, ct);
             try
             {
                 foreach (var url in urls.Take(500))
                 {
+                    // Feeds this server has already are only followed; new ones count towards the profile's hour.
+                    if (following >= PodcastPace.MaxFollowed
+                        || (!(FeedParser.WebUrl(url) is { } address && await db.PodcastFeeds.AnyAsync(f => f.Url == address, ct)) && !pace.TryAdd(profile.Id)))
+                    {
+                        failed.Add(url);
+                        continue;
+                    }
+
                     var result = await library.AddAsync(url, null, null, ct);
                     if (result.PodcastId is not { } id)
                     {
@@ -566,6 +601,7 @@ public static class PodcastEndpoints
                     db.PodcastSubscriptions.Add(new PodcastSubscription { ProfileId = profile.Id, FeedId = id });
                     await db.SaveChangesAsync(ct);
                     added++;
+                    following++;
                 }
             }
             finally

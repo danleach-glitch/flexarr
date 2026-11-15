@@ -1,4 +1,5 @@
 import Foundation
+import FlexarrKit
 
 /// What the podcast widgets show, as the iPhone app last saw it: the episode being heard (or the one to resume) and
 /// the next few in Up Next. The app writes it to the app group whenever podcast state changes; widgets only read it,
@@ -50,8 +51,24 @@ struct PodcastSnapshot: Codable, Equatable {
         return folder?.appending(path: name)
     }
 
-    /// The link a widget opens: plays (or resumes) the episode in the app.
+    /// The link a widget opens: plays (or resumes) the episode in the app. It carries the app's link key (see
+    /// `OwnLinks`), which the app leaves in the app group for the widgets, so the app knows it's its own.
     static func playURL(_ episodeId: String) -> URL {
-        URL(string: "flexarr://play/\(episodeId)") ?? URL(string: "flexarr://")!
+        let url = URL(string: "flexarr://play/\(episodeId)") ?? URL(string: "flexarr://")!
+        return linkKey.map { OwnLinks.signed(url, key: $0) } ?? url
+    }
+
+    private static var linkKeyFile: URL? { folder?.appending(path: "link-key") }
+
+    /// The app's link key, as it last left it for the widgets.
+    static var linkKey: String? {
+        linkKeyFile.flatMap { try? String(contentsOf: $0, encoding: .utf8) }.flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    /// Leaves the app's link key where the widgets can read it (the app group's folder, which only Flexarr can open).
+    static func saveLinkKey(_ key: String) {
+        guard let folder, let file = linkKeyFile, linkKey != key else { return }
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try? Data(key.utf8).write(to: file, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
     }
 }

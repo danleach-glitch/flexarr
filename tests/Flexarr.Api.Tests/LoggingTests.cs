@@ -289,6 +289,10 @@ public class LoggingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
     [InlineData("No match for “The Bear” in TVmaze", "No match for \"…\" in TVmaze")]
     [InlineData("mail dan@example.com about it", "mail <email> about it")]
     [InlineData("Transcode segment 14 failed: exit code 1", "Transcode segment 14 failed: exit code 1")]
+    [InlineData("Connection refused (sonarr.example.net:8989)", "Connection refused (<server>)")]
+    [InlineData("No such host is known. (radarr:7878)", "No such host is known. (<server>)")]
+    [InlineData("connect to 10.0.0.12:8989 refused", "connect to <ip>:8989 refused")]
+    [InlineData("Timed out after 00:01:30", "Timed out after 00:01:30")]
     public void ErrorReportsKeepNothingAboutTheUser(string message, string expected) => Assert.Equal(expected, ErrorReports.Scrub(message));
 
     [Fact]

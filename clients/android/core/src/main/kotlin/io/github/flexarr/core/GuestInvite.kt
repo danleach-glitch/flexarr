@@ -263,8 +263,9 @@ class GuestTvCode(
 
     /** Asks the relay whether the invite has arrived. */
     suspend fun poll(http: OkHttpClient = FlexarrClient.sharedHttp, relay: HttpUrl = RELAY): Answer = withContext(Dispatchers.IO) {
-        val url = relay.newBuilder().addQueryParameter("code", code).addQueryParameter("secret", secret).build()
-        http.newCall(Request.Builder().url(url).build()).execute().use { response ->
+        // The secret in a header, which request logs leave out, where an address is kept.
+        val url = relay.newBuilder().addQueryParameter("code", code).build()
+        http.newCall(Request.Builder().url(url).header("X-Pair-Secret", secret).build()).execute().use { response ->
             when (response.code) {
                 204 -> Answer.Waiting
                 404 -> Answer.Expired
