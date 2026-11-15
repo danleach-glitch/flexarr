@@ -77,6 +77,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On a tablet, the music bar gives the track's title and artist more room, instead of cutting them after a few letters.
 - On a tablet held upright, the player's time and the stream's note at the top each stay on one line.
 - An episode's **⋯** now offers **Go to show**, as in the apps, so it's no longer a menu of just **Delete…**.
+- Settings no longer offers **Lock settings** before an admin PIN has been chosen to lock them with.
 
 ### Playback
 
