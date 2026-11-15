@@ -493,9 +493,9 @@ struct HomeRowView: View {
                         }
                     }
                     if let library = linkedLibrary {
-                        SeeAllCard(style: row.style, square: isBooks) { router.push(library) }
+                        SeeAllCard(style: row.style, square: hasSquareCovers) { router.push(library) }
                     } else if row.link == "/watchlist" {
-                        SeeAllCard(style: row.style, square: isBooks) { router.push(.watchlist) }
+                        SeeAllCard(style: row.style, square: hasSquareCovers) { router.push(.watchlist) }
                     }
                 }
                 .padding(.horizontal, Layout.edge)
@@ -550,9 +550,10 @@ struct HomeRowView: View {
         focusedCard = first.id
     }
 
-    /// A row of books, whose square covers the See all card matches.
-    private var isBooks: Bool {
-        row.style != .wide && row.style != .top10 && !row.items.isEmpty && row.items.allSatisfy { $0.kind == .audiobook }
+    /// A row of books or albums (New albums), whose square covers the See all card matches.
+    private var hasSquareCovers: Bool {
+        row.style != .wide && row.style != .top10 && row.style != .tracks && !row.items.isEmpty
+            && row.items.allSatisfy { $0.kind == .audiobook || $0.kind.isMusic }
     }
 
     /// Rows link to "/library/{id}?view=all&sort=added" (or "&genre=Drama"); map that to a library destination.
@@ -574,7 +575,7 @@ struct HomeRowView: View {
 
 struct SeeAllCard: View {
     let style: HomeRowStyle
-    /// Beside square covers (books), square too.
+    /// Beside square covers (books, albums), square too.
     var square = false
     let action: () -> Void
 
