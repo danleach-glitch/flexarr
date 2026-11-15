@@ -637,8 +637,8 @@ public sealed class PlaybackService(
                 && ((duration is { } d && progress.PositionSeconds >= d * threshold)
                     || (session.CreditsStart is { } credits && progress.PositionSeconds >= credits)));
 
+        var (wasWatched, wasAt) = (state.Watched, state.PositionSeconds);
         state.DurationSeconds = duration;
-        state.LastPlayedAt = DateTime.UtcNow;
         state.AudioLanguage = session.AudioLanguage ?? state.AudioLanguage;
         state.SubtitleLanguage = session.SubtitleLanguage;
 
@@ -646,6 +646,7 @@ public sealed class PlaybackService(
         {
             state.Watched = true;
             state.PositionSeconds = 0;
+            state.LastPlayedAt = DateTime.UtcNow;
             if (!session.CountedAsPlay)
             {
                 state.PlayCount++;
@@ -656,6 +657,13 @@ public sealed class PlaybackService(
         {
             state.PositionSeconds = progress.PositionSeconds;
             state.Watched = false;
+        }
+
+        // Played when something changed: an old watched episode opened for a few seconds doesn't become the show's last
+        // one watched, which would leave Up next with nothing after it.
+        if (state.Watched != wasWatched || state.PositionSeconds != wasAt)
+        {
+            state.LastPlayedAt = DateTime.UtcNow;
         }
 
         return false;
@@ -683,11 +691,15 @@ public sealed class PlaybackService(
         var targets = item.Kind switch
         {
             // Each episode once, across the show's copies: saving writes it to the other copies, and history gets one entry.
-            MediaKind.Series when item.LinkGroupId is { } show => await db.MediaItems.Where(e => e.Parent!.Parent!.LinkGroupId == show).OnePerTitle().Select(e => e.Id).ToListAsync(ct),
-            MediaKind.Series => await db.MediaItems.Where(e => e.Parent!.ParentId == itemId).Select(e => e.Id).ToListAsync(ct),
-            MediaKind.Season or MediaKind.Podcast => await db.MediaItems.ChildrenOf(itemId, item.LinkGroupId).Select(e => e.Id).ToListAsync(ct),
+            MediaKind.Series when item.LinkGroupId is { } show => await InOrder(db.MediaItems.Where(e => e.Parent!.Parent!.LinkGroupId == show).OnePerTitle()).ToListAsync(ct),
+            MediaKind.Series => await InOrder(db.MediaItems.Where(e => e.Parent!.ParentId == itemId)).ToListAsync(ct),
+            MediaKind.Season or MediaKind.Podcast => await InOrder(db.MediaItems.ChildrenOf(itemId, item.LinkGroupId)).ToListAsync(ct),
             _ => [itemId],
         };
+
+        // Marked in episode order, each a moment after the one before: Up next takes the latest watched as where the
+        // viewer got to, so it's the last episode, not whichever came back from the database last.
+        var markedAt = DateTime.UtcNow;
 
         var existing = await db.PlaybackStates.Where(p => p.UserId == profile.Id && targets.Contains(p.MediaItemId))
             .ToDictionaryAsync(p => p.MediaItemId, ct);
@@ -719,7 +731,8 @@ public sealed class PlaybackService(
 
             state.Watched = watched;
             state.PositionSeconds = 0;
-            state.LastPlayedAt = DateTime.UtcNow;
+            markedAt = markedAt.AddTicks(10);
+            state.LastPlayedAt = markedAt;
             if (watched && state.PlayCount == 0)
             {
                 state.PlayCount = 1;
@@ -742,6 +755,10 @@ public sealed class PlaybackService(
         await db.SaveChangesAsync(ct);
         return true;
     }
+
+    /// <summary>Episodes in the order they're watched: by season, then number, then air date.</summary>
+    private static IQueryable<Guid> InOrder(IQueryable<MediaItem> episodes) =>
+        episodes.OrderBy(e => e.Parent!.SeasonNumber).ThenBy(e => e.EpisodeNumber).ThenBy(e => e.AirDate).Select(e => e.Id);
 
     /// <summary>
     /// Takes a title out of Continue Watching without marking it watched: forgets the place reached in it and, for an

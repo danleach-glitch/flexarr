@@ -131,4 +131,56 @@ public class ProgressReportTests(FlexarrApiFactory factory) : IClassFixture<Flex
         Assert.True(state.Watched);
         Assert.Equal(1, state.PlayCount);
     }
+
+    [Fact]
+    public async Task OpeningAWatchedEpisodeForAFewSeconds_DoesntMakeItTheLastOneWatched()
+    {
+        var watchedAt = DateTime.UtcNow.AddDays(-30);
+        var (episode, session) = await PlayingAsync(state: new PlaybackState { Watched = true, PlayCount = 1, LastPlayedAt = watchedAt });
+        await ReportAsync(session, 5);
+        await ReportAsync(session, 12, paused: true);
+
+        var state = await StateAsync(episode);
+        Assert.True(state.Watched);
+        Assert.Equal(watchedAt, state.LastPlayedAt, TimeSpan.FromSeconds(1));
+
+        // Watched on past the point a place is kept: that's playing it.
+        await ReportAsync(session, 45);
+        Assert.True((await StateAsync(episode)).LastPlayedAt > watchedAt.AddDays(29));
+    }
+
+    [Fact]
+    public async Task MarkingASeasonWatched_StampsItsEpisodesInOrder()
+    {
+        Guid season;
+        List<Guid> episodes;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var library = new Library { Name = $"Shows {Guid.NewGuid():N}", Type = LibraryType.TvShows };
+            var show = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Series, Title = "Show", SortTitle = "show" };
+            var one = new MediaItem { LibraryId = library.Id, ParentId = show.Id, Kind = MediaKind.Season, Title = "Season 1", SortTitle = "1", SeasonNumber = 1 };
+            // Added out of order, so the database's own order isn't the episodes'.
+            var added = new[] { 5, 1, 8, 3, 2, 7, 4, 6 }.Select(n => new MediaItem
+            {
+                LibraryId = library.Id, ParentId = one.Id, Kind = MediaKind.Episode, Title = $"Episode {n}", SortTitle = $"{n}", SeasonNumber = 1, EpisodeNumber = n,
+            }).ToList();
+            db.AddRange(library, show, one);
+            db.AddRange(added);
+            await db.SaveChangesAsync();
+            season = one.Id;
+            episodes = added.OrderBy(e => e.EpisodeNumber).Select(e => e.Id).ToList();
+        }
+
+        (await Admin().PostAsJsonAsync(Api($"/items/{season}/watched"), new { watched = true })).EnsureSuccessStatusCode();
+
+        var stamps = new List<DateTime>();
+        foreach (var episode in episodes)
+        {
+            stamps.Add((await StateAsync(episode)).LastPlayedAt);
+        }
+
+        Assert.Equal(stamps.Order(), stamps);
+        Assert.Equal(stamps.Count, stamps.Distinct().Count());
+    }
 }

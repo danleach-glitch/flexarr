@@ -139,6 +139,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A podcast episode heard to the end, or an episode left with **Play now** on Next Episode, now stays played: the player's closing report no longer marks it unplayed again and leaves it in Continue at the very end.
 - On iPhone, iPad and Apple TV, moving on to the next episode on a slow connection no longer leaves the last one unwatched.
 - Scrubbing past the credits and back no longer counts a play or tells Trakt it was watched: landing there counts once the player is still there at its next report.
+- Opening an episode you've already watched for a few seconds no longer drops its show from Continue Watching, and **Mark season as watched** leaves the next season's first episode up next.
+- Linking two copies of a title (4K and 1080p) keeps one you're part way through in Continue Watching, at your place, instead of marking it watched.
 - With a hardware encoder, preparing a download keeps going while someone watches a converted stream, as long as the server has a conversion to spare, instead of starting again from nothing each time.
 - On Linux (Docker, a NAS), hardware acceleration left on Auto now finds a working NVIDIA, VA-API or Quick Sync encoder by itself when the server starts. Converting in software, a picture is made no larger than 1080p, and fewer conversions run at once on a machine with few cores unless you set the limit yourself.
 
