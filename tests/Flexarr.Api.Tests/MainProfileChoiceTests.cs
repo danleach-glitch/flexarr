@@ -205,6 +205,28 @@ public class MainProfileChoiceTests
     }
 
     [Fact]
+    public async Task OverTailscale_OnTheOwnersAccount_TheMainProfilesOwnPinIsAskedFor_WhateverTheClientSays()
+    {
+        using var server = new RemoteAccessFactory();
+        await SetUpAsync(server.Services);
+        using (var scope = server.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            (await db.Profiles.FindAsync(PlaybackState.DefaultUser))!.TailscaleLogin = "owner@example.com";
+            await db.SaveChangesAsync();
+        }
+
+        // No X-Flexarr-Profile-Choice: an older app, or a script, on a device logged in to the owner's account.
+        var device = Guest(server, "100.70.2.21", "owner@example.com");
+
+        var me = await device.GetFromJsonAsync<JsonElement>(Api("/me"));
+        Assert.True(me.GetProperty("chooseProfile").GetBoolean());
+        Assert.Equal(HttpStatusCode.Forbidden, (await device.GetAsync(Api("/home"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await ChooseMainAsync(device, null)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await ChooseMainAsync(device, OwnPin)).StatusCode);
+    }
+
+    [Fact]
     public async Task OnTheOwnersDevice_TheAdminPinChoosesTheMainProfile_AgainAndAgain_WithoutLockingItOut()
     {
         using var server = new FlexarrApiFactory();

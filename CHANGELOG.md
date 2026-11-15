@@ -160,6 +160,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Security
 
+- The main profile's own PIN, when it has one, is now asked for on every app and browser that hasn't been given it, older apps and other programs included. An app too old to ask who's watching says to update it.
 - A damaged or hostile `.nfo` or `.opf` file in a library folder can no longer crash the server during a scan.
 - Family guests can no longer set or see the household's recordings by asking through an assistant.
 - Family guests can no longer search for, download or re-sync subtitles: what's found is saved beside the household's own files.

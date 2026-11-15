@@ -50,13 +50,13 @@ public sealed class ApiKeyAuthenticationHandler(
     public const string RequestedWithHeader = "X-Requested-With";
 
     /// <summary>
-    /// <c>X-Flexarr-Profile-Choice: 1</c>, from a client that can ask who's watching: the web app on every request, and
-    /// apps that adopt it. When the main profile has a PIN of its own and nobody gave it here (a newly paired TV or phone,
-    /// a browser let in by the home network or the owner's Tailscale account), such a client is answered as no profile
+    /// <c>X-Flexarr-Profile-Choice: 1</c>, from a client that can ask who's watching: the web app and the apps from 0.63,
+    /// on every request. When the main profile has a PIN of its own and nobody gave it here (a newly paired TV or phone,
+    /// a browser let in by the home network or the owner's Tailscale account), every client is answered as no profile
     /// chosen: <c>/me</c> says <c>chooseProfile</c>, and everything but choosing one is refused with 403 and
-    /// <c>chooseProfile: true</c> (see <see cref="ProfileChoiceGate"/>). Without the header, the main profile, as before,
-    /// so apps that don't send it are unchanged; but a paired device or browser whose app has sent it once is held to it
-    /// (see <see cref="SignIn.AsksProfile"/>).
+    /// <c>chooseProfile: true</c> (see <see cref="ProfileChoiceGate"/>). Since 0.67 that holds with or without the header
+    /// (before, clients without it were the main profile); the header now only picks the words of that refusal, telling a
+    /// client that doesn't ask to be updated.
     /// </summary>
     public const string ProfileChoiceHeader = "X-Flexarr-Profile-Choice";
 
@@ -363,14 +363,8 @@ public sealed class ApiKeyAuthenticationHandler(
         }
 
         var guest = signIn is { Guest: true };
-        // A sign-in whose app has once said it can ask is held to that, so leaving the header off doesn't get round it.
-        var asks = Request.Headers[ProfileChoiceHeader].ToString() == "1";
-        if (asks && mainByDefault && signIn is not null)
-        {
-            signIns.NoteAsksProfile(signIn);
-        }
-
-        var choose = mainByDefault && !admin && (asks || signIn is { AsksProfile: true })
+        // Whatever the client says it can do: leaving ProfileChoiceHeader off must not make it the main profile.
+        var choose = mainByDefault && !admin
             && await db.Profiles.AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.PinHash != null, Context.RequestAborted);
         var canUnlock = !admin && !guest && profile == PlaybackState.DefaultUser;
         var claims = new List<Claim> { new(FlexarrClaims.Method, method), new(FlexarrClaims.Profile, profile) };

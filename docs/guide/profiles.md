@@ -71,6 +71,7 @@ If you bring your history over from Plex, your Plex Home profile pictures can co
 A PIN is 4 to 8 digits. Without one, anyone can switch to that profile. With one, Flexarr asks for it whenever someone chooses the profile.
 
 - The main profile's PIN works like anyone's: add it, change it or remove it in **Settings › Profiles**. It can be the same as the admin PIN or different.
+- With a PIN of its own, a browser or device that hasn't been given it asks who's watching before it opens as the main profile, at home and over Tailscale too. An app too old to ask says to update it.
 - The admin PIN is in **Settings › Security**. It can be changed but not removed, and changing it takes the current one. If you've forgotten it, see [I forgot a profile's PIN](troubleshooting.md#i-forgot-a-profile-s-pin).
 - Without a PIN of its own, the main profile is chosen freely on browsers and devices you signed in. Someone coming in over Tailscale with their own account, or a browser at home that isn't signed in while there are kids profiles, is asked for the admin PIN instead, even when the main profile has a PIN of its own.
 - Forgotten a profile's PIN? Choose **Forgot PIN?** under its PIN pad and enter the admin PIN: the PIN comes off, and you can give it a new one in **Settings › Profiles**.

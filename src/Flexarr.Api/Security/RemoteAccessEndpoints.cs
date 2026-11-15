@@ -42,8 +42,8 @@ public sealed record TailscaleLinkRequest(string Login, string? ProfileId);
 /// before 0.61.
 /// </param>
 /// <param name="ChooseProfile">
-/// No profile is chosen here yet and the main profile's own PIN is needed to be it: show who's watching. Only for
-/// clients that send <c>X-Flexarr-Profile-Choice: 1</c>. Absent from servers before 0.63.
+/// No profile is chosen here yet and the main profile's own PIN is needed to be it: show who's watching. From 0.63 for
+/// clients that send <c>X-Flexarr-Profile-Choice: 1</c>, and from 0.67 for every client. Absent from servers before 0.63.
 /// </param>
 /// <param name="RatingSystem">
 /// Whose names the server's age limits go by: "uk" (U, PG, 12, 15, 18) or "us" (G, PG, PG-13, TV-14, R), for the same

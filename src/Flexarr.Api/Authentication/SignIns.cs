@@ -64,17 +64,17 @@ public sealed class SignIn
     public string? ProfileId { get; set; }
 
     /// <summary>
-    /// Paired with no profile chosen on it yet (a new TV or phone): while the main profile has a PIN of its own, apps
-    /// that say they can ask who's watching are answered as no profile chosen rather than as the main profile, until
-    /// one is chosen (see <see cref="ApiKeyAuthenticationHandler.ProfileChoiceHeader"/>). False for sign-ins from before
-    /// 0.63, which carry on as the main profile.
+    /// Paired with no profile chosen on it yet (a new TV or phone): while the main profile has a PIN of its own, it's
+    /// answered as no profile chosen rather than as the main profile until one is chosen, whatever its app sends (see
+    /// <see cref="ApiKeyAuthenticationHandler.ProfileChoiceHeader"/>). False for sign-ins from before 0.63, which
+    /// carry on as the main profile.
     /// </summary>
     public bool AwaitsProfile { get; set; }
 
     /// <summary>
-    /// Its app has said it can ask who's watching (<see cref="ApiKeyAuthenticationHandler.ProfileChoiceHeader"/>) while
-    /// <see cref="AwaitsProfile"/>: from then on it's answered as no profile chosen whether or not a request says so, so
-    /// leaving the header off doesn't make it the main profile.
+    /// Its app once said it can ask who's watching (<see cref="ApiKeyAuthenticationHandler.ProfileChoiceHeader"/>) while
+    /// <see cref="AwaitsProfile"/>. Kept so devices.json files from 0.63 to 0.66 read as before; nothing reads it since
+    /// 0.67, when every client of such a sign-in is answered as no profile chosen.
     /// </summary>
     public bool AsksProfile { get; set; }
 
@@ -300,22 +300,6 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
             }
 
             return signIn;
-        }
-    }
-
-    /// <summary>Notes that the sign-in's app asks who's watching (see <see cref="SignIn.AsksProfile"/>).</summary>
-    public void NoteAsksProfile(SignIn signIn)
-    {
-        ArgumentNullException.ThrowIfNull(signIn);
-        if (signIn.AsksProfile)
-        {
-            return;
-        }
-
-        lock (_lock)
-        {
-            signIn.AsksProfile = true;
-            SaveLocked();
         }
     }
 
