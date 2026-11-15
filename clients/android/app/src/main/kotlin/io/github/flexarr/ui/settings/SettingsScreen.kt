@@ -499,6 +499,8 @@ fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit) {
     val status = rememberLoader(model.credentials) { client.systemStatus() }
     val libraries = rememberLoader(model.credentials) { client.libraries() }
     var confirmLeave by remember { mutableStateOf(false) }
+    // Says here whether the away address has been reached, so it's asked again if it hasn't.
+    LaunchedEffect(Unit) { model.checkAwayAddress() }
     val guest = model.credentials?.guest
 
     RoomBackground(ambient = null) {
@@ -521,6 +523,8 @@ fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit) {
                 Group(
                     footer = if (remote == null) {
                         t("To use Flexarr away from home, turn on remote access with Tailscale in Settings › Remote access on the web; this phone picks the address up by itself.")
+                    } else if (model.credentials?.remoteConfirmed == false) {
+                        t("This phone hasn’t reached the server over Tailscale yet.")
                     } else {
                         t("Away from home, this phone reaches the server over Tailscale, which needs to be connected on it.")
                     },

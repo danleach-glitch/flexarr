@@ -71,6 +71,8 @@ struct ServerSettingsView: View {
     private var summary: String {
         model.credentials?.remoteAddress == nil
             ? t("To watch away from home, turn on remote access with Tailscale in Settings › Remote access on the web. This Apple TV picks the address up by itself.")
+            : model.credentials?.remoteConfirmed == false
+            ? t("This Apple TV hasn’t reached the server over Tailscale yet.")
             : t("Away from home, this Apple TV reaches the server over Tailscale, which needs to be connected on it.")
     }
 
@@ -80,6 +82,9 @@ struct ServerSettingsView: View {
     }
 
     private func load() async {
+        // Says here whether the away address has been reached, so it's asked again if it hasn't (beside the status,
+        // which needn't wait for it).
+        Task { await model.checkAwayAddress() }
         guard let client = model.client else { return }
         checking = true
         defer { checking = false }

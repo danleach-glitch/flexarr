@@ -25,9 +25,17 @@ struct RemoteAddressTests {
 
     private struct NotAsked: Error {}
 
-    private func remote(_ status: SystemStatus, address: URL? = nil, kept: URL? = nil, knownId: String? = nil, _ record: Record,
+    private func remote(_ status: SystemStatus, address: URL? = nil, kept: URL? = nil, keptConfirmed: Bool = true,
+                        knownId: String? = nil, _ record: Record,
                         idThere: @escaping @Sendable () throws -> String?) async -> URL? {
-        await FlexarrClient.remoteAddress(for: status, address: address ?? home, kept: kept, knownId: knownId,
+        await away(status, address: address, kept: kept, keptConfirmed: keptConfirmed, knownId: knownId, record, idThere: idThere)?.url
+    }
+
+    private func away(_ status: SystemStatus, address: URL? = nil, kept: URL? = nil, keptConfirmed: Bool = true,
+                      knownId: String? = nil, _ record: Record,
+                      idThere: @escaping @Sendable () throws -> String?) async -> FlexarrClient.Away? {
+        await FlexarrClient.remoteAddress(for: status, address: address ?? home,
+                                          kept: kept.map { FlexarrClient.Away($0, confirmed: keptConfirmed) }, knownId: knownId,
                                           idAt: { url in record.ask(url); return try idThere() },
                                           refused: { record.refuse($0) })
     }
@@ -70,12 +78,56 @@ struct RemoteAddressTests {
 
     @Test func whileNothingAnswersThereWhatWasKeptStaysUntilNextTime() async {
         let record = Record()
-        // Signing in: nothing yet.
-        #expect(await remote(status(tailscale.absoluteString), record) { throw FlexarrClientError.unreachable } == nil)
-        // The server's address has changed since: the old one stays rather than an unchecked new one.
+        // The server's address has changed since: the old one, confirmed, stays rather than an unchecked new one.
         let old = URL(string: "https://old.tail1234.ts.net")!
-        #expect(await remote(status(tailscale.absoluteString), kept: old, record) { throw FlexarrClientError.unreachable } == old)
+        #expect(await away(status(tailscale.absoluteString), kept: old, record) { throw FlexarrClientError.unreachable }
+                == FlexarrClient.Away(old))
         #expect(record.refusals.isEmpty)
+    }
+
+    @Test func signingInWithTailscaleOffKeepsTheAddressUnconfirmed() async {
+        let record = Record()
+        // Signing in at home with Tailscale off: kept, but to be asked before it's sent the sign-in.
+        #expect(await away(status(tailscale.absoluteString), record) { throw FlexarrClientError.unreachable }
+                == FlexarrClient.Away(tailscale, confirmed: false))
+        // Next time, still nothing there: still unconfirmed, and asked again.
+        #expect(await away(status(tailscale.absoluteString), kept: tailscale, keptConfirmed: false, knownId: "home-id", record) {
+            throw FlexarrClientError.unreachable
+        } == FlexarrClient.Away(tailscale, confirmed: false))
+        // Tailscale on: confirmed.
+        #expect(await away(status(tailscale.absoluteString), kept: tailscale, keptConfirmed: false, knownId: "home-id", record) {
+            "home-id"
+        } == FlexarrClient.Away(tailscale))
+        #expect(record.asked == [tailscale, tailscale, tailscale])
+        // Or someone else answers there: dropped.
+        #expect(await away(status(tailscale.absoluteString), kept: tailscale, keptConfirmed: false, knownId: "home-id", record) {
+            "their-id"
+        } == nil)
+        #expect(record.refusals.count == 1)
+    }
+
+    @Test func anUnconfirmedAddressIsReplacedByTheServersNewOne() async {
+        let record = Record()
+        let old = URL(string: "https://old.tail1234.ts.net")!
+        #expect(await away(status(tailscale.absoluteString), kept: old, keptConfirmed: false, knownId: "home-id", record) {
+            throw FlexarrClientError.unreachable
+        } == FlexarrClient.Away(tailscale, confirmed: false))
+    }
+
+    @Test func anUnconfirmedAwayAddressSaysWhoItIsBeforeTheSignIn() async {
+        let remote = tailscale
+        let addresses = ServerAddresses(home: home, remote: remote, serverId: "home-id", remoteConfirmed: false)
+        #expect(addresses.asksProof(of: remote))
+        #expect(addresses.needsProof(remote))
+        #expect(!(await addresses.prove(remote) { _, _ in false }))
+        #expect(addresses.needsProof(remote))
+        // Just missed, so asked again only on purpose (see `remoteMissLasts`).
+        #expect(await addresses.prove(remote, fresh: true) { url, id in url == remote && id == "home-id" })
+        #expect(!addresses.needsProof(remote, now: Date() + 3600), "a Tailscale address stays proven")
+        #expect(addresses.remoteHasProven)
+        // Confirmed, or a server with no id: never asked.
+        #expect(!ServerAddresses(home: home, remote: remote, serverId: "home-id").asksProof(of: remote))
+        #expect(!ServerAddresses(home: home, remote: remote, remoteConfirmed: false).asksProof(of: remote))
     }
 
     @Test func anAddressAlreadyKeptIsNotAskedAgain() async {

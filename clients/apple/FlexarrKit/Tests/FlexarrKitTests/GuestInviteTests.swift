@@ -73,11 +73,36 @@ struct GuestInviteTests {
             // The Keychain isn't there for command-line tests on every machine; the rest still holds.
             return
         }
-        store.saveRemoteAddress(URL(string: "https://mini.tail.ts.net:8443"))
+        store.saveRemoteAddress(FlexarrClient.Away(URL(string: "https://mini.tail.ts.net:8443")!))
         let loaded = try #require(store.load())
         #expect(loaded.guest == tunnel)
         #expect(loaded.remoteAddress == nil)
         #expect(loaded.apiKey == "guest-key")
+    }
+
+    @Test func anUnconfirmedAwayAddressIsKeptWhereOlderVersionsDoNotLook() throws {
+        let suite = "away-test-\(UUID().uuidString)"
+        let service = "io.github.flexarr.test.\(UUID().uuidString)"
+        let store = CredentialStore(service: service, suiteName: suite)
+        defer { store.clear(); UserDefaults().removePersistentDomain(forName: suite) }
+        let away = URL(string: "https://mini.tail.ts.net:8443")!
+        do {
+            try store.save(ServerCredentials(address: URL(string: "http://192.168.1.2:8383")!, apiKey: "key", serverId: "abc"))
+        } catch {
+            return // No Keychain for command-line tests on every machine.
+        }
+        let defaults = try #require(UserDefaults(suiteName: suite))
+
+        store.saveRemoteAddress(FlexarrClient.Away(away, confirmed: false))
+        #expect(defaults.string(forKey: "\(service).address.remote") == nil, "what older versions send the sign-in to")
+        #expect(store.load()?.away == FlexarrClient.Away(away, confirmed: false))
+
+        store.saveRemoteAddress(FlexarrClient.Away(away))
+        #expect(defaults.string(forKey: "\(service).address.remotePending") == nil)
+        #expect(store.load()?.away == FlexarrClient.Away(away))
+
+        store.saveRemoteAddress(nil)
+        #expect(store.load()?.away == nil)
     }
 
     @Test func aTvOpensTheSharedVectorAsTheServerSealsIt() throws {

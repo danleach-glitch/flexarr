@@ -41,7 +41,7 @@ class GuestSignInTest {
         assertNull(credentials.client().addresses.remote)
 
         store.save(credentials)
-        store.saveRemoteAddress("https://mini.tail.ts.net:8443/")
+        store.saveRemoteAddress(io.github.flexarr.data.Away("https://mini.tail.ts.net:8443/"))
         val loaded = store.load()!!
 
         assertEquals(tunnel, loaded.guest)
@@ -51,6 +51,22 @@ class GuestSignInTest {
         assertEquals("http://127.0.0.1:52000/", loaded.address)
         // The loopback address isn't one to offer on the connect screen later.
         assertNull(store.lastAddress)
+    }
+
+    @Test
+    fun `an unconfirmed away address is kept where older versions don't look`() {
+        val away = "https://mini.tail.ts.net:8443/"
+        val prefs = context.getSharedPreferences("server", android.content.Context.MODE_PRIVATE)
+        store.save(ServerCredentials("http://192.168.1.2:8383/", "key", remoteAddress = away, serverId = "abc", remoteConfirmed = false))
+        assertNull(prefs.getString("address.remote", null))
+        assertEquals(io.github.flexarr.data.Away(away, confirmed = false), store.load()!!.away)
+
+        store.saveRemoteAddress(io.github.flexarr.data.Away(away))
+        assertNull(prefs.getString("address.remote.pending", null))
+        assertEquals(io.github.flexarr.data.Away(away), store.load()!!.away)
+
+        store.saveRemoteAddress(null)
+        assertNull(store.load()!!.away)
     }
 
     @Test

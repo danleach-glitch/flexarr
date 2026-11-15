@@ -20,6 +20,12 @@ import okhttp3.HttpUrl
  * A plain-http home address is only a private address, which another network (a hotel's, say) may use too. So once the
  * server's id is known ([serverId]), the sign-in goes to home only after home has answered, without the sign-in, with
  * that id on the network in use now ([checkHome]); a new network ([networkChanged]) or leaving home asks again.
+ *
+ * The away address is asked the same once, when the app kept it without hearing from it ([remoteConfirmed] false:
+ * Tailscale wasn't connected on the device when the server gave it). Until it answers with the server's id it gets
+ * nothing signed in ([checkRemote]); once it has, it stays trusted for this launch. The id isn't secret (anyone may
+ * ask for it), so this catches a different server at the address (a Tailscale address handed to another machine, a
+ * name that now leads elsewhere), not one set up to pretend.
  */
 class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
     val remote: HttpUrl? = remote?.takeIf { it != home }
@@ -38,6 +44,57 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
     @Volatile
     private var homeVerified = false
     private var homeCheck: Deferred<Boolean>? = null
+
+    /**
+     * False while [remote] hasn't yet answered this device with the server's id: it's asked before the sign-in. Set
+     * when made; [shared] only ever moves it to true.
+     */
+    @Volatile
+    var remoteConfirmed: Boolean = true
+
+    @Volatile
+    private var remoteVerified = false
+    private var remoteCheck: Deferred<Boolean>? = null
+
+    /** When the away address last failed to answer with the server's id (see [REMOTE_MISS_MS]). */
+    @Volatile
+    private var remoteMissedAt: Long? = null
+
+    /**
+     * Set by a new network while the away address is plain http (a 100.x Tailscale address): that range is also used
+     * by some mobile networks for their own machines, so even a confirmed one is asked again there.
+     */
+    @Volatile
+    private var remoteAskAgain = false
+
+    /** Whether the away address may be sent the sign-in now without asking it first. */
+    val remoteTrustedNow: Boolean get() = serverId == null || remoteVerified || (remoteConfirmed && !remoteAskAgain)
+
+    /** The away address has answered with the server's id since this was made (it needn't be asked again). */
+    val remoteHasProven: Boolean get() = remoteVerified
+
+    /**
+     * Whether the away address may be sent the sign-in, asking it with [verify] (once at a time, however many requests
+     * wait) when it isn't confirmed yet.
+     */
+    internal suspend fun checkRemote(now: Long = System.currentTimeMillis(), verify: suspend () -> Boolean): Boolean {
+        if (remoteTrustedNow) return true
+        // Asked lately and it didn't answer: still not there, rather than every request waiting on it afresh.
+        remoteMissedAt?.let { if (now - it < REMOTE_MISS_MS) return false }
+        val check = synchronized(this) {
+            remoteCheck?.takeIf { it.isActive } ?: checks.async { verify() }.also { remoteCheck = it }
+        }
+        val ok = runCatching { check.await() }.getOrDefault(false)
+        if (ok) {
+            val first = synchronized(this) { !remoteVerified.also { remoteVerified = true } }
+            remoteAskAgain = false
+            remoteMissedAt = null
+            if (first) onRemoteProven?.invoke(this)
+        } else {
+            remoteMissedAt = System.currentTimeMillis()
+        }
+        return ok
+    }
 
     /** Whether home may be sent the sign-in now without asking it first. */
     val homeTrustedNow: Boolean get() = homeVerified || serverId == null || home.isHttps
@@ -64,6 +121,12 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
     /** Another network: whatever answers at home there has to show it's this server again. */
     fun networkChanged() {
         homeVerified = false
+        // Tailscale may have come up with it.
+        remoteMissedAt = null
+        if (remote?.isHttps == false) {
+            remoteVerified = false
+            remoteAskAgain = true
+        }
     }
 
     /** The address requests go to now. */
@@ -111,6 +174,19 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
         /** How long home has to answer with the server's id before the sign-in goes elsewhere. */
         const val HOME_PROBE_MS = 2_000L
 
+        /**
+         * How long an away address that didn't answer with the server's id counts as not there before it's asked again
+         * (sooner on a new network), so while Tailscale is off each request isn't held up asking it.
+         */
+        const val REMOTE_MISS_MS = 30_000L
+
+        /**
+         * Called when an away address kept unconfirmed first answers with the server's id, so the app can keep it as
+         * confirmed straight away. Set once at launch.
+         */
+        @Volatile
+        var onRemoteProven: ((ServerAddresses) -> Unit)? = null
+
         private val registry = mutableMapOf<String, ServerAddresses>()
 
         /** Where [checkHome]'s questions run, so one caller giving up doesn't cancel it for the others waiting. */
@@ -122,9 +198,18 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
             registry.values.forEach { it.networkChanged() }
         }
 
-        /** The one instance for this pair of addresses, so clients made at different times share what they've learnt. */
+        /**
+         * The one instance for this pair of addresses and the server expected there, so clients made at different times
+         * share what they've learnt. The away address being confirmed carries over to it, and is never taken back: the
+         * same away address of the same server can't stop being that server's.
+         */
         @Synchronized
-        fun shared(home: HttpUrl, remote: HttpUrl?): ServerAddresses =
-            registry.getOrPut("$home|${remote ?: ""}") { ServerAddresses(home, remote) }
+        fun shared(home: HttpUrl, remote: HttpUrl?, serverId: String? = null, remoteConfirmed: Boolean = true): ServerAddresses =
+            registry.getOrPut("$home|${remote ?: ""}|${serverId ?: ""}") {
+                ServerAddresses(home, remote).also {
+                    it.serverId = serverId
+                    it.remoteConfirmed = remoteConfirmed
+                }
+            }.also { if (remoteConfirmed) it.remoteConfirmed = true }
     }
 }

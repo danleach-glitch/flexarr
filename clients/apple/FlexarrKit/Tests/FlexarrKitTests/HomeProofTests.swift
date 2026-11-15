@@ -19,7 +19,8 @@ struct HomeProofTests {
     /// A signed-in client that knows its server's id. `home`: what the home address answers everywhere but
     /// `/setup` (nil: nothing connects there); `whoIsHome`: the id it gives there (nil: none).
     private func client(home: StubProtocol.Stub?, whoIsHome: String? = HomeProofTests.id, remote: StubProtocol.Stub? = nil,
-                        hasRemote: Bool = false, onUnauthorized: (@Sendable () -> Void)? = nil)
+                        hasRemote: Bool = false, remoteConfirmed: Bool = true, whoIsRemote: String? = nil,
+                        onUnauthorized: (@Sendable () -> Void)? = nil)
         -> (client: FlexarrClient, home: String, remote: String) {
         let homeHost = "home-\(UUID().uuidString.lowercased()).local"
         let remoteHost = "remote-\(UUID().uuidString.lowercased()).ts.net"
@@ -27,12 +28,15 @@ struct HomeProofTests {
             StubProtocol.register(host: homeHost, home)
             StubProtocol.register(host: homeHost, path: "/api/v1/setup", Self.setup(whoIsHome))
         }
-        if let remote { StubProtocol.register(host: remoteHost, remote) }
+        if let remote {
+            StubProtocol.register(host: remoteHost, remote)
+            if !remoteConfirmed { StubProtocol.register(host: remoteHost, path: "/api/v1/setup", Self.setup(whoIsRemote)) }
+        }
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [StubProtocol.self]
         let addresses = ServerAddresses(home: URL(string: "http://\(homeHost):8383")!,
                                         remote: hasRemote || remote != nil ? URL(string: "https://\(remoteHost):8443")! : nil,
-                                        serverId: Self.id)
+                                        serverId: Self.id, remoteConfirmed: remoteConfirmed)
         let client = FlexarrClient(addresses: addresses, apiKey: "secret", profileToken: "profile",
                                    session: URLSession(configuration: configuration), onUnauthorized: onUnauthorized)
         return (client, homeHost, remoteHost)
@@ -70,6 +74,28 @@ struct HomeProofTests {
         #expect(requests[0].value(forHTTPHeaderField: "X-Api-Key") == nil, "asked without the sign-in")
         #expect(requests[0].value(forHTTPHeaderField: "X-Flexarr-Profile") == nil)
         #expect(requests[1].value(forHTTPHeaderField: "X-Api-Key") == "secret")
+    }
+
+    @Test func anUnconfirmedAwayAddressIsAskedWhoItIsBeforeTheSignIn() async throws {
+        // Away: nothing at home, and the away address kept while Tailscale was off.
+        let (client, _, remote) = client(home: nil, remote: Self.status, remoteConfirmed: false, whoIsRemote: Self.id)
+
+        _ = try await client.systemStatus()
+        _ = try await client.systemStatus()
+
+        let requests = StubProtocol.recorded(host: remote)
+        #expect(requests.map { $0.url?.path } == ["/api/v1/setup", "/api/v1/system/status", "/api/v1/system/status"])
+        #expect(requests[0].value(forHTTPHeaderField: "X-Api-Key") == nil, "asked without the sign-in")
+        #expect(client.addresses.remoteHasProven)
+    }
+
+    @Test func anUnconfirmedAwayAddressGivingAnotherIdIsNeverSentTheSignIn() async throws {
+        let (client, _, remote) = client(home: nil, remote: Self.status, remoteConfirmed: false, whoIsRemote: "someone-else")
+
+        await #expect(throws: (any Error).self) { _ = try await client.systemStatus() }
+
+        #expect(signedIn(remote).isEmpty)
+        #expect(!client.addresses.remoteHasProven)
     }
 
     @Test func requestsStartingTogetherAskOnce() async throws {
@@ -339,5 +365,50 @@ struct HomeProofTests {
         store.saveServerId("b")
         store.clear()
         #expect(UserDefaults(suiteName: suite)?.string(forKey: "\(suite).address.serverId") == nil)
+    }
+
+    @Test func anAwayAddressThatDidNotAnswerIsNotAskedAgainStraightAway() async {
+        let addresses = ServerAddresses(home: URL(string: "http://home.local:8383")!, remote: URL(string: "https://srv.tail.ts.net")!,
+                                        serverId: Self.id, remoteConfirmed: false)
+        let remote = addresses.remote!
+        let asked = Counter()
+        let ask: @Sendable (URL, String) async -> Bool = { _, _ in asked.add(); return false }
+        let start = Date()
+
+        #expect(await addresses.prove(remote, now: start, by: ask) == false)
+        #expect(await addresses.prove(remote, now: start.addingTimeInterval(5), by: ask) == false)
+        #expect(asked.count == 1, "a miss is remembered for a while")
+        // Asked on purpose (is it there now?), and once the while is up, it's asked again.
+        #expect(await addresses.prove(remote, fresh: true, now: start.addingTimeInterval(5), by: ask) == false)
+        #expect(await addresses.prove(remote, now: Date().addingTimeInterval(ServerAddresses.remoteMissLasts + 1), by: ask) == false)
+        #expect(asked.count == 3)
+    }
+
+    @Test func theAwayAddressProvingItselfIsAnnouncedOnce() async {
+        let addresses = ServerAddresses(home: URL(string: "http://home.local:8383")!, remote: URL(string: "https://srv.tail.ts.net")!,
+                                        serverId: Self.id, remoteConfirmed: false)
+        let heard = Counter()
+        let observer = NotificationCenter.default.addObserver(forName: ServerAddresses.remoteProvenNotification,
+                                                              object: addresses, queue: nil) { _ in heard.add() }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        #expect(await addresses.prove(addresses.remote!, by: { _, _ in true }))
+        #expect(await addresses.prove(addresses.remote!, fresh: true, by: { _, _ in true }))
+        #expect(heard.count == 1)
+        #expect(addresses.remoteHasProven)
+    }
+
+    @Test func aPlainHttpAwayAddressSaysWhoItIsAsHomeDoesEvenOnceConfirmed() async {
+        let http = ServerAddresses(home: URL(string: "http://home.local:8383")!, remote: URL(string: "http://100.101.2.3:8383")!,
+                                   serverId: Self.id)
+        let remote = http.remote!
+        #expect(http.asksProof(of: remote))
+        let start = Date()
+        #expect(await http.prove(remote, now: start, by: { _, _ in true }))
+        #expect(!http.needsProof(remote, now: start.addingTimeInterval(10)))
+        #expect(http.needsProof(remote, now: Date().addingTimeInterval(ServerAddresses.proofLasts + 1)), "quiet a while: asked again")
+        // A Tailscale name over https says who it is by its certificate.
+        #expect(!ServerAddresses(home: http.home, remote: URL(string: "https://srv.tail.ts.net")!, serverId: Self.id)
+            .asksProof(of: URL(string: "https://srv.tail.ts.net")!))
     }
 }

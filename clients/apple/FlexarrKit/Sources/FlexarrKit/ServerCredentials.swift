@@ -10,6 +10,9 @@ public struct ServerCredentials: Sendable, Equatable {
     public var profileToken: String?
     /// The server's address for away from home (its Tailscale address), learnt from the server; nil until it has one.
     public var remoteAddress: URL?
+    /// False while `remoteAddress` hasn't given the server's id to this device: the server gave it while Tailscale
+    /// wasn't connected here. It's then asked before it's sent this sign-in (see `ServerAddresses.remoteConfirmed`).
+    public var remoteConfirmed: Bool
     /// A family guest's sign-in: how to start the tunnel into the host's tailnet. `address` is then the tunnel's own
     /// address on this device (127.0.0.1), and there's never a home or away address: a guest's network might have
     /// something else at the host's home address, which mustn't be sent this sign-in.
@@ -22,13 +25,23 @@ public struct ServerCredentials: Sendable, Equatable {
     public var isGuest: Bool { guest != nil }
 
     public init(address: URL, apiKey: String, profileToken: String? = nil, remoteAddress: URL? = nil, guest: GuestTunnelInfo? = nil,
-                serverId: String? = nil) {
+                serverId: String? = nil, remoteConfirmed: Bool = true) {
         self.address = address
         self.apiKey = apiKey
         self.profileToken = profileToken
         self.guest = guest
         self.remoteAddress = guest != nil || remoteAddress == address ? nil : remoteAddress
         self.serverId = guest != nil ? nil : serverId
+        self.remoteConfirmed = remoteConfirmed
+    }
+
+    /// The away address with whether it's confirmed, as `FlexarrClient.remoteAddress` takes and gives it.
+    public var away: FlexarrClient.Away? {
+        get { remoteAddress.map { FlexarrClient.Away($0, confirmed: remoteConfirmed) } }
+        set {
+            remoteAddress = isGuest || newValue?.url == address ? nil : newValue?.url
+            remoteConfirmed = newValue?.confirmed ?? true
+        }
     }
 
     public var client: FlexarrClient { client() }
@@ -36,7 +49,8 @@ public struct ServerCredentials: Sendable, Equatable {
     /// A client for this sign-in; `onUnauthorized` hears about every 401 it gets. Clients for the same sign-in share
     /// which address is answering (see `ServerAddresses`).
     public func client(onUnauthorized: (@Sendable () -> Void)? = nil) -> FlexarrClient {
-        FlexarrClient(addresses: ServerAddresses.shared(home: address, remote: remoteAddress, serverId: isGuest ? nil : serverId),
+        FlexarrClient(addresses: ServerAddresses.shared(home: address, remote: remoteAddress, serverId: isGuest ? nil : serverId,
+                                                        remoteConfirmed: remoteConfirmed),
                       apiKey: apiKey.isEmpty ? nil : apiKey, profileToken: profileToken, onUnauthorized: onUnauthorized)
     }
 }
@@ -113,11 +127,14 @@ public struct CredentialStore: Sendable {
 
     public func load() -> ServerCredentials? {
         guard let text = defaults.string(forKey: addressKey), let url = URL(string: text) else { return nil }
+        let confirmed = defaults.string(forKey: "\(addressKey).remote").flatMap(URL.init(string:))
+        let pending = defaults.string(forKey: "\(addressKey).remotePending").flatMap(URL.init(string:))
         return ServerCredentials(address: url, apiKey: readKey(account: text) ?? "",
                                  profileToken: defaults.string(forKey: "\(addressKey).profile"),
-                                 remoteAddress: defaults.string(forKey: "\(addressKey).remote").flatMap(URL.init(string:)),
+                                 remoteAddress: confirmed ?? pending,
                                  guest: defaults.data(forKey: "\(addressKey).guest").flatMap { try? JSONDecoder().decode(GuestTunnelInfo.self, from: $0) },
-                                 serverId: defaults.string(forKey: "\(addressKey).serverId"))
+                                 serverId: defaults.string(forKey: "\(addressKey).serverId"),
+                                 remoteConfirmed: confirmed != nil || pending == nil)
     }
 
     /// The last address used, kept after sign-out so the connect screen can prefill it.
@@ -134,15 +151,19 @@ public struct CredentialStore: Sendable {
         // A guest's address is its own tunnel on this device: no use to offer as the server to connect to again.
         if credentials.guest == nil { defaults.set(account, forKey: "\(addressKey).last") }
         saveProfile(credentials.profileToken)
-        saveRemoteAddress(credentials.remoteAddress)
+        saveRemoteAddress(credentials.away)
         saveServerId(credentials.isGuest ? nil : credentials.serverId)
         defaults.set(credentials.guest.flatMap { try? JSONEncoder().encode($0) }, forKey: "\(addressKey).guest")
     }
 
-    /// Remembers the server's address for away from home (nil forgets it). A guest never has one.
-    public func saveRemoteAddress(_ url: URL?) {
-        guard url == nil || defaults.data(forKey: "\(addressKey).guest") == nil else { return }
-        defaults.set(url?.absoluteString, forKey: "\(addressKey).remote")
+    /// Remembers the server's address for away from home and whether it's confirmed (nil forgets it). A guest never
+    /// has one. One not yet confirmed is kept under a key of its own (`remotePending`): versions of the app from
+    /// before it could be read `remote` as an address to send the sign-in to without asking, so they never see it.
+    public func saveRemoteAddress(_ away: FlexarrClient.Away?) {
+        guard away == nil || defaults.data(forKey: "\(addressKey).guest") == nil else { return }
+        let confirmed = away?.confirmed != false
+        defaults.set(confirmed ? away?.url.absoluteString : nil, forKey: "\(addressKey).remote")
+        defaults.set(confirmed ? nil : away?.url.absoluteString, forKey: "\(addressKey).remotePending")
     }
 
     /// Remembers the server's id (nil forgets it), which the home address is asked for before it's sent the sign-in.
@@ -189,6 +210,7 @@ public struct CredentialStore: Sendable {
         defaults.removeObject(forKey: addressKey)
         defaults.removeObject(forKey: "\(addressKey).profile")
         defaults.removeObject(forKey: "\(addressKey).remote")
+        defaults.removeObject(forKey: "\(addressKey).remotePending")
         defaults.removeObject(forKey: "\(addressKey).serverId")
         defaults.removeObject(forKey: "\(addressKey).guest")
         defaults.removeObject(forKey: "\(addressKey).name")

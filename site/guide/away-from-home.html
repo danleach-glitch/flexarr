@@ -118,7 +118,7 @@
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Around the house</p>
         <h1>Watch away from home</h1>
         <p class="lede">Reach your Flexarr server from anywhere with Tailscale, with no ports opened on your router, or through an HTTPS reverse proxy.</p>
-        <p class="meta">5 min read</p>
+        <p class="meta">6 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
@@ -139,7 +139,7 @@
 <li>In Flexarr on the web, signed in as the main profile, go to <strong>Settings › Remote access</strong>. Under <strong>Away from home</strong>, Tailscale should say <strong>Off. Connected as</strong> and your server&#39;s name. Choose <strong>Turn on</strong>.</li>
 <li>Flexarr shows its <strong>Private address</strong>, something like <code>https://your-server.your-tailnet.ts.net:8443</code>. It&#39;s HTTPS, with a real certificate from Tailscale.</li>
 <li><strong>On your iPhone or iPad</strong>, install Tailscale from the App Store and sign in with the same account. Leave it connected.</li>
-<li>Open the Flexarr app once while you&#39;re at home, so it learns the private address.</li>
+<li>Open the Flexarr app once while you&#39;re at home, so it learns the private address. Tailscale needn&#39;t be connected yet: the app checks the address the first time it can reach it.</li>
 </ol>
 <figure><img src="/guide/img/access.webp" alt="Settings › Remote access with Tailscale on, its private address and Copy button, and People with their own Tailscale" data-caption="Settings › Remote access, with Tailscale on" loading="lazy" decoding="async"></figure>
 <p>From then on, the iPhone, iPad and Apple TV apps switch by themselves. When the home address doesn&#39;t answer, they use the Tailscale one, and they go back to the home address when you&#39;re home again. There&#39;s nothing to change in the apps.</p>

@@ -257,9 +257,13 @@ class ServerAddressesTest {
             addresses.networkChanged()
             atHome.enqueue(json("""{"open":false,"serverId":"someone-else"}"""))
             atHome.enqueue(json("""{"open":false,"serverId":"someone-else"}"""))
+            // The away address here is plain http too, so on a new network it says who it is again, once.
+            away.enqueue(json("""{"open":false,"serverId":"abc"}"""))
 
             assertEquals(away.port, client.downloadFileRequest("abc").url.port)
             assertEquals(away.port, client.bookFileRequest("/api/v1/items/book/files/0")!!.url.port)
+            assertEquals(1, away.requestCount)
+            assertEquals(null, away.takeRequest().headers["X-Api-Key"])
             assertEquals(3, atHome.requestCount)
             repeat(3) { assertEquals(null, atHome.takeRequest().headers["X-Api-Key"]) }
         } finally {
@@ -277,5 +281,127 @@ class ServerAddressesTest {
         addresses.networkChanged()
         assertFalse(addresses.homeTrustedNow)
         assertTrue(ServerAddresses("https://flexarr.example.com/".toHttpUrl(), null).apply { serverId = "abc" }.homeTrustedNow)
+    }
+
+    /** Away, with the away address kept while Tailscale was off: nothing at home, and it hasn't said who it is yet. */
+    private fun unconfirmed() = ServerAddresses(home, away.url("/")).apply {
+        serverId = "abc"
+        remoteConfirmed = false
+    }
+
+    @Test
+    fun `an unconfirmed away address is asked who it is before it's sent the sign-in, once`() = runTest {
+        val addresses = unconfirmed()
+        away.enqueue(json("""{"open":false,"serverId":"abc"}"""))
+        away.enqueue(json("[]"))
+        away.enqueue(json("[]"))
+        val client = FlexarrClient(addresses, apiKey = "token")
+
+        client.libraries()
+        client.libraries()
+
+        assertEquals(3, away.requestCount)
+        val probe = away.takeRequest()
+        assertEquals("/api/v1/setup", probe.url.encodedPath)
+        assertEquals(null, probe.headers["X-Api-Key"])
+        assertEquals("token", away.takeRequest().headers["X-Api-Key"])
+        assertTrue(addresses.remoteHasProven)
+    }
+
+    @Test
+    fun `an unconfirmed away address giving another id never sees the sign-in`() = runTest {
+        val addresses = unconfirmed()
+        away.enqueue(json("""{"open":false,"serverId":"someone-else"}"""))
+        val client = FlexarrClient(addresses, apiKey = "token")
+
+        assertTrue(runCatching { client.libraries() }.exceptionOrNull() is FlexarrException.Unreachable)
+        // Nor the command stream or a download's file, which go to wherever the sign-in may.
+        assertTrue(runCatching { client.deviceEvents().toList() }.exceptionOrNull() is FlexarrException.Unreachable)
+        assertTrue(runCatching { client.downloadFileRequest("abc") }.exceptionOrNull() is IOException)
+
+        assertEquals(1, away.requestCount)
+        val probe = away.takeRequest()
+        assertEquals("/api/v1/setup", probe.url.encodedPath)
+        assertEquals(null, probe.headers["X-Api-Key"])
+        assertFalse(addresses.remoteHasProven)
+    }
+
+    @Test
+    fun `the command stream and a download's file ask an unconfirmed away address first`() = runTest {
+        val addresses = unconfirmed()
+        away.enqueue(json("""{"open":false,"serverId":"abc"}"""))
+        away.enqueue(MockResponse.Builder().addHeader("Content-Type", "text/event-stream").body(": hello\n\n").build())
+        val client = FlexarrClient(addresses, apiKey = "token")
+
+        client.deviceEvents().toList()
+        val film = client.downloadFileRequest("abc")
+
+        assertEquals(2, away.requestCount)
+        assertEquals(null, away.takeRequest().headers["X-Api-Key"])
+        val stream = away.takeRequest()
+        assertEquals("/api/v1/devices/commands", stream.url.encodedPath)
+        assertEquals("token", stream.headers["X-Api-Key"])
+        assertEquals(away.port, film.url.port)
+    }
+
+    @Test
+    fun `an away address that didn't answer isn't asked again straight away`() = runTest {
+        val addresses = unconfirmed()
+        var asked = 0
+        val start = System.currentTimeMillis()
+
+        assertFalse(addresses.checkRemote(now = start) { asked++; false })
+        assertFalse(addresses.checkRemote(now = start + 5_000) { asked++; false })
+        assertEquals(1, asked)
+        // Once the while is up, or on a new network, it's asked again.
+        assertFalse(addresses.checkRemote(now = System.currentTimeMillis() + ServerAddresses.REMOTE_MISS_MS + 1) { asked++; false })
+        addresses.networkChanged()
+        assertTrue(addresses.checkRemote { asked++; true })
+        assertEquals(3, asked)
+    }
+
+    @Test
+    fun `the away address answering as this server is announced once`() = runTest {
+        val addresses = unconfirmed()
+        val heard = mutableListOf<ServerAddresses>()
+        ServerAddresses.onRemoteProven = { heard += it }
+        try {
+            assertTrue(addresses.checkRemote { true })
+            assertTrue(addresses.checkRemote { true })
+            assertEquals(listOf(addresses), heard)
+            // Confirmed already, or a server with no id: never asked.
+            assertTrue(ServerAddresses(home, away.url("/")).apply { serverId = "abc" }.checkRemote { error("asked") })
+            assertTrue(ServerAddresses(home, away.url("/")).apply { remoteConfirmed = false }.checkRemote { error("asked") })
+        } finally {
+            ServerAddresses.onRemoteProven = null
+        }
+    }
+
+    @Test
+    fun `an unconfirmed away address is only reachable once it answers as this server`() = runTest {
+        val addresses = unconfirmed()
+        away.enqueue(json("""{"open":false,"serverId":"someone-else"}"""))
+        assertFalse(FlexarrClient(addresses, apiKey = "token").isReachable())
+        assertFalse(addresses.isAway)
+
+        addresses.networkChanged()
+        away.enqueue(json("""{"open":false,"serverId":"abc"}"""))
+        assertTrue(FlexarrClient(addresses, apiKey = "token").isReachable())
+        assertTrue(addresses.isAway)
+        repeat(2) { assertEquals("/api/v1/setup", away.takeRequest().url.encodedPath) }
+    }
+
+    @Test
+    fun `a plain-http away address is asked again on a new network, even once confirmed`() = runTest {
+        val addresses = ServerAddresses(home, away.url("/")).apply { serverId = "abc" }
+        assertTrue(addresses.remoteTrustedNow)
+        addresses.networkChanged()
+        assertFalse(addresses.remoteTrustedNow)
+        assertTrue(addresses.checkRemote { true })
+        assertTrue(addresses.remoteTrustedNow)
+        // An https one (a Tailscale name) proves itself by its certificate.
+        val named = ServerAddresses(home, "https://srv.tail.ts.net/".toHttpUrl()).apply { serverId = "abc" }
+        named.networkChanged()
+        assertTrue(named.remoteTrustedNow)
     }
 }

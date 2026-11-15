@@ -33,6 +33,8 @@ struct ServerSettingsView: View {
             } footer: {
                 Text(model.credentials?.remoteAddress == nil
                      ? t("To use Flexarr away from home, turn on remote access with Tailscale in Settings › Remote access on the web; this {device} picks the address up by itself.", ["device": ThisDevice.name])
+                     : model.credentials?.remoteConfirmed == false
+                     ? t("This {device} hasn’t reached the server over Tailscale yet.", ["device": ThisDevice.name])
                      : t("Away from home, this {device} reaches the server over Tailscale, which needs to be connected on it.", ["device": ThisDevice.name]))
             }
             }
@@ -108,6 +110,9 @@ struct ServerSettingsView: View {
     }
 
     private func load() async {
+        // Says here whether the away address has been reached, so it's asked again if it hasn't (beside the status,
+        // which needn't wait for it).
+        Task { await model.checkAwayAddress() }
         if model.credentials?.isGuest == true { path = await GuestTunnel.shared.connectionPath() }
         guard let client = model.client else { return }
         do {

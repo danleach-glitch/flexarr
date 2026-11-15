@@ -15,7 +15,7 @@ At home, your devices find Flexarr on the Wi-Fi. Away from home, they need a saf
 2. In Flexarr on the web, signed in as the main profile, go to **Settings › Remote access**. Under **Away from home**, Tailscale should say **Off. Connected as** and your server's name. Choose **Turn on**.
 3. Flexarr shows its **Private address**, something like `https://your-server.your-tailnet.ts.net:8443`. It's HTTPS, with a real certificate from Tailscale.
 4. **On your iPhone or iPad**, install Tailscale from the App Store and sign in with the same account. Leave it connected.
-5. Open the Flexarr app once while you're at home, so it learns the private address.
+5. Open the Flexarr app once while you're at home, so it learns the private address. Tailscale needn't be connected yet: the app checks the address the first time it can reach it.
 
 ![Settings › Remote access with Tailscale on, its private address and Copy button, and People with their own Tailscale](../../site/guide/img/access.webp "Settings › Remote access, with Tailscale on")
 

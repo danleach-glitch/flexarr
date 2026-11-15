@@ -568,6 +568,8 @@ internal fun TvServerSettings(model: AppModel, libraries: Loader<List<Library>>,
     val client = model.client ?: return
     val status = rememberLoader(model.credentials) { client.systemStatus() }
     val checking = status.state is Load.Loading || status.refreshing
+    // Says here whether the away address has been reached, so it's asked again if it hasn't.
+    LaunchedEffect(Unit) { model.checkAwayAddress() }
     val remote = model.credentials?.remoteAddress
     val focus = remember { FocusRequester() }
     val onDiagnosticsRow = returningFrom == TvSettingsPageId.Diagnostics
@@ -580,6 +582,8 @@ internal fun TvServerSettings(model: AppModel, libraries: Loader<List<Library>>,
             null
         } else if (remote == null) {
             t("To watch away from home, turn on remote access with Tailscale in Settings › Remote access on the web. This TV picks the address up by itself.")
+        } else if (model.credentials?.remoteConfirmed == false) {
+            t("This TV hasn’t reached the server over Tailscale yet.")
         } else {
             t("Away from home, this TV reaches the server over Tailscale, which needs to be connected on it.")
         },
