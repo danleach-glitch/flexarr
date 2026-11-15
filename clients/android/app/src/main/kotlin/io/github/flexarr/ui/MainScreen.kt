@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.dp
 import io.github.flexarr.ui.components.OfflineBar
 import io.github.flexarr.ui.components.LocalOffline
 import io.github.flexarr.ui.components.hasDownloads
@@ -293,13 +296,17 @@ fun MainScreen(model: AppModel) {
         }
         // A tablet has the tabs down the side, as iPad's sidebar-style tab bar keeps the width for the screens.
         val rail = isWide
+        // The rail's measured width, so the now-playing bar starts beside it rather than running under it.
+        var railWidth by remember { mutableStateOf(0.dp) }
+        val density = LocalDensity.current
         Scaffold(
             containerColor = Flexarr.room,
             snackbarHost = {
                 SnackbarHost(navigator.notices) { Snackbar(it, containerColor = Flexarr.seat, contentColor = Flexarr.screen, actionColor = mainButtonFill(Flexarr.silver)) }
             },
             bottomBar = {
-              Column {
+              // With the rail there's no tab bar to keep the bar off the gesture bar, so it takes the inset itself.
+              Column(if (rail) Modifier.padding(start = railWidth).navigationBarsPadding() else Modifier) {
                 // Music or a podcast carries on under every screen; the bar sits above the tabs and opens Now Playing.
                 when {
                     model.music.current != null -> MusicNowPlayingBar(model)
@@ -330,7 +337,10 @@ fun MainScreen(model: AppModel) {
         ) { padding ->
           Row {
             if (rail) {
-                NavigationRail(containerColor = Flexarr.room, modifier = Modifier.padding(bottom = padding.calculateBottomPadding())) {
+                NavigationRail(
+                    containerColor = Flexarr.room,
+                    modifier = Modifier.onSizeChanged { railWidth = with(density) { it.width.toDp() } },
+                ) {
                     Spacer(Modifier.weight(1f))
                     Tab.entries.filter { it != Tab.Settings || !model.isKids }.forEach { tab ->
                         NavigationRailItem(
