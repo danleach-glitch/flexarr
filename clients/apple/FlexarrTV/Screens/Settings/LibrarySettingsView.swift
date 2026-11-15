@@ -2,8 +2,9 @@ import FlexarrKit
 import SwiftUI
 
 /// What a film or TV library's tab opens on, an audiobooks library's and a music library's, for every library on this
-/// Apple TV.
+/// Apple TV. Books and Music show only once the server has such a library.
 struct LibrarySettingsView: View {
+    @Environment(AppModel.self) private var model
     @AppStorage(LibraryOpening.storageKey) private var opensOn = LibraryOpening.browse
     @AppStorage(MusicOpening.storageKey) private var musicOpensOn = MusicOpening.browse
     @AppStorage(BookOpening.storageKey) private var booksOpenOn: BookOpening?
@@ -17,23 +18,29 @@ struct LibrarySettingsView: View {
                     opensOn = opening
                 }
             }
-            SettingsGroupLabel(t("Books"))
-            let books = BookOpening.opening(saved: booksOpenOn, library: opensOn)
-            ForEach(BookOpening.allCases, id: \.self) { opening in
-                SettingsRow(title: opening.label, symbol: opening.symbol,
-                            help: opening.help, accessory: books == opening ? .checkmark : .none) {
-                    booksOpenOn = opening
+            if has(.audiobooks) {
+                SettingsGroupLabel(t("Books"))
+                let books = BookOpening.opening(saved: booksOpenOn, library: opensOn)
+                ForEach(BookOpening.allCases, id: \.self) { opening in
+                    SettingsRow(title: opening.label, symbol: opening.symbol,
+                                help: opening.help, accessory: books == opening ? .checkmark : .none) {
+                        booksOpenOn = opening
+                    }
                 }
             }
-            SettingsGroupLabel(t(Words.music))
-            ForEach(MusicOpening.allCases, id: \.self) { opening in
-                SettingsRow(title: opening.label, symbol: opening.symbol,
-                            help: opening.help, accessory: musicOpensOn == opening ? .checkmark : .none) {
-                    musicOpensOn = opening
+            if has(.music) {
+                SettingsGroupLabel(t(Words.music))
+                ForEach(MusicOpening.allCases, id: \.self) { opening in
+                    SettingsRow(title: opening.label, symbol: opening.symbol,
+                                help: opening.help, accessory: musicOpensOn == opening ? .checkmark : .none) {
+                        musicOpensOn = opening
+                    }
                 }
             }
         }
     }
+
+    private func has(_ type: LibraryType) -> Bool { model.libraries.contains { $0.type == type } }
 }
 
 private extension LibraryOpening {

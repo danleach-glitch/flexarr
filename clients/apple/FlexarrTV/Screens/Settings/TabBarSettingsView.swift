@@ -15,7 +15,7 @@ struct TabBarSettingsView: View {
     var body: some View {
         SettingsPage(title: t("Sidebar"), summary: model.libraryOrder == nil ? t("Home is always first, and Discover, Search and Settings last.")
                      : t("Home is always first, and Discover, Search and Settings last. Your other devices list your libraries in this order too.")) {
-            SettingsGroupLabel(t("Between Home and Search"))
+            SettingsGroupLabel(t("Between Home and Discover"))
             ForEach(entries) { entry in
                 SettingsRow(title: entry.title, symbol: entry.symbol, value: moving == entry.id ? t("Move up or down") : nil,
                             help: moving == entry.id ? t("Press up or down to move {name}, then select to put it down.", ["name": entry.title])
