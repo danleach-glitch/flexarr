@@ -147,7 +147,7 @@ struct DownloadRow: View {
     private func play() {
         Task {
             guard let info = await store.freshPlaybackInfo(for: download, preferences: nil) else { return }
-            model.player.playOffline(info)
+            model.player.playOffline(info, client: model.isOffline ? nil : model.client)
         }
     }
 }
