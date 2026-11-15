@@ -15,6 +15,9 @@ import { tablistKeys } from '../lib/menuKeys'
 
 const ROTATE_MS = 10_000
 const BACKDROP_WIDTHS = [780, 1280, 1920]
+/** Titles longer than this take the smaller hero size (app.css `.hero-title.long`). */
+const LONG_TITLE = 24
+const titleClass = (title: string) => (title.length > LONG_TITLE ? 'hero-title long' : 'hero-title')
 
 /** Facts as separate quiet items (no middle-dot strings). */
 export function Facts({ item, extra = [] }: { item: ItemSummary; extra?: (string | null | undefined)[] }) {
@@ -162,14 +165,14 @@ export function Hero({ items, overviews, resume, resumes, top }: {
           // An album's slide: its artist above it, since the backdrop is theirs.
           <>
             {item.seriesTitle && <p className="hero-eyebrow">{item.seriesTitle}</p>}
-            <h1 className="hero-title">{item.title}</h1>
+            <h1 className={titleClass(item.title)}>{item.title}</h1>
           </>
         ) : item.artwork.logo ? (
           <h1 className="hero-logo">
             <img src={imageUrl(item.artwork.logo, 780)} alt={item.title} />
           </h1>
         ) : (
-          <h1 className="hero-title">{item.title}</h1>
+          <h1 className={titleClass(item.title)}>{item.title}</h1>
         )}
         {book ? (
           <p className="facts">

@@ -76,4 +76,16 @@ describe('the home hero', () => {
     first.unmount()
     expect(draw(withArt).container.querySelectorAll('.hero-art img')).toHaveLength(1)
   })
+
+  it('gives a long title the smaller, three-line size', () => {
+    const long = [summary({ id: 'm1', kind: 'Movie', title: 'The Extraordinarily Long Adventures of Somebody' })] as unknown as ItemSummary[]
+    render(
+      <MemoryRouter>
+        <AudioPlayerContext value={{ play: vi.fn() } as unknown as AudioPlayer}>
+          <Hero items={long} />
+        </AudioPlayerContext>
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('heading', { level: 1 })).toHaveClass('hero-title', 'long')
+  })
 })

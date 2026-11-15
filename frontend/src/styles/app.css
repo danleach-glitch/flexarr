@@ -1069,6 +1069,18 @@ kbd {
   text-wrap: balance;
 }
 
+/* A long title steps down a size or two rather than filling the slide, and never takes more than three lines, so the
+   rows below stay in sight (#467). Lines a little apart, so the clip keeps the last line's descenders. */
+.hero-title.long {
+  font-size: clamp(var(--step-3), 4.5vw, var(--step-7));
+  line-height: 1.05;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
 .facts {
   display: flex;
   flex-wrap: wrap;
