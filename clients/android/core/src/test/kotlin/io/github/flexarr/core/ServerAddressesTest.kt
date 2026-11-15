@@ -257,9 +257,13 @@ class ServerAddressesTest {
             addresses.networkChanged()
             atHome.enqueue(json("""{"open":false,"serverId":"someone-else"}"""))
             atHome.enqueue(json("""{"open":false,"serverId":"someone-else"}"""))
+            // The away address here is plain http too, so on a new network it says who it is again, once.
+            away.enqueue(json("""{"open":false,"serverId":"abc"}"""))
 
             assertEquals(away.port, client.downloadFileRequest("abc").url.port)
             assertEquals(away.port, client.bookFileRequest("/api/v1/items/book/files/0")!!.url.port)
+            assertEquals(1, away.requestCount)
+            assertEquals(null, away.takeRequest().headers["X-Api-Key"])
             assertEquals(3, atHome.requestCount)
             repeat(3) { assertEquals(null, atHome.takeRequest().headers["X-Api-Key"]) }
         } finally {
@@ -385,5 +389,19 @@ class ServerAddressesTest {
         assertTrue(FlexarrClient(addresses, apiKey = "token").isReachable())
         assertTrue(addresses.isAway)
         repeat(2) { assertEquals("/api/v1/setup", away.takeRequest().url.encodedPath) }
+    }
+
+    @Test
+    fun `a plain-http away address is asked again on a new network, even once confirmed`() = runTest {
+        val addresses = ServerAddresses(home, away.url("/")).apply { serverId = "abc" }
+        assertTrue(addresses.remoteTrustedNow)
+        addresses.networkChanged()
+        assertFalse(addresses.remoteTrustedNow)
+        assertTrue(addresses.checkRemote { true })
+        assertTrue(addresses.remoteTrustedNow)
+        // An https one (a Tailscale name) proves itself by its certificate.
+        val named = ServerAddresses(home, "https://srv.tail.ts.net/".toHttpUrl()).apply { serverId = "abc" }
+        named.networkChanged()
+        assertTrue(named.remoteTrustedNow)
     }
 }

@@ -397,4 +397,18 @@ struct HomeProofTests {
         #expect(heard.count == 1)
         #expect(addresses.remoteHasProven)
     }
+
+    @Test func aPlainHttpAwayAddressSaysWhoItIsAsHomeDoesEvenOnceConfirmed() async {
+        let http = ServerAddresses(home: URL(string: "http://home.local:8383")!, remote: URL(string: "http://100.101.2.3:8383")!,
+                                   serverId: Self.id)
+        let remote = http.remote!
+        #expect(http.asksProof(of: remote))
+        let start = Date()
+        #expect(await http.prove(remote, now: start, by: { _, _ in true }))
+        #expect(!http.needsProof(remote, now: start.addingTimeInterval(10)))
+        #expect(http.needsProof(remote, now: Date().addingTimeInterval(ServerAddresses.proofLasts + 1)), "quiet a while: asked again")
+        // A Tailscale name over https says who it is by its certificate.
+        #expect(!ServerAddresses(home: http.home, remote: URL(string: "https://srv.tail.ts.net")!, serverId: Self.id)
+            .asksProof(of: URL(string: "https://srv.tail.ts.net")!))
+    }
 }

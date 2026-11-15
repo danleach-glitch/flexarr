@@ -55,6 +55,8 @@ public final class ServerAddresses: @unchecked Sendable {
     private var homeCheckedAt: Date?
     private var homeProvenAt: Date?
     private var remoteProven = false
+    /// When a plain-http away address last said who it is or answered (see `asksProof`).
+    private var remoteProvenAt: Date?
     private var remoteMissedAt: Date?
     /// Who's waiting on each address's answer while one is being asked.
     private var proofWaiters: [URL: [AsyncStream<Bool>.Continuation]] = [:]
@@ -97,6 +99,8 @@ public final class ServerAddresses: @unchecked Sendable {
             if url != home, _current == home {
                 homeCheckedAt = Date() // leaving home starts the clock for trying it again
                 homeProvenAt = nil // and whatever is at its address next has to say who it is
+            } else if url == home, _current != home {
+                remoteProvenAt = nil // the same for a plain-http away address, once home again
             }
             let moved = _current != url
             _current = url
@@ -118,12 +122,16 @@ public final class ServerAddresses: @unchecked Sendable {
     // MARK: An address says who it is
 
     /// Whether `url` is asked for the server's id before it's sent the sign-in, once the id is known: the home
-    /// address over plain HTTP, and an away address not yet confirmed (see `remoteConfirmed`).
+    /// address over plain HTTP, an away address not yet confirmed (see `remoteConfirmed`), and one over plain HTTP (a
+    /// 100.x Tailscale address, a range some mobile networks also use for machines of their own), which is then
+    /// asked as home is, whenever it hasn't answered for `proofLasts`.
     public func asksProof(of url: URL) -> Bool {
         guard serverId != nil else { return false }
         if url == home { return home.scheme?.lowercased() != "https" }
-        return url == remote && !remoteConfirmed
+        return url == remote && (!remoteConfirmed || !remoteIsHttps)
     }
+
+    private var remoteIsHttps: Bool { remote?.scheme?.lowercased() == "https" }
 
     /// Whether `url` must say who it is before the next signed-in request goes to it.
     func needsProof(_ url: URL, now: Date = Date()) -> Bool {
@@ -135,15 +143,18 @@ public final class ServerAddresses: @unchecked Sendable {
     public var remoteHasProven: Bool { lock.withLock { remoteProven } }
 
     private func isProven(_ url: URL, _ now: Date) -> Bool {
-        guard url == home else { return remoteProven }
-        guard let homeProvenAt else { return false }
-        return now.timeIntervalSince(homeProvenAt) < Self.proofLasts
+        if url != home, remoteIsHttps { return remoteProven }
+        guard let at = url == home ? homeProvenAt : remoteProvenAt else { return false }
+        return now.timeIntervalSince(at) < Self.proofLasts
     }
 
-    /// `url` answered a signed-in request: home, if it had said who it is, stays trusted from now.
+    /// `url` answered a signed-in request: an address that has to say who it is from time to time, if it had, stays
+    /// trusted from now.
     func answered(from url: URL, now: Date = Date()) {
-        guard url == home else { return }
-        lock.withLock { if isProven(home, now) { homeProvenAt = now } }
+        lock.withLock {
+            guard isProven(url, now) else { return }
+            if url == home { homeProvenAt = now } else if url == remote { remoteProvenAt = now }
+        }
     }
 
     /// Whether home may be sent the sign-in (see `prove`).
@@ -198,8 +209,10 @@ public final class ServerAddresses: @unchecked Sendable {
             } else if same {
                 first = !remoteProven
                 remoteProven = true
+                remoteProvenAt = Date()
                 remoteMissedAt = nil
             } else {
+                remoteProvenAt = nil
                 remoteMissedAt = Date()
             }
             return (proofWaiters.removeValue(forKey: url) ?? [], first)

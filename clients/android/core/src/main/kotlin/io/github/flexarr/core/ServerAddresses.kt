@@ -60,8 +60,15 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
     @Volatile
     private var remoteMissedAt: Long? = null
 
+    /**
+     * Set by a new network while the away address is plain http (a 100.x Tailscale address): that range is also used
+     * by some mobile networks for their own machines, so even a confirmed one is asked again there.
+     */
+    @Volatile
+    private var remoteAskAgain = false
+
     /** Whether the away address may be sent the sign-in now without asking it first. */
-    val remoteTrustedNow: Boolean get() = remoteConfirmed || remoteVerified || serverId == null
+    val remoteTrustedNow: Boolean get() = serverId == null || remoteVerified || (remoteConfirmed && !remoteAskAgain)
 
     /** The away address has answered with the server's id since this was made (it needn't be asked again). */
     val remoteHasProven: Boolean get() = remoteVerified
@@ -80,6 +87,7 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
         val ok = runCatching { check.await() }.getOrDefault(false)
         if (ok) {
             val first = synchronized(this) { !remoteVerified.also { remoteVerified = true } }
+            remoteAskAgain = false
             remoteMissedAt = null
             if (first) onRemoteProven?.invoke(this)
         } else {
@@ -115,6 +123,10 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
         homeVerified = false
         // Tailscale may have come up with it.
         remoteMissedAt = null
+        if (remote?.isHttps == false) {
+            remoteVerified = false
+            remoteAskAgain = true
+        }
     }
 
     /** The address requests go to now. */
