@@ -427,6 +427,17 @@ private struct ManualConnect: View {
                     .foregroundStyle(Color.usher)
             }
 
+            // Above the buttons, so it isn't left under the keyboard; connecting also puts the keyboard away when it fails.
+            if let error {
+                Label(error, systemImage: "exclamationmark.triangle.fill")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Color.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: Radius.panel).fill(Color.seat))
+            }
+
             HStack(spacing: 12) {
                 Button(action: connect) {
                     if isConnecting {
@@ -442,15 +453,6 @@ private struct ManualConnect: View {
                 .disabled(isConnecting || address.trimmingCharacters(in: .whitespaces).isEmpty)
                 Button(t("Back"), action: onBack)
                     .buttonStyle(ActionButtonStyle())
-            }
-
-            if let error {
-                Label(error, systemImage: "exclamationmark.triangle.fill")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(Color.danger)
-                    .padding(14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: Radius.panel).fill(Color.seat))
             }
 
             if !usesKey {
@@ -483,6 +485,7 @@ private struct ManualConnect: View {
         if !usesKey {
             guard let server = FlexarrClient.normalizeAddress(address) else {
                 error = t("That doesn’t look like a server address. Try one like http://192.168.1.20:8383.")
+                focus = nil
                 return
             }
             onPair(DiscoveredServer(name: server.host() ?? "Flexarr", address: server))
@@ -496,6 +499,7 @@ private struct ManualConnect: View {
                 try await model.connect(address: address, apiKey: apiKey)
             } catch {
                 self.error = ConnectionError(error, connecting: true).message
+                focus = nil
             }
         }
     }
