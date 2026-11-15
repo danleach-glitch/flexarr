@@ -86,10 +86,19 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
         else -> "AndroidPhone"
     }
 
-    /** Artwork comes over the same connections as the API, in a queue of its own so it never holds the API up. */
+    /**
+     * Artwork comes over the same connections as the API, in a queue of its own so it never holds the API up, and is
+     * cached by its address at home (see [ArtworkMemoryKeyer]).
+     */
     override fun newImageLoader(context: PlatformContext): ImageLoader =
         ImageLoader.Builder(context)
-            .components { add(OkHttpNetworkFetcherFactory(callFactory = { FlexarrClient.artworkHttp })) }
+            .components {
+                add(OkHttpNetworkFetcherFactory(callFactory = { FlexarrClient.artworkHttp }))
+                // Cached by the address at home, whichever address it came from.
+                val homeForm = ArtworkHomeForm { model.credentials }
+                add(ArtworkMemoryKeyer(homeForm), coil3.Uri::class)
+                add(ArtworkDiskKeys(homeForm))
+            }
             .build()
 }
 

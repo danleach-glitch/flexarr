@@ -135,6 +135,16 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
     /** Away from home: reaching the server by its remote address. */
     val isAway: Boolean get() = _current != home
 
+    /**
+     * [url] as it reads at home: one resolved against the away address has that address swapped for home's, and any
+     * other is left as it is. What artwork is cached by, so a poster fetched away from home is the same one at home
+     * (as FlexarrKit keys artwork).
+     */
+    fun homeForm(url: String): String {
+        val remote = remote?.toString() ?: return url
+        return if (url.startsWith(remote)) home.toString() + url.substring(remote.length) else url
+    }
+
     /** The other address, if there is one. */
     fun alternate(to: HttpUrl): HttpUrl? {
         val remote = remote ?: return null
