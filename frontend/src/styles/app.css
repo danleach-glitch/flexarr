@@ -109,6 +109,15 @@
   box-shadow: 0 1px 0 var(--aisle);
 }
 
+/* Touch screens and TVs: a solid bar. Blurring the page behind a 92% fill shows next to nothing and costs frames on
+   low-end TV browsers. */
+@media (hover: none), (pointer: coarse) {
+  .topbar.solid {
+    backdrop-filter: none;
+    background: var(--room);
+  }
+}
+
 .topbar-tools {
   margin-inline-start: auto;
   display: flex;

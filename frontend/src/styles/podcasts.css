@@ -101,10 +101,10 @@
   text-align: center;
 }
 
+/* Badges are solid: a blur behind every card's badge costs frames for a few pixels of artwork. */
 .podcast-badge.following {
-  background: color-mix(in srgb, var(--room) 80%, transparent);
+  background: color-mix(in srgb, var(--room) 88%, transparent);
   color: var(--screen);
-  backdrop-filter: blur(8px);
 }
 
 .podcast-rank {
@@ -114,8 +114,7 @@
   min-width: 26px;
   padding: 2px 6px;
   border-radius: var(--radius-art);
-  background: color-mix(in srgb, var(--room) 78%, transparent);
-  backdrop-filter: blur(8px);
+  background: color-mix(in srgb, var(--room) 88%, transparent);
   font-weight: 800;
   font-size: var(--step--1);
   text-align: center;
@@ -423,12 +422,13 @@
   width: 56px;
   height: 56px;
   background: color-mix(in srgb, var(--screen) 78%, transparent);
-  backdrop-filter: blur(6px);
   transform: translate(-50%, calc(-50% + 6px));
 }
 
+/* Blurred only on the card in hand, not on every card in the grid. */
 .podcast-card.card-shell:hover .card-play,
 .podcast-card.card-shell:focus-within .card-play {
+  backdrop-filter: blur(6px);
   transform: translate(-50%, -50%);
 }
 
