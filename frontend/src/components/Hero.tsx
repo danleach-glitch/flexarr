@@ -126,8 +126,9 @@ export function Hero({ items, overviews, resume, resumes, top }: {
       {top && <div className="hero-top">{top}</div>}
       <div className="hero-art" aria-hidden="true">
         {/* Only the backdrops on screen or next up are loaded, sized for the screen; the first one comes first. */}
+        {/* A slide with no art draws no image at all, so there's no broken-image mark (#462). */}
         {items.map((it, i) =>
-          i === index || i === previous || i === (index + 1) % items.length ? (
+          (i === index || i === previous || i === (index + 1) % items.length) && (it.kind === 'Audiobook' ? it.artwork.poster : it.artwork.backdrop) ? (
             it.kind === 'Audiobook' ? (
               // Books have no backdrops: the cover, blurred into a wash of its colours.
               <img
@@ -151,7 +152,7 @@ export function Hero({ items, overviews, resume, resumes, top }: {
           ) : null,
         )}
       </div>
-      {book && <img className="hero-cover" src={imageUrl(item.artwork.poster, 600)} alt="" aria-hidden="true" />}
+      {book && item.artwork.poster && <img className="hero-cover" src={imageUrl(item.artwork.poster, 600)} alt="" aria-hidden="true" />}
       <div className="hero-content" aria-live="polite">
         {item.kind === 'Album' ? (
           // An album's slide: its artist above it, since the backdrop is theirs.

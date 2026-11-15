@@ -67,6 +67,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On a phone, Settings › Backup & restore fits the screen: the backups folder's box gets narrower instead of pushing the page sideways.
 - On a phone, the music bar keeps its **Stop and close** button, so music, a podcast or an audiobook can be stopped and the bar put away, as on the iPhone.
 - Discover on a server without Seerr says what it needs, with **Set up Seerr** for the main profile, instead of a search that always finds nothing. Your library's genres stay, under their own heading.
+- Home's featured slide for a title with no backdrop no longer shows a broken-image mark.
 
 ### Playback
 
