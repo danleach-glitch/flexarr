@@ -14,6 +14,8 @@ struct FlexarrTVApp: App {
         _language = State(initialValue: LanguageState())
         Symbol.checkAll()
         ThisDevice.identify()
+        // Which way focus moves, for telling focus coming in from the sidebar from focus moving on a screen.
+        FocusMove.start()
         // Artwork is fetched constantly while browsing; give it a generous disk cache.
         URLCache.shared = URLCache(memoryCapacity: 64 * 1024 * 1024, diskCapacity: 512 * 1024 * 1024)
         // An earlier version kept the server's answers there too, with the sign-in they were asked with: gone, once.

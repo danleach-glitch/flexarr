@@ -444,6 +444,10 @@ struct HomeRowView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
     let row: HomeRow
+    /// The top of a library's Browse with no hero: as the tab opens, focus passed on from its switch comes to this
+    /// row's first card (see `focusesContent`).
+    var takesArrivingFocus = false
+    @Environment(\.focusesContent) private var arriving
     @FocusState private var focusedCard: String?
     /// The card focused here last, kept while it leaves the row (finished, say) so focus can go to the one that takes
     /// its place rather than back to the row's start. Cleared when focus moves elsewhere.
@@ -500,6 +504,8 @@ struct HomeRowView: View {
             .focusSection()
             .environment(\.leavesRow) { leaving = $0 }
         }
+        .onAppear(perform: takeArrivingFocus)
+        .onChange(of: arriving.wrappedValue, takeArrivingFocus)
         .onChange(of: focusedCard) { old, id in
             // Continue watching: the card focus left lets go what it got ready.
             if row.id == "continue", let old, old != id, let item = row.items.first(where: { $0.id == old }) { model.dropReady(item) }
@@ -530,6 +536,16 @@ struct HomeRowView: View {
                 if focusedCard != next { focusedCard = next }
             }
         }
+    }
+
+    /// To the first card, as the library's tab opens on Browse with no hero. Only rows whose cards focus can be sent
+    /// to (posters, wide cards and books) take it; with any other first row, focus stays on the switch.
+    private func takeArrivingFocus() {
+        guard takesArrivingFocus, arriving.wrappedValue, row.style != .top10, row.style != .tracks,
+              (row.playlists ?? []).isEmpty, (row.mixes ?? []).isEmpty, (row.channels ?? []).isEmpty,
+              let first = row.items.first else { return }
+        arriving.wrappedValue = false
+        focusedCard = first.id
     }
 
     /// A row of books, whose square covers the See all card matches.

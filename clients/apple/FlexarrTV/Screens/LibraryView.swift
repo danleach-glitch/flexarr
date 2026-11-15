@@ -361,7 +361,8 @@ struct LibraryView: View {
 
     /// From the switch, as the tab opens (see `focusesContent`): to the first title, once it's loaded.
     private func focusFirstTitleOnArrival() {
-        guard takesFocus.wrappedValue, switchFocused, let first = items.first else { return }
+        // Set only while the switch has focus (it's cleared as focus leaves it), so no need to ask whether it has.
+        guard takesFocus.wrappedValue, let first = items.first else { return }
         takesFocus.wrappedValue = false
         focusedItem = first.id
     }

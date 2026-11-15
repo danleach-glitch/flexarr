@@ -88,7 +88,10 @@ struct ViewSwitch<Choice: Hashable>: View {
     @Environment(\.focusesViewSwitch) private var takesFocus
     @Environment(\.focusesContent) private var passesFocus
     @FocusState private var focused: Choice?
+    @Environment(\.layoutDirection) private var layoutDirection
     @State private var appearedAt = Date.distantPast
+    /// The view was just switched with this switch, which takes focus as it appears: that focus stays here.
+    @State private var switchedIn = false
 
     var body: some View {
         HStack(spacing: 6) {
@@ -101,6 +104,7 @@ struct ViewSwitch<Choice: Hashable>: View {
         // Coming into the switch lands on the view shown.
         .defaultFocus($focused, selection)
         .onChange(of: focused) { old, now in
+            if old == nil, now != nil { arrived() }
             // defaultFocus alone doesn't hold when focus comes up from right under another word (the first book of an
             // audiobooks library sits under "All books"): coming in always lands on the view shown.
             if old == nil, let now, now != selection {
@@ -108,16 +112,32 @@ struct ViewSwitch<Choice: Hashable>: View {
                 return
             }
             focusChanged(now != nil)
-            // Selecting the library in the sidebar gives focus to whatever is at the top-left, which is this switch;
-            // pass it on to the screen's first title. Up from there, or a switch of view, still comes here.
-            if old == nil, now != nil, Date.now.timeIntervalSince(appearedAt) < 1.5 { passesFocus.wrappedValue = true }
             if now == nil { passesFocus.wrappedValue = false }
         }
         .onAppear {
+            appearedAt = .now
             // The view chosen replaces the one whose switch had focus, which would otherwise go to the first word.
-            guard takesFocus.wrappedValue else { appearedAt = .now; return }
+            guard takesFocus.wrappedValue else { return }
             takesFocus.wrappedValue = false
+            switchedIn = true
             focused = selection
+        }
+    }
+
+    /// Selecting the library in the sidebar, or pressing right from it, gives focus to whatever is at the top-left,
+    /// which is this switch: pass it on to the screen's first title (or the hero's Play). Up from there, or a switch of
+    /// view, still comes here. Whenever focus comes in from the sidebar, not only as the screen appears: a slow
+    /// device or server took longer than that.
+    private func arrived() {
+        if switchedIn {
+            switchedIn = false
+            return
+        }
+        // After UIKit has said which way focus moved, which it may do just after this.
+        DispatchQueue.main.async {
+            let fromSidebar = FocusMove.cameFromSidebar(rightToLeft: layoutDirection == .rightToLeft)
+                ?? (Date.now.timeIntervalSince(appearedAt) < 1.5)
+            if fromSidebar, focused != nil { passesFocus.wrappedValue = true }
         }
     }
 
@@ -237,11 +257,13 @@ struct LibraryBrowseView: View {
                     HomeHero(items: browse.featured, overviews: browse.overviews, index: $featuredIndex, resuming: browse.resuming, top: AnyView(viewSwitch))
                 }
                 // Coming soon's titles come separately, in `Home.upcoming`, as on Home.
-                ForEach(browse.rows.filter { $0.style == .upcoming ? !(browse.upcoming ?? []).isEmpty : $0.hasContent }) { row in
+                let rows = browse.rows.filter { $0.style == .upcoming ? !(browse.upcoming ?? []).isEmpty : $0.hasContent }
+                ForEach(rows) { row in
                     if row.style == .upcoming {
                         ComingSoonRow(items: browse.upcoming ?? [], downloading: browse.downloading ?? 0)
                     } else {
-                        HomeRowView(row: row)
+                        // With no hero, the first row takes focus from the switch as the tab opens.
+                        HomeRowView(row: row, takesArrivingFocus: browse.featured.isEmpty && row.id == rows.first?.id)
                     }
                 }
             }
