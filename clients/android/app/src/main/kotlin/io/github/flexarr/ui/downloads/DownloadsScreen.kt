@@ -356,13 +356,16 @@ internal fun DownloadRing(fraction: Float) {
     }
 }
 
-/** What a screen reader says for a download's state. */
-fun downloadDescription(download: LocalDownload?, waitingForWiFi: Boolean): String = when {
+/**
+ * What a screen reader says for a download's state. [progress] is the live fraction ([DownloadStore.progress]) the ring
+ * and caption show, since the saved one only moves when the transfer starts.
+ */
+fun downloadDescription(download: LocalDownload?, waitingForWiFi: Boolean, progress: Double = download?.progress ?: 0.0): String = when {
     waitingForWiFi -> t("Waiting for Wi-Fi")
     download == null -> t(Words.download)
     TransferQueue.isQueued(download) -> t("Queued")
     download.phase == LocalPhase.Preparing -> t("Getting ready on the server")
-    download.phase == LocalPhase.Downloading -> t("Downloading, {percent}%", "percent" to (download.progress * 100).toInt())
+    download.phase == LocalPhase.Downloading -> t("Downloading, {percent}%", "percent" to (progress * 100).toInt())
     download.phase == LocalPhase.Downloaded -> t("Downloaded")
     else -> t("Couldn’t download")
 }
@@ -401,7 +404,7 @@ fun DownloadAction(model: AppModel, item: ItemSummary, modifier: Modifier = Modi
     }
     DownloadActionFace(
         label,
-        downloadDescription(download, waiting),
+        downloadDescription(download, waiting, progress = download?.let(store::progress) ?: 0.0),
         onClick = {
             when {
                 download == null -> start()
@@ -502,7 +505,7 @@ private fun DownloadIconButton(model: AppModel, itemId: String, title: String, r
                 download.phase == LocalPhase.Failed -> problem = download.failure ?: t("Couldn’t download this")
                 else -> removing = true
             }
-        }).semantics { contentDescription = "${downloadDescription(download, waiting)}: $title" },
+        }).semantics { contentDescription = "${downloadDescription(download, waiting, progress = download?.let(store::progress) ?: 0.0)}: $title" },
         contentAlignment = Alignment.Center,
     ) {
         DownloadStateIcon(download, waiting, size = 20.dp, progress = download?.let(store::progress) ?: 0.0, ringWhilePreparing = ringWhilePreparing)
