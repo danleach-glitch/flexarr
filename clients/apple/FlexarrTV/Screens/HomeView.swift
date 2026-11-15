@@ -204,8 +204,7 @@ struct HomeHero: View {
 
                 HStack(spacing: 28) {
                     Button { play() } label: {
-                        Label(playLabel, systemImage: Symbol.play)
-                            .monospacedDigit()
+                        HeroPlayLabel(item: item, resumes: resuming(item) != nil || item.isResumable)
                     }
                     .buttonStyle(ActionButtonStyle(ambient: item.ambientColor, prominent: true))
                     .focused($focusedButton, equals: .play)
@@ -318,13 +317,6 @@ struct HomeHero: View {
         .frame(height: 900, alignment: .top)
     }
 
-    private var playLabel: String {
-        guard item.kind == .audiobook else { return resuming(item) != nil || item.isResumable ? t("Resume") : t(Words.play) }
-        // A book picks up from its place, as its page says.
-        let position = model.music.current?.id == item.id ? model.music.position : item.userData.positionSeconds
-        return position > 0 && !item.userData.watched ? t(Words.resumeFrom, ["time": Format.timestamp(position)]) : t(Words.play)
-    }
-
     /// A book's title, author and narrator: it has no clear logo, and the cover beside them is the picture.
     private var bookTitle: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -409,6 +401,26 @@ struct HomeHero: View {
         } else {
             Task { await model.playBest(item, router: router) }
         }
+    }
+}
+
+/// The hero's Play. A book's picks up from its place, as its page says, and that follows the player's clock while the
+/// book plays: only this label reads it, so the hero around it isn't drawn again twice a second.
+private struct HeroPlayLabel: View {
+    @Environment(AppModel.self) private var model
+    let item: ItemSummary
+    /// A film's, show's or album's Play resumes it.
+    let resumes: Bool
+
+    var body: some View {
+        Label(text, systemImage: Symbol.play)
+            .monospacedDigit()
+    }
+
+    private var text: String {
+        guard item.kind == .audiobook else { return resumes ? t("Resume") : t(Words.play) }
+        let position = model.music.current?.id == item.id ? model.music.position : item.userData.positionSeconds
+        return position > 0 && !item.userData.watched ? t(Words.resumeFrom, ["time": Format.timestamp(position)]) : t(Words.play)
     }
 }
 
