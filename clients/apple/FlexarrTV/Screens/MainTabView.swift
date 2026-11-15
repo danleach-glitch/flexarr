@@ -111,7 +111,7 @@ struct MainTabView: View {
                 }
                 if showsWatchlist {
                     Tab(value: TabID.watchlist) {
-                        TabStack(router: routers[.watchlist], refocusesPage: refocusTab == .watchlist) { WatchlistView() }
+                        TabStack(router: routers[.watchlist], refocusesPage: refocusTab == .watchlist) { WatchlistView(showsTitle: false) }
                     } label: {
                         Label(t(Words.watchlist), systemImage: Symbol.watchlist)
                     }

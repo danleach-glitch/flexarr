@@ -11,6 +11,8 @@ struct SettingsPage<Rows: View>: View {
     @ViewBuilder var rows: () -> Rows
 
     @State private var focusedHelp: SettingHelp?
+    /// Where every Settings page's title starts, clear of the sidebar's label above it.
+    static var topInset: CGFloat { 180 }
 
     var body: some View {
         HStack(alignment: .top, spacing: 90) {
@@ -35,9 +37,11 @@ struct SettingsPage<Rows: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, Layout.edge + 20)
-        .padding(.top, 60)
+        // From the top of the screen, not the safe area: Settings itself gets more of one (under the sidebar's
+        // label) than the pages pushed from it, which put their titles 60 points higher, tight under "‹ Settings".
+        .padding(.top, Self.topInset)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .ignoresSafeArea(edges: .horizontal)
+        .ignoresSafeArea(edges: [.top, .horizontal])
         .background(RoomBackground(ambient: nil))
         .environment(\.showSettingHelp) { help in
             withAnimation(.easeOut(duration: 0.2)) { focusedHelp = help }
