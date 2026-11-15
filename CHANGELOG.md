@@ -131,6 +131,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Android phones and TVs, opening a title that’s no longer on the server (from an old link, notification or widget) says “This isn’t in your library any more.” instead of an HTTP error and Try again, and a page that fails for a reason other than the network no longer shows the Wi-Fi-off mark.
 - On Android phones and TVs, two audio tracks with the same name (or no language) are told apart in the player’s Audio menu by their format and channels, such as “Unknown (MP3 Stereo)”.
 - On Android phones, at the largest text sizes a film or show page’s round actions (Start over, Watched, Download, More) wrap onto a second line instead of running off the screen’s edge.
+- On Android phones, at large text sizes a Settings row puts its value under its name when both don’t fit, instead of breaking a word, sizes such as “276 MB” stay on one line, and Home’s row names (“Latest unwatched home videos”) can take two lines.
 
 ### Trakt
 

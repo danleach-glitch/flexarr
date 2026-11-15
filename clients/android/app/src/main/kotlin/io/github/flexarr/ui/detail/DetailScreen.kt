@@ -863,7 +863,8 @@ private fun FileInfo(file: MediaFile, version: TitleVersion?, studio: String?) {
 
 internal fun fileSizeLabel(bytes: Long): String {
     val gb = bytes / 1_000_000_000.0
-    return if (gb >= 1) String.format(io.github.flexarr.core.i18n.Localization.locale, "%.1f GB", gb) else String.format(io.github.flexarr.core.i18n.Localization.locale, "%.0f MB", bytes / 1_000_000.0)
+    // A no-break space, so the unit stays with its number at large text sizes.
+    return if (gb >= 1) String.format(io.github.flexarr.core.i18n.Localization.locale, "%.1f\u00A0GB", gb) else String.format(io.github.flexarr.core.i18n.Localization.locale, "%.0f\u00A0MB", bytes / 1_000_000.0)
 }
 
 /** Drawn into its own layer, then faded to nothing over the bottom of it, so there's no seam with the wash behind. */

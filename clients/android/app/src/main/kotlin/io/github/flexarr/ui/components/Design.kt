@@ -221,7 +221,8 @@ fun PillButton(label: String, selected: Boolean, onClick: () -> Unit, ambient: C
 @Composable
 fun SectionHeading(title: String, modifier: Modifier = Modifier, onSeeAll: (() -> Unit)? = null, seeAllLabel: String? = null) {
     Row(modifier.fillMaxWidth().padding(horizontal = Edge), verticalAlignment = Alignment.Bottom) {
-        Text(title, style = marquee(26).copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f).semantics { heading() }, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        // Up to two lines, so a long row name at large text ("Latest unwatched home videos") is read in full.
+        Text(title, style = marquee(26).copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f).semantics { heading() }, maxLines = 2, overflow = TextOverflow.Ellipsis)
         if (onSeeAll != null) {
             Text(
                 t("See all"),
