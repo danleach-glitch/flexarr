@@ -150,26 +150,29 @@ fun PlaybackSettingsScreen(model: AppModel) {
 @Composable
 internal fun <T> Picker(label: String, choices: List<T>, selected: T, name: (T) -> String, onChoose: (T) -> Unit) {
     var open by remember { mutableStateOf(false) }
-    Box {
-        Row(
-            Modifier.fillMaxWidth().pressable({ open = true }).padding(horizontal = 16.dp, vertical = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(label, fontSize = 17.sp, color = Flexarr.screen, modifier = Modifier.weight(1f))
-            Text(name(selected), fontSize = 17.sp, color = Flexarr.usher)
-            Icon(Icons.Filled.UnfoldMore, contentDescription = null, tint = Flexarr.usher)
-        }
-        DropdownMenu(open, onDismissRequest = { open = false }, containerColor = Flexarr.seat, modifier = Modifier.align(Alignment.TopEnd)) {
-            choices.forEach { choice ->
-                DropdownMenuItem(
-                    text = { Text(name(choice), color = Flexarr.screen) },
-                    trailingIcon = if (choice == selected) ({ Icon(Icons.Filled.Check, contentDescription = null, tint = Flexarr.silver) }) else null,
-                    onClick = {
-                        open = false
-                        if (choice != selected) onChoose(choice)
-                    },
-                )
+    Row(
+        Modifier.fillMaxWidth().pressable({ open = true }).padding(horizontal = 16.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, fontSize = 17.sp, color = Flexarr.screen, modifier = Modifier.weight(1f))
+        // The menu opens from the value, not the row's far edge: a popup takes its place from the box it's in.
+        Box {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(name(selected), fontSize = 17.sp, color = Flexarr.usher)
+                Icon(Icons.Filled.UnfoldMore, contentDescription = null, tint = Flexarr.usher)
+            }
+            DropdownMenu(open, onDismissRequest = { open = false }, containerColor = Flexarr.seat) {
+                choices.forEach { choice ->
+                    DropdownMenuItem(
+                        text = { Text(name(choice), color = Flexarr.screen) },
+                        trailingIcon = if (choice == selected) ({ Icon(Icons.Filled.Check, contentDescription = null, tint = Flexarr.silver) }) else null,
+                        onClick = {
+                            open = false
+                            if (choice != selected) onChoose(choice)
+                        },
+                    )
+                }
             }
         }
     }

@@ -218,14 +218,15 @@ fun NotificationSettingsScreen(model: AppModel) {
 private fun HourPicker(hour: Int, onChange: (Int) -> Unit) {
     var open by remember { mutableStateOf(false) }
     val format = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(io.github.flexarr.core.i18n.Localization.locale)
-    androidx.compose.foundation.layout.Box {
-        androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().pressable({ open = true }).padding(horizontal = 16.dp, vertical = 12.dp)) {
-            Text(t("At"), fontSize = 17.sp, color = Flexarr.screen, modifier = Modifier.weight(1f))
+    androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().pressable({ open = true }).padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Text(t("At"), fontSize = 17.sp, color = Flexarr.screen, modifier = Modifier.weight(1f))
+        // The menu opens from the time, not the row's far edge.
+        androidx.compose.foundation.layout.Box {
             Text(LocalTime.of(hour, 0).format(format), fontSize = 17.sp, color = Flexarr.usher)
-        }
-        DropdownMenu(open, onDismissRequest = { open = false }, containerColor = Flexarr.seat) {
-            (0..23).forEach { h ->
-                DropdownMenuItem(text = { Text(LocalTime.of(h, 0).format(format), color = Flexarr.screen) }, onClick = { open = false; onChange(h) })
+            DropdownMenu(open, onDismissRequest = { open = false }, containerColor = Flexarr.seat) {
+                (0..23).forEach { h ->
+                    DropdownMenuItem(text = { Text(LocalTime.of(h, 0).format(format), color = Flexarr.screen) }, onClick = { open = false; onChange(h) })
+                }
             }
         }
     }
