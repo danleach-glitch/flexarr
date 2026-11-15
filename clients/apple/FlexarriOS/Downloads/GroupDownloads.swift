@@ -116,6 +116,7 @@ extension DownloadStore {
             for group in [episode.seriesId, episode.parentId].compactMap({ $0 }) { forgetStarted(group) }
             guard let download = entry(for: episode.id) else { continue }
             if unfinishedOnly && download.isDownloaded { continue }
+            skippedNext.insert(download.item.id) // deleted by hand: not brought back as the next episode
             delete(download.id)
         }
     }

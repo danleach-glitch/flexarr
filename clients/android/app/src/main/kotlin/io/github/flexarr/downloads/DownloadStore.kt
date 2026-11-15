@@ -173,6 +173,13 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
             prefs.edit { putStringSet(DECLINED, value) }
         }
 
+    /** Episodes whose download was deleted by hand (by episode id): never fetched again as the next episode. */
+    private var skippedNext: Set<String> = prefs.getStringSet(SKIPPED_NEXT, emptySet())!!.toSet()
+        set(value) {
+            field = value
+            prefs.edit { putStringSet(SKIPPED_NEXT, value) }
+        }
+
     /** Downloads deleted here that the server hasn't heard about yet (it was out of reach): told on the next catch-up. */
     private var unsentDeletes: Set<String> = prefs.getStringSet(UNSENT_DELETES, emptySet())!!.toSet()
         set(value) {
@@ -665,6 +672,8 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
             delete(existing.id)
         }
         val remote = client.requestDownload(itemId, quality)
+        // Asked for by hand again: it may come as the next episode once more.
+        if (!automatic && itemId in skippedNext) skippedNext = skippedNext - itemId
         if (!automatic) offerNotifications()
         // The server handed back a download this phone holds already (made through a linked copy of the title): it
         // carries on as it is, rather than being replaced and its transfer started again from nothing.
@@ -944,7 +953,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
      */
     private fun fetchNext(after: LocalDownload) {
         if (!downloadsNext) return
-        val next = DownloadRules.nextToFetch(after, all) ?: return
+        val next = DownloadRules.nextToFetch(after, all, skippedNext) ?: return
         if (currentClient == null || !mayStartAutomatic) return
         scope.launch { runCatching { download(next, after.quality, automatic = true) }.onFailure { flexarrLog.warning("Couldn't fetch the next episode", it) } }
     }
@@ -1025,6 +1034,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     /** Deleted by hand. A podcast episode's is never fetched by itself again (the server is told, and this phone remembers). */
     fun delete(id: String) {
         byId(id)?.takeIf { it.isPodcastEpisode }?.let { declined = declined + it.item.id }
+        byId(id)?.takeIf { it.item.kind == MediaKind.Episode }?.let { skippedNext = skippedNext + it.item.id }
         remove(id, tellServer = true)
     }
 
@@ -1035,6 +1045,8 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     fun removeAll(ids: Collection<String>) {
         val podcasts = ids.mapNotNull(::byId).filter { it.isPodcastEpisode }.map { it.item.id }
         if (podcasts.isNotEmpty()) declined = declined + podcasts
+        val episodes = ids.mapNotNull(::byId).filter { it.item.kind == MediaKind.Episode }.map { it.item.id }
+        if (episodes.isNotEmpty()) skippedNext = skippedNext + episodes
         remove(ids, tellServer = true, inBackground = true)
     }
 
@@ -1064,6 +1076,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
             UserInitiatedTransfers.cancel(context, download.id)
             download.fileName?.let { fileIn(folder, it)?.delete() }
             fileIn(folder, "${safeName(download.id)}.part")?.delete()
+            fileIn(folder, "${safeName(download.id)}.part.validator")?.delete()
         }
         if (inBackground) {
             scope.launch(Dispatchers.IO) {

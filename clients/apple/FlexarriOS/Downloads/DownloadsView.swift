@@ -65,7 +65,7 @@ struct DownloadsView: View {
     }
 
     private func remove(_ list: [LocalDownload], at offsets: IndexSet) {
-        for index in offsets { store.delete(list[index].id) }
+        for index in offsets { store.remove(list[index].id) }
     }
 }
 
@@ -104,7 +104,7 @@ struct DownloadRow: View {
         .disabled(!download.isDownloaded)
         .listRowBackground(Color.seat)
         .swipeActions {
-            Button(role: .destructive) { store.delete(download.id) } label: { Label(t(Words.delete), systemImage: Symbol.delete) }
+            Button(role: .destructive) { store.remove(download.id) } label: { Label(t(Words.delete), systemImage: Symbol.delete) }
         }
         .accessibilityHint(download.isDownloaded ? t("Plays") : "")
     }
@@ -260,7 +260,7 @@ struct DownloadButton: View {
                     // After the alert has gone, so it closes on the first press.
                     Task { @MainActor in
                         await Task.yield()
-                        if let download = store.entry(for: item.id, orCopies: copies) { store.delete(download.id) }
+                        if let download = store.entry(for: item.id, orCopies: copies) { store.remove(download.id) }
                     }
                 }
                 Button(t(Words.cancel), role: .cancel) {}

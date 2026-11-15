@@ -108,15 +108,29 @@ suspend fun FlexarrClient.podcastAutoDownloads(): List<PodcastAutoDownload> = ge
 suspend fun FlexarrClient.podcastPlayedDownloads(): List<PodcastPlayedDownload> = get("podcasts/played-downloads")
 
 /**
- * The request for a ready download's file, signed in, from [fromByte] on (to carry on a transfer that stopped). Made
- * for the address the sign-in may go to ([FlexarrClient.signInBase]); an IOException when that's nowhere on this network.
+ * The request for a ready download's file, signed in, from [fromByte] on (to carry on a transfer that stopped). With the
+ * file's [validator] from the first answer ([rangeValidator]), it carries on only from that same file (`If-Range`): one
+ * changed since comes whole, rather than its tail on the old file's head. Made for the address the sign-in may go to
+ * ([FlexarrClient.signInBase]); an IOException when that's nowhere on this network.
  */
-suspend fun FlexarrClient.downloadFileRequest(id: String, fromByte: Long = 0): Request =
+suspend fun FlexarrClient.downloadFileRequest(id: String, fromByte: Long = 0, validator: String? = null): Request =
     Request.Builder()
         .url(signInBase().newBuilder().addPathSegments("api/v1/offline/$id/file").build())
         .signIn()
-        .apply { if (fromByte > 0) header("Range", "bytes=$fromByte-") }
+        .apply {
+            if (fromByte > 0) {
+                header("Range", "bytes=$fromByte-")
+                validator?.let { header("If-Range", it) }
+            }
+        }
         .build()
+
+/**
+ * What says a download's file is the same one next time, for `If-Range`: its strong ETag, else when it was last
+ * changed. A weak ETag can't be used for it, and with neither there's nothing to send.
+ */
+fun rangeValidator(etag: String?, lastModified: String?): String? =
+    etag?.trim()?.takeIf { it.isNotEmpty() && !it.startsWith("W/") } ?: lastModified?.trim()?.takeIf { it.isNotEmpty() }
 
 // On the phone
 
@@ -323,12 +337,14 @@ object DownloadRules {
     /**
      * A finished episode's next one, to fetch by itself: an episode with a next, not already here or on its way. One
      * that was itself fetched this way is the episode ahead, and brings the one after it only once it's been watched:
-     * otherwise each would bring the next, to the end of the show.
+     * otherwise each would bring the next, to the end of the show. One whose download was deleted by hand ([skipped])
+     * isn't brought back.
      */
-    fun nextToFetch(download: LocalDownload, downloads: List<LocalDownload>): String? {
+    fun nextToFetch(download: LocalDownload, downloads: List<LocalDownload>, skipped: Set<String> = emptySet()): String? {
         if (download.item.kind != MediaKind.Episode || !download.isDownloaded) return null
         if (download.automatic && download.finishedAtMillis == null) return null
         val next = download.nextId ?: return null
+        if (next in skipped) return null
         return next.takeIf { id -> downloads.none { it.profileId == download.profileId && it.item.id == id } }
     }
 }

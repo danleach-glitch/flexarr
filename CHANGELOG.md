@@ -44,6 +44,11 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On iPhone and Android, a downloaded film or episode now starts from where you got to on another device (an hour watched on the TV, say), rather than from the beginning or an old place, and no longer puts the old place back afterwards. One finished elsewhere starts from the beginning.
 - On iPhone and Android, marking a whole show or season watched also finishes its downloaded episodes, so none resumes part way.
 - A podcast episode fetched by itself that you'd only part-heard on another device now makes way for newer ones, as it should.
+- On iPhone, a download the server no longer has now says so, instead of showing "Getting ready" for ever.
+- On iPhone and Android, Download the next episode keeps one episode ahead: it no longer works its way through the whole show, and an episode you delete by hand isn't fetched again (download it yourself and it can come again).
+- On iPhone, one track the server can't offer no longer stops the rest of an album or playlist from downloading.
+- On iPhone, a download deleted just as it finished no longer leaves its file behind, and space taken by such files is freed when the app next opens.
+- On Android, a download that stopped part way only carries on if the server's file is still the same one; otherwise it starts again.
 
 ### Trakt
 
