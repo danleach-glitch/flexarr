@@ -20,7 +20,11 @@ export function parse(markdown: string) {
   return releases
 }
 
-const inline = (text: string) => text.split(/(\*\*[^*]+\*\*)/).map((part, i) => (part.startsWith('**') ? <strong key={i}>{part.slice(2, -2)}</strong> : part))
+/** A point's **bold** and `code` (a file's name, a setting); everything else as written. */
+const inline = (text: string) =>
+  text.split(/(\*\*[^*]+\*\*|`[^`]+`)/).map((part, i) =>
+    part.startsWith('**') && part.endsWith('**') && part.length > 4 ? <strong key={i}>{part.slice(2, -2)}</strong> : part.startsWith('`') && part.endsWith('`') && part.length > 2 ? <code key={i}>{part.slice(1, -1)}</code> : part,
+  )
 
 /** One release: its version and date, then each change with its points. */
 export function ReleaseNotes({ release }: { release: Release }) {

@@ -1458,6 +1458,12 @@
   .setting-row select {
     max-width: 100%;
   }
+
+  /* A folder path takes its own line under the label, from the start, rather than a ragged column at the end. */
+  .setting-row > code.setting-value {
+    flex: 1 1 100%;
+    text-align: start;
+  }
 }
 
 .remote-address {
