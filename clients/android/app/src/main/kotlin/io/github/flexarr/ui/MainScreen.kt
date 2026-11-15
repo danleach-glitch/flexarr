@@ -137,7 +137,10 @@ private enum class Tab(val route: String, private val english: String) {
 fun MainScreen(model: AppModel) {
     // One client for the sign-in, rather than a new one each time the screen recomposes.
     val credentials = model.credentials ?: return
-    val client = remember(credentials) { model.client } ?: return
+    // The sign-in, whether or not its away address has been confirmed yet: confirming it mid-launch (Tailscale just
+    // connected) changes nothing these depend on, so the command stream, downloads and the rest carry on.
+    val signIn = credentials.copy(remoteConfirmed = true)
+    val client = remember(signIn) { model.client } ?: return
     val nav = rememberNavController()
     val context = LocalContext.current
     val navigator = remember(nav, model) { Navigator(nav, model, context) }
@@ -145,19 +148,19 @@ fun MainScreen(model: AppModel) {
     var currentTab by rememberSaveable { mutableStateOf(Tab.Home) }
 
     // Whether this profile has podcasts (Libraries lists them) and how it listens to them.
-    LaunchedEffect(model.credentials, model.isKids) { model.loadPodcastStatus() }
+    LaunchedEffect(signIn, model.isKids) { model.loadPodcastStatus() }
     // Whether the server has Live TV (Libraries lists it).
-    LaunchedEffect(model.credentials, model.isKids) { model.loadLiveTvStatus() }
+    LaunchedEffect(signIn, model.isKids) { model.loadLiveTvStatus() }
     // Whether this profile has audiobooks (Settings, the car).
-    LaunchedEffect(model.credentials, model.isKids, model.librariesVersion) { model.loadAudiobooks() }
+    LaunchedEffect(signIn, model.isKids, model.librariesVersion) { model.loadAudiobooks() }
     // Signed in (or as someone else): commands for this device come to this sign-in.
-    LaunchedEffect(model.credentials) { model.listenForCommands() }
+    LaunchedEffect(signIn) { model.listenForCommands() }
     // Whether this profile may manage the server, and so is asked to let devices in.
-    LaunchedEffect(model.credentials) { model.loadSignIn(mayShare = true) }
+    LaunchedEffect(signIn) { model.loadSignIn(mayShare = true) }
     // Whether the server keeps watchlists, and what's on this profile's (cards' menus offer it).
-    LaunchedEffect(model.credentials, model.isKids) { model.refreshWatchlist() }
+    LaunchedEffect(signIn, model.isKids) { model.refreshWatchlist() }
     // Downloads follow the server and profile signed in.
-    LaunchedEffect(model.credentials, model.currentProfile?.id) { model.downloads.attach(client, model.currentProfile?.id) }
+    LaunchedEffect(signIn, model.currentProfile?.id) { model.downloads.attach(client, model.currentProfile?.id) }
     // Google Play's rating prompt, once the player has closed and the app is back in front (ReviewPrompt says when).
     val activity = LocalActivity.current
     val lifecycle by LocalLifecycleOwner.current.lifecycle.currentStateFlow.collectAsState()
