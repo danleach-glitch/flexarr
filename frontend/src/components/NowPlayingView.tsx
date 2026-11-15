@@ -19,6 +19,7 @@ import { icon } from './icons.generated'
 import { Menu, type MenuPoint } from './ItemMenu'
 import { PodcastTools } from './PodcastTools'
 import { locale, t, Words } from '../i18n'
+import '../styles/books.lazy.css'
 
 /**
  * Now Playing over the whole window: the cover large, the track's name, where it's got to and the controls, with light

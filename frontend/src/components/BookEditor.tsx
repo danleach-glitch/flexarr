@@ -6,6 +6,7 @@ import { AsyncButton } from './AsyncButton'
 import { NameList } from './NameList'
 import { withName } from '../lib/names'
 import { t, Words } from '../i18n'
+import '../styles/books.lazy.css'
 
 /**
  * The main profile's fixes to a book: its title, people, series, genres, description and year, and whether they're

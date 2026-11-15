@@ -43,6 +43,7 @@ import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { useApi } from '../hooks/useApi'
 import { episodeAsTrack, episodeDate, episodeLength, episodeProgress, looksLikeFeedUrl } from '../lib/podcasts'
 import { locale, t, Words } from '../i18n'
+import '../styles/podcasts.lazy.css'
 
 const PAGE = 50
 /** The most episodes the server gives in one answer. */

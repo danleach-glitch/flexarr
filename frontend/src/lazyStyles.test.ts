@@ -11,8 +11,10 @@ const importersOf = (sheet: string) =>
     .map(([file]) => file)
 
 describe('stylesheets kept off the first page', () => {
-  it('has the player’s, Settings’ and Live TV’s own styles in sheets of their own', () => {
-    expect(lazySheets).toEqual(expect.arrayContaining(['./styles/player.lazy.css', './styles/settings.lazy.css', './styles/livetv.lazy.css']))
+  it('has the player’s, Settings’, Live TV’s, podcasts’ and audiobooks’ own styles in sheets of their own', () => {
+    expect(lazySheets).toEqual(
+      expect.arrayContaining(['./styles/player.lazy.css', './styles/settings.lazy.css', './styles/livetv.lazy.css', './styles/podcasts.lazy.css', './styles/books.lazy.css']),
+    )
   })
 
   it('never brings them in from the app’s entry, only from the pages that use them', () => {
@@ -31,5 +33,7 @@ describe('stylesheets kept off the first page', () => {
       expect(importersOf('settings.lazy.css'), page).not.toContain(page)
     }
     expect(importersOf('livetv.lazy.css')).toEqual(expect.arrayContaining(['./pages/LiveTvPage.tsx', './pages/LivePlayerPage.tsx', './pages/LiveRecordings.tsx']))
+    expect(importersOf('podcasts.lazy.css')).toContain('./pages/PodcastPages.tsx')
+    expect(importersOf('books.lazy.css')).toEqual(expect.arrayContaining(['./pages/BookPage.tsx', './pages/BooksLibrary.tsx', './pages/BookSeriesPage.tsx']))
   })
 })

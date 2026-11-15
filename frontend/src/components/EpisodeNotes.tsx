@@ -1,5 +1,6 @@
 import { notesParts } from '../lib/podcasts'
 import { t } from '../i18n'
+import '../styles/podcasts.lazy.css'
 
 /**
  * An episode's notes, as text with its paragraphs, web addresses in it made links and (given `onSeek`, while it plays)

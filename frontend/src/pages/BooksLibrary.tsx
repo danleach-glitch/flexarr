@@ -28,6 +28,7 @@ import { useApi } from '../hooks/useApi'
 import { useWatchedChanges } from '../hooks/watched'
 import { AlphaPicker, AlphaRail, ShowEarlier, ShowMore, useLibraryGrid } from './libraryGrid'
 import { locale, t, tk, Words } from '../i18n'
+import '../styles/books.lazy.css'
 
 const PAGE_SIZE = 60
 /** The most books the server gives in one page (BookEndpoints' MaxPage). */

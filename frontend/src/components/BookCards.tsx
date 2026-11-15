@@ -2,6 +2,7 @@ import { Link } from 'react-router'
 import type { BookPerson, BookSeriesSummary } from '../api/types'
 import { Artwork } from './Artwork'
 import { t } from '../i18n'
+import '../styles/books.lazy.css'
 
 /** A series: its first books' covers fanned behind one another, its name, and how far through it this profile is. */
 export function BookSeriesCard({ series }: { series: BookSeriesSummary }) {
