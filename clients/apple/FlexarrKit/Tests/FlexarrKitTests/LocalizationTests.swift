@@ -132,14 +132,15 @@ import Testing
         defer {
             try? FileManager.default.removeItem(at: file)
             Localization.lastShown = nil
-            Localization.shared.show(nil)
         }
+        // Its own instance: other suites show languages on the shared one meanwhile, and a language shown wins.
+        let localization = Localization()
 
-        Localization.shared.startWithLastShown()
+        localization.startWithLastShown()
 
-        #expect(t("Play") == "Yalp")
-        #expect(Localization.shared.code == "en-XC")
-        #expect(Localization.shared.isRightToLeft)
+        #expect(localization.translate("Play", [:], ctx: nil) == "Yalp")
+        #expect(localization.code == "en-XC")
+        #expect(localization.isRightToLeft)
         try FileManager.default.removeItem(at: file)
         #expect(Localization.newestOnDevice("en-XC") == pack)
     }
