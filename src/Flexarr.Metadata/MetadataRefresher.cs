@@ -1319,6 +1319,9 @@ public sealed partial class MetadataRefresher(
                 : byNumber.GetValueOrDefault((episode.SeasonNumber ?? 0, episode.EpisodeNumber ?? 0));
             if (match is null)
             {
+                // Sonarr has no episode of its number (now): an id kept from before would be another one's, and a
+                // delete through it would take that one's file.
+                episode.ArrId = null;
                 continue;
             }
 

@@ -147,6 +147,13 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Search answers faster as you type in a library with many cast and crew: people are matched by name in memory, and only the best few have their titles counted.
 - In a big library, Collections, a music library's Genres and a long playlist open faster, a new episode arriving no longer makes the server go over the whole library, and scans and forced refreshes use far less memory.
 
+### Libraries
+
+- Deleting a film, show or episode through Radarr or Sonarr first checks that their record is really that title, so a record that has come to point at another one (after Radarr's database was rebuilt, say) can no longer take that title's files with it.
+- Deleting an artist through Lidarr is refused when their folder there also holds music filed under another artist, which Lidarr would delete too.
+- Deleting a file that holds two episodes stops Sonarr wanting both, so the second isn't downloaded again.
+- Taking back a show request with two Sonarrs stops the right seasons in each.
+
 ### Music, audiobooks and podcasts
 
 - On iPhone, iPad, Apple TV and Mac, a track, book or episode that can't start now says why, instead of the spinner stopping with nothing playing.
