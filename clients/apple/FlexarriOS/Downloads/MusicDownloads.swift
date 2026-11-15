@@ -139,7 +139,7 @@ struct CollectionArtwork: View {
 
     var body: some View {
         let shown = loaded ?? kept
-        Color.seat
+        Color.well
             .aspectRatio(1, contentMode: .fit)
             .overlay {
                 if let image = shown.cover {
@@ -196,14 +196,17 @@ struct CollectionArtwork: View {
 /// An album or playlist in the Downloads list: its picture, name and what it's doing; tapping opens it.
 struct CollectionRow: View {
     @Environment(DownloadStore.self) private var store
+    @Environment(\.horizontalSizeClass) private var sizeClass
     let collection: LocalCollection
 
     var body: some View {
         NavigationLink {
             OfflineCollectionView(collectionId: collection.id).roomForBottomBars().pushedPageTitle()
         } label: {
-            HStack(spacing: 12) {
+            HStack(spacing: DownloadRowArt.spacing(sizeClass)) {
+                // In the column films and shows use, so album names start where theirs do.
                 CollectionArtwork(collection: collection).frame(width: 63, height: 63)
+                    .frame(width: DownloadRowArt.width(sizeClass), alignment: .leading)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(collection.title)
                         .font(.subheadline.weight(.semibold))

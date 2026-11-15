@@ -79,16 +79,17 @@ struct DownloadRow: View {
 
     private var rowLayout: AnyLayout {
         dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
-            : AnyLayout(HStackLayout(spacing: sizeClass == .regular ? 16 : 12))
+            : AnyLayout(HStackLayout(spacing: DownloadRowArt.spacing(sizeClass)))
     }
 
     var body: some View {
         Button(action: play) {
             // At the accessibility text sizes the words go under the picture, not down a narrow column beside it.
             rowLayout {
-                Color.seat
+                // The well colour, so a picture that hasn't come shows as a box on the row, not empty space.
+                Color.well
                     // Bigger on an iPad or a Mac, where the row has the room.
-                    .frame(width: sizeClass == .regular ? 192 : 112, height: sizeClass == .regular ? 108 : 63)
+                    .frame(width: DownloadRowArt.width(sizeClass), height: DownloadRowArt.height(sizeClass))
                     .overlay { DownloadThumbnail(names: download.imageFileName.map { [$0] } ?? [], symbol: "film") }
                     .overlay(alignment: .bottom) {
                         if download.isDownloaded, download.finishedAt == nil, download.durationSeconds > 0, download.position > 30 {
@@ -151,6 +152,14 @@ struct DownloadRow: View {
     }
 }
 
+/// The picture column every Downloads row shares, so the names down the list start at one edge: a film's or episode's
+/// 16:9 picture fills it, and a square cover (an album, a book, a podcast) sits at its leading edge.
+enum DownloadRowArt {
+    static func width(_ sizeClass: UserInterfaceSizeClass?) -> CGFloat { sizeClass == .regular ? 192 : 112 }
+    static func height(_ sizeClass: UserInterfaceSizeClass?) -> CGFloat { sizeClass == .regular ? 108 : 63 }
+    static func spacing(_ sizeClass: UserInterfaceSizeClass?) -> CGFloat { sizeClass == .regular ? 16 : 12 }
+}
+
 /// A podcast episode or book on the phone: its artwork, title and show (or author), and what it's doing (tap to play
 /// once it's here).
 private struct PodcastDownloadRow: View {
@@ -163,8 +172,8 @@ private struct PodcastDownloadRow: View {
 
     var body: some View {
         Button { if isBook { model.playBook(download.item) } else { model.playEpisode(download.item) } } label: {
-            HStack(spacing: sizeClass == .regular ? 16 : 12) {
-                Color.seat
+            HStack(spacing: DownloadRowArt.spacing(sizeClass)) {
+                Color.well
                     .frame(width: sizeClass == .regular ? 96 : 63, height: sizeClass == .regular ? 96 : 63)
                     .overlay { DownloadThumbnail(names: download.imageFileName.map { [$0] } ?? [], symbol: isBook ? "book.fill" : "mic.fill") }
                     .overlay(alignment: .bottom) {
@@ -173,6 +182,7 @@ private struct PodcastDownloadRow: View {
                         }
                     }
                     .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
+                    .frame(width: DownloadRowArt.width(sizeClass), alignment: .leading)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(download.item.title)
                         .font(.subheadline.weight(.semibold))

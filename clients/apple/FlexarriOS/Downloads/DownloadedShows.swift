@@ -83,7 +83,7 @@ struct DownloadedShowRow: View {
 
     private var rowLayout: AnyLayout {
         dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
-            : AnyLayout(HStackLayout(spacing: sizeClass == .regular ? 16 : 12))
+            : AnyLayout(HStackLayout(spacing: DownloadRowArt.spacing(sizeClass)))
     }
 
     var body: some View {
@@ -92,8 +92,9 @@ struct DownloadedShowRow: View {
         } label: {
             // At the accessibility text sizes the words go under the picture, not down a narrow column beside it.
             rowLayout {
-                Color.seat
-                    .frame(width: sizeClass == .regular ? 192 : 112, height: sizeClass == .regular ? 108 : 63)
+                // The well colour, so a show without episode pictures shows a box on the row, not a floating icon.
+                Color.well
+                    .frame(width: DownloadRowArt.width(sizeClass), height: DownloadRowArt.height(sizeClass))
                     .overlay { DownloadThumbnail(names: show.episodes.compactMap(\.imageFileName), symbol: Symbol.shows) }
                     .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                 VStack(alignment: .leading, spacing: 3) {
