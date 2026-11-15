@@ -41,6 +41,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Before an iPhone, iPad, Apple TV or Android device sends its sign-in to your server's home address, the server now shows it holds that device's key, not just its name. Once your server has done so, something else answering at the same address on another network gets nothing.
 - A settings file now carries only whether notifications are on. Where they're sent stays as each server has it, so importing someone else's file can't redirect your notifications.
 - Keeping backups in a folder other than the data folder now asks for the admin PIN (or a yes, when there's none), as downloading a backup does: every backup holds the server's keys.
+- Each profile can now add up to 60 new podcasts an hour and follow up to 1,000, and pulling to refresh a show that was checked moments ago no longer fetches it again. A profile watches up to four Live TV channels at once: starting a fifth stops the one it started longest ago, and that screen says why.
 
 ### iPad
 

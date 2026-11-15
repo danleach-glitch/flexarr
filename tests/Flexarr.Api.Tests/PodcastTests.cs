@@ -94,6 +94,8 @@ public sealed class PodcastTests : IDisposable
             services.AddHttpClient<PodcastFetcher>().ConfigurePrimaryHttpMessageHandler(() => _host);
             services.AddHttpClient<PodcastDirectory>().ConfigurePrimaryHttpMessageHandler(() => _host);
             services.AddHttpClient<ImageCache>().ConfigurePrimaryHttpMessageHandler(() => _host);
+            // These tests refresh a feed again straight away to see what changed.
+            services.AddSingleton(new PodcastPace { RefreshAtMostEvery = TimeSpan.Zero });
         }));
         _host.Feed(FeedUrl, Feed(3));
         for (var i = 1; i <= 4; i++)
@@ -301,6 +303,36 @@ public sealed class PodcastTests : IDisposable
         var sid = playback.GetProperty("sessionId").GetString();
         var progress = await client.PostAsJsonAsync(Api($"playback/{sid}/progress"), new { positionSeconds = 12 });
         Assert.False(progress.Headers.Contains("Access-Control-Allow-Origin"));
+    }
+
+    [Fact]
+    public async Task Refreshing_AFeedJustChecked_DoesntFetchItAgain()
+    {
+        await AddLibraryAsync();
+        var client = Client();
+        var id = (await AddPodcastAsync(client)).GetProperty("id").GetString();
+        _server.Services.GetRequiredService<PodcastPace>().RefreshAtMostEvery = TimeSpan.FromHours(1);
+        var asked = _host.Requests.Count;
+
+        for (var i = 0; i < 5; i++)
+        {
+            (await client.PostAsync(Api($"podcasts/{id}/refresh"), null)).EnsureSuccessStatusCode();
+        }
+
+        Assert.Equal(asked, _host.Requests.Count);
+    }
+
+    [Fact]
+    public void EachProfile_AddsOnlySoManyNewFeedsAnHour()
+    {
+        using var pace = new PodcastPace();
+        for (var i = 0; i < PodcastPace.NewFeedsPerHour; i++)
+        {
+            Assert.True(pace.TryAdd("kid"));
+        }
+
+        Assert.False(pace.TryAdd("kid"));
+        Assert.True(pace.TryAdd("owner"));
     }
 
     [Fact]

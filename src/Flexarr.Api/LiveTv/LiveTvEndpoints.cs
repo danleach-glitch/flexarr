@@ -254,6 +254,14 @@ public static partial class LiveTvEndpoints
                 await streams.LeaveAsync(old.Session, old.Id);
             }
 
+            // A few channels per profile at once: past that, the one it started watching longest ago stops, saying why.
+            foreach (var crowded in viewers.MakingWayFor(profile.Id))
+            {
+                viewers.End(crowded.Id, () => Loc.T("This profile started watching on another screen, and can watch {count, plural, one {# channel} other {# channels}} at once.",
+                    new { count = LiveTvViewers.MaxPerProfile }));
+                await streams.LeaveAsync(crowded.Session, crowded.Id);
+            }
+
             var source = account.StreamOf(channel.SourceId);
             var ffprobe = settings.FfprobePath;
             var viewerId = TranscodeManager.NewId();

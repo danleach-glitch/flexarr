@@ -6,7 +6,7 @@ namespace Flexarr.Api.LiveTv;
 /// <summary>Someone watching a channel. <see cref="Id"/> is the random capability in their playlist's address.</summary>
 public sealed record LiveViewer(string Id, Guid ChannelId, string ChannelName, string ProfileId, string? SignInId, LiveSession Session)
 {
-    public DateTime StartedAt { get; } = DateTime.UtcNow;
+    public DateTime StartedAt { get; init; } = DateTime.UtcNow;
 }
 
 /// <summary>Who's watching which channel.</summary>
@@ -21,6 +21,18 @@ public sealed class LiveTvViewers
     private readonly ConcurrentDictionary<string, (Func<string> Reason, DateTime At)> _ended = new(StringComparer.Ordinal);
 
     public IReadOnlyCollection<LiveViewer> All => [.. _viewers.Values];
+
+    /// <summary>
+    /// The most channels one profile watches at once. Each is a conversion, a connection to the provider and a rewind
+    /// window on the server's disk, so a profile can't hold dozens open; four covers a household's screens.
+    /// </summary>
+    public const int MaxPerProfile = 4;
+
+    /// <summary>
+    /// The profile's viewers that make way for one more: those it started longest ago, past <see cref="MaxPerProfile"/>.
+    /// </summary>
+    public IReadOnlyList<LiveViewer> MakingWayFor(string profileId) =>
+        [.. _viewers.Values.Where(v => v.ProfileId == profileId).OrderBy(v => v.StartedAt).SkipLast(MaxPerProfile - 1)];
 
     /// <summary>Takes the viewer off, keeping why for a few minutes.</summary>
     public void End(string id, Func<string> reason)
