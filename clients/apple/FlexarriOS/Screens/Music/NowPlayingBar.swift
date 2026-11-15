@@ -107,6 +107,7 @@ struct NowPlayingBar: View {
             #endif
             .sheet(isPresented: Bindable(router).showsNowPlaying) {
                 NowPlayingView()
+                    .phoneSizesWhenSideways()
                     // On iPad the page size, not the small form sheet that cut the controls off.
                     .presentationSizing(.page)
                     .presentationDetents([.large])

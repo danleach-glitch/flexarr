@@ -13,6 +13,9 @@ struct NowPlayingView: View {
     @Environment(DownloadStore.self) private var downloads
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) private var sizeClass
+    /// A phone held sideways: the cover goes beside the controls, as the book hero on Home does, so the title,
+    /// scrubber and Pause aren't below the fold.
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     /// Where the thumb is while the viewer drags it; nil when the track's own position shows.
     @State private var scrubbing: Double?
     @State private var lyrics = LyricsLoader()
@@ -120,6 +123,26 @@ struct NowPlayingView: View {
                     .frame(maxWidth: .infinity)
                 }
                 .padding(.horizontal, 40)
+            } else if verticalSizeClass == .compact {
+                HStack(spacing: 32) {
+                    cover(track)
+                        .frame(maxWidth: proxy.size.height * 0.8)
+                    ScrollView(.vertical) {
+                        VStack(spacing: 18) {
+                            titles(track)
+                            scrubber
+                            controls
+                            extras
+                            upNext
+                        }
+                        .padding(.vertical, 24)
+                        .frame(minHeight: proxy.size.height)
+                    }
+                    .scrollBounceBehavior(.basedOnSize)
+                    .frame(maxWidth: 480)
+                }
+                .padding(.horizontal, 28)
+                .frame(maxWidth: .infinity)
             } else {
                 ScrollView(.vertical) {
                     VStack(spacing: 24) {
@@ -158,7 +181,45 @@ struct NowPlayingView: View {
 
     /// An episode's page, fixed in place: the cover (or, with Notes, the episode's details in its place), then the title,
     /// the chapter, the scrubber and the controls.
+    @ViewBuilder
     private func podcastPage(_ track: ItemSummary) -> some View {
+        if verticalSizeClass == .compact {
+            // Sideways on a phone: the cover (or the details) on the left, the controls beside it.
+            HStack(spacing: 32) {
+                Group {
+                    if showingDetails {
+                        VStack(spacing: 12) {
+                            smallHeader(track) { withAnimation(.easeInOut(duration: 0.3)) { showingDetails = false } }
+                            details
+                        }
+                    } else {
+                        cover(track)
+                    }
+                }
+                .frame(maxWidth: 420, maxHeight: .infinity)
+                ScrollView(.vertical) {
+                    VStack(spacing: 16) {
+                        if !showingDetails { titles(track) }
+                        bookOffers
+                        if !chapters.isEmpty { chapterStrip }
+                        scrubber
+                        controls
+                        extras
+                    }
+                    .padding(.vertical, 20)
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                .frame(maxWidth: 480)
+            }
+            .padding(.horizontal, 28)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity)
+        } else {
+            podcastColumn(track)
+        }
+    }
+
+    private func podcastColumn(_ track: ItemSummary) -> some View {
         VStack(spacing: 20) {
             grabber
             if showingDetails {

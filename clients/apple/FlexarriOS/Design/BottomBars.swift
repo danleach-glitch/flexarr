@@ -15,6 +15,26 @@ extension View {
     /// pushed page's large title started collapsed and jumped to large (moving the page down) at the first touch.
     /// Deeper pages left automatic inherit it. The tabs' first pages keep their large titles, and the iPhone is as it was.
     func pushedPageTitle() -> some View { modifier(PushedPageTitle()) }
+
+    /// A large iPhone held sideways reports a regular width but a compact height: the pages under this see a compact
+    /// width there, so their grids, rows and covers keep the phone's sizes and fit the short screen. Only an iPad (whose
+    /// height is always regular) gets the big ones.
+    func phoneSizesWhenSideways() -> some View { modifier(PhoneSizesWhenSideways()) }
+}
+
+private struct PhoneSizesWhenSideways: ViewModifier {
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var horizontal
+    @Environment(\.verticalSizeClass) private var vertical
+    #endif
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        content.environment(\.horizontalSizeClass, vertical == .compact ? .compact : horizontal)
+        #else
+        content
+        #endif
+    }
 }
 
 private struct BottomBarsRoom: ViewModifier {

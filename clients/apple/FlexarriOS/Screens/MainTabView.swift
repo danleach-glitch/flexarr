@@ -123,9 +123,10 @@ struct TabStack<Content: View>: View {
         ZStack(alignment: .bottom) {
             NavigationStack(path: $router.path) {
                 content()
+                    .phoneSizesWhenSideways()
                     .roomForBottomBars()
                     .navigationDestination(for: Route.self) { route in
-                        RouteDestination(route: route).roomForBottomBars().pushedPageTitle()
+                        RouteDestination(route: route).phoneSizesWhenSideways().roomForBottomBars().pushedPageTitle()
                     }
             }
             // On a strip of its own above the page. Not on a wide iPad: its tab bar and the page's back button share
