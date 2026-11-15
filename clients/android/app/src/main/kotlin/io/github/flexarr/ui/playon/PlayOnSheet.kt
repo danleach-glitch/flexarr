@@ -95,7 +95,8 @@ fun PlayOnSheet(client: FlexarrClient, item: ItemSummary, onClose: () -> Unit) {
             Text(t("Play on"), fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, modifier = Modifier.weight(1f))
             TextButton(onClick = onClose) { Text(t(Words.done), color = Flexarr.screen, fontWeight = FontWeight.SemiBold) }
         }
-        LazyColumn(Modifier.navigationBarsPadding(), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)) {
+        // Room under the last line, clear of the gesture bar, as the trailer sheet has.
+        LazyColumn(Modifier.navigationBarsPadding(), contentPadding = PaddingValues(start = 8.dp, top = 8.dp, end = 8.dp, bottom = 24.dp)) {
             outcome?.let { message ->
                 item { Text(message, fontSize = 14.sp, color = Flexarr.screen, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) }
             }
