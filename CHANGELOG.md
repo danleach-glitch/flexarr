@@ -14,7 +14,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Android, Download Season fetches that season and one episode ahead, no longer the whole show.
 - On Android, pages no longer scroll up through the clock and status icons, and Settings pages keep their title and Back in view.
 - On Android, a show's season pills are all readable: Download Season sits on its own line under them.
-- An iPhone, iPad, Apple TV or Android device that signed in at home with Tailscale off now still reaches your server away from home once Tailscale is on. Settings › Server shows the away address, and says when this device hasn't reached it yet.
+- An iPhone, iPad, Apple TV or Android device that signed in at home with Tailscale off now reaches your server away from home once Tailscale is on. Settings › Server says when it hasn't yet.
 
 ### Trakt
 
