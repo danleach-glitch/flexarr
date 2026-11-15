@@ -1833,10 +1833,11 @@ button.queue-track:focus-visible {
   align-items: center;
 }
 
-/* On a phone the name takes the first row and both buttons share the second, rather than Cancel dropping alone. */
+/* On a phone the name takes the first row and both buttons share the second, rather than Cancel dropping alone.
+   .field-row in the selector outranks settings.css's .field-row label.grow, which loads after this sheet. */
 @media (max-width: 600px) {
-  .playlist-new label.grow,
-  .playlist-rename label.grow {
+  .field-row.playlist-new label.grow,
+  .field-row.playlist-rename label.grow {
     flex: 1 1 100%;
   }
 }
