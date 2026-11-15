@@ -97,6 +97,8 @@ internal fun DownloadedShowRow(model: AppModel, show: DownloadedShow, onOpen: ()
             Text(show.title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 2, overflow = TextOverflow.Ellipsis)
             ShowStatusLine(model, show)
         }
+        // Before the chevron: each episode that failed, asked for again.
+        if (show.episodes.any { it.phase == io.github.flexarr.core.LocalPhase.Failed }) TryAgainIconButton(model) { retryFailed(model, show) }
         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = Flexarr.usher)
     }
     if (removing) {
@@ -128,8 +130,7 @@ private fun ShowStatusLine(model: AppModel, show: DownloadedShow) {
         }
         is EpisodeGroupState.Failed -> Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             caption(count)
-            // Each episode that failed, asked for again.
-            FailedDownloadLine(model, state.message, maxLines = 1) { retryFailed(model, show) }
+            FailedDownloadLine(state.message)
         }
         is EpisodeGroupState.NotDownloaded -> caption(count)
     }

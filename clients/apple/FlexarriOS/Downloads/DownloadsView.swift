@@ -15,15 +15,6 @@ struct DownloadsView: View {
                     : t("Download movies, episodes, albums, playlists and podcasts to watch and listen with no connection. Look for the download button on a title’s page.")))
             } else {
                 List {
-                    // Several failed (a season, an album and a film, say): one press asks for them all again.
-                    let failed = store.failedDownloads
-                    if failed.downloads.count + failed.collections.count > 1 {
-                        Section {
-                            TryAgainButton(retry: { try await store.retryAllFailed() }, title: t("Try all again"))
-                                .listRowBackground(Color.clear)
-                                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                        }
-                    }
                     let films = store.videoDownloads.filter { $0.item.kind != .episode }
                     if !films.isEmpty {
                         Section(t(Words.movies)) {
@@ -66,6 +57,13 @@ struct DownloadsView: View {
                 }
                 .scrollContentBackground(.hidden)
                 .macReadable(title: t(Words.downloads))
+                .pageActions {
+                    // Several failed (a season, an album and a film, say): one press in the bar asks for them all again.
+                    let failed = store.failedDownloads
+                    if failed.downloads.count + failed.collections.count > 1 {
+                        TryAgainButton(title: t("Try all again")) { try await store.retryAllFailed() }
+                    }
+                }
             }
         }
         .background(RoomBackground(ambient: nil))
@@ -94,27 +92,32 @@ struct DownloadRow: View {
     var body: some View {
         // A failed one isn't a button (there's nothing to play), so its Try again takes its own taps.
         PlayableRow(playable: !download.hasFailed, enabled: download.isDownloaded, action: play) {
-            // At the accessibility text sizes the words go under the picture, not down a narrow column beside it.
-            rowLayout {
-                // The well colour, so a picture that hasn't come shows as a box on the row, not empty space.
-                Color.well
-                    // Bigger on an iPad or a Mac, where the row has the room.
-                    .frame(width: DownloadRowArt.width(sizeClass), height: DownloadRowArt.height(sizeClass))
-                    .overlay { DownloadThumbnail(names: download.imageFileName.map { [$0] } ?? [], symbol: "film") }
-                    .overlay(alignment: .bottom) {
-                        if download.isDownloaded, download.finishedAt == nil, download.durationSeconds > 0, download.position > 30 {
-                            ProgressBar(value: download.position / download.durationSeconds).padding(5)
+            HStack(spacing: 0) {
+                // At the accessibility text sizes the words go under the picture, not down a narrow column beside it.
+                rowLayout {
+                    // The well colour, so a picture that hasn't come shows as a box on the row, not empty space.
+                    Color.well
+                        // Bigger on an iPad or a Mac, where the row has the room.
+                        .frame(width: DownloadRowArt.width(sizeClass), height: DownloadRowArt.height(sizeClass))
+                        .overlay { DownloadThumbnail(names: download.imageFileName.map { [$0] } ?? [], symbol: "film") }
+                        .overlay(alignment: .bottom) {
+                            if download.isDownloaded, download.finishedAt == nil, download.durationSeconds > 0, download.position > 30 {
+                                ProgressBar(value: download.position / download.durationSeconds).padding(5)
+                            }
                         }
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(download.item.kind == .episode ? (download.item.episodeSubtitle ?? download.item.title) : download.item.title)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.screen)
+                            .lineLimit(2)
+                        status
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(download.item.kind == .episode ? (download.item.episodeSubtitle ?? download.item.title) : download.item.title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.screen)
-                        .lineLimit(2)
-                    status
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
+                if download.hasFailed {
+                    TryAgainButton { try await store.retry(download.id) }
+                }
             }
         }
         .listRowBackground(Color.seat)
@@ -140,7 +143,7 @@ struct DownloadRow: View {
                          download.finishedAt != nil ? t("Watched") : nil].compactMap { $0 }.joined(separator: "  "))
             }
         case .failed(let message):
-            FailedDownloadLine(message: message) { try await store.retry(download.id) }
+            FailedDownloadLine(message: message)
         }
     }
 
@@ -175,44 +178,52 @@ struct PlayableRow<Content: View>: View {
     }
 }
 
-/// Why a download failed, in red, and under it Try again: asks for it again the way its title's page does. A
-/// problem asking (the server out of reach, say) is said.
+/// Why a download failed, in red, on one line under its name: the Try again at the row's end says the rest.
 struct FailedDownloadLine: View {
     let message: String
-    let retry: () async throws -> Void
-    var lineLimit: Int?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(message).font(.caption).foregroundStyle(Color.danger).lineLimit(lineLimit)
-            TryAgainButton(retry: retry)
-        }
+        Text(message).font(.caption).foregroundStyle(Color.danger).lineLimit(1)
     }
 }
 
-/// Try again, as a small capsule on a failed Downloads row (or Try all again at the top of the list).
+/// Try again, asking for it again the way its title's page does: a round icon at a failed Downloads row's end, where
+/// the chevron or nothing would be (`title` nil), or Try all again as words in the bar. A problem asking (the server
+/// out of reach, say) is said.
 struct TryAgainButton: View {
+    var title: String?
     let retry: () async throws -> Void
-    var title = t("Try again")
     @State private var trying = false
     @State private var problem: String?
 
     var body: some View {
-        Button {
-            trying = true
-            Task {
-                defer { trying = false }
-                do { try await retry() } catch is CancellationError {} catch { problem = ConnectionError(error).message }
+        Group {
+            if let title {
+                Button(title, action: tryAgain)
+            } else {
+                Button(action: tryAgain) {
+                    Image(systemName: Symbol.retry)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Color.usher)
+                        // A full-size target, though the icon is small.
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                // Its own taps, not the row's (a show's or album's row opens it).
+                .buttonStyle(.borderless)
+                .accessibilityLabel(t("Try again"))
             }
-        } label: {
-            Label(title, systemImage: Symbol.retry).font(.caption.weight(.semibold))
         }
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.capsule)
-        .controlSize(.small)
-        .tint(Color.screen)
         .disabled(trying)
         .downloadProblem($problem)
+    }
+
+    private func tryAgain() {
+        trying = true
+        Task {
+            defer { trying = false }
+            do { try await retry() } catch is CancellationError {} catch { problem = ConnectionError(error).message }
+        }
     }
 }
 
@@ -307,6 +318,9 @@ private struct PodcastDownloadRow: View {
                     status
                 }
                 Spacer(minLength: 0)
+                if download.hasFailed {
+                    TryAgainButton { try await store.retry(download.id) }
+                }
             }
         }
         .listRowBackground(Color.seat)
@@ -335,7 +349,7 @@ private struct PodcastDownloadRow: View {
                      download.finishedAt != nil ? (isBook ? t("Finished") : t("Played")) : nil].compactMap { $0 }.joined(separator: "  "))
             }
         case .failed(let message):
-            FailedDownloadLine(message: message) { try await store.retry(download.id) }
+            FailedDownloadLine(message: message)
         }
     }
 

@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.widthIn
 import io.github.flexarr.core.i18n.t
 import io.github.flexarr.core.i18n.Words
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -14,8 +13,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -35,8 +32,6 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -115,7 +110,16 @@ fun DownloadsScreen(model: AppModel) {
     openedShow?.let { key -> return DownloadedShowScreen(model, key, onBack = { openedShow = null }) }
     RoomBackground(ambient = null) {
         Column {
-            PageTitle(t(Words.downloads))
+            // Several failed (a season, an album and a film, say): one press in the bar asks for them all again.
+            val failedBooks = model.bookDownloads.books.filter { it.phase == LocalPhase.Failed }
+            PageTitle(t(Words.downloads)) {
+                if (store.failedDownloads.size + store.failedCollections.size + failedBooks.size > 1) {
+                    TryAllAgainButton(model) {
+                        store.retryAllFailed()
+                        failedBooks.forEach { model.bookDownloads.download(it.item) }
+                    }
+                }
+            }
             if (store.downloads.isEmpty() && store.musicCollections.isEmpty() && model.bookDownloads.books.isEmpty()) {
                 StatusView(
                     // Offline there's nothing to be done about it.
@@ -136,18 +140,6 @@ fun DownloadsScreen(model: AppModel) {
                 },
             ) {
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                    // Several failed (a season, an album and a film, say): one press asks for them all again.
-                    val failedBooks = model.bookDownloads.books.filter { it.phase == LocalPhase.Failed }
-                    if (store.failedDownloads.size + store.failedCollections.size + failedBooks.size > 1) {
-                        item(key = "try-all-again") {
-                            Box(Modifier.padding(horizontal = Edge)) {
-                                TryAgainButton(model, title = t("Try all again")) {
-                                    store.retryAllFailed()
-                                    failedBooks.forEach { model.bookDownloads.download(it.item) }
-                                }
-                            }
-                        }
-                    }
                     section(t(Words.movies), store.films) { DownloadRow(model, it) }
                     section(t(Words.shows), store.shows) { DownloadedShowRow(model, it, onOpen = { openedShow = it.key }) }
                     section(t(Words.music), store.musicCollections) { CollectionRow(model, it, onOpen = { opened = it.id }) }
@@ -217,7 +209,7 @@ private fun BookDownloadRow(model: AppModel, book: io.github.flexarr.core.LocalB
             book.item.book?.authors?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             @Composable fun caption(text: String) = Text(text, fontSize = 12.sp, color = Flexarr.usher, style = io.github.flexarr.ui.podcasts.Tabular)
             when {
-                book.phase == LocalPhase.Failed -> FailedDownloadLine(model, book.failure ?: t("Couldn’t download this")) { store.download(book.item) }
+                book.phase == LocalPhase.Failed -> FailedDownloadLine(book.failure ?: t("Couldn’t download this"))
                 !book.isDownloaded -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     val progress = store.progress(book)
                     caption(t("Downloading, {percent}%", "percent" to (progress * 100).toInt()))
@@ -229,6 +221,7 @@ private fun BookDownloadRow(model: AppModel, book: io.github.flexarr.core.LocalB
                 }
             }
         }
+        if (book.phase == LocalPhase.Failed) TryAgainIconButton(model) { store.download(book.item) }
         Box {
             IconButton(onClick = { menu = true }) { Icon(FlexarrIcons.more, contentDescription = t("More for {title}", "title" to book.item.title), tint = Flexarr.usher) }
             DropdownMenu(menu, onDismissRequest = { menu = false }) {
@@ -291,6 +284,7 @@ private fun DownloadListRow(
             subtitle?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             DownloadStatusLine(model, download, doneLine)
         }
+        if (download.phase == LocalPhase.Failed) TryAgainIconButton(model) { store.retry(download.id) }
         Box {
             IconButton(onClick = { menu = true }) { Icon(FlexarrIcons.more, contentDescription = t("More for {title}", "title" to title), tint = Flexarr.usher) }
             DropdownMenu(menu, onDismissRequest = { menu = false }) {
@@ -322,7 +316,7 @@ private fun DownloadStatusLine(model: AppModel, download: LocalDownload, doneLin
             caption(t("Downloading, {percent}%", "percent" to (progress * 100).toInt()))
             LinearProgressIndicator(progress = { progress.toFloat() }, color = Flexarr.silver, trackColor = Flexarr.aisle, modifier = Modifier.fillMaxWidth().padding(end = 4.dp))
         }
-        download.phase == LocalPhase.Failed -> FailedDownloadLine(model, download.failure ?: t("Couldn’t download this")) { store.retry(download.id) }
+        download.phase == LocalPhase.Failed -> FailedDownloadLine(download.failure ?: t("Couldn’t download this"))
         else -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Filled.ArrowCircleDown, contentDescription = t("Downloaded"), tint = Flexarr.go, modifier = Modifier.size(14.dp))
             caption(doneLine.joinToString("   "))
@@ -330,33 +324,44 @@ private fun DownloadStatusLine(model: AppModel, download: LocalDownload, doneLin
     }
 }
 
-/** Why a download failed, in red, and under it Try again: asks for it again the way its title's page does. */
+/** Why a download failed, in red, on one line under its name: the Try again at the row's end says the rest. */
 @Composable
-internal fun FailedDownloadLine(model: AppModel, message: String, maxLines: Int = Int.MAX_VALUE, retry: suspend () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(message, fontSize = 12.sp, color = Flexarr.danger, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
-        TryAgainButton(model, retry = retry)
-    }
+internal fun FailedDownloadLine(message: String) {
+    Text(message, fontSize = 12.sp, color = Flexarr.danger, maxLines = 1, overflow = TextOverflow.Ellipsis)
 }
 
-/** Try again, as a small outlined button on a failed Downloads row (or Try all again at the top of the list). */
+/**
+ * Try again on a failed Downloads row: a round icon at its end, the size and tint of the ⋯ (or chevron) beside it,
+ * asking for it again the way its title's page does.
+ */
 @Composable
-internal fun TryAgainButton(model: AppModel, title: String = t("Try again"), retry: suspend () -> Unit) {
+internal fun TryAgainIconButton(model: AppModel, retry: suspend () -> Unit) {
     val navigator = io.github.flexarr.ui.components.LocalNavigator.current
     var trying by remember { mutableStateOf(false) }
-    OutlinedButton(
+    IconButton(
         onClick = {
             trying = true
             tryAgain(model, navigator, done = { trying = false }, retry = retry)
         },
         enabled = !trying,
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-        border = BorderStroke(1.dp, Flexarr.screen.copy(alpha = 0.3f)),
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = Flexarr.screen),
     ) {
-        Icon(FlexarrIcons.retry, contentDescription = null, modifier = Modifier.size(16.dp))
-        Spacer(Modifier.width(6.dp))
-        Text(title, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        Icon(FlexarrIcons.retry, contentDescription = t("Try again"), tint = Flexarr.usher)
+    }
+}
+
+/** Try all again, as words in the page's top bar. */
+@Composable
+private fun TryAllAgainButton(model: AppModel, retry: suspend () -> Unit) {
+    val navigator = io.github.flexarr.ui.components.LocalNavigator.current
+    var trying by remember { mutableStateOf(false) }
+    TextButton(
+        onClick = {
+            trying = true
+            tryAgain(model, navigator, done = { trying = false }, retry = retry)
+        },
+        enabled = !trying,
+    ) {
+        Text(t("Try all again"), color = Flexarr.screen, fontSize = 15.sp, fontWeight = FontWeight.Medium)
     }
 }
 

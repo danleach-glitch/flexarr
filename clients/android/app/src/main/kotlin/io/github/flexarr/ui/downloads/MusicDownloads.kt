@@ -288,6 +288,7 @@ fun CollectionRow(model: AppModel, collection: LocalCollection, onOpen: () -> Un
             collection.subtitle?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             CollectionStatusLine(model, collection)
         }
+        if (store.status(collection) is CollectionStatus.Failed) TryAgainIconButton(model) { store.retryCollection(collection.id) }
         Box {
             IconButton(onClick = { menu = true }) { Icon(FlexarrIcons.more, contentDescription = t("More for {title}", "title" to collection.title), tint = Flexarr.usher) }
             DropdownMenu(menu, onDismissRequest = { menu = false }) {
@@ -323,7 +324,7 @@ private fun CollectionStatusLine(model: AppModel, collection: LocalCollection) {
             DownloadedMark()
             caption(listOf(t("{count, plural, one {# track} other {# tracks}}", "count" to total), Format.bytes(store.bytesUsed(collection))).joinToString("   "))
         }
-        is CollectionStatus.Failed -> FailedDownloadLine(model, status.message) { store.retryCollection(collection.id) }
+        is CollectionStatus.Failed -> FailedDownloadLine(status.message)
     }
 }
 

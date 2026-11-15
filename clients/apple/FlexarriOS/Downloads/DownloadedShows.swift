@@ -105,6 +105,10 @@ struct DownloadedShowRow: View {
                     status
                 }
                 Spacer(minLength: 0)
+                // Before the chevron: each episode that failed, asked for again.
+                if show.episodes.contains(where: \.hasFailed) {
+                    TryAgainButton(retry: retryFailed)
+                }
             }
         }
         .listRowBackground(Color.seat)
@@ -135,8 +139,7 @@ struct DownloadedShowRow: View {
         case .failed(let message, _):
             VStack(alignment: .leading, spacing: 3) {
                 caption(count)
-                // Each episode that failed, asked for again.
-                FailedDownloadLine(message: message, retry: retryFailed, lineLimit: 1)
+                FailedDownloadLine(message: message)
             }
         case .notStarted:
             caption(count)
