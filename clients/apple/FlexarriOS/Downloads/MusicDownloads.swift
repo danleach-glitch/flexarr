@@ -228,6 +228,10 @@ struct CollectionRow: View {
                     status
                 }
                 Spacer(minLength: 0)
+                // Before the chevron.
+                if isFailed {
+                    TryAgainButton { try await store.retry(collectionId: collection.id) }
+                }
             }
         }
         .listRowBackground(Color.seat)
@@ -254,7 +258,7 @@ struct CollectionRow: View {
                          formatBytes(store.bytesUsed(by: collection))].joined(separator: "  "))
             }
         case .failed(let message):
-            FailedDownloadLine(message: message) { try await store.retry(collectionId: collection.id) }
+            FailedDownloadLine(message: message)
         }
     }
 
