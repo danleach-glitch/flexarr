@@ -16,7 +16,10 @@ namespace Flexarr.Api.Playback;
 public sealed partial class CacheJanitor(IServiceScopeFactory scopes, IOptionsMonitor<FlexarrOptions> options, LiveStreams live,
     Flexarr.Streaming.TranscodeManager transcodes, ILogger<CacheJanitor> logger) : BackgroundService
 {
-    /// <summary>A cached subtitle, keyframe index or logo older than this is deleted; anything still wanted is made again.</summary>
+    /// <summary>
+    /// A cached subtitle, keyframe index, logo or episode's sound fingerprint unused for this long is deleted; anything
+    /// still wanted is made again.
+    /// </summary>
     public static readonly TimeSpan KeptFor = TimeSpan.FromDays(90);
 
     /// <summary>Half-made scrubbing previews older than this were left by a run that stopped.</summary>
@@ -110,7 +113,7 @@ public sealed partial class CacheJanitor(IServiceScopeFactory scopes, IOptionsMo
 
         // Keyed by the file's path and time (or a logo's address): an old one is for a file that's since changed, or
         // is made again in moments.
-        foreach (var folder in new[] { "subtitles", "remux-index", "livetv-logos" })
+        foreach (var folder in new[] { "subtitles", "remux-index", "livetv-logos", "fingerprints" })
         {
             var root = Path.Combine(cache, folder);
             if (!Directory.Exists(root))

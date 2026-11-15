@@ -131,4 +131,67 @@ public class MarkerDetectorTests
             Directory.Delete(folder, recursive: true);
         }
     }
+
+    [Fact]
+    public async Task ANewEpisode_IsComparedWithItsSeason_WithoutDecodingTheOthersAgain()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var folder = Directory.CreateTempSubdirectory("flexarr-markers-").FullName;
+        try
+        {
+            var log = Path.Combine(folder, "log");
+            var ffprobe = Path.Combine(folder, "fake-ffprobe");
+            var ffmpeg = Path.Combine(folder, "fake-ffmpeg");
+            File.WriteAllText(ffprobe, """
+                #!/bin/sh
+                echo '{"chapters":[]}'
+                """);
+            // A second of sound that differs by file, so each has a fingerprint of its own.
+            File.WriteAllText(ffmpeg, $"""
+                #!/bin/sh
+                echo "$*" >> '{log}'
+                head -c 22050 /dev/urandom
+                """);
+            File.SetUnixFileMode(ffprobe, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            File.SetUnixFileMode(ffmpeg, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            var detector = new MarkerDetector(ffmpeg, ffprobe, Path.Combine(folder, "fingerprints"));
+            var modified = new DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc);
+            List<MediaFile> season =
+            [
+                new() { Id = Guid.NewGuid(), Path = "/shows/One.mkv", DurationSeconds = 1300, Size = 1, ModifiedAt = modified },
+                new() { Id = Guid.NewGuid(), Path = "/shows/Two.mkv", DurationSeconds = 1300, Size = 2, ModifiedAt = modified },
+            ];
+
+            await detector.DetectSeasonAsync(season, CancellationToken.None);
+            Assert.Equal(4, File.ReadAllLines(log).Length); // each episode's start and end
+
+            // This week's episode: only its own sound is decoded, the others' fingerprints are kept from last time.
+            File.Delete(log);
+            season.Add(new() { Id = Guid.NewGuid(), Path = "/shows/Three.mkv", DurationSeconds = 1300, Size = 3, ModifiedAt = modified });
+            var gaveWay = 0;
+            await detector.DetectSeasonAsync(season, CancellationToken.None, giveWay: _ =>
+            {
+                gaveWay++;
+                return Task.CompletedTask;
+            });
+            var decoded = File.ReadAllLines(log);
+            Assert.Equal(2, decoded.Length);
+            Assert.All(decoded, line => Assert.Contains("Three.mkv", line, StringComparison.Ordinal));
+            Assert.Equal(1, gaveWay); // waits only for the decode it makes
+
+            // A replaced file (new size or time) is decoded again.
+            File.Delete(log);
+            season[0].ModifiedAt = modified.AddDays(1);
+            await detector.DetectSeasonAsync(season, CancellationToken.None);
+            Assert.All(File.ReadAllLines(log), line => Assert.Contains("One.mkv", line, StringComparison.Ordinal));
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
 }

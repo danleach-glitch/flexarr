@@ -135,6 +135,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - MP4 and MOV films that can be played as they are now are from their very first play, instead of being converted the first time while Flexarr reads the whole file; and a film watched now and then isn't read end to end again every few months.
 - When the disk holding Flexarr's cache is nearly full, streams nobody is watching give up their space first, and a new stream says the disk is nearly full instead of every stream failing once it fills.
 - Starting a film with subtitles off no longer reads the whole file in the background for its subtitles, and scrubbing previews and keyframe scans take turns reading files, so a big film on a network drive streams more smoothly on its first play.
+- Finding intros and credits for a new episode now listens to that episode only, rather than the whole season again.
 
 ### Music, audiobooks and podcasts
 

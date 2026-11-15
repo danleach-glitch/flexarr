@@ -92,7 +92,8 @@ public sealed partial class MarkerDetectionWorker(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken); // Let startup scans go first.
-        var detector = new MarkerDetector(options.CurrentValue.FfmpegPath, options.CurrentValue.FfprobePath);
+        var detector = new MarkerDetector(options.CurrentValue.FfmpegPath, options.CurrentValue.FfprobePath,
+            Path.Combine(options.CurrentValue.ResolvedCacheDirectory, "fingerprints"));
         try
         {
             using var quietly = DataVersion.Quietly();
