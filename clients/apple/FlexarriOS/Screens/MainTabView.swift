@@ -213,6 +213,7 @@ struct LibrariesView: View {
                 }
                 .scrollContentBackground(.hidden)
                 .refreshable { await model.loadLibraries() }
+                .macReadable()
             }
         }
         .background(RoomBackground(ambient: nil))

@@ -66,6 +66,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On iPhone and iPad at the largest text sizes, words no longer break in the middle: Home's featured buttons go one a line, a title's actions two a line, Downloads puts the words under the picture, Settings puts each setting under its name, and icons and round buttons grow with the text only so far.
 - On iPhone and iPad, See all on a row of a library's Browse switches that page to All movies (or All shows) in the row's order, instead of opening a second copy of the library.
 - On iPhone and iPad, a long profile name takes two lines instead of being cut short, and the switch sheet on iPad keeps its profiles in the middle.
+- On iPad held sideways, Settings, Downloads and Libraries keep their rows to a readable width in the middle of the screen, rather than a setting's name at one edge and its value at the other.
 
 ### Downloads
 
