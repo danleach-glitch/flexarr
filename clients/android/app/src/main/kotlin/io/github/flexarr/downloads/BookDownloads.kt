@@ -102,7 +102,7 @@ class BookDownloads(private val context: Context, private val model: AppModel) {
 
     val isTransferring: Boolean get() = transferring.isNotEmpty()
 
-    fun progress(book: LocalBook): Double = transferring[book.itemId] ?: book.progress
+    fun progress(book: LocalBook): Double = transferring[transferKey(book.itemId, book.profileId)] ?: book.progress
 
     val bytesUsed: Long get() = all.sumOf { book -> book.fileNames.filterNotNull().sumOf { name -> fileIn(name)?.length() ?: 0L } }
 
@@ -167,7 +167,7 @@ class BookDownloads(private val context: Context, private val model: AppModel) {
 
     private suspend fun fetchImage(book: LocalBook, client: FlexarrClient): String? {
         val url = client.imageUrl(book.item.artwork.poster, 600) ?: return null
-        val name = BookDownloadRules.imageName(book.itemId)
+        val name = BookDownloadRules.imageName(book.itemId, book.profileId)
         return withContext(Dispatchers.IO) {
             runCatching {
                 FlexarrClient.sharedHttp.newCall(Request.Builder().url(url).build()).execute().use { response ->
@@ -183,8 +183,8 @@ class BookDownloads(private val context: Context, private val model: AppModel) {
 
     internal fun byKey(itemId: String, profileId: String): LocalBook? = all.firstOrNull { it.itemId == itemId && it.profileId == profileId }
 
-    internal fun progressed(itemId: String, fraction: Double) {
-        transferring[itemId] = fraction
+    internal fun progressed(itemId: String, profileId: String, fraction: Double) {
+        transferring[transferKey(itemId, profileId)] = fraction
     }
 
     internal fun fileArrived(itemId: String, profileId: String, index: Int, name: String) {
@@ -192,7 +192,7 @@ class BookDownloads(private val context: Context, private val model: AppModel) {
     }
 
     internal fun arrived(itemId: String, profileId: String) {
-        transferring.remove(itemId)
+        transferring.remove(transferKey(itemId, profileId))
         updateFor(itemId, profileId) { book ->
             val size = book.fileNames.filterNotNull().sumOf { fileIn(it)?.length() ?: 0L }
             book.copy(phase = LocalPhase.Downloaded, progress = 1.0, failure = null, sizeBytes = size)
@@ -201,7 +201,7 @@ class BookDownloads(private val context: Context, private val model: AppModel) {
     }
 
     internal fun failed(itemId: String, profileId: String, message: String) {
-        transferring.remove(itemId)
+        transferring.remove(transferKey(itemId, profileId))
         updateFor(itemId, profileId) { it.copy(phase = LocalPhase.Failed, failure = message) }
     }
 
@@ -316,16 +316,15 @@ class BookDownloads(private val context: Context, private val model: AppModel) {
     fun remove(itemId: String) {
         val book = entry(itemId) ?: return
         work.cancelUniqueWork(workName(book))
-        transferring.remove(itemId)
-        deleteFiles(book)
+        transferring.remove(transferKey(book.itemId, book.profileId))
+        // Files another profile's copy of the book still holds stay (kept from before each profile had its own).
+        BookDownloadRules.filesToDelete(book, all).forEach { fileIn(it)?.delete() }
         all = all.filterNot { it.itemId == book.itemId && it.profileId == book.profileId }
         save()
     }
 
     private fun deleteFiles(book: LocalBook) {
-        book.fileNames.filterNotNull().forEach { fileIn(it)?.delete() }
-        book.manifest.files.indices.forEach { fileIn(BookDownloadRules.fileName(book.itemId, it) + ".part")?.delete() }
-        book.imageFileName?.let(::fileIn)?.delete()
+        BookDownloadRules.filesToDelete(book, emptyList()).forEach { fileIn(it)?.delete() }
     }
 
     /** Signing out, or Delete all: what was heard offline is sent first while it can be, then every book goes. */
@@ -387,5 +386,8 @@ class BookDownloads(private val context: Context, private val model: AppModel) {
         fun folder(context: Context): File = File(context.noBackupFilesDir, "books")
 
         fun workName(book: LocalBook) = "book-download-${book.profileId}-${book.itemId}"
+
+        /** A book's transfer is its profile's: two profiles may be fetching the same book. */
+        internal fun transferKey(itemId: String, profileId: String) = "$profileId/$itemId"
     }
 }

@@ -299,6 +299,19 @@ class DownloadsTest {
     }
 
     @Test
+    fun `a download taken off by the app itself says so, one taken off by hand as before`() = runTest {
+        val client = FlexarrClient(server.url("/"), apiKey = "key")
+        server.enqueue(MockResponse.Builder().code(204).build())
+        server.enqueue(MockResponse.Builder().code(204).build())
+        client.deleteDownload("abc")
+        val byHand = server.takeRequest()
+        assertEquals("DELETE", byHand.method)
+        assertEquals("/api/v1/offline/abc", byHand.target)
+        client.deleteDownload("abc", byHand = false)
+        assertEquals("/api/v1/offline/abc?byHand=false", server.takeRequest().target)
+    }
+
+    @Test
     fun `the offline check takes off only what's hidden or gone, never what's missing`() = runTest {
         val client = FlexarrClient(server.url("/"), apiKey = "key")
         server.enqueue(json("""{"allowed":["a"],"hidden":["B"],"missing":["c"],"gone":["d"]}"""))

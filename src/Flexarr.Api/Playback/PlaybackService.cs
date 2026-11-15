@@ -13,7 +13,7 @@ using Microsoft.Extensions.Options;
 
 namespace Flexarr.Api.Playback;
 
-public sealed class PlaybackService(
+public sealed partial class PlaybackService(
     FlexarrDbContext db,
     PlaybackSessions sessions,
     TranscodeManager transcodes,
@@ -26,7 +26,8 @@ public sealed class PlaybackService(
     Security.GuestLinks guestLinks,
     Authentication.SignIns? signIns = null,
     Books.BookFileConverter? bookConverter = null,
-    IHttpContextAccessor? http = null)
+    IHttpContextAccessor? http = null,
+    ILogger<PlaybackService>? logger = null)
 {
     /// <summary>Within this distance of the end (or once the credits start) an item counts as watched.</summary>
     internal const double WatchedThreshold = 0.92;
@@ -569,6 +570,13 @@ public sealed class PlaybackService(
         var state = await db.PlaybackStates.FirstOrDefaultAsync(p => p.UserId == profile.Id && p.MediaItemId == itemId, ct);
         if (state is not null && state.LastPlayedAt >= playedAt)
         {
+            // Not an error (watching elsewhere since wins), but without a word here a report that changed nothing
+            // looked the same as one that never arrived.
+            if (logger is not null)
+            {
+                LogOfflineReportIgnored(logger, item.Title, progress.PositionSeconds, progress.Finished, playedAt, state.LastPlayedAt);
+            }
+
             return true;
         }
 
@@ -1199,6 +1207,9 @@ public sealed class PlaybackService(
         var last = await related.OrderByDescending(p => p.LastPlayedAt).Select(p => new { p.AudioLanguage, p.SubtitleLanguage }).FirstOrDefaultAsync(ct);
         return (last?.AudioLanguage, last?.SubtitleLanguage);
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Ignored an offline report for {Title} ({Position}s, finished {Finished}): played at {PlayedAt}, but the profile's saved state is newer ({Saved})")]
+    private static partial void LogOfflineReportIgnored(ILogger logger, string title, double position, bool finished, DateTime playedAt, DateTime saved);
 }
 
 /// <summary>A player asked to carry on a stream that was ended to make way for another viewer.</summary>

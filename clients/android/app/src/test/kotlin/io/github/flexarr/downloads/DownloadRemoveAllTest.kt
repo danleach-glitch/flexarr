@@ -28,7 +28,9 @@ class DownloadRemoveAllTest {
                     "userData":{"positionSeconds":0,"watched":false,"playCount":0},"seriesId":"show","seriesTitle":"Show"}}""",
                 )
             }
-            request.method == "DELETE" && path.contains("/offline/") -> mockwebserver3.MockResponse.Builder().code(204).build()
+            // A moment on the way, as over a network: what else is telling the server meanwhile shows.
+            request.method == "DELETE" && path.contains("/offline/") ->
+                mockwebserver3.MockResponse.Builder().code(204).headersDelay(100, java.util.concurrent.TimeUnit.MILLISECONDS).build()
             else -> null
         }
     }
@@ -58,5 +60,51 @@ class DownloadRemoveAllTest {
         server.waitUntil("the file deleted") { !part.exists() }
         assertFalse(part.exists())
         assertEquals(setOf("/api/v1/offline/d-e1", "/api/v1/offline/d-e2", "/api/v1/offline/d-e3"), server.requests.filter { it.method == "DELETE" }.map { it.url.encodedPath }.toSet())
+        // Taken off by hand: said as older apps say it, with no flag.
+        assertTrue(server.requests.filter { it.method == "DELETE" }.all { it.url.queryParameter("byHand") == null })
+    }
+
+    @Test
+    fun `delete all tells the server of each once, as the app's own doing`() {
+        store.attach(model.client, "p")
+        var asked = 0
+        model.scope.launch {
+            for (id in listOf("e1", "e2", "e3")) store.download(id, DownloadQuality.Medium, automatic = false)
+            asked = 3
+        }
+        server.waitUntil("the episodes asked for") { asked == 3 && store.all.size == 3 }
+
+        // The removal and the catch-up after it each start telling the server.
+        store.deleteAll()
+
+        server.waitUntil("the server told") { server.requests.count { it.method == "DELETE" } >= 3 }
+        var ticks = 0
+        server.waitUntil("any second telling") { ++ticks > 30 }
+        val deletes = server.requests.filter { it.method == "DELETE" }
+        assertEquals(listOf("/api/v1/offline/d-e1", "/api/v1/offline/d-e2", "/api/v1/offline/d-e3"), deletes.map { it.url.encodedPath }.sorted())
+        assertTrue(deletes.all { it.url.queryParameter("byHand") == "false" })
+    }
+
+    @Test
+    fun `trying a failed download again tells the server it was the app's doing, before asking again`() {
+        store.attach(model.client, "p")
+        var stage = 0
+        model.scope.launch {
+            store.download("e1", DownloadQuality.Medium, automatic = false)
+            stage = 1
+        }
+        server.waitUntil("the episode asked for") { stage == 1 && store.all.size == 1 }
+        store.failed("d-e1", "Nope")
+        model.scope.launch {
+            store.download("e1", DownloadQuality.Medium, automatic = false)
+            stage = 2
+        }
+        server.waitUntil("asked for again") { stage == 2 && server.requests.count { it.method == "POST" && it.url.encodedPath.endsWith("/offline") } == 2 }
+        val asked = server.requests.filter { it.url.encodedPath.endsWith("/offline") || it.method == "DELETE" }
+        assertEquals(listOf("POST", "DELETE", "POST"), asked.map { it.method })
+        assertEquals("/api/v1/offline/d-e1", asked[1].url.encodedPath)
+        assertEquals("false", asked[1].url.queryParameter("byHand"))
+        // Not declined: it's here again, on its way.
+        assertEquals(1, store.all.size)
     }
 }

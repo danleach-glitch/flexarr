@@ -24,6 +24,8 @@ protocol OfflineLibrary: AnyObject {
     /// Marked watched (an item, or a whole show): a download says it's finished, and a podcast episode's goes.
     func markedPlayed(itemId: String)
     func nextInfo(after info: PlaybackInfo) -> PlaybackInfo?
+    /// Done once the last place recorded has reached the server (or couldn't), so the screens reload after it.
+    var reportsSent: Task<Void, Never>? { get }
 }
 
 /// Owns one playback session at a time: starts it on the server, puts the player screen up with the right transport
@@ -1147,7 +1149,16 @@ final class PlaybackController: NSObject {
 
     /// Done once the server has every progress report and stop sent so far (or they've failed), so a screen that
     /// reloads then sees what was just watched: a show's next episode, not the one that just ended.
-    var reportsSent: Task<Void, Never>? { reporting }
+    var reportsSent: Task<Void, Never>? {
+        // A download's place goes through the downloads, which send it themselves.
+        let streaming = reporting
+        guard let offline = offlineLibrary?.reportsSent else { return streaming }
+        guard let streaming else { return offline }
+        return Task {
+            await streaming.value
+            await offline.value
+        }
+    }
 
     /// Sends `request` after whatever was sent before it, with time to finish if the app goes to the background
     /// meanwhile: leaving mid-film would otherwise suspend the app before the last position reached the server.

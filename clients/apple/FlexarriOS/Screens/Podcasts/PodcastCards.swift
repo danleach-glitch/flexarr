@@ -408,8 +408,12 @@ struct EpisodeDownloadButton: View {
         }
         .alert(t("Couldn’t download this"), isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
             Button(t("Try again")) {
-                if let download { store.delete(download.id) }
-                Task { await start() }
+                // Taken off as the app's own doing (not declined), and the server told before it's asked again.
+                let failed = download?.id
+                Task {
+                    if let failed { await store.dropFailed(failed) }
+                    await start()
+                }
             }
             Button(t(Words.cancel), role: .cancel) {}
         } message: {

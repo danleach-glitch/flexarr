@@ -53,7 +53,11 @@ struct DownloadSettingsView: View {
         }
         .settingsPage(t(Words.downloads))
         .alert(t("Delete all downloads?"), isPresented: $confirmDeleteDownloads) {
-            Button(t("Delete all"), role: .destructive) { downloads.deleteAll() }
+            Button(t("Delete all"), role: .destructive) {
+                downloads.deleteAll()
+                // What was watched on them and not yet sent still goes.
+                Task { await downloads.catchUp() }
+            }
             Button(t(Words.cancel), role: .cancel) {}
         }
     }

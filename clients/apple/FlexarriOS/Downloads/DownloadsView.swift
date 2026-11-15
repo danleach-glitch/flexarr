@@ -285,8 +285,12 @@ struct DownloadButton: View {
                 Button(t(Words.cancel), role: .cancel) {}
             case .failed:
                 Button(t("Try again")) {
-                    if let download = store.entry(for: item.id, orCopies: copies) { store.delete(download.id) }
-                    Task { await start() }
+                    // Taken off as the app's own doing (not declined), and the server told before it's asked again.
+                    let failed = store.entry(for: item.id, orCopies: copies)?.id
+                    Task {
+                        if let failed { await store.dropFailed(failed) }
+                        await start()
+                    }
                 }
                 Button(t(Words.cancel), role: .cancel) {}
             case .couldNotStart:

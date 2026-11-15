@@ -40,13 +40,16 @@ class BookDownloadWorker(context: Context, parameters: WorkerParameters) : Corou
         store.ready()
         val book = onMain { store.byKey(itemId, profileId) } ?: return Result.success()
         if (book.isDownloaded) return Result.success()
+        // Another profile's: the sign-in now answers as someone else. It carries on once that profile's chosen again (its
+        // catch-up gives it a transfer).
+        if (onMain { applicationContext.appModel.downloads.signedInProfile } != profileId) return Result.success()
         val client = onMain { applicationContext.appModel.client } ?: return Result.retry()
         runCatching { setForeground(foregroundInfo(book, null)) }
         return try {
             val total = book.manifest.files.sumOf { it.size }.coerceAtLeast(1)
             var done = 0L
             for (file in book.manifest.files) {
-                val name = BookDownloadRules.fileName(itemId, file.index)
+                val name = BookDownloadRules.fileName(itemId, profileId, file.index)
                 val here = onMain { store.byKey(itemId, profileId) }?.fileNames?.getOrNull(file.index)
                 if (here != null && store.file(here) != null) {
                     done += file.size
@@ -54,7 +57,7 @@ class BookDownloadWorker(context: Context, parameters: WorkerParameters) : Corou
                 }
                 fetch(client, book, file.url, name) { written ->
                     val fraction = ((done + written).toDouble() / total).coerceIn(0.0, 0.99)
-                    onMain { store.progressed(itemId, fraction) }
+                    onMain { store.progressed(itemId, profileId, fraction) }
                     runCatching { setForeground(foregroundInfo(book, fraction)) }
                 }
                 onMain { store.fileArrived(itemId, profileId, file.index, name) }

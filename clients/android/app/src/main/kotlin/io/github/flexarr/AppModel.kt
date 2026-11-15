@@ -1970,7 +1970,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         // A guest's address is the tunnel's loopback port, which can change; the server behind it is the tunnel's target.
         LogHub.signedIn(client, credentials?.let { it.guest?.target ?: it.address })
         val address = credentials?.address
-        address?.let(downloads::signingIn)
+        address?.let { downloads.signingIn(it, guest = credentials?.isGuest == true) }
         if (address == null) {
             reportsServer = null
             ErrorReports.stop()
@@ -2019,6 +2019,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         // the app's in front.
         scheduleRetry()
         scope.launch { checkConnection() }
+        // What was watched from downloads while away goes now, if the server answers (a network change alone missed
+        // Tailscale coming up, or the server starting again).
+        if (credentials != null) scope.launch { downloads.catchUp() }
     }
 
     // Offline mode
@@ -2103,8 +2106,10 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             // Who's watching and child lock are read again before the screens come back.
             loadProfiles(serverAnswered = true)
             leaveOfflineMode()
-            // Whatever failed while offline loads again.
+            // Whatever failed while offline loads again, and what was watched from downloads meanwhile is sent (the
+            // screens load again once more when it's there).
             watchStateChanged()
+            scope.launch { downloads.catchUp() }
         } else if (profilesLoaded) {
             // Answered a moment ago: it's there.
             if (System.currentTimeMillis() - FlexarrClient.lastAnsweredAtMs < 20_000) return

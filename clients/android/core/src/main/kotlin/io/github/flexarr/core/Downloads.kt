@@ -87,9 +87,14 @@ suspend fun FlexarrClient.markDownloadReceived(id: String) {
     sendRaw("POST", "offline/$id/received")
 }
 
-/** Taken off the phone (a podcast episode's is remembered, so it isn't offered to download by itself again). */
-suspend fun FlexarrClient.deleteDownload(id: String) {
-    sendRaw("DELETE", "offline/$id")
+/**
+ * Taken off the phone. [byHand]: someone chose to (a podcast episode's is then remembered, so it isn't offered to
+ * download by itself again). False when the app took it off itself (keeping only the newest few, once it's played,
+ * signing out, trying again), so the episode may be wanted again; servers before 0.67 ignore it and count every one
+ * as by hand.
+ */
+suspend fun FlexarrClient.deleteDownload(id: String, byHand: Boolean = true) {
+    send("DELETE", "offline/$id", if (byHand) emptyMap() else mapOf("byHand" to "false"))
 }
 
 /** Watched with no connection: recorded now, unless something newer was since. */
@@ -147,7 +152,13 @@ enum class LocalPhase {
 
 /** Watched offline and not yet told to the server. */
 @Serializable
-data class UnsentProgress(val position: Double, val finished: Boolean, val playedAtMillis: Long)
+data class UnsentProgress(
+    val position: Double,
+    val finished: Boolean,
+    val playedAtMillis: Long,
+    /** How many times the server has said it has no such title (see [UnsentReports.notFoundAgain]). */
+    val notFound: Int = 0,
+)
 
 /** A film, episode or podcast episode kept on this phone for watching or listening with no connection. Saved as JSON. */
 @Serializable

@@ -590,8 +590,12 @@ public struct FlexarrClient: Sendable {
         _ = try await send("POST", "offline/\(id)/received")
     }
 
-    public func deleteDownload(_ id: String) async throws {
-        _ = try await send("DELETE", "offline/\(id)")
+    /// Taken off the device. `byHand`: someone chose to (a podcast episode's is then remembered, so it isn't offered to
+    /// download by itself again). False when the app took it off itself (keeping only the newest few, once it's played,
+    /// signing out, trying again), so the episode may be wanted again; servers before 0.67 ignore it and count every
+    /// one as by hand.
+    public func deleteDownload(_ id: String, byHand: Bool = true) async throws {
+        _ = try await send("DELETE", "offline/\(id)", query: byHand ? [] : [URLQueryItem(name: "byHand", value: "false")])
     }
 
     /// Watching done with no connection, recorded unless something newer was since.

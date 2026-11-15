@@ -67,6 +67,9 @@ internal class DownloadTransfer(
         store.ready()
         val local = onMain { store.byId(id) } ?: return Outcome.Done // deleted meanwhile
         if (local.isDownloaded) return Outcome.Done
+        // Another profile's: the sign-in answers as someone else now, and the server would say it has no such download.
+        // It stays as it is, and carries on once that profile is chosen again (its catch-up gives it a transfer).
+        if (onMain { store.signedInProfile } != local.profileId) return Outcome.Done
         // Started twice (a job and a worker, after a change of plan): the one already running carries on alone.
         if (!onMain { running.add(id) }) return Outcome.Done
         try {
