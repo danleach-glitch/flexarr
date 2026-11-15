@@ -83,6 +83,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On iPhone and iPad, the keyboard's Search and Go keys take the app's silver instead of the system's blue.
 - On iPhone and iPad, Search's "Nothing matches" line sits at the top of the page, so it shows above the search field when the phone is held sideways, and the search field's hint now mentions music.
 - On iPhone and iPad, a downloaded album or playlist shows the same filled green arrow as a downloaded film, instead of a tick that looked like Watched.
+- On iPhone and iPad, the Connect button on the page for entering a server's address is green.
 
 ### Downloads
 

@@ -449,7 +449,8 @@ private struct ManualConnect: View {
                         Label(t("Connect"), systemImage: "arrow.right.circle.fill")
                     }
                 }
-                .buttonStyle(ActionButtonStyle(prominent: true))
+                // Green, as docs/design.md gives Connect buttons (the go token, lifted as every main button is).
+                .buttonStyle(ActionButtonStyle(ambient: .go, prominent: true))
                 .disabled(isConnecting || address.trimmingCharacters(in: .whitespaces).isEmpty)
                 Button(t("Back"), action: onBack)
                     .buttonStyle(ActionButtonStyle())
