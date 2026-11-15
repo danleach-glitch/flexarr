@@ -820,9 +820,9 @@ fun TvLiveGuideGrid(
 @Composable
 private fun ChannelLabel(channel: LiveChannel, client: FlexarrClient) {
     Row(Modifier.width(CHANNEL_WIDTH), horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(channel.numberText, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Flexarr.usher, modifier = Modifier.width(27.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+        Text(channel.numberText, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Flexarr.usher, maxLines = 1, modifier = Modifier.width(30.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
         Box(Modifier.size(65.dp, 30.dp), contentAlignment = Alignment.CenterStart) {
-            Text(channel.name, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(channel.name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
             // Shown 65 points wide: a little over twice that is plenty.
             client.imageUrl(channel.logoUrl, 160)?.let { url ->
                 AsyncImage(url, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().background(Flexarr.room))
@@ -869,7 +869,7 @@ private fun GuideCell(
                     if (programme.isSetToRecord) Box(Modifier.size(7.dp).background(RecordRed, CircleShape))
                     Text(programme.displayTitle, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                Text(time, fontSize = 11.sp, maxLines = 1, modifier = Modifier.alpha(0.7f))
+                Text(time, fontSize = 12.sp, maxLines = 1, modifier = Modifier.alpha(0.7f))
             }
         }
     }
@@ -1080,8 +1080,8 @@ private fun RecordingRow(title: String, detail: String, recordingNow: Boolean, w
             Box(Modifier.size(8.dp).background(if (recordingNow) RecordRed else Color.Transparent, CircleShape))
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(title, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(detail, fontSize = 11.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.alpha(0.7f))
-                warning?.let { Text(it, fontSize = 11.5.sp, color = Flexarr.danger, maxLines = 2) }
+                Text(detail, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.alpha(0.7f))
+                warning?.let { Text(it, fontSize = 12.sp, color = Flexarr.danger, maxLines = 2) }
             }
         }
     }
@@ -1103,7 +1103,7 @@ fun TvHomeChannelCard(model: AppModel, channel: LiveChannel, order: List<LiveCha
                 client.imageUrl(channel.logoUrl, 320)?.let { url ->
                     AsyncImage(url, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().background(Flexarr.seat).padding(horizontal = 30.dp, vertical = 18.dp))
                 }
-                Text(channel.numberText, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Flexarr.usher, modifier = Modifier.padding(7.dp))
+                Text(channel.numberText, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Flexarr.usher, modifier = Modifier.padding(7.dp))
                 channel.now?.let { TvProgressBar(it.progress().toDouble(), Modifier.align(Alignment.BottomCenter).padding(8.dp), tint = Flexarr.silver) }
                 if (model.liveStartingChannel == channel.id) {
                     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)))
@@ -1114,7 +1114,7 @@ fun TvHomeChannelCard(model: AppModel, channel: LiveChannel, order: List<LiveCha
         caption = { focused ->
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(channel.now?.displayTitle ?: channel.name, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = if (focused) Flexarr.screen else Flexarr.screen.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(channel.now?.let { "${channel.name}   ${LiveTvController.timeRange(it)}" } ?: channel.name, fontSize = 11.5.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(channel.now?.let { "${channel.name}   ${LiveTvController.timeRange(it)}" } ?: channel.name, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         },
     )

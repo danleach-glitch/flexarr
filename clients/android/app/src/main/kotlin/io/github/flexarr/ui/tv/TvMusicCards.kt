@@ -94,7 +94,7 @@ private fun initials(title: String) = title.split(" ").filter { it.isNotEmpty() 
 private fun CardCaption(title: String, subtitle: String?, focused: Boolean, width: Dp) {
     Column(Modifier.width(width), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (focused) Flexarr.screen else Flexarr.screen.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        subtitle?.let { Text(it, fontSize = 11.5.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        subtitle?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
     }
 }
 
@@ -165,7 +165,7 @@ fun TvArtistCard(item: ItemSummary, onClick: () -> Unit, modifier: Modifier = Mo
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(1.dp)) {
             Text(item.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (item.childCount > 0) {
-                Text(t("{count, plural, one {# album} other {# albums}}", "count" to item.childCount), fontSize = 11.5.sp, color = Flexarr.usher, maxLines = 1)
+                Text(t("{count, plural, one {# album} other {# albums}}", "count" to item.childCount), fontSize = 12.sp, color = Flexarr.usher, maxLines = 1)
             }
         }
     }
@@ -299,7 +299,7 @@ fun TvTrackRow(
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(track.title, fontSize = 14.sp, fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                subtitle?.let { Text(it, fontSize = 11.5.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.alpha(0.7f)) }
+                subtitle?.let { Text(it, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.alpha(0.7f)) }
             }
             Spacer(Modifier.width(10.dp))
             track.durationSeconds?.takeIf { it > 0 }?.let { Text(Format.timestamp(it), fontSize = 12.sp, fontWeight = FontWeight.Medium, style = Tabular) }

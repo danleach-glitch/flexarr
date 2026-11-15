@@ -621,7 +621,7 @@ private fun FileInfo(file: MediaFile, version: TitleVersion?, studio: String?) {
     Row(Modifier.padding(horizontal = TvLayout.Edge), horizontalArrangement = Arrangement.spacedBy(25.dp)) {
         facts.forEach { (label, value) ->
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(label, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
+                Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
                 Text(value, fontSize = 12.5.sp, color = Flexarr.screen.copy(alpha = 0.85f))
             }
         }

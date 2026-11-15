@@ -124,7 +124,7 @@ internal fun TvComingSoonCard(item: UpcomingItem, detail: String = item.cardDeta
                     }
                 }
                 Text(
-                    item.dayLabel(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen,
+                    item.dayLabel(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen,
                     modifier = Modifier.align(Alignment.TopStart).padding(7.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)).padding(horizontal = 7.dp, vertical = 3.dp),
                 )
                 item.download?.let { TvProgressBar(it.progress, Modifier.align(Alignment.BottomCenter).padding(8.dp)) }
@@ -133,8 +133,8 @@ internal fun TvComingSoonCard(item: UpcomingItem, detail: String = item.cardDeta
         caption = { focused ->
             Column(Modifier.width(width), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(item.cardTitle, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = if (focused) Flexarr.screen else Flexarr.screen.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(detail, fontSize = 11.5.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                status?.let { Text(it, fontSize = 11.5.sp, fontWeight = FontWeight.Medium, color = if (item.available == true) Flexarr.go else Flexarr.usher, maxLines = 1) }
+                Text(detail, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                status?.let { Text(it, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = if (item.available == true) Flexarr.go else Flexarr.usher, maxLines = 1) }
             }
         },
     )

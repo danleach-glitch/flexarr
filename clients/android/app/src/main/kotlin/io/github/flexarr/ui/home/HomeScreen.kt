@@ -355,8 +355,11 @@ private fun HeroSlide(home: Home, item: ItemSummary, height: Dp) {
     }
 }
 
-/** Whether the featured titles may move on by themselves: not under TalkBack, nor with animations turned off. */
-private fun movesOnItsOwn(context: Context): Boolean {
+/**
+ * Whether the featured titles may move on by themselves: not under TalkBack, nor with animations turned off. The TV's
+ * Home hero asks it too.
+ */
+internal fun movesOnItsOwn(context: Context): Boolean {
     val touchExploring = context.getSystemService(AccessibilityManager::class.java)?.isTouchExplorationEnabled == true
     val animations = Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
     return !touchExploring && animations != 0f

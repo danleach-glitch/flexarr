@@ -672,7 +672,7 @@ internal fun TvExternalCard(title: ExternalTitle, onClick: () -> Unit, modifier:
         caption = { focused ->
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(title.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (focused) Flexarr.screen else Flexarr.screen.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(listOfNotNull(title.year?.toString(), title.state).joinToString("  "), fontSize = 11.5.sp, color = Flexarr.usher, maxLines = 1)
+                Text(listOfNotNull(title.year?.toString(), title.state).joinToString("  "), fontSize = 12.sp, color = Flexarr.usher, maxLines = 1)
             }
         },
     )
@@ -725,7 +725,7 @@ internal fun TvGenreTile(name: String, caption: String?, backdrop: String?, onCl
         caption = { focused ->
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (focused) Flexarr.screen else Flexarr.screen.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                caption?.let { Text(it, fontSize = 11.sp, color = Flexarr.usher, maxLines = 1) }
+                caption?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1) }
             }
         },
     )

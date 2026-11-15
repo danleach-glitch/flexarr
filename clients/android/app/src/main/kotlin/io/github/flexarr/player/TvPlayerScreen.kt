@@ -40,6 +40,12 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -316,7 +322,7 @@ private fun Controls(controller: PlaybackController, scrubTo: Double?, onScrub: 
             Column(Modifier.padding(horizontal = 40.dp, vertical = 28.dp)) {
                 Text(info.item.displayTitle, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 info.item.episodeSubtitle?.let { Text(it, fontSize = 15.sp, color = Flexarr.screen.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                info.transcodeSummary?.let { Text(it, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, maxLines = 1, modifier = Modifier.padding(top = 4.dp)) }
+                info.transcodeSummary?.let { Text(it, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, maxLines = 1, modifier = Modifier.padding(top = 4.dp)) }
             }
         }
         Column(Modifier.align(Alignment.BottomCenter).padding(horizontal = 40.dp, vertical = 26.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -347,7 +353,19 @@ private fun Timeline(controller: PlaybackController, scrubTo: Double?, onScrub: 
     val shown = scrubTo ?: controller.position
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         BoxWithConstraints(
-            Modifier.fillMaxWidth().height(24.dp).focusRequester(focus).focusable(interactionSource = source).onKeyEvent { event ->
+            Modifier.fillMaxWidth().height(24.dp).focusRequester(focus).focusable(interactionSource = source)
+                // Takes focus whenever the controls come up: TalkBack reads where it's up to, and can move it.
+                .semantics {
+                    contentDescription = t("Position")
+                    stateDescription = t("{position} of {duration}", "position" to Format.timestamp(shown), "duration" to Format.timestamp(controller.duration))
+                    progressBarRangeInfo = ProgressBarRangeInfo(shown.toFloat().coerceIn(0f, duration.toFloat()), 0f..duration.toFloat())
+                    setProgress { target ->
+                        controller.seekTo(target.toDouble().coerceIn(0.0, duration))
+                        onScrub(null)
+                        true
+                    }
+                }
+                .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 val held = event.nativeKeyEvent.repeatCount
                 val step = when {

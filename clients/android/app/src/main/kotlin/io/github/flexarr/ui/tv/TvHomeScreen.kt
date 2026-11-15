@@ -65,6 +65,10 @@ import androidx.tv.material3.Text
 import io.github.flexarr.AppModel
 import io.github.flexarr.appModel
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import io.github.flexarr.ui.home.movesOnItsOwn
 import io.github.flexarr.core.EmptyHomeMessage
 import io.github.flexarr.core.Home
 import io.github.flexarr.core.HomeRow
@@ -215,11 +219,13 @@ internal fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus:
         }
         onFocusTaken()
     }
-    // While the hero has focus, on to the next title after a while; a step by hand starts the clock again.
+    // While the hero has focus, on to the next title after a while; a step by hand starts the clock again. Not for
+    // someone using TalkBack (it would move on under them, with Play still focused) or who has turned animations off.
+    val context = LocalContext.current
     LaunchedEffect(index, focused) {
-        if (!focused || items.size < 2) return@LaunchedEffect
+        if (!focused || items.size < 2 || !movesOnItsOwn(context)) return@LaunchedEffect
         delay(12_000)
-        step(1)
+        if (movesOnItsOwn(context)) step(1)
     }
 
     Box(Modifier.fillMaxWidth().height(450.dp)) {
@@ -232,6 +238,8 @@ internal fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus:
             }
         }
         Column(Modifier.align(Alignment.BottomStart).padding(start = TvLayout.Edge, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+            // A step to another title is read out, as Play keeps focus while the slide changes.
+            Box(Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
             Crossfade(item, animationSpec = tween(600), label = "title") { shown ->
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     if (shown.kind == MediaKind.Album) {
@@ -250,6 +258,7 @@ internal fun HomeHero(home: Home, index: Int, onIndex: (Int) -> Unit, takeFocus:
                         Text(it, fontSize = 13.5.sp, lineHeight = 18.sp, color = Flexarr.screen.copy(alpha = 0.85f), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 450.dp))
                     }
                 }
+            }
             }
             Row(
                 Modifier.padding(top = 5.dp).onFocusChanged { focused = it.hasFocus },

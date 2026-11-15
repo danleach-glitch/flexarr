@@ -110,6 +110,12 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Android phones and TVs, going back to a page (Home, a library, Settings) shows it straight away instead of loading it again behind a spinner.
 - On Android phones, going back from a film or show to its library's All grid keeps your place, however far down you'd scrolled.
 - On Android phones and TVs, a tab or sidebar name too long to fit (in a language that runs long) is drawn a little smaller instead of being cut short.
+- On Android TV, “Who’s watching?” scrolls when a household has more than five profiles, so everyone can be chosen.
+- On Android TV, holding OK on a kids profile in “Who’s watching?” turns child lock on, as on Apple TV; holding it again turns it off with the admin PIN.
+- On Android TV, the Watchlist takes focus when you open it and when you come back from a title.
+- On Android TV, the Home banner no longer moves on to another title by itself with TalkBack on or animations turned off, and TalkBack reads the new title when you move to it.
+- On Android TV, TalkBack reads the player’s timeline and where it’s up to.
+- On Android TV, small captions are a little bigger to read across the room, and the sidebar sits clear of the screen’s edge.
 
 ### Trakt
 

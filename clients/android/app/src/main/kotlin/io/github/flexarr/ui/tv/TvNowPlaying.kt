@@ -380,7 +380,7 @@ fun TvNowPlayingBar(model: AppModel, modifier: Modifier = Modifier, onShown: (Bo
             TvSquareArtwork(track, 32.dp)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(track.title, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                track.artistName?.let { Text(it, fontSize = 11.5.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                track.artistName?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             }
             if (music.isLoading) {
                 CircularProgressIndicator(Modifier.size(14.dp), color = Flexarr.screen, strokeWidth = 1.5.dp)
@@ -395,5 +395,5 @@ fun TvNowPlayingBar(model: AppModel, modifier: Modifier = Modifier, onShown: (Bo
 /** Where the track's got to, on its own so the bar around it doesn't recompose with every tick. */
 @Composable
 private fun BarTime(music: MusicPlayer) {
-    Text("${Format.timestamp(music.position)}  /  ${Format.timestamp(music.duration)}", fontSize = 11.5.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, style = Tabular)
+    Text("${Format.timestamp(music.position)}  /  ${Format.timestamp(music.duration)}", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, style = Tabular)
 }

@@ -144,7 +144,7 @@ internal fun TvMusicExternalCard(item: MusicExternal, onClick: () -> Unit, modif
             TvArtworkButton(ambient = Flexarr.silver, onClick = onClick, shape = CircleShape, contentDescription = item.title, artwork = { TvMusicArtwork(item.image, item.title, circular = true, size = size) })
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(item.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                stateLine?.let { Text(it, fontSize = 11.5.sp, color = Flexarr.usher, maxLines = 1) }
+                stateLine?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1) }
             }
         }
     } else {
@@ -160,7 +160,7 @@ internal fun TvMusicExternalCard(item: MusicExternal, onClick: () -> Unit, modif
                 Column(Modifier.width(width), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(item.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (focused) Flexarr.screen else Flexarr.screen.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     val below = stateLine ?: if (showsArtist) item.artist ?: item.kindLine else item.kindLine
-                    below?.let { Text(it, fontSize = 11.5.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                    below?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                 }
             },
         )

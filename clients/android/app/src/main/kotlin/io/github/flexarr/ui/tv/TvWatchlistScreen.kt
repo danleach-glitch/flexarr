@@ -17,7 +17,9 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.focusable
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,6 +28,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,16 +52,18 @@ import io.github.flexarr.ui.theme.FlexarrIcons
 import io.github.flexarr.ui.theme.RoomBackground
 import io.github.flexarr.ui.theme.glowColor
 import io.github.flexarr.ui.theme.marquee
+import kotlinx.coroutines.delay
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
 /**
  * The profile's watchlist, as the Apple TV's WatchlistView: what's ready plays from its usual card, everything else
  * shows where it's got to under the title. Status pills along the top, kind and order behind the last one; pressing
- * and holding a card takes it off.
+ * and holding a card takes it off. [takeFocus]: arriving from the sidebar, the filter shown (or, with nothing on the
+ * list, its message, so Left still reaches the sidebar).
  */
 @Composable
-fun TvWatchlistScreen(model: AppModel) {
+fun TvWatchlistScreen(model: AppModel, takeFocus: Boolean = false, onFocusTaken: () -> Unit = {}) {
     val navigator = LocalNavigator.current
     var filter by rememberSaveable { mutableStateOf(WatchlistFilter.Everything) }
     var kind by rememberSaveable { mutableStateOf(WatchlistKind.All) }
@@ -65,6 +71,18 @@ fun TvWatchlistScreen(model: AppModel) {
     var choosing by remember { mutableStateOf(false) }
     val loader = rememberLoader(model.credentials, model.watchlistVersion) { model.loadWatchlist().orEmpty() }
     val entries = (loader.state as? Load.Loaded)?.value
+    val arrival = remember { FocusRequester() }
+    // Once it has loaded: a failure's Try again takes focus itself, so only the arrival is marked done then.
+    LaunchedEffect(takeFocus, loader.state !is Load.Loading) {
+        if (!takeFocus || loader.state is Load.Loading) return@LaunchedEffect
+        if (loader.state is Load.Loaded) {
+            for (attempt in 0 until 10) {
+                if (runCatching { arrival.requestFocus() }.getOrDefault(false)) break
+                delay(50)
+            }
+        }
+        onFocusTaken()
+    }
     RoomBackground(ambient = entries?.firstOrNull()?.item?.let { glowColor(it.accentColor) }, intensity = 0.18f) {
         when (val state = loader.state) {
             Load.Loading -> TvStatusView()
@@ -80,11 +98,16 @@ fun TvWatchlistScreen(model: AppModel) {
                 ) {
                     item(key = "title", span = { GridItemSpan(maxLineSpan) }) { Text(t(Words.watchlist), style = marquee(32)) }
                     if (state.value.isEmpty()) {
-                        item(key = "empty", span = { GridItemSpan(maxLineSpan) }) { Box(Modifier.size(880.dp, 250.dp)) { TvStatusView(t("Nothing here yet."), empty = true) } }
+                        // Focusable, so there's somewhere for the remote to be and Left reaches the sidebar.
+                        item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
+                            Box(Modifier.size(880.dp, 250.dp).focusRequester(arrival).focusable()) { TvStatusView(t("Nothing here yet."), empty = true) }
+                        }
                     } else {
                         item(key = "filters", span = { GridItemSpan(maxLineSpan) }) {
                             Row(horizontalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.padding(vertical = 6.dp)) {
-                                WatchlistFilter.entries.forEach { option -> TvPill(option.label, selected = option == filter, onClick = { filter = option }) }
+                                WatchlistFilter.entries.forEach { option ->
+                                    TvPill(option.label, selected = option == filter, onClick = { filter = option }, modifier = if (option == filter) Modifier.focusRequester(arrival) else Modifier)
+                                }
                                 // The kind shows here too, so a filtered list says why shows (or films) are missing.
                                 val label = listOfNotNull(kind.takeIf { it != WatchlistKind.All }?.label, sort.label).joinToString(", ")
                                 TvPill(label, selected = kind != WatchlistKind.All || sort != WatchlistSort.ReadyFirst, onClick = { choosing = true })
@@ -140,7 +163,7 @@ private fun EntryCard(model: AppModel, entry: WatchlistEntry) {
         caption = { focused ->
             Column(Modifier.width(width), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(entry.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (focused) Flexarr.screen else Flexarr.screen.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                note(entry)?.let { Text(it, fontSize = 11.5.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                note(entry)?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             }
         },
     )

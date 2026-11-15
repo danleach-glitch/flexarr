@@ -262,7 +262,7 @@ private fun LiveControls(controller: LiveTvController, timeline: FocusRequester,
         Column(Modifier.padding(horizontal = 40.dp, vertical = 28.dp)) {
             Text(controller.title, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(controller.subtitle, fontSize = 15.sp, color = Flexarr.screen.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            controller.detail?.let { Text(it, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, maxLines = 1, modifier = Modifier.padding(top = 4.dp)) }
+            controller.detail?.let { Text(it, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, maxLines = 1, modifier = Modifier.padding(top = 4.dp)) }
         }
         Column(Modifier.align(Alignment.BottomCenter).padding(horizontal = 40.dp, vertical = 26.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             LiveTimeline(controller, timeline, onInteract)
@@ -364,7 +364,7 @@ private fun ChannelPanel(controller: LiveTvController, onPick: (LiveChannel) -> 
                         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
                     ) {
                         Row(Modifier.padding(horizontal = 9.dp, vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(channel.numberText, fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End, modifier = Modifier.width(26.dp))
+                            Text(channel.numberText, fontSize = 12.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.width(29.dp))
                             Box(Modifier.size(56.dp, 32.dp).background(Flexarr.seat, RoundedCornerShape(Tokens.radiusArt)), contentAlignment = Alignment.Center) {
                                 Text(channel.name.take(4), style = marquee(12, Flexarr.usher))
                                 controller.client.imageUrl(channel.logoUrl, 300)?.let { url ->
@@ -376,7 +376,7 @@ private fun ChannelPanel(controller: LiveTvController, onPick: (LiveChannel) -> 
                                     Text(channel.now?.displayTitle ?: t("No listings"), fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                                     if (channel.isFavourite) Icon(Icons.Filled.Star, contentDescription = t("Favourite"), tint = LiveStar, modifier = Modifier.size(9.dp))
                                 }
-                                Text(channel.name, fontSize = 10.sp, maxLines = 1)
+                                Text(channel.name, fontSize = 12.sp, maxLines = 1)
                                 channel.now?.let { TvProgressBar(it.progress().toDouble(), Modifier.width(70.dp), tint = Flexarr.silver) }
                             }
                         }

@@ -165,11 +165,11 @@ private fun SeasonCard(
         caption = { focused ->
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(title, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = if (focused) Flexarr.screen else Flexarr.screen.copy(alpha = 0.88f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                detail.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 11.sp, color = Flexarr.usher, maxLines = 1) }
+                detail.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1) }
                 status?.let {
                     Row(Modifier.alpha(if (dimmed) 0.5f else 1f), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(statusIcon, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(13.dp))
-                        Text(it, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
+                        Text(it, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
                     }
                 }
             }
@@ -193,7 +193,7 @@ private fun EpisodeCard(episode: ShowEpisode, detail: String?, onClick: () -> Un
         caption = { focused ->
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(episode.label, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = if (focused) Flexarr.screen else Flexarr.screen.copy(alpha = 0.88f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                detail?.let { Text(it, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher) }
+                detail?.let { Text(it, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher) }
             }
         },
     )
