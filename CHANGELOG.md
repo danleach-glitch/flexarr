@@ -74,6 +74,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A long title on Home's featured slide takes a smaller size and at most three lines, so the rows below stay in sight.
 - On a phone, Watchlist's sort box lines up with the chips beside it, the two rows of chips sit closer, and a ready title's bookmark sits on its poster's corner.
 - On a phone, Settings › Connections, Security and Remote access lay every row out the same way: icon and name on one line, the buttons on a line under them.
+- On a tablet, the music bar gives the track's title and artist more room, instead of cutting them after a few letters.
 
 ### Playback
 

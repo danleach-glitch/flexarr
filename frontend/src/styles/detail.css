@@ -735,6 +735,14 @@
   box-shadow: 0 20px 60px rgb(0 0 0 / 0.5), 0 0 60px -20px color-mix(in srgb, var(--ambient) 60%, transparent);
 }
 
+/* A tablet's width: a quarter of the bar cut a title after a few letters while space sat beside the queue button.
+   The buttons on the right take only their own width and the title shares the rest evenly with the controls. */
+@media (min-width: 761px) and (max-width: 1100px) {
+  .now-playing {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  }
+}
+
 /* Solid on touch screens and TVs, as the top bar. */
 @media (hover: none), (pointer: coarse) {
   .now-playing {
