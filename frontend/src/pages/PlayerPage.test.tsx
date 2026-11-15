@@ -306,4 +306,14 @@ describe('Player with a title that isn’t there', () => {
     expect(within(box).getByRole('button', { name: 'Go back' })).toHaveFocus()
     await act(async () => page.unmount())
   })
+
+  it('says the same for an address whose id the server can’t read', async () => {
+    mockApi({ 'POST /playback': () => new Response('', { status: 400, statusText: 'Bad Request' }) })
+    const page = renderPlayer()
+    const box = await waitFor(() => page.getByRole('alertdialog'))
+    expect(box).toHaveTextContent('This isn’t in your library any more.')
+    expect(box).not.toHaveTextContent('400')
+    expect(within(box).queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument()
+    await act(async () => page.unmount())
+  })
 })

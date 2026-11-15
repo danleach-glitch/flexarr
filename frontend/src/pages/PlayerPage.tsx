@@ -444,7 +444,9 @@ export function PlayerPage() {
         if (status === 410 && session.current === replaces) session.current = undefined
         const refused = status === 503 || status === 410
         if ((!quiet || refused) && request === requests.current) {
-          if (status === 404) setError({ message: e instanceof ApiError && e.messages.length ? errorText(e) : t('This isn’t in your library any more.'), kind: 'gone' })
+          // A 400 with no words is an address whose id the server can't even read (/play/not-an-id): gone, too.
+          const unreadable = status === 400 && e instanceof ApiError && !e.messages.length
+          if (status === 404 || unreadable) setError({ message: e instanceof ApiError && e.messages.length ? errorText(e) : t('This isn’t in your library any more.'), kind: 'gone' })
           else setError({ message: errorText(e), kind: status === 410 ? 'takenOver' : status === 503 ? 'busy' : 'other' })
         }
         return refused
