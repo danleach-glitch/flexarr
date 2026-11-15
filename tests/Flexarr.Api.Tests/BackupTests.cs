@@ -449,6 +449,27 @@ public class BackupTests
     }
 
     [Fact]
+    public async Task SettingsFile_CarriesOnlyWhetherNotificationsAreOn_BothWays()
+    {
+        await using var factory = new FlexarrApiFactory();
+        var client = Client(factory);
+        ServerConfigStore.Update(factory.DataDirectory, config => config["notifications"] = new JsonObject { ["enabled"] = true, ["relayUrl"] = "https://relay.here.example/api/push" });
+
+        var exported = await (await client.PostAsJsonAsync(Api("/backups/settings-export"), new { })).Content.ReadAsStringAsync();
+        Assert.DoesNotContain("relay.here.example", exported, StringComparison.Ordinal);
+
+        var file = System.Text.Encoding.UTF8.GetBytes("""
+            {"format":"flexarr-settings","settings":{"notifications":{"enabled":false,"relayUrl":"https://elsewhere.example/api/push"}}}
+            """);
+        var upload = await UploadAsync(client, file);
+        (await client.PostAsJsonAsync(Api($"/backups/uploads/{upload.GetProperty("id").GetString()}/import"), new { sections = new[] { "notifications" } })).EnsureSuccessStatusCode();
+
+        var notifications = JsonNode.Parse(await File.ReadAllTextAsync(ServerConfigStore.PathFor(factory.DataDirectory)))!["notifications"]!;
+        Assert.False(notifications["enabled"]!.GetValue<bool>());
+        Assert.Equal("https://relay.here.example/api/push", notifications["relayUrl"]!.GetValue<string>());
+    }
+
+    [Fact]
     public async Task SettingsFile_CarriesOnlySettingsFlexarrKnows()
     {
         await using var factory = new FlexarrApiFactory();

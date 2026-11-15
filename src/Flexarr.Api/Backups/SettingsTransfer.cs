@@ -84,6 +84,19 @@ public static class SettingsTransfer
             return live;
         }
 
+        // Only whether notifications are on: where they're sent (and every phone's device token with them) is this
+        // server's own, so a file can't send them to another address.
+        if (key.Equals("notifications", StringComparison.OrdinalIgnoreCase) && value is JsonObject notifications)
+        {
+            var on = new JsonObject();
+            if (notifications.FirstOrDefault(p => p.Key.Equals("enabled", StringComparison.OrdinalIgnoreCase)).Value is { } enabled)
+            {
+                on["enabled"] = enabled.DeepClone();
+            }
+
+            return on;
+        }
+
         if (!key.Equals("trakt", StringComparison.OrdinalIgnoreCase) || value is not JsonObject trakt)
         {
             return value;
@@ -112,6 +125,12 @@ public static class SettingsTransfer
         var key = live.FirstOrDefault(p => p.Key.Equals("adminApiKey", StringComparison.OrdinalIgnoreCase)).Value?.ToString();
         return string.IsNullOrEmpty(key) ? null : (live.FirstOrDefault(p => p.Key.Equals("baseUrl", StringComparison.OrdinalIgnoreCase)).Value?.ToString(), key);
     }
+
+    /// <summary>The notification relay this server's settings name, if they name one.</summary>
+    private static string? RelayKeep(JsonObject config) =>
+        config.FirstOrDefault(p => p.Key.Equals("notifications", StringComparison.OrdinalIgnoreCase)).Value is JsonObject notifications
+            ? notifications.FirstOrDefault(p => p.Key.Equals("relayUrl", StringComparison.OrdinalIgnoreCase)).Value?.ToString()
+            : null;
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
@@ -285,6 +304,7 @@ public static class SettingsTransfer
             {
                 // A file never carries Dispatcharr's admin key: for the same address it's still the one saved here.
                 var adminKey = DispatcharrKeep(config);
+                var relay = RelayKeep(config);
                 foreach (var section in chosen.Where(s => settings.Any(p => SectionOf(p.Key) == s)))
                 {
                     // The section as the file has it: settings it doesn't have go back to their defaults, except ones a
@@ -306,6 +326,11 @@ public static class SettingsTransfer
                     && Endpoints.SettingsEndpoints.SameServer(kept.BaseUrl, imported.FirstOrDefault(p => p.Key.Equals("baseUrl", StringComparison.OrdinalIgnoreCase)).Value?.ToString()))
                 {
                     imported["adminApiKey"] = kept.Key;
+                }
+
+                if (relay is { } keptRelay && config.FirstOrDefault(p => p.Key.Equals("notifications", StringComparison.OrdinalIgnoreCase)).Value is JsonObject notifications)
+                {
+                    notifications["relayUrl"] = keptRelay;
                 }
 
                 if (BindProblem(config) is { } problem)

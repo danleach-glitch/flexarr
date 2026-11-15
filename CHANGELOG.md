@@ -39,6 +39,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Every profile's PIN now has a daily limit on wrong guesses from devices that aren't signed in, as the admin PIN does. Signed-in devices, and a browser that has given that PIN before, still get in.
 - A request from a Tailscale address is only treated as one of your devices when it really came in over Tailscale. In Docker, with **Only away from home**, a request handed over by the container's own gateway (as Docker Desktop does with everyone's) now needs a key, since it could come from anywhere.
 - Before an iPhone, iPad, Apple TV or Android device sends its sign-in to your server's home address, the server now shows it holds that device's key, not just its name. Once your server has done so, something else answering at the same address on another network gets nothing.
+- A settings file now carries only whether notifications are on. Where they're sent stays as each server has it, so importing someone else's file can't redirect your notifications.
 
 ### iPad
 
