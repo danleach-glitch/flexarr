@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.music
 
+import io.github.flexarr.ui.components.sheetContentInsets
+import androidx.compose.foundation.layout.WindowInsets
 import io.github.flexarr.core.i18n.t
 import io.github.flexarr.core.i18n.Words
 
@@ -180,11 +182,12 @@ fun MusicNowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
     BackHandler(enabled = showingLyrics) { showingLyrics = false }
     val colours = rememberCoverColours(track)
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Flexarr.room, dragHandle = null) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Flexarr.room, dragHandle = null, contentWindowInsets = { WindowInsets(0) }) {
+        // The light runs edge to edge, under the status and gesture bars; the content keeps clear of them.
         Box(Modifier.fillMaxSize()) {
             MusicAurora(colours, music.spectrum, music.isPlaying)
             if (showingLyrics && found != null) {
-                Column(Modifier.fillMaxSize().padding(horizontal = 28.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                Column(Modifier.fillMaxSize().sheetContentInsets().padding(horizontal = 28.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
                     Grabber(onDismiss)
                     // The track's name and cover kept small above the words, the controls below.
                     Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -200,7 +203,7 @@ fun MusicNowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
                 }
             } else {
                 Column(
-                    Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 28.dp).padding(bottom = 32.dp),
+                    Modifier.verticalScroll(rememberScrollState()).sheetContentInsets().padding(horizontal = 28.dp).padding(bottom = 32.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(24.dp),
                 ) {

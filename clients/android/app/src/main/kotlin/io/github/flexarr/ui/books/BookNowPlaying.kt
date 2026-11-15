@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.books
 
+import io.github.flexarr.ui.components.sheetContentInsets
+import androidx.compose.foundation.layout.WindowInsets
 import io.github.flexarr.core.i18n.t
 import io.github.flexarr.core.i18n.Words
 
@@ -215,10 +217,10 @@ fun BookPlayerSheet(model: AppModel, onDismiss: () -> Unit) {
     val ambient = glowColor(book.accentColor)
     val cast = Casting.shared?.takeIf { it.casts(Casting.Kind.Book) }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Flexarr.room, dragHandle = null) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Flexarr.room, dragHandle = null, contentWindowInsets = { WindowInsets(0) }) {
         RoomBackground(ambient = ambient, intensity = 0.45f) {
             Column(
-                Modifier.fillMaxSize().padding(horizontal = 28.dp).padding(bottom = 24.dp),
+                Modifier.fillMaxSize().sheetContentInsets().padding(horizontal = 28.dp).padding(bottom = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {

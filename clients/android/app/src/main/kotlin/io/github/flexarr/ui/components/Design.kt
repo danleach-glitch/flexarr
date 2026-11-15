@@ -30,6 +30,11 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.ui.composed
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.windowInsetsTopHeight
@@ -91,6 +96,13 @@ import io.github.flexarr.ui.theme.Tokens
 import io.github.flexarr.ui.theme.mainButtonFill
 
 // The Apple apps' shared pieces (Theme.swift and Cards.swift on iPhone), for the phone.
+
+/**
+ * A full-height sheet with its own background (Now Playing's light): the sheet itself takes no insets
+ * (`contentWindowInsets = { WindowInsets(0) }`), so the background runs under the status and gesture bars, and the
+ * content keeps clear of them with this padding instead.
+ */
+fun Modifier.sheetContentInsets(): Modifier = composed { windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical)) }
 
 /** The shared left edge for heroes, rows and grids. */
 val Edge = 20.dp

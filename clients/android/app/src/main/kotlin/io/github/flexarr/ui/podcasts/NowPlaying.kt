@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.podcasts
 
+import io.github.flexarr.ui.components.sheetContentInsets
+import androidx.compose.foundation.layout.WindowInsets
 import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import android.content.Intent
@@ -252,11 +254,11 @@ fun NowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
         navigator.openPodcast(episode.podcastId)
     }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Flexarr.room, dragHandle = null) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Flexarr.room, dragHandle = null, contentWindowInsets = { WindowInsets(0) }) {
         val ambient = if (episode.accentColor == null) artworkGlow ?: glowColor(null) else glowColor(episode.accentColor)
         RoomBackground(ambient = ambient, intensity = 0.45f) {
             Column(
-                Modifier.fillMaxSize().padding(horizontal = 28.dp).padding(bottom = 24.dp),
+                Modifier.fillMaxSize().sheetContentInsets().padding(horizontal = 28.dp).padding(bottom = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
