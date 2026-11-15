@@ -72,6 +72,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On a phone, Settings › Libraries › Library health shows each title and its reason in full, with the buttons on a line under them.
 - A home-videos folder's page speaks of folders and videos rather than seasons and episodes (**Mark folder as watched**), and a folder with just one inside shows no tab for it.
 - A long title on Home's featured slide takes a smaller size and at most three lines, so the rows below stay in sight.
+- On a phone, Watchlist's sort box lines up with the chips beside it, the two rows of chips sit closer, and a ready title's bookmark sits on its poster's corner.
 
 ### Playback
 

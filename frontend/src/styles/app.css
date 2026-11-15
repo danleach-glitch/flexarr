@@ -1534,10 +1534,23 @@ kbd {
   text-overflow: ellipsis;
 }
 
-/* A ready title's own card, with the bookmark under it (as on Discover's cards) to take it off. */
+/* A ready title's own card, with the bookmark on its poster's top corner (the watched tick has the other) to take it
+   off, rather than hanging loose under the card (#516). Solid, like .watched-mark, so it reads on any artwork. */
 .watchlist-ready-actions {
-  justify-content: flex-end;
-  margin-top: -6px;
+  position: absolute;
+  top: 6px;
+  inset-inline-start: 6px;
+}
+
+.external-card-actions.watchlist-ready-actions .watchlist-toggle {
+  margin-top: 0;
+  background: rgb(14 11 17 / 0.82);
+  color: var(--screen);
+}
+
+/* Under the status chips, the kind chips and sort sit close, and sort is as tall as the chips beside it. */
+.watchlist-page .genre-chips {
+  margin-bottom: 0;
 }
 
 /*
@@ -1584,6 +1597,8 @@ kbd {
   .watchlist-tools select {
     flex: none;
     max-width: 40%;
+    min-height: 34px;
+    font-size: var(--step--1);
   }
 }
 
