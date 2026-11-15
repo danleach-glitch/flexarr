@@ -64,7 +64,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -178,9 +177,9 @@ fun DetailScreen(model: AppModel, id: String) {
     var nextUp by remember(id) { mutableStateOf<ItemSummary?>(null) }
     var similar by remember(id) { mutableStateOf(emptyList<ItemSummary>()) }
     var selectedSeasonId by rememberSaveable(id) { mutableStateOf<String?>(null) }
-    val seasons = remember(id) { mutableStateMapOf<String, ItemDetail>() }
-    // Seasons whose episodes couldn't be fetched, with why: said in the episode area with Try again, not a spinner.
-    val failedSeasons = remember(id) { mutableStateMapOf<String, String>() }
+    val seasonFetches = remember(id) { SeasonFetches { client.item(it) } }
+    val seasons = seasonFetches.seasons
+    val failedSeasons = seasonFetches.failed
     var seasonAttempt by remember(id) { mutableStateOf(0) }
     // A show's gaps (seasons and episodes it lacks, what's coming), and the seasons asked for here since.
     var missing by remember(id) { mutableStateOf(ShowMissing.None) }
@@ -207,8 +206,11 @@ fun DetailScreen(model: AppModel, id: String) {
             }
             // A season opens as its show, with that season selected.
             val parent = loaded.item.parentId
+            // The season the page opened on, fetched just now: not asked for again below.
+            var openedSeason: String? = null
             if (loaded.item.kind == MediaKind.Season && parent != null) {
-                seasons[loaded.item.id] = loaded
+                seasonFetches.put(loaded)
+                openedSeason = loaded.item.id
                 if (selectedSeasonId == null) selectedSeasonId = loaded.item.id
                 loaded = client.item(parent)
             }
@@ -219,6 +221,7 @@ fun DetailScreen(model: AppModel, id: String) {
             coroutineScope {
                 // More like this comes alongside the episodes, rather than after them.
                 val alike = if (similar.isEmpty() && item.kind != MediaKind.Episode) async { runCatching { client.similar(item.id) }.getOrNull() } else null
+                var early: kotlinx.coroutines.Deferred<Unit>? = null
                 when (item.kind) {
                     MediaKind.Series -> {
                         // On the effect's own scope, not this one: the page (and pull to refresh) doesn't wait for Sonarr.
@@ -229,13 +232,16 @@ fun DetailScreen(model: AppModel, id: String) {
                                 if (it.canRequest) runCatching { model.titleRequestStatus() }
                             }
                         }
+                        // A season already chosen (coming back, or the page reloading) comes alongside Up next, not after it.
+                        early = selectedSeasonId?.takeIf { it != openedSeason }?.let { season -> async { seasonFetches.refresh(season) } }
                         nextUp = runCatching { client.nextUp(item.id) }.getOrNull()
                         if (selectedSeasonId == null) selectedSeasonId = nextUp?.parentId ?: loaded.children.firstOrNull()?.id
                     }
                     MediaKind.Episode -> item.parentId?.let { selectedSeasonId = it }
                     else -> Unit
                 }
-                selectedSeasonId?.let { season -> loadSeason(client, season, seasons, failedSeasons) }
+                if (early != null) early.await()
+                else selectedSeasonId?.takeIf { it != openedSeason }?.let { seasonFetches.refresh(it) }
                 alike?.await()?.let { similar = it }
             }
         } catch (e: CancellationException) {
@@ -248,7 +254,8 @@ fun DetailScreen(model: AppModel, id: String) {
     }
     LaunchedEffect(selectedSeasonId, seasonAttempt) {
         val season = selectedSeasonId ?: return@LaunchedEffect
-        if (season !in seasons) loadSeason(client, season, seasons, failedSeasons)
+        // The page's load may be fetching it already: that answer, rather than asking twice.
+        seasonFetches.ensure(season)
     }
 
     val loaded = detail
@@ -575,17 +582,6 @@ private fun playLabel(target: ItemSummary, container: ItemSummary): String {
  * Fetches a season's episodes into [seasons]. A failure is kept in [failed] (unless the season is already shown), so
  * the page says so with Try again rather than spinning until the season is changed.
  */
-private suspend fun loadSeason(client: io.github.flexarr.core.FlexarrClient, season: String, seasons: MutableMap<String, ItemDetail>, failed: MutableMap<String, String>) {
-    try {
-        seasons[season] = client.item(season)
-        failed.remove(season)
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        if (season !in seasons) failed[season] = e.message ?: t("Something went wrong.")
-    }
-}
-
 private fun androidx.compose.foundation.lazy.LazyListScope.sections(
     item: ItemSummary,
     detail: ItemDetail,
