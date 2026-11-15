@@ -3546,3 +3546,17 @@ a.download-attention {
 .requested-card .external-card-actions {
   margin-top: auto;
 }
+
+/* Discover with no Seerr: what it needs, in place of a search that could only come back empty. */
+.discover-unset {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 34rem;
+  margin-bottom: 24px;
+}
+
+.discover-unset p {
+  margin: 0;
+}

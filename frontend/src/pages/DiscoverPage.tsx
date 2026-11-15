@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
-import { getExternalDiscover, getGenreItems, getGenres, getMusicRequestStatus, imageUrl, searchEverything } from '../api/client'
+import { getExternalDiscover, getGenreItems, getGenres, getMusicRequestStatus, getRequestStatusCached, imageUrl, searchEverything } from '../api/client'
 import { ExternalCard } from '../components/ExternalCard'
 import { musicOfflineText } from '../lib/musicOffline'
-import { useIsAdmin } from '../hooks/sessionContext'
+import { useIsAdmin, useSession } from '../hooks/sessionContext'
 import { Row } from '../components/Row'
 import { PosterCard } from '../components/Cards'
 import { PageError, PageLoading } from '../components/PageStatus'
@@ -19,6 +19,10 @@ export function DiscoverPage() {
   const kind = params.get('kind') ?? ''
   const musicStatus = useApi(getMusicRequestStatus, [])
   const admin = useIsAdmin()
+  const { me } = useSession()
+  // Finding new films and shows goes through Seerr: with none set up there's nothing to search or request, so the page
+  // says so rather than offering a search that can only come back empty.
+  const requests = useApi(getRequestStatusCached, [])
   const offersMusic = musicStatus.data?.configured === true
   // Films and shows, unless Music is chosen and offered (an old link to Music, with music requests since turned off, lands here).
   const films = !music || musicStatus.data?.configured === false
@@ -37,7 +41,10 @@ export function DiscoverPage() {
     }, 350)
     return () => clearTimeout(timer)
   }, [typed, query, setParams, music])
-  const results = useApi((signal) => (query && films ? searchEverything(query, signal) : Promise.resolve(undefined)), [query, films])
+  const unset = films && requests.data?.configured === false
+  // Searched once it's known there's something to search (or the question failed, when it's tried anyway).
+  const searchable = films && (requests.data ? requests.data.configured : !!requests.error)
+  const results = useApi((signal) => (query && searchable ? searchEverything(query, signal) : Promise.resolve(undefined)), [query, searchable])
 
   // Music requests turned off (or this profile can't have them): Discover is films and shows.
   const showMusic = !films
@@ -86,6 +93,20 @@ export function DiscoverPage() {
     <input type="search" className="discover-search" placeholder={placeholder} aria-label={placeholder} value={typed} onChange={(e) => setTyped(e.target.value)} />
   )
   const switcher = offersMusic && <DiscoverSwitch music={music} />
+  const notSetUp = (
+    <div className="panel discover-unset">
+      {me?.isAdmin || me?.canUnlock ? (
+        <>
+          <p>{t('Connect Seerr to search for new movies and shows, and request them.')}</p>
+          <Link className="button" to="/settings/connections">
+            {t('Set up Seerr')}
+          </Link>
+        </>
+      ) : (
+        <p>{t('Finding new movies and shows isn’t set up on this server yet.')}</p>
+      )}
+    </div>
+  )
 
   const heading = (
     <div className="library-heading">
@@ -107,7 +128,7 @@ export function DiscoverPage() {
     )
   }
 
-  if (query) {
+  if (query && !unset) {
     return (
       <div className="discover-page">
         <header className="library-header">
@@ -156,8 +177,10 @@ export function DiscoverPage() {
     <div className="discover-page">
       <header className="library-header">
         {heading}
-        {searchBox}
+        {!unset && searchBox}
       </header>
+      {unset && notSetUp}
+      {unset && genres.data && genres.data.length > 0 && <h2 className="section-title">{t('Your library by genre')}</h2>}
       {external.error && <p className="muted discover-note">{admin ? t('Seerr isn’t answering, so there’s nothing new to request just now.') : t('There’s nothing new to request just now.')}</p>}
       {external.data && external.data.length > 0 && (
         <div className="discover-external">
