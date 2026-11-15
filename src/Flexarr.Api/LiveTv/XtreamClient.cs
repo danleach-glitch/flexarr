@@ -59,6 +59,12 @@ public sealed class XtreamClient(HttpClient http, IHttpClientFactory clients)
     /// <summary>Most a channel logo may weigh.</summary>
     private const int MaxLogoBytes = 2 * 1024 * 1024;
 
+    /// <summary>Most an answer from the API (the channel list, its groups) may weigh: tens of thousands of channels fit.</summary>
+    internal long MaxListBytes { get; init; } = 128L * 1024 * 1024;
+
+    /// <summary>Most the XMLTV guide may weigh: a week for thousands of channels fits.</summary>
+    internal long MaxGuideBytes { get; init; } = 2L * 1024 * 1024 * 1024;
+
     public async Task<XtreamAccountInfo> CheckAsync(XtreamAccount account, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(account);
@@ -124,7 +130,13 @@ public sealed class XtreamClient(HttpClient http, IHttpClientFactory clients)
     {
         ArgumentNullException.ThrowIfNull(account);
         var response = await SendAsync(account.Guide(), HttpCompletionOption.ResponseHeadersRead, ct);
-        return new IdleTimeoutStream(await response.Content.ReadAsStreamAsync(ct), GuideIdleTimeout);
+        if (response.Content.Headers.ContentLength > MaxGuideBytes)
+        {
+            response.Dispose();
+            throw new XtreamException(LiveTvRefreshProblem.GuideUnreadable);
+        }
+
+        return new IdleTimeoutStream(await response.Content.ReadAsStreamAsync(ct), GuideIdleTimeout, MaxGuideBytes);
     }
 
     /// <summary>A channel logo from the source itself or the community collection, as bytes and type; null when it isn't one.</summary>
@@ -182,10 +194,18 @@ public sealed class XtreamClient(HttpClient http, IHttpClientFactory clients)
 
     private async Task<JsonDocument> GetJsonAsync(Uri url, CancellationToken ct)
     {
-        using var response = await SendAsync(url, HttpCompletionOption.ResponseContentRead, ct);
+        // Read as it arrives, up to a limit: an answer bigger than any channel list isn't one.
+        using var response = await SendAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
+        if (response.Content.Headers.ContentLength > MaxListBytes)
+        {
+            throw new XtreamException(LiveTvRefreshProblem.NotDispatcharr);
+        }
+
         try
         {
-            return await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+            await using var body = new IdleTimeoutStream(await response.Content.ReadAsStreamAsync(ct), http.Timeout, MaxListBytes,
+                LiveTvRefreshProblem.NotDispatcharr);
+            return await JsonDocument.ParseAsync(body, cancellationToken: ct);
         }
         catch (JsonException ex)
         {
@@ -240,9 +260,15 @@ public sealed class XtreamClient(HttpClient http, IHttpClientFactory clients)
         double.TryParse(Text(e, name), NumberStyles.Float, CultureInfo.InvariantCulture, out var n) ? n : null;
 }
 
-/// <summary>A download that fails with <see cref="XtreamException"/> when a read waits longer than the limit for data.</summary>
-internal sealed class IdleTimeoutStream(Stream inner, TimeSpan idle) : Stream
+/// <summary>
+/// A download that fails with <see cref="XtreamException"/> when a read waits longer than the limit for data, or when
+/// more than <paramref name="maxBytes"/> arrive (as <paramref name="tooBig"/>).
+/// </summary>
+internal sealed class IdleTimeoutStream(Stream inner, TimeSpan idle, long maxBytes = long.MaxValue,
+    LiveTvRefreshProblem tooBig = LiveTvRefreshProblem.GuideUnreadable) : Stream
 {
+    private long _read;
+
     public override bool CanRead => true;
     public override bool CanSeek => false;
     public override bool CanWrite => false;
@@ -255,7 +281,9 @@ internal sealed class IdleTimeoutStream(Stream inner, TimeSpan idle) : Stream
         limit.CancelAfter(idle);
         try
         {
-            return await inner.ReadAsync(buffer, limit.Token).ConfigureAwait(false);
+            var got = await inner.ReadAsync(buffer, limit.Token).ConfigureAwait(false);
+            _read += got;
+            return _read > maxBytes ? throw new XtreamException(tooBig) : got;
         }
         catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {

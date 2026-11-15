@@ -21,6 +21,12 @@ public static partial class BookSidecars
     /// <summary>The largest .opf read: real ones are a few kilobytes, so anything far bigger isn't one.</summary>
     private const long MaxOpfBytes = 4 * 1024 * 1024;
 
+    /// <summary>The largest metadata.json read, for the same reason.</summary>
+    private const long MaxJsonBytes = 4 * 1024 * 1024;
+
+    /// <summary>The largest desc.txt or reader.txt read: a description is a few paragraphs.</summary>
+    private const long MaxTextBytes = 256 * 1024;
+
     /// <param name="folder">The book's folder.</param>
     public static BookInfo Read(string folder)
     {
@@ -77,13 +83,13 @@ public static partial class BookSidecars
     /// <summary>Audiobookshelf's <c>metadata.json</c>, written when it stores metadata with the files.</summary>
     internal static BookInfo? Json(string path)
     {
-        if (!File.Exists(path))
-        {
-            return null;
-        }
-
         try
         {
+            if (!File.Exists(path) || new FileInfo(path).Length > MaxJsonBytes)
+            {
+                return null;
+            }
+
             using var stream = File.OpenRead(path);
             using var doc = JsonDocument.Parse(stream);
             var root = doc.RootElement;
@@ -224,7 +230,7 @@ public static partial class BookSidecars
     {
         try
         {
-            return File.Exists(path) && File.ReadAllText(path).Trim() is { Length: > 0 } text ? text : null;
+            return File.Exists(path) && new FileInfo(path).Length <= MaxTextBytes && File.ReadAllText(path).Trim() is { Length: > 0 } text ? text : null;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -242,18 +248,20 @@ public static partial class BookSidecars
         return BlankLines().Replace(text, "\n\n").Trim();
     }
 
-    [GeneratedRegex(@"^(?<name>.+?)\s*#\s*(?<n>\d+(?:\.\d+)?(?:-\d+)?)\s*$")]
+    // Every pattern here reads text from files anyone could have written: none backtracks, so the time each takes grows
+    // with the text, not with its square.
+    [GeneratedRegex(@"^(?<name>.+?)\s*#\s*(?<n>\d+(?:\.\d+)?(?:-\d+)?)\s*$", RegexOptions.NonBacktracking)]
     private static partial Regex SeriesHash();
 
-    [GeneratedRegex(@"<\s*(?:/p|/div)\s*>", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"<\s*(?:/p|/div)\s*>", RegexOptions.IgnoreCase | RegexOptions.NonBacktracking)]
     private static partial Regex Paragraphs();
 
-    [GeneratedRegex(@"<\s*(?:br\s*/?|/li)\s*>", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"<\s*(?:br\s*/?|/li)\s*>", RegexOptions.IgnoreCase | RegexOptions.NonBacktracking)]
     private static partial Regex Breaks();
 
-    [GeneratedRegex(@"<[^>]+>")]
+    [GeneratedRegex(@"<[^>]+>", RegexOptions.NonBacktracking)]
     private static partial Regex Tags();
 
-    [GeneratedRegex(@"\n\s*\n+")]
+    [GeneratedRegex(@"\n\s*\n+", RegexOptions.NonBacktracking)]
     private static partial Regex BlankLines();
 }

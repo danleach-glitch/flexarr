@@ -442,8 +442,8 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
             // logo goes, clear across the top and right. The logo fits a box 42% wide and 30% high, keeping its shape.
             string[] args =
             [
-                "-v", "error", "-y", "-protocol_whitelist", "file",
-                "-f", backdropFormat, "-i", backdrop, "-f", logoFormat, "-i", logo,
+                "-v", "error", "-y", "-protocol_whitelist", "file", "-max_pixels", MaxPixels.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                "-f", backdropFormat, "-i", backdrop, "-max_pixels", MaxPixels.ToString(System.Globalization.CultureInfo.InvariantCulture), "-f", logoFormat, "-i", logo,
                 "-filter_complex",
                 $"[0:v]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1[bg];"
                 + "color=black:s=64x36:d=1,format=rgba,geq=r=0:g=0:b=0:a='200*pow(clip((Y/H-0.25)/0.75\\,0\\,1)\\,1.4)*clip(1.2-X/W\\,0\\,1)'"
@@ -489,7 +489,7 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
         var path = await GetAsync(remoteUrl, 92, ct).ConfigureAwait(false) ?? throw new ImageNotReadException("The image couldn't be fetched");
         var format = path.EndsWith(".png", StringComparison.Ordinal) ? "png_pipe" : InputFormat(await HeaderAsync(path, ct).ConfigureAwait(false));
         var pixels = await RunFfmpegAsync(
-            ["-v", "error", "-protocol_whitelist", "file", .. format is null ? Array.Empty<string>() : ["-f", format], "-i", path,
+            ["-v", "error", "-protocol_whitelist", "file", "-max_pixels", MaxPixels.ToString(System.Globalization.CultureInfo.InvariantCulture), .. format is null ? Array.Empty<string>() : ["-f", format], "-i", path,
                 "-vf", "scale=32:32", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], captureOutput: true, ct).ConfigureAwait(false);
         return pixels is null ? throw new ImageNotReadException("ffmpeg couldn't read the image") : AccentColor.FromPixels(pixels);
     }
@@ -634,7 +634,7 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
     /// The most pixels a picture may have to be resized (8,000 × 5,000, say). A PNG under a megabyte can be 16,000 ×
     /// 16,000, which takes ffmpeg nearly a gigabyte to draw; one per core at once could swamp a small server.
     /// </summary>
-    internal const int MaxPixels = 40_000_000;
+    public const int MaxPixels = 40_000_000;
 
     /// <summary>What ffmpeg says when a picture is over <see cref="MaxPixels"/>.</summary>
     private const string TooManyPixels = "max pixel count";

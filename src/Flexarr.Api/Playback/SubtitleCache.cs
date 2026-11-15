@@ -29,6 +29,12 @@ public sealed class SubtitleCache(IOptionsMonitor<FlexarrOptions> options) : IDi
     private readonly ConcurrentDictionary<(Guid File, string Key), Lazy<Task<string?>>> _alone = new();
     private readonly SemaphoreSlim _converting = new(AtOnce, AtOnce);
 
+    /// <summary>
+    /// Teletext pages are converted one at a time, so however many are asked for (a viewer trying page after page),
+    /// they hold one of <see cref="_converting"/>'s slots at most and playback's own conversions still get the other.
+    /// </summary>
+    private readonly SemaphoreSlim _pageConverting = new(1, 1);
+
     public void Prefetch(MediaFile file, IReadOnlyList<SubtitleTrack> tracks)
     {
         if (tracks.Any(t => t.IsText))
@@ -132,14 +138,22 @@ public sealed class SubtitleCache(IOptionsMonitor<FlexarrOptions> options) : IDi
             using var limit = new CancellationTokenSource(Limit);
             try
             {
-                await _converting.WaitAsync(limit.Token);
+                await _pageConverting.WaitAsync(limit.Token);
                 try
                 {
-                    return await Subtitles.TeletextPageToWebVttAsync(file, track, page, PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue), limit.Token);
+                    await _converting.WaitAsync(limit.Token);
+                    try
+                    {
+                        return await Subtitles.TeletextPageToWebVttAsync(file, track, page, PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue), limit.Token);
+                    }
+                    finally
+                    {
+                        _converting.Release();
+                    }
                 }
                 finally
                 {
-                    _converting.Release();
+                    _pageConverting.Release();
                 }
             }
             finally
@@ -177,5 +191,9 @@ public sealed class SubtitleCache(IOptionsMonitor<FlexarrOptions> options) : IDi
         return lazy.Value;
     }
 
-    public void Dispose() => _converting.Dispose();
+    public void Dispose()
+    {
+        _converting.Dispose();
+        _pageConverting.Dispose();
+    }
 }

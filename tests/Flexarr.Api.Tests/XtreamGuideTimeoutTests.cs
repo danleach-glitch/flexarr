@@ -46,6 +46,40 @@ public class XtreamGuideTimeoutTests
         Assert.Equal(["The News", "Doctor Who"], titles);
     }
 
+    [Fact]
+    public async Task A_guide_bigger_than_any_real_one_is_given_up()
+    {
+        using var http = new HttpClient(new Handler(stallAfterFirstChunk: false));
+        var client = new XtreamClient(http, new NoClients()) { GuideIdleTimeout = TimeSpan.FromSeconds(10), MaxGuideBytes = 100 };
+
+        await using var guide = await client.OpenGuideAsync(Account, CancellationToken.None);
+        var ex = await Assert.ThrowsAsync<XtreamException>(async () =>
+        {
+            await foreach (var _ in XmltvParser.ProgrammesAsync(guide))
+            {
+            }
+        });
+        Assert.Equal(LiveTvRefreshProblem.GuideUnreadable, ex.Problem);
+    }
+
+    [Fact]
+    public async Task A_channel_list_bigger_than_any_real_one_is_given_up()
+    {
+        var huge = "[" + string.Join(',', Enumerable.Repeat("""{"stream_id":1,"name":"Channel"}""", 10_000)) + "]";
+        using var http = new HttpClient(new Json(huge));
+        var client = new XtreamClient(http, new NoClients()) { MaxListBytes = 64 * 1024 };
+
+        var ex = await Assert.ThrowsAsync<XtreamException>(() => client.CheckAsync(Account, CancellationToken.None));
+        Assert.Equal(LiveTvRefreshProblem.NotDispatcharr, ex.Problem);
+    }
+
+    /// <summary>Answers every request with this JSON, as a stream of unknown length.</summary>
+    private sealed class Json(string body) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new MemoryStream(Encoding.UTF8.GetBytes(body))) });
+    }
+
     private sealed class Handler(bool stallAfterFirstChunk) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>

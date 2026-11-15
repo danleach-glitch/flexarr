@@ -42,6 +42,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A settings file now carries only whether notifications are on. Where they're sent stays as each server has it, so importing someone else's file can't redirect your notifications.
 - Keeping backups in a folder other than the data folder now asks for the admin PIN (or a yes, when there's none), as downloading a backup does: every backup holds the server's keys.
 - Each profile can now add up to 60 new podcasts an hour and follow up to 1,000, and pulling to refresh a show that was checked moments ago no longer fetches it again. A profile watches up to four Live TV channels at once: starting a fifth stops the one it started longest ago, and that screen says why.
+- The Live TV guide and channel list, a book's description files, fonts inside a video and uploaded pictures now each have a size limit, so an oversized or malformed one can't tie up the server. Trying teletext page after page no longer holds up subtitles for everyone else.
 
 ### iPad
 
