@@ -17,18 +17,24 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.runtime.mutableFloatStateOf
+import io.github.flexarr.core.displayTitle
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -64,7 +70,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -85,6 +90,7 @@ import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
 import io.github.flexarr.appModel
 import io.github.flexarr.core.CreditRole
+import io.github.flexarr.core.channelsLabel
 import io.github.flexarr.core.DetailActions
 import io.github.flexarr.core.Format
 import io.github.flexarr.core.ItemDetail
@@ -145,6 +151,8 @@ import io.github.flexarr.ui.components.RemoteImage
 import io.github.flexarr.ui.components.RowSpacing
 import io.github.flexarr.ui.components.SectionHeading
 import io.github.flexarr.ui.components.StatusView
+import io.github.flexarr.ui.components.FailedView
+import io.github.flexarr.ui.components.Load
 import io.github.flexarr.ui.components.TitleArt
 import io.github.flexarr.ui.components.WatchedBadge
 import io.github.flexarr.ui.components.pressable
@@ -174,13 +182,13 @@ fun DetailScreen(model: AppModel, id: String) {
     var shownId by rememberSaveable(id) { mutableStateOf<String?>(null) }
     // Given to the player with Play, so this page knows the sitting was started here (AppModel.takeEnding).
     val pageToken = rememberSaveable(id) { UUID.randomUUID().toString() }
-    var error by remember(id) { mutableStateOf<String?>(null) }
+    var error by remember(id) { mutableStateOf<Load.Failed?>(null) }
     var nextUp by remember(id) { mutableStateOf<ItemSummary?>(null) }
     var similar by remember(id) { mutableStateOf(emptyList<ItemSummary>()) }
     var selectedSeasonId by rememberSaveable(id) { mutableStateOf<String?>(null) }
-    val seasons = remember(id) { mutableStateMapOf<String, ItemDetail>() }
-    // Seasons whose episodes couldn't be fetched, with why: said in the episode area with Try again, not a spinner.
-    val failedSeasons = remember(id) { mutableStateMapOf<String, String>() }
+    val seasonFetches = remember(id) { SeasonFetches { client.item(it) } }
+    val seasons = seasonFetches.seasons
+    val failedSeasons = seasonFetches.failed
     var seasonAttempt by remember(id) { mutableStateOf(0) }
     // A show's gaps (seasons and episodes it lacks, what's coming), and the seasons asked for here since.
     var missing by remember(id) { mutableStateOf(ShowMissing.None) }
@@ -207,8 +215,11 @@ fun DetailScreen(model: AppModel, id: String) {
             }
             // A season opens as its show, with that season selected.
             val parent = loaded.item.parentId
+            // The season the page opened on, fetched just now: not asked for again below.
+            var openedSeason: String? = null
             if (loaded.item.kind == MediaKind.Season && parent != null) {
-                seasons[loaded.item.id] = loaded
+                seasonFetches.put(loaded)
+                openedSeason = loaded.item.id
                 if (selectedSeasonId == null) selectedSeasonId = loaded.item.id
                 loaded = client.item(parent)
             }
@@ -219,6 +230,7 @@ fun DetailScreen(model: AppModel, id: String) {
             coroutineScope {
                 // More like this comes alongside the episodes, rather than after them.
                 val alike = if (similar.isEmpty() && item.kind != MediaKind.Episode) async { runCatching { client.similar(item.id) }.getOrNull() } else null
+                var early: kotlinx.coroutines.Deferred<Unit>? = null
                 when (item.kind) {
                     MediaKind.Series -> {
                         // On the effect's own scope, not this one: the page (and pull to refresh) doesn't wait for Sonarr.
@@ -229,26 +241,30 @@ fun DetailScreen(model: AppModel, id: String) {
                                 if (it.canRequest) runCatching { model.titleRequestStatus() }
                             }
                         }
+                        // A season already chosen (coming back, or the page reloading) comes alongside Up next, not after it.
+                        early = selectedSeasonId?.takeIf { it != openedSeason }?.let { season -> async { seasonFetches.refresh(season) } }
                         nextUp = runCatching { client.nextUp(item.id) }.getOrNull()
                         if (selectedSeasonId == null) selectedSeasonId = nextUp?.parentId ?: loaded.children.firstOrNull()?.id
                     }
                     MediaKind.Episode -> item.parentId?.let { selectedSeasonId = it }
                     else -> Unit
                 }
-                selectedSeasonId?.let { season -> loadSeason(client, season, seasons, failedSeasons) }
+                if (early != null) early.await()
+                else selectedSeasonId?.takeIf { it != openedSeason }?.let { seasonFetches.refresh(it) }
                 alike?.await()?.let { similar = it }
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            if (detail == null) error = e.message
+            if (detail == null) error = Load.Failed(e)
         } finally {
             refreshing = false
         }
     }
     LaunchedEffect(selectedSeasonId, seasonAttempt) {
         val season = selectedSeasonId ?: return@LaunchedEffect
-        if (season !in seasons) loadSeason(client, season, seasons, failedSeasons)
+        // The page's load may be fetching it already: that answer, rather than asking twice.
+        seasonFetches.ensure(season)
     }
 
     val loaded = detail
@@ -272,6 +288,8 @@ fun DetailScreen(model: AppModel, id: String) {
     }
 
     val list = rememberLazyListState()
+    // Where the header's title is on screen, so the top bar is solid by the time it would reach Back.
+    val titleTop = remember(id) { mutableFloatStateOf(Float.MAX_VALUE) }
     CompositionLocalProvider(LocalPlayFrom provides pageToken) {
     RoomBackground(ambient = ambient, intensity = 0.22f) {
         when {
@@ -284,7 +302,7 @@ fun DetailScreen(model: AppModel, id: String) {
             ) {
                 val episodeColumns = if (isWide) 2 else 1
                 LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-                    item(key = "header") { Header(item, series, loaded, ambient, nextUp, seasons[selectedSeasonId], allEpisodes) }
+                    item(key = "header") { Header(item, series, loaded, ambient, nextUp, seasons[selectedSeasonId], allEpisodes, onTitleTop = { titleTop.floatValue = it }) }
                     sections(item, loaded, seasons[selectedSeasonId], selectedSeasonId, { selectedSeasonId = it }, similar, ambient, columns = episodeColumns, missing = missing,
                         seasonFailed = selectedSeasonId?.let { failedSeasons[it] }, retrySeason = { selectedSeasonId?.let { failedSeasons.remove(it) }; seasonAttempt++ }) {
                         if (item.kind == MediaKind.Series) {
@@ -321,20 +339,48 @@ fun DetailScreen(model: AppModel, id: String) {
                     }
                 }
             }
-            error != null -> StatusView(error, retry = { attempt++ })
+            error != null -> FailedView(error!!, retry = { attempt++ }, isItem = true)
             else -> StatusView()
         }
         StatusBarShade(list)
-        IconButton(
-            onClick = { navigator.back() },
-            modifier = Modifier.statusBarsPadding().padding(8.dp).clip(CircleShape).background(Flexarr.room.copy(alpha = 0.55f)),
-        ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = t("Back"), tint = Flexarr.screen) }
+        // Back, on a bar that fades in solid (with the title) as the header's title scrolls up to it, as the iPhone's
+        // navigation bar does, so the title never runs under the button.
+        val density = LocalDensity.current
+        val statusTop = WindowInsets.statusBars.getTop(density).toFloat()
+        val barBottom = statusTop + with(density) { 64.dp.toPx() }
+        val fade = with(density) { 40.dp.toPx() }
+        val solid = {
+            if (loaded == null) 0f
+            else if (list.firstVisibleItemIndex > 0) 1f
+            else ((barBottom + fade - titleTop.floatValue) / fade).coerceIn(0f, 1f)
+        }
+        Box(Modifier.fillMaxWidth()) {
+            Box(Modifier.matchParentSize().graphicsLayer { alpha = solid() }.background(Flexarr.room))
+            Row(Modifier.statusBarsPadding().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = { navigator.back() },
+                    modifier = Modifier.clip(CircleShape).drawBehind { drawRect(Flexarr.room.copy(alpha = 0.55f * (1f - solid()))) },
+                ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = t("Back"), tint = Flexarr.screen) }
+                item?.let {
+                    Text(
+                        it.displayTitle,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Flexarr.screen,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        // Said once in the header; this copy is only for the eye.
+                        modifier = Modifier.weight(1f).padding(start = 8.dp, end = 48.dp).graphicsLayer { alpha = solid() }.clearAndSetSemantics {},
+                    )
+                }
+            }
+        }
     }
     }
 }
 
 @Composable
-private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, ambient: Color, nextUp: ItemSummary?, season: ItemDetail?, allEpisodes: suspend () -> List<ItemSummary>) {
+private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, ambient: Color, nextUp: ItemSummary?, season: ItemDetail?, allEpisodes: suspend () -> List<ItemSummary>, onTitleTop: (Float) -> Unit = {}) {
     var overviewExpanded by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         // Taller than usual only when large text needs it.
@@ -348,13 +394,17 @@ private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, 
                     .background(Brush.verticalGradient(0.3f to Color.Transparent, 1f to Flexarr.room.copy(alpha = 0.6f))),
             )
             // Clear of Back above it, however tall large text makes it.
-            Column(Modifier.align(Alignment.BottomStart).statusBarsPadding().padding(top = 64.dp).padding(horizontal = Edge), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                Modifier.align(Alignment.BottomStart).statusBarsPadding().padding(top = 64.dp).padding(horizontal = Edge)
+                    .onGloballyPositioned { onTitleTop(it.positionInWindow().y) },
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 if (item.kind == MediaKind.Episode && series != null) {
-                    TitleArt(series, maxWidth = 240.dp, maxHeight = 80.dp, fontSize = 40)
+                    TitleArt(series, maxWidth = 240.dp, maxHeight = 80.dp, fontSize = 40, maxLines = 3, textMaxWidth = 720.dp)
                     // Said by TalkBack when the page moves on to the next episode.
                     Text(item.episodeSubtitle ?: item.title, style = marquee(28).copy(fontWeight = FontWeight.Bold), modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                 } else {
-                    TitleArt(item, maxWidth = 300.dp, maxHeight = 120.dp, fontSize = 52)
+                    TitleArt(item, maxWidth = 300.dp, maxHeight = 120.dp, fontSize = 52, maxLines = 4, textMaxWidth = 720.dp)
                 }
                 // No scores for a child.
                 val isKids = LocalContext.current.appModel.isKids
@@ -442,10 +492,14 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
         if (playable != null) {
             ActionButton(playLabel(playable, item), onClick = { navigator.play(playable, from = from) }, icon = FlexarrIcons.play, prominent = true, ambient = ambient, modifier = Modifier.fillMaxWidth())
         }
-        // Sharing the width, until large text would shrink the names to fit: then each its own size, scrolling sideways.
-        val crowded = LocalDensity.current.fontScale > 1.3f
-        Row(if (crowded) Modifier.horizontalScroll(rememberScrollState()) else Modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val slot = if (crowded) Modifier.widthIn(min = 72.dp) else Modifier.weight(1f)
+        // Sharing the width in one line, until large text would shrink the names to fit: then fewer to a line, wrapping
+        // onto the next, so every name stays whole and none goes off the screen's edge.
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            maxItemsInEachRow = actionsPerLine(LocalDensity.current.fontScale, buttons.size),
+        ) {
+            val slot = Modifier.weight(1f)
             buttons.forEach { button ->
                 when (button) {
                     DetailActions.Button.PLAY -> Unit
@@ -553,6 +607,16 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
     }
 }
 
+/**
+ * How many of the round actions under Play share a line: all of them at the usual text sizes; three, then two, as large
+ * text makes their names too wide for a quarter of a phone's width.
+ */
+internal fun actionsPerLine(fontScale: Float, count: Int): Int = when {
+    fontScale > 1.6f -> minOf(2, count)
+    fontScale > 1.3f -> minOf(3, count)
+    else -> count
+}.coerceAtLeast(1)
+
 /** "Watchlist", its bookmark filled once it's there; tapping puts it on or takes it off. */
 @Composable
 private fun WatchlistAction(on: Boolean, onClick: () -> Unit, modifier: Modifier) {
@@ -575,17 +639,6 @@ private fun playLabel(target: ItemSummary, container: ItemSummary): String {
  * Fetches a season's episodes into [seasons]. A failure is kept in [failed] (unless the season is already shown), so
  * the page says so with Try again rather than spinning until the season is changed.
  */
-private suspend fun loadSeason(client: io.github.flexarr.core.FlexarrClient, season: String, seasons: MutableMap<String, ItemDetail>, failed: MutableMap<String, String>) {
-    try {
-        seasons[season] = client.item(season)
-        failed.remove(season)
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        if (season !in seasons) failed[season] = e.message ?: t("Something went wrong.")
-    }
-}
-
 private fun androidx.compose.foundation.lazy.LazyListScope.sections(
     item: ItemSummary,
     detail: ItemDetail,
@@ -783,7 +836,7 @@ private fun episodeTime(episode: ItemSummary): String? {
 private fun FileInfo(file: MediaFile, version: TitleVersion?, studio: String?) {
     // With versions, the one that plays or is chosen, which may be in another copy than the one opened.
     val video = version?.let { listOfNotNull(it.label, it.videoCodec?.uppercase(Locale.ROOT)).joinToString(" ") }
-        ?: listOfNotNull(file.height?.let { "${it}p" }, file.videoCodec?.uppercase(Locale.ROOT), file.pictureLabel).joinToString(" ")
+        ?: listOfNotNull(file.resolutionLabel, file.videoCodec?.uppercase(Locale.ROOT), file.pictureLabel).joinToString(" ")
     val audioCodec = if (version == null) file.audioCodec else version.audioCodec
     val channels = if (version == null) file.audioChannels else version.audioChannels
     val audio = listOfNotNull(audioCodec?.uppercase(Locale.ROOT), channels?.let(::channelsLabel)).joinToString(" ")
@@ -808,18 +861,10 @@ private fun FileInfo(file: MediaFile, version: TitleVersion?, studio: String?) {
     }
 }
 
-/** "5.1", "Stereo", "Mono". */
-internal fun channelsLabel(count: Int) = when (count) {
-    1 -> t("Mono")
-    2 -> t("Stereo")
-    6 -> "5.1"
-    8 -> "7.1"
-    else -> t("{count} ch", "count" to count)
-}
-
 internal fun fileSizeLabel(bytes: Long): String {
     val gb = bytes / 1_000_000_000.0
-    return if (gb >= 1) String.format(io.github.flexarr.core.i18n.Localization.locale, "%.1f GB", gb) else String.format(io.github.flexarr.core.i18n.Localization.locale, "%.0f MB", bytes / 1_000_000.0)
+    // A no-break space, so the unit stays with its number at large text sizes.
+    return if (gb >= 1) String.format(io.github.flexarr.core.i18n.Localization.locale, "%.1f\u00A0GB", gb) else String.format(io.github.flexarr.core.i18n.Localization.locale, "%.0f\u00A0MB", bytes / 1_000_000.0)
 }
 
 /** Drawn into its own layer, then faded to nothing over the bottom of it, so there's no seam with the wash behind. */

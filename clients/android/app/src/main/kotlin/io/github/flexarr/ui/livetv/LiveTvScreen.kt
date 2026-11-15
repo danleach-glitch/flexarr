@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.livetv
 
+import androidx.compose.ui.platform.LocalDensity
 import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import android.content.Context
@@ -496,7 +497,9 @@ private fun LiveGuideView(
 
     val perMinute = 4.dp
     val channelWidth = 84.dp
-    val rowHeight = 56.dp
+    // Taller with large text, so a programme's title and time aren't cut off.
+    val textScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
+    val rowHeight = 56.dp * textScale
     val width = perMinute * (GUIDE_HOURS * 60)
     @Composable fun waiting() = StatusView(problem?.takeIf { it.first == ask }?.second, retry = { problem = null; scope.launch { load() } })
     val loaded = guide ?: return waiting()
@@ -514,7 +517,7 @@ private fun LiveGuideView(
                 Spacer(Modifier.width(channelWidth))
                 Box(Modifier.weight(1f).horizontalScroll(across)) {
                     // The times along the top, every half hour.
-                    Box(Modifier.height(30.dp).width(width + Edge)) {
+                    Box(Modifier.height(30.dp * textScale).width(width + Edge)) {
                         repeat(GUIDE_HOURS * 2) { slot ->
                             Text(
                                 LiveTvController.startTime(LiveProgramme(0, windowStart.plusSeconds(slot * 1800L), windowStart, "")),

@@ -260,6 +260,7 @@ data class MediaFile(
     val id: String,
     val size: Long,
     val videoCodec: String? = null,
+    val width: Int? = null,
     val height: Int? = null,
     val videoRange: VideoRange = VideoRange.Unknown,
     val audioCodec: String? = null,
@@ -267,6 +268,13 @@ data class MediaFile(
     /** HDR10+ scene-by-scene metadata on top of the HDR10. Absent from servers before 0.53. */
     val hdr10Plus: Boolean? = null,
 ) {
+    /**
+     * "4K", "1080p", "720p" or "SD": the class of the picture, by the server's own rule (VersionRules.ResolutionLabel),
+     * so a wide film 1920×818 says 1080p as the line under its title does, not 818p.
+     */
+    val resolutionLabel: String?
+        get() = resolutionClass(width, height)
+
     /** "HDR10+", "Dolby Vision, HDR10+"; null for SDR. */
     val pictureLabel: String?
         get() {
@@ -413,7 +421,7 @@ data class SearchResults(
     /** Book series by name. Absent from servers before 0.58. */
     val bookSeries: List<BookSeriesSearch> = emptyList(),
 ) {
-    val isEmpty: Boolean get() = titles.isEmpty() && episodes.isEmpty() && people.isEmpty() && books.isEmpty() && bookSeries.isEmpty() && albums.isEmpty()
+    val isEmpty: Boolean get() = titles.isEmpty() && episodes.isEmpty() && people.isEmpty() && books.isEmpty() && bookSeries.isEmpty() && albums.isEmpty() && tracks.isEmpty()
 }
 
 @Serializable
@@ -712,6 +720,11 @@ data class PlaybackInfo(
     val canSearchSubtitles: Boolean? = null,
     /** A book's files on its timeline, chapters, bookmarks and place. Absent from servers before 0.58. */
     val book: BookManifest? = null,
+    /**
+     * What a converted or repackaged stream is, as fields to word in the language shown ([transcodeSummary] is the
+     * server's English). Null when the file plays as it is. Absent from servers before 0.66.
+     */
+    val stream: StreamSummary? = null,
 ) {
     /** The server keeps audio offsets and show speeds (0.53 and later). */
     val hasPlayerControls: Boolean get() = audioDelaySeconds != null
@@ -995,3 +1008,12 @@ internal data class ForgotPinRequest(val adminPin: String)
 
 @Serializable
 internal data class LibraryOrderRequest(val order: List<String>)
+
+/** The class of a picture [width]×[height] as the server names it (VersionRules.ResolutionLabel); null knowing neither. */
+fun resolutionClass(width: Int?, height: Int?): String? = when {
+    width == null && height == null -> null
+    (width ?: 0) >= 3200 || (height ?: 0) >= 1800 -> "4K"
+    (width ?: 0) >= 1800 || (height ?: 0) >= 1000 -> "1080p"
+    (width ?: 0) >= 1200 || (height ?: 0) >= 700 -> "720p"
+    else -> "SD"
+}

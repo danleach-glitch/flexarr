@@ -333,7 +333,7 @@ private fun LivePlayerScreen(controller: LiveTvController, onClose: () -> Unit, 
             onDismissRequest = controller::dismissRecordingChoice,
             title = { Text(t("Recording")) },
             text = { Text(recording.message) },
-            confirmButton = { TextButton(onClick = controller::watchRecorded) { Text("Watch ${recording.channelName}") } },
+            confirmButton = { TextButton(onClick = controller::watchRecorded) { Text(t("Watch {channel}", "channel" to recording.channelName)) } },
             dismissButton = {
                 Row {
                     TextButton(onClick = controller::stopRecordingAndWatch) { Text(t("Stop the recording"), color = Flexarr.danger) }

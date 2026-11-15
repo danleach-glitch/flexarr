@@ -228,7 +228,7 @@ private fun Sections(detail: ExternalDetail, open: (ExternalTitle) -> Unit, focu
 @Composable
 private fun Labeled(label: String, value: String) {
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Text(label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
         Text(value, fontSize = 13.sp, fontWeight = FontWeight.Medium)
     }
 }
@@ -244,8 +244,8 @@ private fun CastFace(person: ExternalPerson) {
             }
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            Text(person.name, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            person.character?.let { Text(it, fontSize = 11.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            Text(person.name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            person.character?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         }
     }
 }

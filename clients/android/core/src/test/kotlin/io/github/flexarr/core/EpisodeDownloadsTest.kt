@@ -213,4 +213,12 @@ class EpisodeDownloadsTest {
         mixed.failed(refused, "x")
         assertEquals(false, mixed.failed(unreachable, "x"))
     }
+
+    @Test
+    fun aShowsRowFallsBackToTheShowsBackdropThenPoster() {
+        val show = DownloadedShows.group(listOf(download("a", LocalPhase.Downloaded)), untitled = "Episodes").single()
+        assertEquals(listOf("/api/v1/images/items/show/backdrop", "/api/v1/images/items/show/poster"), show.showPictures)
+        val unnamed = DownloadedShows.group(listOf(download(episode("b", seriesId = null), LocalPhase.Downloaded)), untitled = "Episodes").single()
+        assertEquals(emptyList<String>(), unnamed.showPictures)
+    }
 }

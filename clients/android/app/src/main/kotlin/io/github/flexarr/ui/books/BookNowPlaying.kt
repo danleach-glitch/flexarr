@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.books
 
+import io.github.flexarr.ui.components.sheetContentInsets
+import androidx.compose.foundation.layout.WindowInsets
 import io.github.flexarr.core.i18n.t
 import io.github.flexarr.core.i18n.Words
 
@@ -215,10 +217,10 @@ fun BookPlayerSheet(model: AppModel, onDismiss: () -> Unit) {
     val ambient = glowColor(book.accentColor)
     val cast = Casting.shared?.takeIf { it.casts(Casting.Kind.Book) }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Flexarr.room, dragHandle = null) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Flexarr.room, dragHandle = null, contentWindowInsets = { WindowInsets(0) }) {
         RoomBackground(ambient = ambient, intensity = 0.45f) {
             Column(
-                Modifier.fillMaxSize().padding(horizontal = 28.dp).padding(bottom = 24.dp),
+                Modifier.fillMaxSize().sheetContentInsets().padding(horizontal = 28.dp).padding(bottom = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
@@ -375,7 +377,7 @@ private fun Scrubber(player: BookPlayer, chapters: List<BookChapter>, scrubbing:
                 val ends = endsFormat(context).format(Date(System.currentTimeMillis() + (left * 1000).toLong()))
                 Text(if (wholeBook || chapters.isEmpty()) t("Ends {time}", "time" to ends) else t("Chapter"), style = caption)
             }
-            Text("-" + Format.timestamp(((span.second - shown).coerceAtLeast(0.0)) / rate), style = caption, textAlign = TextAlign.End, modifier = Modifier.weight(1f))
+            Text("−" + Format.timestamp(((span.second - shown).coerceAtLeast(0.0)) / rate), style = caption, textAlign = TextAlign.End, modifier = Modifier.weight(1f))
         }
     }
 }

@@ -57,6 +57,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
@@ -301,7 +302,9 @@ fun ProfilePicker(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
+                            // Every tile's picture box is the current one's ring wide, so the ring doesn't make that
+                            // tile taller and its picture and name sit level with the others'.
+                            Box(Modifier.size(108.dp), contentAlignment = Alignment.Center) {
                                 ProfileAvatar(model, profile, size = 96)
                                 if (switching == profile.id) {
                                     Box(Modifier.size(96.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f)))
@@ -319,7 +322,16 @@ fun ProfilePicker(
                                 }
                             }
                             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text(profile.name, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1)
+                                // A name too long for the tile ends in "…" rather than mid-word at its edge.
+                                Text(
+                                    profile.name,
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Flexarr.screen,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    textAlign = TextAlign.Center,
+                                )
                                 Text(
                                     if (current) t("Watching now") else if (profile.takesPin) t("PIN") else " ",
                                     fontSize = 12.sp,

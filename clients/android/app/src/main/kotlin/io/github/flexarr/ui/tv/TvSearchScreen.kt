@@ -78,6 +78,8 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import io.github.flexarr.AppModel
+import io.github.flexarr.ui.search.SearchShown
+import io.github.flexarr.ui.search.searchShown
 import io.github.flexarr.core.CreditRole
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.Person
@@ -112,8 +114,9 @@ fun TvSearchScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
     val navigator = LocalNavigator.current
     val context = LocalContext.current
     var query by rememberSaveable { mutableStateOf("") }
-    var results by remember { mutableStateOf<SearchResults?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
+    // Each kept with the words it answers (see searchShown).
+    var results by remember { mutableStateOf<Pair<String, SearchResults>?>(null) }
+    var error by remember { mutableStateOf<Pair<String, String>?>(null) }
     var attempt by remember { mutableStateOf(0) }
     var recents by remember { mutableStateOf(RecentSearches()) }
     var forgetting by remember { mutableStateOf<String?>(null) }
@@ -221,12 +224,12 @@ fun TvSearchScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
         // So each letter typed doesn't ask the server.
         delay(300)
         try {
-            results = client.search(text)
+            results = text to client.search(text)
             error = null
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            error = e.message
+            error = text to (e.message ?: t("Something went wrong."))
         }
     }
     val listen = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -245,8 +248,10 @@ fun TvSearchScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                     if (canListen) TvActionButton(null, onClick = { runCatching { listen.launch(speech) } }, icon = Icons.Filled.Mic, contentDescription = t("Search by voice"))
                 }
             }
-            val found = results
-            val words = query.trim()
+            val shown = searchShown(query.trim(), results, error)
+            // The words the results answer: the ones before, perhaps, while the newest are on their way.
+            val found = (shown as? SearchShown.Found)?.results
+            val words = (shown as? SearchShown.Found)?.query ?: query.trim()
             // What the library's own results haven't already shown, and what the household doesn't have.
             val inLibrary = found?.titles.orEmpty().mapTo(HashSet()) { it.id }
             val beyond = everything?.takeIf { it.first == words }?.second?.filter { it.libraryItemId == null || it.libraryItemId !in inLibrary }.orEmpty()
@@ -255,6 +260,9 @@ fun TvSearchScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                 m.artists.filter(::outside) + m.albums.filter(::outside)
             }.orEmpty()
             when {
+                shown is SearchShown.Failed -> item(key = "error") { Box(Modifier.height(200.dp)) { TvStatusView(shown.message, retry = { attempt++ }) } }
+                // A first search on its way: a spinner rather than nothing.
+                shown is SearchShown.Searching -> item(key = "searching") { Box(Modifier.height(200.dp)) { TvStatusView() } }
                 // Nothing typed: the last few searches to run again, and the titles opened from search.
                 words.isEmpty() && !recents.isEmpty -> {
                     if (recents.queries.isNotEmpty()) item(key = "recent-searches") {
@@ -277,7 +285,7 @@ fun TvSearchScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                     }
                 }
                 found != null && found.titles.isEmpty() && found.albums.isEmpty() && found.episodes.isEmpty() && found.people.isEmpty() && beyond.isEmpty() && beyondMusic.isEmpty() -> item(key = "none") {
-                    Box(Modifier.height(200.dp)) { TvStatusView(t("Nothing matches “{query}”.", "query" to query.trim()), empty = true) }
+                    Box(Modifier.height(200.dp)) { TvStatusView(t("Nothing matches “{query}”.", "query" to words), empty = true) }
                 }
                 found != null -> {
                     // The server lists artists among the titles: films and shows here, artists with the albums below, as on the phones.
@@ -323,7 +331,6 @@ fun TvSearchScreen(model: AppModel, takeFocus: Boolean, onFocusTaken: () -> Unit
                         }
                     }
                 }
-                error != null -> item(key = "error") { Box(Modifier.height(200.dp)) { TvStatusView(error, retry = { attempt++ }) } }
             }
         }
     }

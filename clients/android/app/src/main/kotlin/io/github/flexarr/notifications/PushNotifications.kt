@@ -11,11 +11,13 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.google.firebase.FirebaseApp
 import com.google.firebase.messaging.FirebaseMessaging
+import io.github.flexarr.DeviceKind
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.NotificationDevice
 import io.github.flexarr.core.NotificationSettings
 import io.github.flexarr.core.PushPayload
 import io.github.flexarr.core.notificationDevice
+import io.github.flexarr.core.i18n.t
 import io.github.flexarr.core.registerForNotifications
 import io.github.flexarr.core.sendTestNotification
 import io.github.flexarr.core.stopNotifications
@@ -167,8 +169,11 @@ class PushNotifications(private val context: Context) {
             .onFailure { log.warning("Couldn't send the new time zone", it) }
     }
 
-    /** No token from Firebase. */
-    class NoToken : Exception("Couldn't reach Google's notification service. Check this phone is online and try again.")
+    /** No token from Firebase. Its message is what Settings shows, so it's in the language shown. */
+    class NoToken : Exception(
+        if (DeviceKind.current == DeviceKind.Tablet) t("Couldn’t reach Google’s notification service. Check this tablet is online and try again.")
+        else t("Couldn’t reach Google’s notification service. Check this phone is online and try again.")
+    )
 
     /**
      * Firebase stays off until notifications are turned on (the manifest says so), so the app doesn't reach Google

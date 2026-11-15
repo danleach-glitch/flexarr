@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.podcasts
 
+import io.github.flexarr.ui.components.sheetContentInsets
+import androidx.compose.foundation.layout.WindowInsets
 import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import android.content.Intent
@@ -136,6 +138,7 @@ import io.github.flexarr.ui.theme.marquee
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import io.github.flexarr.ui.components.endsFormat
 import java.util.Date
@@ -251,11 +254,11 @@ fun NowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
         navigator.openPodcast(episode.podcastId)
     }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Flexarr.room, dragHandle = null) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Flexarr.room, dragHandle = null, contentWindowInsets = { WindowInsets(0) }) {
         val ambient = if (episode.accentColor == null) artworkGlow ?: glowColor(null) else glowColor(episode.accentColor)
         RoomBackground(ambient = ambient, intensity = 0.45f) {
             Column(
-                Modifier.fillMaxSize().padding(horizontal = 28.dp).padding(bottom = 24.dp),
+                Modifier.fillMaxSize().sheetContentInsets().padding(horizontal = 28.dp).padding(bottom = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
@@ -520,7 +523,7 @@ private fun Scrubber(player: PodcastPlayer, chapters: List<PodcastChapter>, scru
                 val ends = endsFormat(context).format(Date(System.currentTimeMillis() + (left * 1000).toLong()))
                 Text(t("Ends {time}", "time" to ends), style = caption)
             }
-            Text(if (duration > 0) "-" + Format.timestamp((duration - shown).coerceAtLeast(0.0)) else "", style = caption, textAlign = TextAlign.End, modifier = Modifier.weight(1f))
+            Text(if (duration > 0) "−" + Format.timestamp((duration - shown).coerceAtLeast(0.0)) else "", style = caption, textAlign = TextAlign.End, modifier = Modifier.weight(1f))
         }
     }
 }
@@ -600,6 +603,7 @@ private fun SleepMenu(player: PodcastPlayer, modifier: Modifier = Modifier) {
 @Composable
 private fun EpisodeMenu(model: AppModel, episode: PodcastEpisode, podcast: Podcast?, goToPodcast: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val navigator = LocalNavigator.current
     val player = model.podcasts
     var open by remember { mutableStateOf(false) }
     Box(modifier, contentAlignment = Alignment.Center) {
@@ -612,7 +616,15 @@ private fun EpisodeMenu(model: AppModel, episode: PodcastEpisode, podcast: Podca
                 open = false
                 val client = model.client ?: return@MenuEntry
                 model.scope.launch {
-                    runCatching { client.setWatched(episode.id, true) }
+                    try {
+                        client.setWatched(episode.id, true)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        // Refused: it stays where it is, rather than skipping on as if it were played.
+                        navigator.tellFailure(t("Couldn’t mark this as played"), e)
+                        return@launch
+                    }
                     model.watchStateChanged()
                     // Played: on to what comes next, as if it had finished.
                     player.seek((player.duration - 0.5).coerceAtLeast(0.0))
@@ -622,7 +634,7 @@ private fun EpisodeMenu(model: AppModel, episode: PodcastEpisode, podcast: Podca
             if (download == null) {
                 MenuEntry(t(Words.download), FlexarrIcons.download) {
                     open = false
-                    model.scope.launch { runCatching { model.downloads.downloadEpisode(episode.id) } }
+                    navigator.downloadEpisode(episode.id)
                 }
             } else {
                 MenuEntry(if (download.isDownloaded) t("Remove download") else t("Stop download"), FlexarrIcons.delete) {

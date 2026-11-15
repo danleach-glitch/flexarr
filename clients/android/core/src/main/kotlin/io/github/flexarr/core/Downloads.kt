@@ -349,11 +349,14 @@ object DownloadRules {
     }
 }
 
-/** "1.2 GB", "340 MB", "12 KB": a file's size as people read it. */
+/**
+ * "1.2 GB", "340 MB", "12 KB": a file's size as people read it. The number and its unit are held together by a no-break
+ * space, so large text never leaves "MB" alone on the next line.
+ */
 fun Format.bytes(bytes: Long): String = when {
-    bytes >= 1_000_000_000 -> String.format(io.github.flexarr.core.i18n.Localization.locale, "%.1f GB", bytes / 1_000_000_000.0)
-    bytes >= 1_000_000 -> String.format(io.github.flexarr.core.i18n.Localization.locale, "%.0f MB", bytes / 1_000_000.0)
-    else -> String.format(io.github.flexarr.core.i18n.Localization.locale, "%.0f KB", bytes / 1_000.0)
+    bytes >= 1_000_000_000 -> String.format(io.github.flexarr.core.i18n.Localization.locale, "%.1f\u00A0GB", bytes / 1_000_000_000.0)
+    bytes >= 1_000_000 -> String.format(io.github.flexarr.core.i18n.Localization.locale, "%.0f\u00A0MB", bytes / 1_000_000.0)
+    else -> String.format(io.github.flexarr.core.i18n.Localization.locale, "%.0f\u00A0KB", bytes / 1_000.0)
 }
 
 /** A downloaded podcast episode as the podcast player and its rows know one (a download keeps the episode as a title). */

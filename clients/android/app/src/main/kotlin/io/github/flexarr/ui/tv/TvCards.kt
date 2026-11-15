@@ -74,7 +74,7 @@ fun TvPosterCard(item: ItemSummary, onClick: () -> Unit, modifier: Modifier = Mo
         caption = { focused ->
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(item.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (focused) Flexarr.screen else Flexarr.screen.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                posterSubtitle(item)?.let { Text(it, fontSize = 11.5.sp, color = Flexarr.usher, maxLines = 1) }
+                posterSubtitle(item)?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1) }
             }
         },
     )
@@ -136,7 +136,7 @@ fun TvWideCard(item: ItemSummary, onClick: () -> Unit, modifier: Modifier = Modi
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(item.displayTitle, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = if (focused) Flexarr.screen else Flexarr.screen.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val remaining = if (item.progress != null) item.effectiveDuration?.let { Format.remaining(it - item.userData.positionSeconds) } else null
-                Text(listOfNotNull(item.episodeSubtitle, remaining).joinToString("   "), fontSize = 11.5.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(listOfNotNull(item.episodeSubtitle, remaining).joinToString("   "), fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         },
     )
@@ -171,8 +171,8 @@ fun TvPersonCard(name: String, detail: String?, image: String?, onClick: () -> U
             }
         })
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            Text(name, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            detail?.let { Text(it, fontSize = 11.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            Text(name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            detail?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         }
     }
 }
@@ -206,12 +206,12 @@ fun TvEpisodeCard(episode: ItemSummary, overview: String?, isCurrent: Boolean, o
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     val color = if (isCurrent) Flexarr.screen else Flexarr.usher
-                    Text(episode.episodeNumber?.let { t("Episode {number}", "number" to it) } ?: t("Special"), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = color)
-                    episodeTime(episode)?.let { Text(it, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = color) }
+                    Text(episode.episodeNumber?.let { t("Episode {number}", "number" to it) } ?: t("Special"), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = color)
+                    episodeTime(episode)?.let { Text(it, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = color) }
                 }
                 Text(episode.title, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = if (focused) Flexarr.screen else Flexarr.screen.copy(alpha = 0.88f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (!overview.isNullOrEmpty()) {
-                    Text(overview, fontSize = 11.sp, color = Flexarr.usher, maxLines = 3, overflow = TextOverflow.Ellipsis, lineHeight = 14.sp)
+                    Text(overview, fontSize = 12.sp, color = Flexarr.usher, maxLines = 3, overflow = TextOverflow.Ellipsis, lineHeight = 14.sp)
                 }
             }
         },

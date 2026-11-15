@@ -1,5 +1,8 @@
 package io.github.flexarr.ui.settings
 
+import io.github.flexarr.onTablet
+import io.github.flexarr.ui.components.ReadableWidth
+import androidx.compose.foundation.layout.widthIn
 import io.github.flexarr.core.i18n.Words
 
 import androidx.compose.material.icons.filled.Language
@@ -42,6 +45,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -78,8 +82,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
@@ -213,7 +217,7 @@ fun SettingsScreen(
             }
             if (notifications.isAvailable && notificationsAllowed && !notifications.isOn && !notifications.turnedOff) {
                 item {
-                    Group(footer = t("This phone isn’t getting notifications from this server, so you won’t hear when something new is ready.")) {
+                    Group(footer = if (onTablet) t("This tablet isn’t getting notifications from this server, so you won’t hear when something new is ready.") else t("This phone isn’t getting notifications from this server, so you won’t hear when something new is ready.")) {
                         Row(
                             Modifier.fillMaxWidth().pressable(::turnOnNotifications, enabled = !turningOnNotifications).padding(horizontal = 16.dp, vertical = 14.dp),
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -389,9 +393,9 @@ fun DownloadSettingsScreen(model: AppModel) {
                 Group(
                     header = t(Words.automatic),
                     footer = if (downloads.automaticOnWiFiOnly) {
-                        t("Downloads this phone starts by itself, like the next episode or new podcast episodes, wait for Wi-Fi and never come while Data Saver is on. Ones you start yourself use mobile data too.")
+                        if (onTablet) t("Downloads this tablet starts by itself, like the next episode or new podcast episodes, wait for Wi-Fi and never come while Data Saver is on. Ones you start yourself use mobile data too.") else t("Downloads this phone starts by itself, like the next episode or new podcast episodes, wait for Wi-Fi and never come while Data Saver is on. Ones you start yourself use mobile data too.")
                     } else {
-                        t("Downloads this phone starts by itself, like the next episode or new podcast episodes, use mobile data too, but never while Data Saver is on.")
+                        if (onTablet) t("Downloads this tablet starts by itself, like the next episode or new podcast episodes, use mobile data too, but never while Data Saver is on.") else t("Downloads this phone starts by itself, like the next episode or new podcast episodes, use mobile data too, but never while Data Saver is on.")
                     },
                 ) {
                     Toggle(t("Download the next episode"), downloads.downloadsNext, downloads::changeDownloadsNext)
@@ -430,7 +434,7 @@ fun DownloadSettingsScreen(model: AppModel) {
         AlertDialog(
             onDismissRequest = { confirmDeleteAll = false },
             title = { Text(t("Delete all downloads?")) },
-            text = { Text(t("Everything downloaded to this phone goes. What you watched offline is sent to the server first.")) },
+            text = { Text(if (onTablet) t("Everything downloaded to this tablet goes. What you watched offline is sent to the server first.") else t("Everything downloaded to this phone goes. What you watched offline is sent to the server first.")) },
             confirmButton = { TextButton(onClick = { confirmDeleteAll = false; downloads.deleteAll() }) { Text(t("Delete all"), color = Flexarr.danger) } },
             dismissButton = { TextButton(onClick = { confirmDeleteAll = false }) { Text(t(Words.cancel), color = Flexarr.screen) } },
             containerColor = Flexarr.seat,
@@ -522,11 +526,11 @@ fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit) {
                 val remote = model.credentials?.remoteAddress
                 Group(
                     footer = if (remote == null) {
-                        t("To use Flexarr away from home, turn on remote access with Tailscale in Settings › Remote access on the web; this phone picks the address up by itself.")
+                        if (onTablet) t("To use Flexarr away from home, turn on remote access with Tailscale in Settings › Remote access on the web; this tablet picks the address up by itself.") else t("To use Flexarr away from home, turn on remote access with Tailscale in Settings › Remote access on the web; this phone picks the address up by itself.")
                     } else if (model.credentials?.remoteConfirmed == false) {
-                        t("This phone hasn’t reached the server over Tailscale yet.")
+                        if (onTablet) t("This tablet hasn’t reached the server over Tailscale yet.") else t("This phone hasn’t reached the server over Tailscale yet.")
                     } else {
-                        t("Away from home, this phone reaches the server over Tailscale, which needs to be connected on it.")
+                        if (onTablet) t("Away from home, this tablet reaches the server over Tailscale, which needs to be connected on it.") else t("Away from home, this phone reaches the server over Tailscale, which needs to be connected on it.")
                     },
                 ) {
                     model.serverName?.let {
@@ -569,7 +573,7 @@ fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit) {
                 }
             }
             item {
-                Group(footer = t("Send this phone’s recent log to your server, to look into a problem.")) {
+                Group(footer = if (onTablet) t("Send this tablet’s recent log to your server, to look into a problem.") else t("Send this phone’s recent log to your server, to look into a problem.")) {
                     SettingsLink(t("Send diagnostics"), Icons.Filled.MedicalServices, value = null, onClick = onDiagnostics)
                 }
             }
@@ -727,7 +731,7 @@ private fun <T> List<T>.moved(from: Int, to: Int): List<T> = toMutableList().app
 /** A group of rows on the seat, with an optional heading above and note below, as iPhone's grouped lists. */
 @Composable
 internal fun Group(header: String? = null, footer: String? = null, content: @Composable () -> Unit) {
-    Column(Modifier.padding(horizontal = Edge), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.padding(horizontal = Edge).widthIn(max = ReadableWidth), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         header?.let { Text(it, fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp)) }
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)) { content() }
         footer?.let { Text(it, fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp)) }
@@ -748,19 +752,62 @@ internal fun SettingsLink(title: String, icon: ImageVector, value: String?, onCl
         Box(Modifier.size(29.dp).clip(RoundedCornerShape(Tokens.radiusControl)).background(Flexarr.aisle), contentAlignment = Alignment.Center) {
             Icon(icon, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(17.dp))
         }
-        Text(title, fontSize = 17.sp, color = Flexarr.screen, modifier = Modifier.weight(1f))
-        value?.let { Text(it, fontSize = 17.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        LabelAndValue(title, value, Modifier.weight(1f))
         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = Flexarr.usher)
     }
 }
 
 @Composable
 internal fun Fact(label: String, value: String) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(label, fontSize = 17.sp, color = Flexarr.screen)
-        Text(value, fontSize = 17.sp, color = Flexarr.usher, textAlign = TextAlign.End, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+    LabelAndValue(label, value, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), valueLines = 2)
+}
+
+/**
+ * A row's name with how it's set now: side by side, the value at the far end, while both fit whole; otherwise (large
+ * text, a long language) the value goes under the name, so neither is broken mid-word ("Download" / "s").
+ */
+@Composable
+internal fun LabelAndValue(label: String, value: String?, modifier: Modifier = Modifier, valueLines: Int = 1) {
+    Layout(
+        content = {
+            Text(label, fontSize = 17.sp, color = Flexarr.screen)
+            if (value != null) Text(value, fontSize = 17.sp, color = Flexarr.usher, maxLines = valueLines, overflow = TextOverflow.Ellipsis)
+        },
+        modifier = modifier,
+    ) { measurables, constraints ->
+        val width = constraints.maxWidth
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val labelPart = measurables[0]
+        val valuePart = measurables.getOrNull(1)
+        if (valuePart == null) {
+            val placed = labelPart.measure(loose)
+            return@Layout layout(width, placed.height) { placed.placeRelative(0, 0) }
+        }
+        val gap = 12.dp.roundToPx()
+        val labelWidth = labelPart.maxIntrinsicWidth(Constraints.Infinity)
+        val valueWidth = valuePart.maxIntrinsicWidth(Constraints.Infinity)
+        if (sideBySide(labelWidth, valueWidth, gap, width)) {
+            val valuePlaced = valuePart.measure(loose.copy(maxWidth = valueWidth))
+            val labelPlaced = labelPart.measure(loose.copy(maxWidth = width - valuePlaced.width - gap))
+            val height = maxOf(labelPlaced.height, valuePlaced.height)
+            layout(width, height) {
+                labelPlaced.placeRelative(0, (height - labelPlaced.height) / 2)
+                valuePlaced.placeRelative(width - valuePlaced.width, (height - valuePlaced.height) / 2)
+            }
+        } else {
+            val labelPlaced = labelPart.measure(loose)
+            val valuePlaced = valuePart.measure(loose)
+            val between = 2.dp.roundToPx()
+            layout(width, labelPlaced.height + between + valuePlaced.height) {
+                labelPlaced.placeRelative(0, 0)
+                valuePlaced.placeRelative(0, labelPlaced.height + between)
+            }
+        }
     }
 }
+
+/** Whether a row's name and value fit on one line at their full widths, with [gap] between. */
+internal fun sideBySide(labelWidth: Int, valueWidth: Int, gap: Int, width: Int): Boolean = labelWidth + gap + valueWidth <= width
 
 /** "29 Oct 2026, 09:14" from the server's start time (with or without its offset). */
 internal fun upSince(text: String): String? {

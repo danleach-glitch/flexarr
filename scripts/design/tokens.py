@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Write design/tokens.json (and the score marks in design/scores.json) out as CSS, TypeScript, Swift and Kotlin
-(`make tokens`). `--check` fails when a file is stale."""
+"""Write design/tokens.json (and the score marks in design/scores.json) out as CSS, TypeScript, Swift and Kotlin, and
+Android's resource values for its XML themes (`make tokens`). `--check` fails when a file is stale."""
 import json
 import re
 import sys
@@ -14,6 +14,7 @@ KOTLIN = ROOT / "clients/android/app/src/main/kotlin/io/github/flexarr/ui/theme/
 WEB_ICONS = ROOT / "frontend/src/components/icons.generated.ts"
 WEB_ICON_SOURCE = ROOT / "frontend/src/components/icons.tsx"
 SWIFT_ICONS = ROOT / "clients/apple/Shared/Design/Icons.swift"
+ANDROID_VALUES = ROOT / "clients/android/app/src/main/res/values/tokens.xml"
 KOTLIN_ICONS = ROOT / "clients/android/app/src/main/kotlin/io/github/flexarr/ui/theme/FlexarrIcons.kt"
 SCORES = ROOT / "design" / "scores.json"
 WEB_SCORES = ROOT / "frontend/src/components/scoreMarks.generated.ts"
@@ -144,6 +145,29 @@ def kotlin(data):
     lines += [f"    /** {data['mainButton']['use']}. */",
               f"    const val MAIN_BUTTON_AMBIENT_MIX = {num(data['mainButton']['ambientMix'])}f", "}"]
     return "\n".join(lines) + "\n"
+
+
+def android_values(data):
+    """The colours and radii as Android resources (`@color/token_seat`, `@dimen/token_radius_panel`), for what only
+    an XML theme can style: the system's own dialogs, the launcher icon, the window behind the app."""
+    lines = ['<?xml version="1.0" encoding="utf-8"?>', f"<!-- {HEADER} -->", "<resources>"]
+    for name, c in data["colors"].items():
+        lines.append(f"    <!-- {xml_comment(c['use'])}. -->")
+        lines.append(f'    <color name="token_{snake(name)}">{c["hex"].upper()}</color>')
+    for name, r in data["radii"].items():
+        lines.append(f"    <!-- {xml_comment(r['use'])}. -->")
+        lines.append(f'    <dimen name="token_radius_{snake(name)}">{num(r["value"])}dp</dimen>')
+    lines.append("</resources>")
+    return "\n".join(lines) + "\n"
+
+
+def xml_comment(text):
+    """Safe inside an XML comment, which can't hold "--"."""
+    return text.replace("--", "–")
+
+
+def snake(name):
+    return re.sub(r"([A-Z])", lambda m: "_" + m.group(1).lower(), name)
 
 
 def web_icons(data):
@@ -294,7 +318,7 @@ def kotlin_scores(scores):
 
 def outputs(data, scores=None):
     scores = scores or load_scores()
-    return {CSS: css(data), SWIFT: swift(data), KOTLIN: kotlin(data),
+    return {CSS: css(data), SWIFT: swift(data), KOTLIN: kotlin(data), ANDROID_VALUES: android_values(data),
             WEB_ICONS: web_icons(data), SWIFT_ICONS: swift_icons(data), KOTLIN_ICONS: kotlin_icons(data),
             WEB_SCORES: web_scores(scores), SWIFT_SCORES: swift_scores(scores), KOTLIN_SCORES: kotlin_scores(scores),
             IOS_ACCENT: accent_colorset(data)}

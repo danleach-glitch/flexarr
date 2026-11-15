@@ -5,6 +5,12 @@ import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.logging.FlexarrLog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
+import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.flexarr.FlexarrApplication
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -17,6 +23,11 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
+import io.github.flexarr.core.isNetworkFailure
+import io.github.flexarr.core.isNotFound
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.WifiOff
+import androidx.compose.material.icons.outlined.ErrorOutline
 import kotlin.coroutines.cancellation.CancellationException
 
 private val flexarrLog = FlexarrLog("screens")
@@ -25,7 +36,11 @@ private val flexarrLog = FlexarrLog("screens")
 sealed interface Load<out T> {
     data object Loading : Load<Nothing>
     data class Loaded<T>(val value: T) : Load<T>
-    data class Failed(val message: String) : Load<Nothing>
+
+    /** [network]: the server couldn't be reached (the Wi-Fi mark). [notFound]: the server said it isn't there. */
+    data class Failed(val message: String, val network: Boolean = true, val notFound: Boolean = false) : Load<Nothing> {
+        constructor(e: Throwable) : this(e.message ?: t("Something went wrong."), network = e.isNetworkFailure, notFound = e.isNotFound)
+    }
 }
 
 /** [refreshing]: fetching again with the last answer still on screen (pull to refresh shows it). */
@@ -72,31 +87,89 @@ fun RepeatWhileShowing(periodMs: Long, vararg keys: Any?, action: suspend () -> 
 }
 
 /**
+ * The answers a screen's [rememberLoader]s last had, kept while the screen is in the back stack (a ViewModel lives as
+ * long as its NavHost entry), so coming back to it shows them at once rather than a spinner. Each is kept by its place
+ * in the screen and what it was loaded for.
+ */
+internal class LoaderMemory : ViewModel() {
+    /** [keys]: what [rememberLoader] was handed, and who was signed in. */
+    class Kept(val keys: List<Any?>, val value: Any?, val loadedAt: Long)
+
+    // The most recently kept first to go when there are many: a TV's screens all share the activity's memory.
+    private val answers = object : LinkedHashMap<String, Kept>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Kept>?): Boolean = size > MAX_KEPT
+    }
+
+    /**
+     * What to show at [slot], loaded for [keys], on coming back: the answer kept there when it was loaded for the same
+     * sign-in (the screen's own keys, a title's id say, don't change while it's in the back stack; a watched-state
+     * version that moved meanwhile fetches again with it showing), or null.
+     */
+    fun restore(slot: String, keys: List<Any?>): Kept? = answers[slot]?.takeIf { it.keys.lastOrNull() == keys.lastOrNull() }
+
+    fun keep(slot: String, kept: Kept) {
+        answers[slot] = kept
+    }
+
+    companion object {
+        /** How many answers are kept at most, for screens that aren't each in a NavHost entry of their own. */
+        const val MAX_KEPT = 100
+
+        /**
+         * Whether the [kept] answer can stand on coming back, loaded for [keys], instead of being fetched again: for
+         * just the same, and no more than a minute old ([Freshness]).
+         */
+        fun isCurrent(kept: Kept?, keys: List<Any?>): Boolean = kept != null && kept.keys == keys && !Freshness.isStale(kept.loadedAt)
+    }
+}
+
+/**
  * Runs [load] now and again whenever [keys] change, or the screen comes back to an answer more than a minute old.
  * Reloading keeps what's on screen until the new answer comes, so coming back from the player doesn't flash a
  * spinner, and a reload that fails leaves it there (telling [onRefreshFailed], for a screen that says so).
+ *
+ * Back to the screen from one opened over it, the answer it had is shown straight away ([LoaderMemory]), and only
+ * fetched again once it's more than a minute old or what it's loaded for has changed, as on iPhone.
  */
 @Composable
 fun <T> rememberLoader(vararg keys: Any?, onRefreshFailed: ((Exception) -> Unit)? = null, load: suspend () -> T): Loader<T> {
-    var state by remember { mutableStateOf<Load<T>>(Load.Loading) }
+    val memory = LocalViewModelStoreOwner.current?.let { viewModel<LoaderMemory>(it) }
+    // Each loader's own place in the memory, kept with the screen's saved state, so coming back gives each loader its
+    // own answer. Not the composite key hash: loaders side by side on a screen share one (their calls have no group).
+    val slot = rememberSaveable { java.util.UUID.randomUUID().toString() }
+    // Who's signed in, so one profile's answer is never shown to another (a child's leaves out what it may not see).
+    val signIn = (LocalContext.current.applicationContext as? FlexarrApplication)?.signedInAs
+    val identity = keys.toList() + listOf(signIn)
+    val currentIdentity by rememberUpdatedState(identity)
+    val kept = remember { memory?.restore(slot, identity) }
+    @Suppress("UNCHECKED_CAST")
+    var state by remember { mutableStateOf<Load<T>>(kept?.let { Load.Loaded(it.value as T) } ?: Load.Loading) }
     var attempt by remember { mutableIntStateOf(0) }
     var refreshing by remember { mutableStateOf(false) }
-    var loadedAt by remember { mutableStateOf<Long?>(null) }
+    var loadedAt by remember { mutableStateOf(kept?.loadedAt) }
+    // Set until the first load has had its turn: a kept answer that's still current needs no fetching.
+    val firstLoad = remember { booleanArrayOf(true) }
     val refreshFailed by rememberUpdatedState(onRefreshFailed)
     RefreshWhenStale(loadedAt) { attempt++ }
     LaunchedEffect(*keys, attempt) {
+        val first = firstLoad[0].also { firstLoad[0] = false }
+        if (first && attempt == 0 && LoaderMemory.isCurrent(kept, currentIdentity)) return@LaunchedEffect
         val shown = state is Load.Loaded
         if (!shown) state = Load.Loading
         refreshing = shown
+        val loadingFor = currentIdentity
         try {
-            state = Load.Loaded(load())
-            loadedAt = System.currentTimeMillis()
+            val value = load()
+            state = Load.Loaded(value)
+            val now = System.currentTimeMillis()
+            loadedAt = now
+            memory?.keep(slot, LoaderMemory.Kept(loadingFor, value, now))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             // The server out of reach is expected now and then (a home server, away from home): not worth a warning.
             if (e is FlexarrException.Unreachable) flexarrLog.info("Couldn't load", e) else flexarrLog.warning("Couldn't load", e)
-            if (!shown) state = Load.Failed(e.message ?: t("Something went wrong.")) else refreshFailed?.invoke(e)
+            if (!shown) state = Load.Failed(e) else refreshFailed?.invoke(e)
         } finally {
             refreshing = false
         }
@@ -112,6 +185,19 @@ fun <T> Loaded(loader: Loader<T>, modifier: Modifier = Modifier, content: @Compo
     when (val state = loader.state) {
         is Load.Loaded -> content(state.value)
         Load.Loading -> StatusView(modifier = modifier)
-        is Load.Failed -> StatusView(state.message, loader.retry, modifier = modifier)
+        is Load.Failed -> FailedView(state, loader.retry, modifier = modifier)
+    }
+}
+
+/**
+ * A load that failed: the Wi-Fi mark only when the server couldn't be reached. On a title's own page ([isItem]), one
+ * the server no longer has says so, with nothing to try again.
+ */
+@Composable
+fun FailedView(failed: Load.Failed, retry: (() -> Unit)?, modifier: Modifier = Modifier, isItem: Boolean = false) {
+    if (isItem && failed.notFound) {
+        StatusView(t("This isn’t in your library any more."), empty = true, modifier = modifier)
+    } else {
+        StatusView(failed.message, retry, modifier = modifier, icon = if (failed.network) Icons.Filled.WifiOff else Icons.Outlined.ErrorOutline)
     }
 }

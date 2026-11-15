@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.tv
 
+import io.github.flexarr.ui.detail.SeasonFetches
 import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import io.github.flexarr.ui.getsReadyOnFocus
@@ -21,6 +22,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.WifiOff
+import androidx.compose.material.icons.outlined.ErrorOutline
+import io.github.flexarr.ui.components.Load
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PlayArrow
@@ -31,7 +35,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -93,7 +96,7 @@ import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.RefreshWhenStale
 import io.github.flexarr.ui.components.RemoteImage
 import io.github.flexarr.ui.components.TitleArt
-import io.github.flexarr.ui.detail.channelsLabel
+import io.github.flexarr.core.channelsLabel
 import io.github.flexarr.ui.detail.fileSizeLabel
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.glowColor
@@ -128,13 +131,13 @@ fun TvDetailScreen(model: AppModel, id: String) {
     var shownId by rememberSaveable(id) { mutableStateOf<String?>(null) }
     // Given to the player with Play, so this page knows the sitting was started here (AppModel.takeEnding).
     val pageToken = rememberSaveable(id) { UUID.randomUUID().toString() }
-    var error by remember(id) { mutableStateOf<String?>(null) }
+    var error by remember(id) { mutableStateOf<Load.Failed?>(null) }
     var nextUp by remember(id) { mutableStateOf<ItemSummary?>(null) }
     var similar by remember(id) { mutableStateOf(emptyList<ItemSummary>()) }
     var selectedSeasonId by remember(id) { mutableStateOf<String?>(null) }
-    val seasons = remember(id) { mutableStateMapOf<String, ItemDetail>() }
-    // Seasons whose episodes couldn't be fetched, with why: said where the episodes go, with Try again.
-    val failedSeasons = remember(id) { mutableStateMapOf<String, String>() }
+    val seasonFetches = remember(id) { SeasonFetches { client.item(it) } }
+    val seasons = seasonFetches.seasons
+    val failedSeasons = seasonFetches.failed
     var seasonAttempt by remember(id) { mutableStateOf(0) }
     // A show's gaps (seasons and episodes it lacks, what's coming), and the seasons asked for here since.
     var missing by remember(id) { mutableStateOf(ShowMissing.None) }
@@ -160,8 +163,11 @@ fun TvDetailScreen(model: AppModel, id: String) {
             }
             // A season opens as its show, with that season selected.
             val parent = loaded.item.parentId
+            // The season the page opened on, fetched just now: not asked for again below.
+            var openedSeason: String? = null
             if (loaded.item.kind == MediaKind.Season && parent != null) {
-                seasons[loaded.item.id] = loaded
+                seasonFetches.put(loaded)
+                openedSeason = loaded.item.id
                 if (selectedSeasonId == null) selectedSeasonId = loaded.item.id
                 loaded = client.item(parent)
             }
@@ -171,6 +177,7 @@ fun TvDetailScreen(model: AppModel, id: String) {
             val item = loaded.item
             coroutineScope {
                 val alike = if (similar.isEmpty() && item.kind != MediaKind.Episode) async { runCatching { client.similar(item.id) }.getOrNull() } else null
+                var early: kotlinx.coroutines.Deferred<Unit>? = null
                 when (item.kind) {
                     MediaKind.Series -> {
                         // On the effect's own scope, not this one: the page (and pull to refresh) doesn't wait for Sonarr.
@@ -181,24 +188,28 @@ fun TvDetailScreen(model: AppModel, id: String) {
                                 if (it.canRequest) runCatching { model.titleRequestStatus() }
                             }
                         }
+                        // A season already chosen (coming back, or the page reloading) comes alongside Up next, not after it.
+                        early = selectedSeasonId?.takeIf { it != openedSeason }?.let { season -> async { seasonFetches.refresh(season) } }
                         nextUp = runCatching { client.nextUp(item.id) }.getOrNull()
                         if (selectedSeasonId == null) selectedSeasonId = nextUp?.parentId ?: loaded.children.firstOrNull()?.id
                     }
                     MediaKind.Episode -> item.parentId?.let { selectedSeasonId = it }
                     else -> Unit
                 }
-                selectedSeasonId?.let { season -> loadTvSeason(client, season, seasons, failedSeasons) }
+                if (early != null) early.await()
+                else selectedSeasonId?.takeIf { it != openedSeason }?.let { seasonFetches.refresh(it) }
                 alike?.await()?.let { similar = it }
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            if (detail == null) error = e.message
+            if (detail == null) error = Load.Failed(e)
         }
     }
     LaunchedEffect(selectedSeasonId, seasonAttempt) {
         val season = selectedSeasonId ?: return@LaunchedEffect
-        if (season !in seasons) loadTvSeason(client, season, seasons, failedSeasons)
+        // The page's load may be fetching it already: that answer, rather than asking twice.
+        seasonFetches.ensure(season)
     }
 
     val loaded = detail
@@ -260,7 +271,9 @@ fun TvDetailScreen(model: AppModel, id: String) {
                     }
                 }
             }
-            error != null -> TvStatusView(error, retry = { attempt++ })
+            // A title the server no longer has (an old link or Watch Next card): said so, with nothing to try again.
+            error?.notFound == true -> TvStatusView(t("This isn’t in your library any more."), empty = true)
+            error != null -> error?.let { TvStatusView(it.message, retry = { attempt++ }, icon = if (it.network) Icons.Filled.WifiOff else Icons.Outlined.ErrorOutline) }
             else -> TvStatusView()
         }
     }
@@ -489,17 +502,6 @@ private fun playLabel(target: ItemSummary, container: ItemSummary): String {
  * Fetches a season's episodes into [seasons]. A failure is kept in [failed] (unless the season is already shown), so
  * the page says so with Try again rather than leaving no episode row until the season is changed.
  */
-private suspend fun loadTvSeason(client: io.github.flexarr.core.FlexarrClient, season: String, seasons: MutableMap<String, ItemDetail>, failed: MutableMap<String, String>) {
-    try {
-        seasons[season] = client.item(season)
-        failed.remove(season)
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        if (season !in seasons) failed[season] = e.message ?: t("Something went wrong.")
-    }
-}
-
 @Composable
 private fun Sections(
     item: ItemSummary,
@@ -611,7 +613,7 @@ private fun Episodes(item: ItemSummary, season: ItemDetail, nextUp: ItemSummary?
 private fun FileInfo(file: MediaFile, version: TitleVersion?, studio: String?) {
     // With versions, the one that plays or is chosen, which may be in another copy than the one opened.
     val video = version?.let { listOfNotNull(it.label, it.videoCodec?.uppercase(Locale.ROOT)).joinToString(" ") }
-        ?: listOfNotNull(file.height?.let { "${it}p" }, file.videoCodec?.uppercase(Locale.ROOT), file.pictureLabel).joinToString(" ")
+        ?: listOfNotNull(file.resolutionLabel, file.videoCodec?.uppercase(Locale.ROOT), file.pictureLabel).joinToString(" ")
     val audioCodec = if (version == null) file.audioCodec else version.audioCodec
     val channels = if (version == null) file.audioChannels else version.audioChannels
     val audio = listOfNotNull(audioCodec?.uppercase(Locale.ROOT), channels?.let(::channelsLabel)).joinToString(" ")
@@ -624,7 +626,7 @@ private fun FileInfo(file: MediaFile, version: TitleVersion?, studio: String?) {
     Row(Modifier.padding(horizontal = TvLayout.Edge), horizontalArrangement = Arrangement.spacedBy(25.dp)) {
         facts.forEach { (label, value) ->
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(label, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
+                Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
                 Text(value, fontSize = 12.5.sp, color = Flexarr.screen.copy(alpha = 0.85f))
             }
         }

@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.settings
 
+import io.github.flexarr.onTablet
 import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import android.Manifest
@@ -125,7 +126,7 @@ fun NotificationSettingsScreen(model: AppModel) {
                 Group(
                     footer = when {
                         device?.relay == false -> t("Your server has notifications turned off, so none will arrive. They can be turned on in its configuration.")
-                        !notifications.isOn -> t("Hear when something new is ready. This phone gets them for one profile.")
+                        !notifications.isOn -> if (onTablet) t("Hear when something new is ready. This tablet gets them for one profile.") else t("Hear when something new is ready. This phone gets them for one profile.")
                         else -> null
                     },
                 ) {
@@ -218,14 +219,15 @@ fun NotificationSettingsScreen(model: AppModel) {
 private fun HourPicker(hour: Int, onChange: (Int) -> Unit) {
     var open by remember { mutableStateOf(false) }
     val format = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(io.github.flexarr.core.i18n.Localization.locale)
-    androidx.compose.foundation.layout.Box {
-        androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().pressable({ open = true }).padding(horizontal = 16.dp, vertical = 12.dp)) {
-            Text(t("At"), fontSize = 17.sp, color = Flexarr.screen, modifier = Modifier.weight(1f))
+    androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().pressable({ open = true }).padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Text(t("At"), fontSize = 17.sp, color = Flexarr.screen, modifier = Modifier.weight(1f))
+        // The menu opens from the time, not the row's far edge.
+        androidx.compose.foundation.layout.Box {
             Text(LocalTime.of(hour, 0).format(format), fontSize = 17.sp, color = Flexarr.usher)
-        }
-        DropdownMenu(open, onDismissRequest = { open = false }, containerColor = Flexarr.seat) {
-            (0..23).forEach { h ->
-                DropdownMenuItem(text = { Text(LocalTime.of(h, 0).format(format), color = Flexarr.screen) }, onClick = { open = false; onChange(h) })
+            DropdownMenu(open, onDismissRequest = { open = false }, containerColor = Flexarr.seat) {
+                (0..23).forEach { h ->
+                    DropdownMenuItem(text = { Text(LocalTime.of(h, 0).format(format), color = Flexarr.screen) }, onClick = { open = false; onChange(h) })
+                }
             }
         }
     }

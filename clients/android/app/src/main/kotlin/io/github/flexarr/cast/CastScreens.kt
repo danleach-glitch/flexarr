@@ -1,5 +1,6 @@
 package io.github.flexarr.cast
 
+import io.github.flexarr.onTablet
 import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import androidx.activity.compose.BackHandler
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.TabletAndroid
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
@@ -136,8 +138,8 @@ fun CastingScreen(casting: Casting, skipSeconds: Int, onClose: () -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Filled.PhoneAndroid, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(18.dp))
-                Text(t("Play on this phone"), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
+                Icon(if (onTablet) Icons.Filled.TabletAndroid else Icons.Filled.PhoneAndroid, contentDescription = null, tint = Flexarr.screen, modifier = Modifier.size(18.dp))
+                Text(if (onTablet) t("Play on this tablet") else t("Play on this phone"), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen)
             }
         }
 
@@ -186,7 +188,7 @@ private fun PlayingOn(casting: Casting) {
     val device = casting.deviceName ?: return
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.widthIn(max = 420.dp)) {
         Icon(Icons.Filled.Cast, contentDescription = null, tint = Flexarr.silver, modifier = Modifier.size(18.dp))
-        Text("Playing on $device", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(t("Playing on {device}", "device" to device), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

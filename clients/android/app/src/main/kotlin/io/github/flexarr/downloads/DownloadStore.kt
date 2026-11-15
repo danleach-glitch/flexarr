@@ -843,12 +843,14 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
             val name = CollectionRules.coverName(download.item.parentId ?: download.item.id)
             return if (image(name) != null) name else fetchImage(art.poster, name, 600, client)
         }
-        val path = when (download.item.kind) {
-            MediaKind.Episode -> art.thumb ?: art.backdrop
-            MediaKind.PodcastEpisode -> art.thumb ?: art.poster
-            else -> art.backdrop ?: art.poster
+        val name = "${safeName(download.id)}.jpg"
+        val paths = when (download.item.kind) {
+            // An episode with no still or backdrop of its own takes its show's, so its Downloads row isn't blank.
+            MediaKind.Episode -> listOfNotNull(art.thumb ?: art.backdrop).ifEmpty { DownloadedShows.showPictures(download.item.seriesId) }
+            MediaKind.PodcastEpisode -> listOfNotNull(art.thumb ?: art.poster)
+            else -> listOfNotNull(art.backdrop ?: art.poster)
         }
-        return fetchImage(path, "${safeName(download.id)}.jpg", if (download.isPodcastEpisode) 400 else 600, client)
+        return paths.firstNotNullOfOrNull { fetchImage(it, name, if (download.isPodcastEpisode) 400 else 600, client) }
     }
 
     /**

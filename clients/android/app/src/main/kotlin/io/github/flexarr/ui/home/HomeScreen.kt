@@ -333,7 +333,7 @@ private fun HeroSlide(home: Home, item: ItemSummary, height: Dp) {
         Box(Modifier.matchParentSize().background(Brush.verticalGradient(0.25f to Color.Transparent, 1f to Flexarr.room.copy(alpha = 0.7f))))
         // Room above for the backdrop and the status bar when large text makes the slide grow.
         Column(Modifier.align(Alignment.BottomStart).padding(start = Edge, end = Edge, bottom = 44.dp, top = 160.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            TitleArt(item, maxWidth = 280.dp, maxHeight = 110.dp, fontSize = 52)
+            TitleArt(item, maxWidth = 280.dp, maxHeight = 110.dp, fontSize = 52, maxLines = 3, textMaxWidth = 600.dp)
             // No scores for a child.
             val isKids = LocalContext.current.appModel.isKids
             FactsLine(item.facts(scores = !isKids), scores = if (isKids) null else item.scores)
@@ -355,8 +355,11 @@ private fun HeroSlide(home: Home, item: ItemSummary, height: Dp) {
     }
 }
 
-/** Whether the featured titles may move on by themselves: not under TalkBack, nor with animations turned off. */
-private fun movesOnItsOwn(context: Context): Boolean {
+/**
+ * Whether the featured titles may move on by themselves: not under TalkBack, nor with animations turned off. The TV's
+ * Home hero asks it too.
+ */
+internal fun movesOnItsOwn(context: Context): Boolean {
     val touchExploring = context.getSystemService(AccessibilityManager::class.java)?.isTouchExplorationEnabled == true
     val animations = Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
     return !touchExploring && animations != 0f
@@ -408,6 +411,7 @@ private fun HomeRowView(model: AppModel, row: HomeRow) {
  */
 @Composable
 private fun NewEpisodesRow(model: AppModel, episodes: List<PodcastEpisode>) {
+    val navigator = LocalNavigator.current
     var opened by remember { mutableStateOf<PodcastEpisode?>(null) }
     val width = PosterWidth * 1.15f
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -430,7 +434,7 @@ private fun NewEpisodesRow(model: AppModel, episodes: List<PodcastEpisode>) {
         }
     }
     opened?.let { episode ->
-        EpisodeSheet(model, episode, setPlayed = { setEpisodePlayed(model, episode, it) }, onDismiss = { opened = null })
+        EpisodeSheet(model, episode, setPlayed = { setEpisodePlayed(model, navigator, episode, it) }, onDismiss = { opened = null })
     }
 }
 

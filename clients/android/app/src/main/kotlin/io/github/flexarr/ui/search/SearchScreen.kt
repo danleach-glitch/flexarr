@@ -76,6 +76,8 @@ import androidx.compose.ui.unit.sp
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.ui.music.AlbumCard
 import io.github.flexarr.ui.music.ArtistCard
+import io.github.flexarr.ui.music.TrackCard
+import io.github.flexarr.core.LibraryType
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.ExternalTitle
 import io.github.flexarr.core.ItemSummary
@@ -134,8 +136,9 @@ import kotlinx.coroutines.launch
 fun SearchScreen(model: AppModel) {
     val client = model.client ?: return
     var query by rememberSaveable { mutableStateOf("") }
-    var results by remember { mutableStateOf<SearchResults?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
+    // Each kept with the words it answers (see searchShown).
+    var results by remember { mutableStateOf<Pair<String, SearchResults>?>(null) }
+    var error by remember { mutableStateOf<Pair<String, String>?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
     var recents by remember { mutableStateOf(RecentSearches()) }
     // Films and shows beyond the library, when Seerr's set up: what was found, and the words that found it.
@@ -144,6 +147,8 @@ fun SearchScreen(model: AppModel) {
     // Artists and albums beyond the library, when Lidarr's set up for this profile.
     var searchesMusic by remember { mutableStateOf(false) }
     var music by remember { mutableStateOf<Pair<String, MusicSearch>?>(null) }
+    // A music library to search: the hint names music too.
+    var hasMusic by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
@@ -179,6 +184,9 @@ fun SearchScreen(model: AppModel) {
         } catch (_: Exception) {
             false
         }
+    }
+    LaunchedEffect(model.credentials) {
+        hasMusic = runCatching { client.libraries().any { it.type == LibraryType.Music } }.getOrDefault(false)
     }
     LaunchedEffect(model.credentials) {
         searchesMusic = try {
@@ -231,12 +239,12 @@ fun SearchScreen(model: AppModel) {
         // Debounce typing so each keystroke doesn't hit the server.
         delay(300)
         try {
-            results = client.search(text)
+            results = text to client.search(text)
             error = null
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            error = e.message ?: t("Something went wrong.")
+            error = text to (e.message ?: t("Something went wrong."))
         }
     }
 
@@ -272,7 +280,10 @@ fun SearchScreen(model: AppModel) {
     RoomBackground(ambient = null) {
         Column(Modifier.fillMaxSize()) {
             PageTitle(t(Words.search))
-            SearchField(query, onChange = { query = it }, modifier = Modifier.padding(horizontal = Edge).padding(bottom = 8.dp).focusRequester(focus)) {
+            SearchField(
+                query, onChange = { query = it }, modifier = Modifier.padding(horizontal = Edge).padding(bottom = 8.dp).focusRequester(focus),
+                placeholder = if (hasMusic) t("Movies, shows, music and people") else t("Movies, shows, episodes and people"),
+            ) {
                 keyboard?.hide()
                 // Pressing Search keeps the words as a recent search, as picking a result does, shown at once.
                 val words = query.trim()
@@ -281,18 +292,20 @@ fun SearchScreen(model: AppModel) {
                     recents = recents.copy(queries = (listOf(words) + recents.queries.filterNot { it.equals(words, ignoreCase = true) }).take(5))
                 }
             }
-            val shown = results
+            val shown = searchShown(query.trim(), results, error)
             LazyColumn(
                 Modifier.fillMaxSize().nestedScroll(dismissOnScroll),
                 contentPadding = PaddingValues(vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(24.dp),
             ) {
                 when {
-                    shown != null -> {
-                        val text = query.trim()
+                    shown is SearchShown.Failed -> item { StatusView(shown.message, retry = { attempt++ }, modifier = Modifier.height(240.dp)) }
+                    shown is SearchShown.Found -> {
+                        // The words these results answer: the ones before, perhaps, while the newest are on their way.
+                        val text = shown.query
                         // Beyond the library: what the library's own results haven't already shown.
                         val found = everything?.takeIf { it.first == text }?.second
-                        val inLibrary = shown.titles.mapTo(HashSet()) { it.id }
+                        val inLibrary = shown.results.titles.mapTo(HashSet()) { it.id }
                         val beyond = found?.filter { it.libraryItemId == null || it.libraryItemId !in inLibrary }
                         val musicFound = music?.takeIf { it.first == text }?.second
                         // As the iPhone: what the household has (artists and albums alike) isn't "not in your library".
@@ -301,12 +314,13 @@ fun SearchScreen(model: AppModel) {
                             MusicSearch(m.artists.filter(::outside), m.albums.filter(::outside))
                         }
                         results(
-                            shown, text, beyond, beyondMusic,
+                            shown.results, text, beyond, beyondMusic,
                             waitingForMore = (searchesEverything && found == null) || (searchesMusic && musicFound == null),
                             model = model, onPick = { record(text, it?.id) },
                         )
                     }
-                    error != null -> item { StatusView(error, retry = { attempt++ }, modifier = Modifier.height(240.dp)) }
+                    // A first search on its way: a spinner, not the hint.
+                    shown is SearchShown.Searching -> item { StatusView(modifier = Modifier.height(240.dp)) }
                     query.isBlank() && !recents.isEmpty -> recentRows(
                         recents,
                         onSearch = {
@@ -318,7 +332,10 @@ fun SearchScreen(model: AppModel) {
                         onClear = ::clear,
                         onReopen = { record(null, it.id) },
                     )
-                    else -> item { StatusView(t("Find movies, shows, episodes and people in your libraries."), empty = true, modifier = Modifier.height(240.dp)) }
+                    else -> item {
+                        val hint = if (hasMusic) t("Find movies, shows, music and people in your libraries.") else t("Find movies, shows, episodes and people in your libraries.")
+                        StatusView(hint, empty = true, modifier = Modifier.height(240.dp))
+                    }
                 }
             }
         }
@@ -364,6 +381,23 @@ private fun LazyListScope.results(
             Section(t(Words.albums)) {
                 LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing), verticalAlignment = Alignment.Top) {
                     items(results.albums, key = { it.id }) { AlbumCard(it, width = PosterWidth, showsArtist = true) }
+                }
+            }
+        }
+    }
+    // Tracks by name: tapping one plays it, then the rest found after it.
+    if (results.tracks.isNotEmpty()) {
+        item(key = "tracks") {
+            Section(t("Tracks")) {
+                val tracks = results.tracks.map { it.item }
+                LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing), verticalAlignment = Alignment.Top) {
+                    itemsIndexed(tracks, key = { _, it -> it.id }) { index, track ->
+                        TrackCard(model, track, PosterWidth) {
+                            // A track has no page to reopen: the words that found it are what's kept.
+                            onPick(null)
+                            model.music.play(tracks, start = index)
+                        }
+                    }
                 }
             }
         }

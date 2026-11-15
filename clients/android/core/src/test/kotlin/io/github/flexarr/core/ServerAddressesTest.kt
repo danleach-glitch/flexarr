@@ -404,4 +404,16 @@ class ServerAddressesTest {
         named.networkChanged()
         assertTrue(named.remoteTrustedNow)
     }
+
+    @Test
+    fun `artwork from the away address reads as home's, and anything else is left alone`() {
+        val addresses = ServerAddresses("http://192.168.1.20:8383/".toHttpUrl(), "http://100.64.0.5:8383/".toHttpUrl())
+        assertEquals(
+            "http://192.168.1.20:8383/api/v1/items/abc/poster?w=300",
+            addresses.homeForm("http://100.64.0.5:8383/api/v1/items/abc/poster?w=300"),
+        )
+        assertEquals("http://192.168.1.20:8383/api/v1/items/abc/poster", addresses.homeForm("http://192.168.1.20:8383/api/v1/items/abc/poster"))
+        assertEquals("https://image.tmdb.org/t/p/w500/x.jpg", addresses.homeForm("https://image.tmdb.org/t/p/w500/x.jpg"))
+        assertEquals("http://100.64.0.5:8383/x", ServerAddresses("http://100.64.0.5:8383/".toHttpUrl(), null).homeForm("http://100.64.0.5:8383/x"))
+    }
 }

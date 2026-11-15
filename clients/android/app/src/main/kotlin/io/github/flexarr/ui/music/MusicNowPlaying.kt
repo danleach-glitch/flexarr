@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.music
 
+import io.github.flexarr.ui.components.sheetContentInsets
+import androidx.compose.foundation.layout.WindowInsets
 import io.github.flexarr.core.i18n.t
 import io.github.flexarr.core.i18n.Words
 
@@ -47,6 +49,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -179,11 +182,12 @@ fun MusicNowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
     BackHandler(enabled = showingLyrics) { showingLyrics = false }
     val colours = rememberCoverColours(track)
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Flexarr.room, dragHandle = null) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Flexarr.room, dragHandle = null, contentWindowInsets = { WindowInsets(0) }) {
+        // The light runs edge to edge, under the status and gesture bars; the content keeps clear of them.
         Box(Modifier.fillMaxSize()) {
             MusicAurora(colours, music.spectrum, music.isPlaying)
             if (showingLyrics && found != null) {
-                Column(Modifier.fillMaxSize().padding(horizontal = 28.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                Column(Modifier.fillMaxSize().sheetContentInsets().padding(horizontal = 28.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
                     Grabber(onDismiss)
                     // The track's name and cover kept small above the words, the controls below.
                     Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -193,13 +197,13 @@ fun MusicNowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
                             track.artistName?.let { Text(it, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, maxLines = 1) }
                         }
                     }
-                    LyricsView(found, music.position, onSeek = music::seek, modifier = Modifier.weight(1f))
+                    LyricsView(found, { music.position }, onSeek = music::seek, modifier = Modifier.weight(1f))
                     ScrubberAndControls(music)
                     Extras(hasLyrics = true, showingLyrics = true) { showingLyrics = false }
                 }
             } else {
                 Column(
-                    Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 28.dp).padding(bottom = 32.dp),
+                    Modifier.verticalScroll(rememberScrollState()).sheetContentInsets().padding(horizontal = 28.dp).padding(bottom = 32.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(24.dp),
                 ) {
@@ -276,7 +280,7 @@ private fun Scrubber(music: MusicPlayer) {
         Row(Modifier.fillMaxWidth()) {
             Text(Format.timestamp(shown), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, style = Tabular)
             Spacer(Modifier.weight(1f))
-            if (music.duration > 0) Text("-" + Format.timestamp((music.duration - shown).coerceAtLeast(0.0)), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, style = Tabular)
+            if (music.duration > 0) Text("−" + Format.timestamp((music.duration - shown).coerceAtLeast(0.0)), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, style = Tabular)
         }
     }
 }
@@ -351,8 +355,9 @@ private fun UpNext(music: MusicPlayer) {
  * tapping a line jumps the track to it. Plain ones just read. The Apple apps' LyricsView.
  */
 @Composable
-private fun LyricsView(lyrics: Lyrics, position: Double, onSeek: (Double) -> Unit, modifier: Modifier = Modifier) {
-    val active = lyrics.activeLine(position)
+private fun LyricsView(lyrics: Lyrics, position: () -> Double, onSeek: (Double) -> Unit, modifier: Modifier = Modifier) {
+    // Read here, not by the sheet, and only a new line recomposes: the position moves four times a second.
+    val active by remember(lyrics) { derivedStateOf { lyrics.activeLine(position()) } }
     val list = rememberLazyListState()
     LaunchedEffect(active) {
         val line = active ?: return@LaunchedEffect

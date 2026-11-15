@@ -96,6 +96,9 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import androidx.tv.material3.LocalContentColor
+import androidx.tv.material3.LocalTextStyle
+import io.github.flexarr.ui.components.FittingText
 import io.github.flexarr.AppModel
 import io.github.flexarr.BuildConfig
 import io.github.flexarr.ui.Navigator
@@ -347,7 +350,7 @@ fun TvMainScreen(model: AppModel) {
                     }
                     composable(TvTab.LiveTv.route) { TvLiveTvScreen(model, takeFocus = arrives(TvTab.LiveTv.route), onFocusTaken = arrived(TvTab.LiveTv.route)) }
                     composable(TvTab.Discover.route) { TvDiscoverScreen(model) }
-                    composable(TvTab.Watchlist.route) { TvWatchlistScreen(model) }
+                    composable(TvTab.Watchlist.route) { TvWatchlistScreen(model, takeFocus = arrives(TvTab.Watchlist.route), onFocusTaken = arrived(TvTab.Watchlist.route)) }
                     composable(TvTab.Search.route) { TvSearchScreen(model, takeFocus = arrives(TvTab.Search.route), onFocusTaken = arrived(TvTab.Search.route)) }
                     composable(TvTab.Settings.route) { TvSettingsScreen(model, onSwitchProfile = { choosingProfile = true }) }
                     composable("item/{id}") { TvDetailScreen(model, it.arguments!!.getString("id")!!) }
@@ -461,7 +464,8 @@ private fun Sidebar(model: AppModel, open: Boolean, tabs: List<TvTab>, selected:
         val activity = LocalActivity.current
         BackHandler { if (closesOnBack) onClose() else activity?.finish() }
         Column(
-            Modifier.fillMaxHeight().width(230.dp).padding(12.dp).background(Flexarr.seat.copy(alpha = 0.92f), RoundedCornerShape(Tokens.radiusPanel)).padding(vertical = 18.dp, horizontal = 10.dp)
+            // Inset clear of the overscan margin: its rows line up with the screens' own left edge (TvLayout.Edge).
+            Modifier.fillMaxHeight().width(248.dp).padding(start = TvLayout.Edge - 10.dp, end = 12.dp, top = 20.dp, bottom = 20.dp).background(Flexarr.seat.copy(alpha = 0.92f), RoundedCornerShape(Tokens.radiusPanel)).padding(vertical = 18.dp, horizontal = 10.dp)
                 .onFocusChanged {
                     // Focus gone from it by any other way than choosing (up past the top, or Now Playing taking it):
                     // put it away too, leaving focus where it went.
@@ -508,7 +512,7 @@ private fun Sidebar(model: AppModel, open: Boolean, tabs: List<TvTab>, selected:
             Row(Modifier.padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 BrandMark(13.dp)
                 Text("flexarr", style = marquee(11, Flexarr.screen.copy(alpha = 0.8f)))
-                Text(BuildConfig.VERSION_NAME, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher.copy(alpha = 0.7f), modifier = Modifier.padding(start = 6.dp))
+                Text(BuildConfig.VERSION_NAME, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher.copy(alpha = 0.7f), modifier = Modifier.padding(start = 6.dp))
             }
         }
     }
@@ -530,7 +534,15 @@ private fun SidebarRow(title: String, selected: Boolean, onClick: () -> Unit, mo
     ) {
         Row(Modifier.fillMaxSize().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             icon()
-            Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            // A name too long for the sidebar (a language that runs long, a library's own name) is drawn smaller to fit.
+            FittingText(
+                title,
+                largest = 15.sp,
+                smallest = 12.sp,
+                color = LocalContentColor.current,
+                style = LocalTextStyle.current.copy(fontWeight = FontWeight.SemiBold),
+                modifier = Modifier.weight(1f),
+            )
         }
     }
 }

@@ -30,6 +30,11 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.ui.composed
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.windowInsetsTopHeight
@@ -92,8 +97,21 @@ import io.github.flexarr.ui.theme.mainButtonFill
 
 // The Apple apps' shared pieces (Theme.swift and Cards.swift on iPhone), for the phone.
 
+/**
+ * A full-height sheet with its own background (Now Playing's light): the sheet itself takes no insets
+ * (`contentWindowInsets = { WindowInsets(0) }`), so the background runs under the status and gesture bars, and the
+ * content keeps clear of them with this padding instead.
+ */
+fun Modifier.sheetContentInsets(): Modifier = composed { windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical)) }
+
 /** The shared left edge for heroes, rows and grids. */
 val Edge = 20.dp
+
+/**
+ * The widest a list of rows (Settings and its pages, Libraries, Downloads) or a two-part switch runs, held to the start
+ * edge on a tablet: any wider and a row's name sits a long way from its value or chevron.
+ */
+val ReadableWidth = 640.dp
 /**
  * A tablet's width (600 dp and over, as Android's own layouts count it): bigger posters and heroes, two columns of
  * episodes and a navigation rail, as the iPhone app lays out on iPad (its regular size class).
@@ -221,7 +239,8 @@ fun PillButton(label: String, selected: Boolean, onClick: () -> Unit, ambient: C
 @Composable
 fun SectionHeading(title: String, modifier: Modifier = Modifier, onSeeAll: (() -> Unit)? = null, seeAllLabel: String? = null) {
     Row(modifier.fillMaxWidth().padding(horizontal = Edge), verticalAlignment = Alignment.Bottom) {
-        Text(title, style = marquee(26).copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f).semantics { heading() }, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        // Up to two lines, so a long row name at large text ("Latest unwatched home videos") is read in full.
+        Text(title, style = marquee(26).copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f).semantics { heading() }, maxLines = 2, overflow = TextOverflow.Ellipsis)
         if (onSeeAll != null) {
             Text(
                 t("See all"),
@@ -249,10 +268,24 @@ fun PageTitle(title: String, onBack: (() -> Unit)? = null, trailing: @Composable
         }
         // Pages whose content carries its own name (a show, a person) have none here.
         if (title.isNotEmpty()) {
-            Text(title, fontSize = 34.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen, modifier = Modifier.padding(horizontal = Edge).padding(bottom = 8.dp).semantics { heading() }, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // A long title ("Podcasts and audiobooks", a show's full name) steps down to 28 to fit one line, then takes
+            // a second, rather than being cut short: on a downloaded show's page it's the only place the show is named.
+            var twoLines by remember(title) { mutableStateOf(false) }
+            BasicText(
+                title,
+                style = TextStyle(color = Flexarr.screen, fontWeight = FontWeight.Bold, lineHeight = 38.sp),
+                modifier = Modifier.padding(horizontal = Edge).padding(bottom = 8.dp).semantics { heading() },
+                maxLines = if (twoLines) 2 else 1,
+                overflow = TextOverflow.Ellipsis,
+                autoSize = TextAutoSize.StepBased(minFontSize = PAGE_TITLE_SMALLEST, maxFontSize = PAGE_TITLE_SIZE),
+                onTextLayout = { if (!twoLines && it.hasVisualOverflow) twoLines = true },
+            )
         }
     }
 }
+
+private val PAGE_TITLE_SIZE = 34.sp
+private val PAGE_TITLE_SMALLEST = 28.sp
 
 /**
  * [PageTitle] as the `stickyHeader` of a page that scrolls as one list (Settings and the pages under it): it stays at
@@ -315,17 +348,20 @@ fun WatchedBadge(modifier: Modifier = Modifier) {
     }
 }
 
-/** Clear logo when the title has one, otherwise the title set in marquee type. */
+/**
+ * Clear logo when the title has one, otherwise the title set in marquee type: up to [maxLines] lines, as wide as
+ * [textMaxWidth] (a logo's width, give or take, when not given), and smaller the longer the title runs.
+ */
 @Composable
-fun TitleArt(item: ItemSummary, maxWidth: Dp, maxHeight: Dp, fontSize: Int) {
+fun TitleArt(item: ItemSummary, maxWidth: Dp, maxHeight: Dp, fontSize: Int, maxLines: Int = 2, textMaxWidth: Dp? = null) {
     val client = LocalClient.current
     val title = @Composable {
         Text(
             item.displayTitle,
-            style = marquee(fontSize).copy(shadow = Shadow(Color.Black.copy(alpha = 0.35f), blurRadius = 20f)),
-            maxLines = 2,
+            style = marquee(titleArtFontSize(item.displayTitle, fontSize)).copy(shadow = Shadow(Color.Black.copy(alpha = 0.35f), blurRadius = 20f)),
+            maxLines = maxLines,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.widthIn(max = maxWidth * 1.2f),
+            modifier = Modifier.widthIn(max = textMaxWidth ?: (maxWidth * 1.2f)),
         )
     }
     val logo = client.imageUrl(item.artwork.logo, 600)
@@ -347,9 +383,16 @@ fun TitleArt(item: ItemSummary, maxWidth: Dp, maxHeight: Dp, fontSize: Int) {
     }
 }
 
+/** A title set in place of a logo steps down from [base] as it runs longer, so a long one isn't a word a line. */
+internal fun titleArtFontSize(title: String, base: Int): Int = when {
+    title.length <= 20 -> base
+    title.length <= 32 -> (base * 0.8f).toInt()
+    else -> (base * 0.65f).toInt()
+}
+
 /** Loading, error and empty states in plain words. */
 @Composable
-fun StatusView(message: String? = null, retry: (() -> Unit)? = null, empty: Boolean = false, modifier: Modifier = Modifier) {
+fun StatusView(message: String? = null, retry: (() -> Unit)? = null, empty: Boolean = false, modifier: Modifier = Modifier, icon: ImageVector = Icons.Filled.WifiOff) {
     Column(
         modifier.fillMaxSize().padding(32.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
@@ -364,7 +407,7 @@ fun StatusView(message: String? = null, retry: (() -> Unit)? = null, empty: Bool
                 Text(t("You’re offline"), fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Flexarr.screen)
             }
             else -> {
-                Icon(Icons.Filled.WifiOff, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(40.dp))
+                Icon(icon, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(40.dp))
                 Text(message, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Flexarr.screen, textAlign = TextAlign.Center, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                 if (retry != null) ActionButton(t("Try again"), onClick = retry, prominent = true)
             }

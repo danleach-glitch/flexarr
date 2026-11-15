@@ -94,6 +94,12 @@ sealed class FlexarrException(message: String) : Exception(message) {
     }
 }
 
+/** The server says what was asked for isn't there (a title deleted since a link, notification or widget named it). */
+val Throwable.isNotFound: Boolean get() = this is FlexarrException.Http && status == 404
+
+/** The server couldn't be reached at all, rather than answering with a refusal or an error. */
+val Throwable.isNetworkFailure: Boolean get() = this is FlexarrException.Unreachable || this is IOException
+
 /**
  * Talks to a Flexarr server's `/api/v1` REST API, as FlexarrKit's FlexarrClient does for the Apple apps.
  * [apiKey] is this device's own token (or the server's key); [profileToken] who's watching (null acts as the main profile).

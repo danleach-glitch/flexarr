@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.downloads
 
+import io.github.flexarr.onTablet
 import io.github.flexarr.core.i18n.t
 import io.github.flexarr.core.i18n.Words
 
@@ -199,7 +200,7 @@ internal class GroupDownloads(
                     {
                         val free = model.downloads.freeBytes
                         if (EpisodeGroupRules.outgrows(bytes, free)) {
-                            Text(t("About {size}, more than the {free} free on this phone.", "size" to Format.bytes(bytes), "free" to Format.bytes(free)), color = Flexarr.danger)
+                            Text(if (onTablet) t("About {size}, more than the {free} free on this tablet.", "size" to Format.bytes(bytes), "free" to Format.bytes(free)) else t("About {size}, more than the {free} free on this phone.", "size" to Format.bytes(bytes), "free" to Format.bytes(free)), color = Flexarr.danger)
                         } else {
                             Text(t("About {size}", "size" to Format.bytes(bytes)))
                         }

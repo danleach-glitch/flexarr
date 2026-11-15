@@ -316,6 +316,19 @@ class Navigator(private val nav: NavHostController, private val model: AppModel,
         }
     }
 
+    /** Downloads a podcast episode, saying so if it couldn't start (as [download] does for films and shows). */
+    fun downloadEpisode(id: String) {
+        model.scope.launch {
+            try {
+                model.downloads.downloadEpisode(id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                tell(t("Couldn’t download this"), e)
+            }
+        }
+    }
+
     /**
      * Puts a film or show on the watchlist, or takes it off, saying so if that didn't work ([onFailed] puts back what
      * the screen showed).

@@ -25,6 +25,9 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
     lateinit var model: AppModel
         private set
 
+    /** Who's signed in now (the sign-in, with its profile), or null: what screens' kept answers belong to. */
+    val signedInAs: Any? get() = if (::model.isInitialized) model.credentials else null
+
     override fun onCreate() {
         super.onCreate()
         // The language shown last, before anything draws, for the app and its widgets and notifications alike; its
@@ -32,6 +35,7 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
         io.github.flexarr.core.i18n.Localization.cacheDir = filesDir
         io.github.flexarr.core.i18n.Localization.deviceLanguages = android.os.LocaleList.getDefault().toLanguageTags().split(',')
         io.github.flexarr.core.i18n.Localization.startWithLastShown()
+        DeviceKind.current = DeviceKind.of(this)
         FlexarrClient.deviceType = deviceType()
         // Which servers have shown they hold this device's key, kept so an address that can't is never believed again.
         val proofs = getSharedPreferences("server-proofs", Context.MODE_PRIVATE)
@@ -70,6 +74,11 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
         })
     }
 
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        DeviceKind.current = DeviceKind.of(isTelevision, newConfig.smallestScreenWidthDp)
+    }
+
     /**
      * Android wants memory back, or the app has left the screen: the guide the TV keeps between Live TV and the guide
      * over the picture goes (it's fetched again if it's wanted).
@@ -80,16 +89,25 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
     }
 
     /** A TV by its UI mode, a tablet by its narrowest side (600 dp and over, as Android's own layouts count it). */
-    private fun deviceType(): String = when {
-        isTelevision -> "AndroidTv"
-        resources.configuration.smallestScreenWidthDp >= 600 -> "AndroidTablet"
-        else -> "AndroidPhone"
+    private fun deviceType(): String = when (DeviceKind.current) {
+        DeviceKind.Tv -> "AndroidTv"
+        DeviceKind.Tablet -> "AndroidTablet"
+        DeviceKind.Phone -> "AndroidPhone"
     }
 
-    /** Artwork comes over the same connections as the API, in a queue of its own so it never holds the API up. */
+    /**
+     * Artwork comes over the same connections as the API, in a queue of its own so it never holds the API up, and is
+     * cached by its address at home (see [ArtworkMemoryKeyer]).
+     */
     override fun newImageLoader(context: PlatformContext): ImageLoader =
         ImageLoader.Builder(context)
-            .components { add(OkHttpNetworkFetcherFactory(callFactory = { FlexarrClient.artworkHttp })) }
+            .components {
+                add(OkHttpNetworkFetcherFactory(callFactory = { FlexarrClient.artworkHttp }))
+                // Cached by the address at home, whichever address it came from.
+                val homeForm = ArtworkHomeForm { model.credentials }
+                add(ArtworkMemoryKeyer(homeForm), coil3.Uri::class)
+                add(ArtworkDiskKeys(homeForm))
+            }
             .build()
 }
 

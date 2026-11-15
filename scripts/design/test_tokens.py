@@ -17,6 +17,13 @@ class TokensTests(unittest.TestCase):
             self.assertIn(f"static let {name} = Color(", swift)
             self.assertIn(f"val {name} = Color(0xFF{c['hex'][1:].upper()})", kotlin)
 
+    def test_android_values_carry_every_colour_and_radius(self):
+        xml = tokens.android_values(self.data)
+        for name, c in self.data["colors"].items():
+            self.assertIn(f'<color name="token_{tokens.snake(name)}">{c["hex"].upper()}</color>', xml)
+        self.assertIn('<color name="token_seat_raised">', xml)
+        self.assertIn('<dimen name="token_radius_panel">14dp</dimen>', xml)
+
     def test_hex_round_trips_into_swift_components(self):
         swift = tokens.swift(self.data)
         self.assertIn("static let room = Color(.sRGB, red: 27 / 255, green: 23 / 255, blue: 32 / 255)", swift)

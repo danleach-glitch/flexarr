@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.downloads
 
+import io.github.flexarr.onTablet
 import io.github.flexarr.core.i18n.t
 import io.github.flexarr.core.i18n.Words
 
@@ -172,7 +173,7 @@ fun MusicDownloadButton(model: AppModel, source: MusicDownloadSource) {
         AlertDialog(
             onDismissRequest = { removing = false },
             title = { Text(if (here) t("Remove this download?") else t("Stop this download?")) },
-            text = if (here) ({ Text(t("{size} on this phone.", "size" to Format.bytes(store.bytesUsed(collection)))) }) else null,
+            text = if (here) ({ Text(if (onTablet) t("{size} on this tablet.", "size" to Format.bytes(store.bytesUsed(collection))) else t("{size} on this phone.", "size" to Format.bytes(store.bytesUsed(collection)))) }) else null,
             confirmButton = {
                 TextButton(onClick = { removing = false; store.removeCollection(collection.id) }) {
                     Text(if (here) t("Remove download") else t("Stop download"), color = Flexarr.danger)
@@ -396,7 +397,7 @@ fun OfflineCollectionScreen(model: AppModel, collectionId: String, onBack: () ->
         AlertDialog(
             onDismissRequest = { removing = false },
             title = { Text(t("Remove this download?")) },
-            text = { Text(t("{size} on this phone.", "size" to Format.bytes(store.bytesUsed(collection)))) },
+            text = { Text(if (onTablet) t("{size} on this tablet.", "size" to Format.bytes(store.bytesUsed(collection))) else t("{size} on this phone.", "size" to Format.bytes(store.bytesUsed(collection)))) },
             confirmButton = {
                 TextButton(onClick = {
                     removing = false

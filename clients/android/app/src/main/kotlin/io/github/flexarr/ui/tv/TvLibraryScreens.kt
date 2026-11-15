@@ -692,7 +692,7 @@ private fun LetterRail(empty: Set<String>, jumping: String?, onJump: (String) ->
                     if (jumping == letter) {
                         CircularProgressIndicator(Modifier.size(10.dp), strokeWidth = 1.5.dp, color = Flexarr.screen)
                     } else {
-                        Text(letter, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        Text(letter, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }

@@ -106,6 +106,47 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A download whose file was replaced on the server (Sonarr or Radarr upgraded it, say) now says so, so it can be downloaded again, instead of failing to fetch for a week.
 - Deleting a download while it's being converted now stops the conversion within seconds, even for a file whose length isn't known.
 - A phone and a tablet of one profile downloading the same title (a podcast's newest episodes, say) now both get it: the server keeps its copy until each has it, instead of the second failing with "This download ran out on the server".
+- On Android, posters and artwork already seen at home aren't downloaded again away from home over Tailscale, or again once you're back.
+- On Android phones and TVs, going back to a page (Home, a library, Settings) shows it straight away instead of loading it again behind a spinner.
+- On Android phones, going back from a film or show to its library's All grid keeps your place, however far down you'd scrolled.
+- On Android phones and TVs, a tab or sidebar name too long to fit (in a language that runs long) is drawn a little smaller instead of being cut short.
+- On Android TV, “Who’s watching?” scrolls when a household has more than five profiles, so everyone can be chosen.
+- On Android TV, holding OK on a kids profile in “Who’s watching?” turns child lock on, as on Apple TV; holding it again turns it off with the admin PIN.
+- On Android TV, the Watchlist takes focus when you open it and when you come back from a title.
+- On Android TV, the Home banner no longer moves on to another title by itself with TalkBack on or animations turned off, and TalkBack reads the new title when you move to it.
+- On Android TV, TalkBack reads the player’s timeline and where it’s up to.
+- On Android TV, small captions are a little bigger to read across the room, and the sidebar sits clear of the screen’s edge.
+- On Android phones, deleting a finished recording or stopping a series recording asks first, and a recording change the server refuses says why.
+- On Android, a podcast download that can’t start, marking an episode (or a whole show) played, and changing a show’s episode order now say when they didn’t work, and put back what was shown.
+- On Android phones and TVs, Search shows a spinner while a first search is on its way, and a failed search no longer leaves the results for the words before it on screen.
+- On Android phones and TVs, the line under the player’s title saying how a stream is converted is in your language.
+- On Android phones and tablets, rotating or unfolding while connecting to a server keeps your place, the address you typed and the code on screen.
+- On Android, the button to watch a channel when a recording is in the way, “Playing on” when casting, and the player’s skip amounts are in your language.
+- On Android phones, a library’s title count and the Live TV guide’s rows grow with large text instead of being cut off.
+- On Android tablets, the mini player sits above the gesture bar and beside the side tabs instead of under them.
+- On Android phones, Search finds songs: a Tracks row plays the one you tap, and the hint mentions music when you have a music library.
+- On Android phones and tablets, a long film or show name without a logo is shown in full on its page and on Home, set smaller and across the width instead of cut short. On Android TV, long names are set a little smaller too.
+- On Android phones and tablets, scrolling a film or show page fades in a bar with Back and the title, so the title no longer slides under the Back button.
+- On Android phones and tablets, a Settings choice (subtitle size, speakers, a notification’s time and the like) opens its menu under the value, not at the far side of the screen.
+- On Android phones and TVs, opening a title that’s no longer on the server (from an old link, notification or widget) says “This isn’t in your library any more.” instead of an HTTP error and Try again, and a page that fails for a reason other than the network no longer shows the Wi-Fi-off mark.
+- On Android phones and TVs, two audio tracks with the same name (or no language) are told apart in the player’s Audio menu by their format and channels, such as “Unknown (MP3 Stereo)”.
+- On Android phones, at the largest text sizes a film or show page’s round actions (Start over, Watched, Download, More) wrap onto a second line instead of running off the screen’s edge.
+- On Android phones, at large text sizes a Settings row puts its value under its name when both don’t fit, instead of breaking a word, sizes such as “276 MB” stay on one line, and Home’s row names (“Latest unwatched home videos”) can take two lines.
+- On Android phones and tablets, a long page title (Settings › Podcasts and audiobooks, a downloaded show’s name) is set a little smaller and, if it must, on two lines, instead of being cut short.
+- On Android tablets, Settings, Libraries, Downloads and a library’s Browse | All switch keep to a comfortable width instead of stretching across the whole screen.
+- On Android tablets, Downloads, Settings and the player say “this tablet” instead of “this phone”, and on Android TV the player’s errors say “this TV”.
+- On Android phones and tablets, a profile name too long for its tile in “Who’s watching?” ends in “…” instead of stopping mid-word.
+- On Android, the profiles in Settings › Switch line up: the current one’s ring no longer sets its picture and name lower than the others.
+- On Android phones and tablets, a player menu too tall for the screen (Subtitles with several tracks, in landscape) fades at the edge where there’s more to scroll to, so Size and Position are easy to find.
+- On Android phones and tablets, the Cast chooser is dark with rounded corners in the app’s colours, instead of a white box when the phone is in light mode.
+- On Android phones and tablets, Now Playing for music, audiobooks and podcasts is lit right to the bottom of the screen, with no paler strip behind the gesture bar or across the first song in Up next.
+- On Android phones and tablets, the last line of the Play on sheet has room under it instead of sitting on the gesture bar.
+- On Android phones, tablets and TVs, the time left in music, audiobooks and podcasts starts with a minus sign (−), as it does in the video player.
+- On Android phones and tablets, the message when notifications can’t reach Google’s service is in your language.
+- On Android phones and tablets, TalkBack reads how far a download has got as it comes, the same percentage the Download button shows.
+- On Android phones and tablets, a downloaded show whose episodes have no picture of their own shows the show’s picture in Downloads instead of a blank box.
+- On Android phones and tablets, Back on every connect screen (a code to approve, a server that can’t be reached, a guest code) is the same button as beside Connect.
+- On Android phones, tablets and TVs, a film’s Video detail names its picture as the line under the title does (“1080p H264”), not by a wide picture’s height (“818p”).
 
 ### Trakt
 
