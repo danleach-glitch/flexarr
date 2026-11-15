@@ -237,14 +237,29 @@ struct DetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .focusSection()
 
-            // The focused round button's name; the line keeps its height so nothing jumps.
-            Text(focusedAction ?? " ")
-                .font(.system(size: 24, weight: .medium))
-                .foregroundStyle(Color.screen.opacity(0.75))
-                .animation(.easeOut(duration: 0.15), value: focusedAction)
+            // The line keeps its height so nothing jumps; the focused round button's name sits on it, under the button.
+            Text(" ")
+                .font(actionNameFont)
                 .accessibilityHidden(true)
         }
+        .overlayPreferenceValue(ActionBoundsKey.self) { bounds in
+            GeometryReader { proxy in
+                if let name = focusedAction, let anchor = bounds[name] {
+                    let frame = proxy[anchor]
+                    Text(name)
+                        .font(actionNameFont)
+                        .foregroundStyle(Color.screen.opacity(0.75))
+                        .fixedSize()
+                        // Centred under the button, on the line kept for it (between the row's spacing and the bottom).
+                        .position(x: frame.midX, y: (frame.maxY + 18 + proxy.size.height) / 2)
+                        .accessibilityHidden(true)
+                }
+            }
+            .animation(.easeOut(duration: 0.15), value: focusedAction)
+        }
     }
+
+    private var actionNameFont: Font { .system(size: 24, weight: .medium) }
 
     @ViewBuilder
     private func actionButton(_ button: DetailActions.Button, item: ItemSummary, playable: ItemSummary?,
@@ -286,6 +301,7 @@ struct DetailView: View {
             if model.hasWatchlist, item.kind == .movie || item.kind == .series, let onList = detail?.onWatchlist {
                 WatchlistActionButton(key: .library(item.id), on: onList, ambient: ambient, iconOnly: true)
                     .focused($focusedAction, equals: t(Words.watchlist))
+                    .anchorPreference(key: ActionBoundsKey.self, value: .bounds) { [t(Words.watchlist): $0] }
             }
         case .download:
             EmptyView()
@@ -349,6 +365,7 @@ struct DetailView: View {
         Button(action: action) { Label(name, systemImage: systemImage) }
             .buttonStyle(ActionButtonStyle(ambient: ambient, iconOnly: true))
             .focused($focusedAction, equals: name)
+            .anchorPreference(key: ActionBoundsKey.self, value: .bounds) { [name: $0] }
     }
 
     private func openTrailer() {
@@ -761,3 +778,10 @@ private struct EpisodePlaceholder: View {
     }
 }
 
+/// Where each round button on a title's page sits, by name, so the focused one's name can sit centred under it.
+private struct ActionBoundsKey: PreferenceKey {
+    static let defaultValue: [String: Anchor<CGRect>] = [:]
+    static func reduce(value: inout [String: Anchor<CGRect>], nextValue: () -> [String: Anchor<CGRect>]) {
+        value.merge(nextValue()) { $1 }
+    }
+}
