@@ -129,18 +129,23 @@ extension View {
 }
 
 /// An album's or playlist's saved picture: its cover, or for a playlist without one a mosaic of its tracks' covers.
+/// Pictures are read and decoded off the main thread the first time (as the shows list does), and drawn at once from
+/// then on.
 struct CollectionArtwork: View {
     @Environment(DownloadStore.self) private var store
     let collection: LocalCollection
+    /// The cover, or the mosaic's tiles, once read.
+    @State private var loaded: (cover: PlatformImage?, tiles: [PlatformImage])?
 
     var body: some View {
+        let shown = loaded ?? kept
         Color.seat
             .aspectRatio(1, contentMode: .fit)
             .overlay {
-                if let image = store.image(named: collection.imageFileName) {
+                if let image = shown.cover {
                     Image(platformImage: image).resizable().scaledToFill()
                 } else {
-                    let covers = mosaicCovers
+                    let covers = shown.tiles
                     if covers.count >= 4 {
                         VStack(spacing: 0) {
                             HStack(spacing: 0) { tile(covers[0]); tile(covers[1]) }
@@ -156,17 +161,31 @@ struct CollectionArtwork: View {
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
+            .task(id: [collection.imageFileName ?? ""] + trackCoverNames) {
+                if let cover = await store.preparedImage(named: collection.imageFileName) {
+                    loaded = (cover, [])
+                    return
+                }
+                var tiles: [PlatformImage] = []
+                for name in trackCoverNames {
+                    guard let cover = await store.preparedImage(named: name) else { continue }
+                    tiles.append(cover)
+                    if tiles.count == 4 { break }
+                }
+                loaded = (nil, tiles)
+            }
     }
 
-    /// The first four different covers of the tracks (or as many as there are), read no further than that.
-    private var mosaicCovers: [PlatformImage] {
-        var names = Set<String>(), covers: [PlatformImage] = []
-        for track in store.tracks(in: collection) {
-            guard let name = track.imageFileName, names.insert(name).inserted, let cover = store.image(named: name) else { continue }
-            covers.append(cover)
-            if covers.count == 4 { break }
-        }
-        return covers
+    /// The tracks' different cover names, in order.
+    private var trackCoverNames: [String] {
+        var seen = Set<String>()
+        return store.tracks(in: collection).compactMap(\.imageFileName).filter { seen.insert($0).inserted }
+    }
+
+    /// What's already been read, without touching the disk: drawn straight away while the rest loads.
+    private var kept: (cover: PlatformImage?, tiles: [PlatformImage]) {
+        if let cover = store.keptImage(named: collection.imageFileName) { return (cover, []) }
+        return (nil, Array(trackCoverNames.lazy.compactMap { store.keptImage(named: $0) }.prefix(4)))
     }
 
     private func tile(_ image: PlatformImage) -> some View {

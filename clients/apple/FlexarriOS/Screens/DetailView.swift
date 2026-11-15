@@ -21,6 +21,8 @@ struct DetailView: View {
     @State private var similar: [ItemSummary] = []
     @State private var selectedSeasonID: String?
     @State private var seasons: [String: ItemDetail] = [:]
+    /// Seasons being fetched, so the load and the effect keyed on the selected season don't both ask for one.
+    @State private var seasonFetches = SeasonFetches()
     /// Seasons whose episodes couldn't be fetched, with why: said in the episode area with Try again, not a spinner.
     @State private var failedSeasons: [String: String] = [:]
     @State private var overviewExpanded = false
@@ -291,7 +293,8 @@ struct DetailView: View {
         case .download:
             if item.kind == .series {
                 // Every episode of every season.
-                ShowDownloadButton(show: item, seasons: detail.map { $0.children.filter { $0.kind == .season } })
+                ShowDownloadButton(show: item, seasons: detail.map { $0.children.filter { $0.kind == .season } },
+                                   fetched: seasons)
             } else {
                 DownloadButton(item: item, copies: detail?.copyIds ?? [])
             }
@@ -590,8 +593,11 @@ struct DetailView: View {
                 AccessibilityNotification.Announcement(t("Now showing {title}", ["title": [loaded.item.episodeCode, loaded.item.title].compactMap { $0 }.joined(separator: ", ")])).post()
             }
             // A season opens as its series, with that season selected.
+            // A season this load already has fresh: not fetched again below.
+            var freshSeasonID: String?
             if loaded.item.kind == .season, let parent = loaded.item.parentId {
                 seasons[loaded.item.id] = loaded
+                freshSeasonID = loaded.item.id
                 if selectedSeasonID == nil { selectedSeasonID = loaded.item.id }
                 loaded = try await client.item(parent)
             }
@@ -616,9 +622,17 @@ struct DetailView: View {
             async let shownSimilar = Self.fetchSimilar(similarClient, item.id)
             switch item.kind {
             case .series:
-                nextUp = try? await client.nextUp(item.id)
-                if selectedSeasonID == nil {
-                    selectedSeasonID = nextUp?.parentId ?? loaded.children.first?.id
+                if let chosen = selectedSeasonID, chosen != freshSeasonID {
+                    // A season already chosen (back on the page, or a reload): fetched beside Up next, not after it.
+                    let season = Task { await loadSelectedSeason(force: true) }
+                    freshSeasonID = chosen
+                    nextUp = try? await client.nextUp(item.id)
+                    await season.value
+                } else {
+                    nextUp = try? await client.nextUp(item.id)
+                    if selectedSeasonID == nil {
+                        selectedSeasonID = nextUp?.parentId ?? loaded.children.first?.id
+                    }
                 }
             case .episode:
                 if let seasonID = item.parentId {
@@ -627,7 +641,7 @@ struct DetailView: View {
             default:
                 break
             }
-            await loadSelectedSeason(force: true)
+            if selectedSeasonID != freshSeasonID { await loadSelectedSeason(force: true) }
             if let shown = await shownSimilar { similar = shown }
         } catch {
             if detail == nil { self.error = ConnectionError(error).message }
@@ -647,8 +661,9 @@ struct DetailView: View {
     }
 
     private func loadSelectedSeason(force: Bool = false) async {
-        guard let client = model.client, let id = selectedSeasonID else { return }
-        if !force, seasons[id] != nil { return }
+        guard let client = model.client, let id = selectedSeasonID,
+              seasonFetches.start(id, have: seasons[id] != nil, force: force) else { return }
+        defer { seasonFetches.finish(id) }
         do {
             seasons[id] = try await client.item(id)
             failedSeasons[id] = nil
