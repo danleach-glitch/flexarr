@@ -432,7 +432,11 @@ public sealed class ApiKeyAuthenticationHandler(
     /// <summary>The profile named by a valid <c>X-Flexarr-Profile</c> token, if it still exists.</summary>
     private async Task<string?> ChosenProfileAsync(FlexarrDbContext db)
     {
-        var token = Request.Headers[CurrentProfile.Header].FirstOrDefault();
+        // The web app keeps its choice in a cookie (see CurrentProfile.CookieName); a header, from apps and from web
+        // pages loaded before, wins.
+        var header = Request.Headers[CurrentProfile.Header].FirstOrDefault();
+        var fromWebApp = CurrentProfile.FromWebApp(Request);
+        var token = header ?? (fromWebApp ? Request.Cookies[CurrentProfile.CookieName] : null);
         var dot = token?.LastIndexOf('.') ?? -1;
         if (token is null || dot <= 0)
         {
@@ -447,7 +451,19 @@ public sealed class ApiKeyAuthenticationHandler(
             return null;
         }
 
-        return CurrentProfile.Verifies(options.ApiKey, id, Profile.TokenPinHashOf(id, found.PinHash, found.AdminPinHash), token[(dot + 1)..], options.AcceptsLegacySignIns(DateTime.UtcNow)) ? id : null;
+        if (!CurrentProfile.Verifies(options.ApiKey, id, Profile.TokenPinHashOf(id, found.PinHash, found.AdminPinHash), token[(dot + 1)..], options.AcceptsLegacySignIns(DateTime.UtcNow)))
+        {
+            return null;
+        }
+
+        // The web app from before kept the token where its scripts could read it, and sends it in the header: kept in
+        // the cookie from now on, so the page can forget it.
+        if (fromWebApp && header is not null && Request.Cookies[CurrentProfile.CookieName] != header)
+        {
+            CurrentProfile.KeepForWebApp(Context, header);
+        }
+
+        return id;
     }
 
     private static bool IsApiKey(string provided, string? key) =>

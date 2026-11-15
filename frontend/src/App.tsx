@@ -9,8 +9,10 @@ import {
   getSystemStatus,
   migrateStoredApiKey,
   PICK_PROFILE_EVENT,
-  profileToken,
-  saveProfileToken,
+  chosenProfileId,
+  forgetLegacyProfileToken,
+  legacyProfileToken,
+  saveProfileChoice,
   setupStatus,
   SIGNED_OUT_EVENT,
   signIn,
@@ -248,20 +250,23 @@ export default function App() {
       .then(([profiles, me]) => {
         // A stored choice the server no longer honours (the key or the PIN changed, or the profile went) would
         // quietly watch as someone else, often the main profile: forget it and ask again.
-        const token = profileToken()
-        const tokenFor = token?.slice(0, token.lastIndexOf('.'))
+        const chosenId = chosenProfileId()
+        const legacy = legacyProfileToken()
         // Earlier versions kept the main profile's token after its PIN, to manage the server over Tailscale. The PIN
         // now signs the browser in instead, so that token goes, and over Tailscale the picker asks for the PIN again.
-        const oldMainToken = me !== null && tokenFor === 'owner'
-        if (token && me && (oldMainToken || tokenFor !== me.profileId)) {
-          saveProfileToken(null)
+        const oldMainToken = me !== null && legacy?.slice(0, legacy.lastIndexOf('.')) === 'owner'
+        if (chosenId && me && (oldMainToken || chosenId !== me.profileId)) {
+          saveProfileChoice(null)
           session.remove('flexarr.profileChosen')
           clearApiCache()
+        } else if (legacy && me) {
+          // Honoured, so the server now keeps it in its cookie: the page needn't.
+          forgetLegacyProfileToken()
         }
         // Ask who's watching when the household has several profiles and this device hasn't chosen one, or when
         // asked to ("Switch profile"). Otherwise, over Tailscale the person is already known from their account.
         const asked = session.get('flexarr.pickProfile') === '1' || (oldMainToken && me?.method === 'tailscale')
-        const chosen = profileToken() !== null || session.get('flexarr.profileChosen') === '1' || me?.method === 'tailscale'
+        const chosen = chosenProfileId() !== null || session.get('flexarr.profileChosen') === '1' || me?.method === 'tailscale'
         // Asked for one profile in particular (Switch to the main profile, in Settings): straight to its PIN.
         const initial = asked ? profiles.find((p) => p.id === session.get('flexarr.pickProfileFor')) : undefined
         session.remove('flexarr.pickProfileFor')

@@ -1,18 +1,34 @@
-/** Where the chosen profile's token is kept (see profileToken in the API client). */
-export const PROFILE_STORAGE = 'flexarr.profile'
+/**
+ * The id of the profile chosen in this browser (see chosenProfileId in the API client). Not a secret: what proves the
+ * choice is the server's HttpOnly cookie, out of reach of the page's scripts.
+ */
+export const PROFILE_STORAGE = 'flexarr.profileId'
+
+/**
+ * Where earlier versions kept the chosen profile's token itself. Sent once more so the server moves it into its cookie
+ * (see legacyProfileToken), then forgotten.
+ */
+export const LEGACY_PROFILE_STORAGE = 'flexarr.profile'
+
+/** The profile chosen in this browser; null means the main profile. */
+export function chosenProfileId(): string | null {
+  try {
+    const id = localStorage.getItem(PROFILE_STORAGE)
+    if (id) return id
+    const token = localStorage.getItem(LEGACY_PROFILE_STORAGE)
+    return token ? token.slice(0, Math.max(0, token.lastIndexOf('.'))) || token : null
+  } catch {
+    // Storage unavailable: as the main profile.
+    return null
+  }
+}
 
 /**
  * A storage key for something that belongs to the profile chosen in this browser (a book's place, the music queue), so
  * another profile on the same computer never picks it up. The main profile (no token) keeps the plain key it always had.
  */
 export function profileKey(base: string): string {
-  let token: string | null = null
-  try {
-    token = localStorage.getItem(PROFILE_STORAGE)
-  } catch {
-    // Storage unavailable: as the main profile.
-  }
-  const profile = token ? token.slice(0, Math.max(0, token.lastIndexOf('.'))) || token : null
+  const profile = chosenProfileId()
   return profile ? `${base}.p-${profile}` : base
 }
 

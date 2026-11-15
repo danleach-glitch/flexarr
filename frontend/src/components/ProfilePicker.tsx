@@ -6,7 +6,7 @@ import {
   forgetPin,
   clearApiCache,
   ownPinWrong,
-  saveProfileToken,
+  saveProfileChoice,
   selectProfile,
   signIn,
   takeParentPin,
@@ -168,7 +168,7 @@ export function ProfilePicker({
     signIn(key)
       .then(() => {
         // Signed in with the key, this browser is the main profile.
-        saveProfileToken(null)
+        saveProfileChoice(null)
         clearApiCache()
         onChosen(asking)
       })

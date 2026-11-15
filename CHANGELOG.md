@@ -49,6 +49,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A TV waiting for a family invite by its code now keeps its secret out of the relay's request logs, and on Android, **Open in Flexarr** on an invite's page hands the invite only to Flexarr.
 - On Android, a notification the phone can't open (one not meant for it) is no longer shown as "Something new is ready."
 - On iPhone, iPad, Apple TV and Mac, the profile chosen on the device is now kept in the Keychain on that device only, so it no longer travels in backups.
+- On the web, the profile chosen in a browser is now kept in a cookie the page's scripts can't read, rather than in the browser's storage.
 - Importing a settings file no longer changes where the server finds ffmpeg and ffprobe: those stay as each server has them.
 - On iPhone, iPad, Apple TV and Mac, a `flexarr://` link from another app, a web page, a shortcut or an NFC tag opens the title's page rather than starting it, and a profile it names is asked about first, as on Android. Flexarr's own Top Shelf, widgets and Siri still play straight away.
 
