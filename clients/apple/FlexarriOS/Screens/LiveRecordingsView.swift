@@ -34,6 +34,7 @@ struct LiveRecordingsView: View {
                                     Button(recording.isRecordingNow ? t("Stop") : t("Don’t record"), role: .destructive) {
                                         act { try await $0.removeRecording(recording.id) }
                                     }
+                                    .tint(Color.danger)
                                 }
                         }
                     }
@@ -47,6 +48,7 @@ struct LiveRecordingsView: View {
                                 }
                                 .swipeActions(allowsFullSwipe: false) {
                                     Button(t("Stop series"), role: .destructive) { act { try await $0.removeSeries(series.id) } }
+                                        .tint(Color.danger)
                                 }
                             }
                         }
@@ -62,6 +64,7 @@ struct LiveRecordingsView: View {
                                         Button(recording.state == "completed" ? t(Words.delete) : t("Clear"), role: .destructive) {
                                             act { try await $0.removeRecording(recording.id) }
                                         }
+                                        .tint(Color.danger)
                                     }
                             }
                         }

@@ -109,6 +109,7 @@ struct DownloadedShowRow: View {
         .listRowBackground(Color.seat)
         .swipeActions {
             Button(role: .destructive) { removing = true } label: { Label(t(Words.delete), systemImage: Symbol.delete) }
+                .tint(Color.danger)
         }
         .alert(t("Remove these downloads?"), isPresented: $removing) {
             Button(t("Remove downloads"), role: .destructive) {

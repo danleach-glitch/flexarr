@@ -220,6 +220,7 @@ struct CollectionRow: View {
         .listRowBackground(Color.seat)
         .swipeActions {
             Button(role: .destructive) { store.remove(collectionId: collection.id) } label: { Label(t(Words.delete), systemImage: Symbol.delete) }
+                .tint(Color.danger)
         }
     }
 

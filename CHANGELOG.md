@@ -70,6 +70,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On iPhone and iPad, Podcasts with nothing followed yet puts its message and Browse podcasts in the middle of the page, as other empty pages do.
 - On iPhone and iPad at the accessibility text sizes, a library's grid has fewer, wider posters with two-line titles, its Browse / All / Genres switch becomes a menu as large as the rest of the page, long track names take two lines, and Play and Shuffle get room above and below their words.
 - On iPhone and iPad, Music's Browse / Artists / Albums / Genres switch sits at the same height as Films' and TV Shows', so it no longer hops between libraries.
+- On iPhone, swiping to delete a download or a recording shows Delete in the delete colour, not the app's silver-blue.
 
 ### Downloads
 

@@ -112,6 +112,7 @@ struct DownloadRow: View {
         .listRowBackground(Color.seat)
         .swipeActions {
             Button(role: .destructive) { store.remove(download.id) } label: { Label(t(Words.delete), systemImage: Symbol.delete) }
+                .tint(Color.danger)
         }
         .accessibilityHint(download.isDownloaded ? t("Plays") : "")
     }
@@ -191,6 +192,7 @@ private struct PodcastDownloadRow: View {
         .listRowBackground(Color.seat)
         .swipeActions {
             Button(role: .destructive) { store.remove(download.id) } label: { Label(t(Words.delete), systemImage: Symbol.delete) }
+                .tint(Color.danger)
         }
     }
 
