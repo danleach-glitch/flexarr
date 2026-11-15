@@ -113,7 +113,7 @@ The same words on every client and in the guide. The ones every client shares ar
 - **Play**, **Resume from 32:10**, **Resume S1E3**, **Start over** (never "Play from beginning" or "Play from the start").
 - **Skip intro**, **Skip recap**, **Next episode in 10**: sentence case, like every label. The countdown's Cancel is an ✕, the right half of the Next episode pill (labelled Cancel for screen readers).
 - Playback settings: **Auto-play the next episode** ("The next episode starts after a 10-second countdown."), **Skip credits** ("Ends the episode as the credits start.").
-- **Mark as watched** and **Mark as unwatched** for video, **Mark as played** for podcasts, **Mark as finished** and **Mark as unread** for books. **Mark season as watched**.
+- **Mark as watched** and **Mark as unwatched** for video, **Mark as played** for podcasts, **Mark as finished** and **Mark as unread** for books. **Mark season as watched**, **Mark show as watched**.
 - Sorting a library: **A–Z**, **Recently added**, **Year**, **Rating** (never "Title", "Newest first" or "Highest rated"). Audiobooks add **Author**, **Series**, **Length** and **Recently listened**, and have no Rating.
 - Music: **Artists**, **Albums**, **Genres**, **Your artists**, **Radio**, **Shuffle**; a music library's switch reads **Browse · Artists · Albums · Genres**.
 - A title with two or more versions: **Version** in ⋯ opens the list, **Automatic** first, then each by its name (**4K HDR10**, **1080p**), with its cut (**Director’s Cut**) and its length where they differ. The title’s facts show them side by side.

@@ -296,12 +296,12 @@ struct ItemContextMenu: View {
                 Label(t("Remove"), systemImage: Symbol.removeFromRow)
             }
         }
-        if marks, item.kind == .episode, item.seriesId != nil, let show = item.seriesTitle {
+        if marks, item.kind == .episode, item.seriesId != nil, item.seriesTitle != nil {
             Button {
                 leavesRow?(item.id)
                 Task { await model.setShowWatched(of: item) }
             } label: {
-                Label(t("Mark {show} as watched", ["show": show]), systemImage: Symbol.watched)
+                Label(t("Mark show as watched"), systemImage: Symbol.watched)
             }
         }
     }
