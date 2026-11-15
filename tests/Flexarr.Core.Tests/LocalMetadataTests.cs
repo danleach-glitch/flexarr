@@ -227,6 +227,27 @@ public sealed class LocalMetadataTests : IAsyncLifetime
         return Path.GetDirectoryName(path)!;
     }
 
+    [Fact]
+    public async Task ARefreshOfManyFilms_GoesAPageAtATime_AndSharedGenresArentMadeTwice()
+    {
+        var library = new Library { Name = "Movies", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = Media }] };
+        _db.Libraries.Add(library);
+        for (var i = 0; i < 230; i++)
+        {
+            var folder = Write($"Film {i} (2001)/movie.nfo", $"<movie><title>Film {i}</title><year>2001</year><genre>Drama</genre></movie>");
+            _db.MediaItems.Add(new MediaItem { LibraryId = library.Id, Kind = MediaKind.Movie, Title = $"Film {i}", SortTitle = $"film {i}", Path = folder });
+        }
+
+        await _db.SaveChangesAsync();
+
+        var result = await Refresher().RefreshLibraryAsync(library, force: true, default);
+
+        Assert.Equal(230, result.FromLocal);
+        _db.ChangeTracker.Clear();
+        Assert.Equal(1, await _db.Genres.CountAsync(g => g.Name == "Drama"));
+        Assert.Equal(230, await _db.MediaItems.CountAsync(i => i.LibraryId == library.Id && i.Genres.Any(g => g.Name == "Drama")));
+    }
+
     private async Task<(Library, MediaItem)> AddMovieAsync(string title, string folder)
     {
         var library = new Library { Name = "Movies", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = Media }] };

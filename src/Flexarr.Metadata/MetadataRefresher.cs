@@ -276,9 +276,9 @@ public sealed partial class MetadataRefresher(
             }
 
             await db.SaveChangesAsync(ct).ConfigureAwait(false);
-            if (few is not null)
+            if (few is not null || from + MoviesPerPage >= ids.Count)
             {
-                break;
+                break; // the last page stays tracked, as a refresh of a few always has
             }
 
             // Done with these films; the people and genres kept for them go too, so the next page tracks its own afresh.
