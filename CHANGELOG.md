@@ -124,6 +124,13 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On a phone, the keyboard's focus ring shows whole around a page in Settings' row of pages.
 - Live TV's title is the same size as every other page's, with the same room under it.
 
+### Downloads
+
+- A podcast host that stops answering no longer holds up every download on the server: the episode's download gives up after a minute of silence (or an hour in all) and says why, and the films and episodes behind it get ready again.
+- A podcast episode whose download goes wrong on the server now says it failed, with **Try again**, instead of staying at **Getting ready** for good.
+- A download whose file was replaced on the server (Sonarr or Radarr upgraded it, say) now says so, so it can be downloaded again, instead of failing to fetch for a week.
+- Deleting a download while it's being converted now stops the conversion within seconds, even for a file whose length isn't known.
+
 ### Playback
 
 - Converting a 4K HDR film for a screen that can't show HDR is several times lighter on the server's processor: the picture is shrunk before its colours are converted, not after.

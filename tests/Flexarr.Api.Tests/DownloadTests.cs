@@ -98,6 +98,71 @@ public sealed class DownloadTests : IDisposable
     }
 
     [Fact]
+    public async Task AReadyDownloadWhoseFileWasReplaced_SaysSo_AndAskingAgainMakesANewOne()
+    {
+        var (movie, path) = await AddMovieAsync("mov,mp4,m4a,3gp,3g2,mj2", "h264", "aac");
+        var client = Client();
+        var body = new { itemId = movie, quality = "Original" };
+        var first = (await (await client.PostAsJsonAsync(new Uri("/api/v1/offline", UriKind.Relative), body))
+            .Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString()!;
+        await WaitForAsync(client, first, "Ready");
+
+        // Sonarr or Radarr upgraded the file: the one the download was made from has gone.
+        File.Delete(path);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync(new Uri($"/api/v1/offline/{first}/file", UriKind.Relative))).StatusCode);
+        var gone = await client.GetFromJsonAsync<JsonElement>(new Uri($"/api/v1/offline/{first}", UriKind.Relative));
+        Assert.Equal("Failed", gone.GetProperty("status").GetString());
+        Assert.Equal(Downloads.DownloadEndpoints.FileGone, gone.GetProperty("error").GetString());
+
+        // Another device asking isn't handed the dead one.
+        await File.WriteAllBytesAsync(path, new byte[4096]);
+        var second = (await (await client.PostAsJsonAsync(new Uri("/api/v1/offline", UriKind.Relative), body))
+            .Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString()!;
+        Assert.NotEqual(first, second);
+        await WaitForAsync(client, second, "Ready");
+    }
+
+    [Fact]
+    public async Task AConversionWithNoKnownLength_StopsWhenItsDownloadIsDeleted()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        // Stands in for ffmpeg: writes its progress twice a second, for far longer than the test waits.
+        var ffmpeg = Path.Combine(_factory.DataDirectory, "slow-ffmpeg");
+        await File.WriteAllTextAsync(ffmpeg, """
+            #!/bin/sh
+            i=0
+            while [ $i -lt 240 ]; do echo out_time_us=$((i * 500000)); echo progress=continue; sleep 0.5; i=$((i + 1)); done
+            """);
+        File.SetUnixFileMode(ffmpeg, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        using var server = _factory.WithWebHostBuilder(b => b.UseSetting("Flexarr:FfmpegPath", ffmpeg));
+        var (movie, _) = await AddMovieAsync("matroska,webm", "mpeg2video", "aac");
+        using (var scope = server.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            await db.MediaFiles.Where(f => f.MediaItemId == movie).ExecuteUpdateAsync(u => u.SetProperty(f => f.DurationSeconds, (double?)null));
+        }
+
+        var client = server.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        var id = (await (await client.PostAsJsonAsync(new Uri("/api/v1/offline", UriKind.Relative), new { itemId = movie, quality = "Medium" }))
+            .Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString()!;
+        var round = server.Services.GetRequiredService<Downloads.DownloadPreparer>().RunOnceAsync(CancellationToken.None);
+        for (var i = 0; i < 100 && (await client.GetFromJsonAsync<JsonElement>(new Uri($"/api/v1/offline/{id}", UriKind.Relative))).GetProperty("status").GetString() != "Preparing"; i++)
+        {
+            await Task.Delay(50);
+        }
+
+        (await client.DeleteAsync(new Uri($"/api/v1/offline/{id}", UriKind.Relative))).EnsureSuccessStatusCode();
+
+        // Noticed within a few seconds, not two minutes later when ffmpeg would have finished.
+        await round.WaitAsync(TimeSpan.FromSeconds(15));
+    }
+
+    [Fact]
     public async Task AnOriginalThePhoneCantPlay_IsNotOffered_AndFailsWithAReason()
     {
         var (movie, _) = await AddMovieAsync("matroska,webm", "hevc", "dts");
@@ -570,7 +635,10 @@ public sealed class DownloadTests : IDisposable
         using (var scope = _factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
-            await db.Downloads.ExecuteUpdateAsync(u => u.SetProperty(d => d.Status, DownloadStatus.Ready).SetProperty(d => d.ReadyAt, DateTime.UtcNow));
+            var made = Path.Combine(_factory.MediaDirectory, $"{Guid.NewGuid():N}.mp4");
+            await File.WriteAllBytesAsync(made, new byte[16]);
+            await db.Downloads.ExecuteUpdateAsync(u => u.SetProperty(d => d.Status, DownloadStatus.Ready).SetProperty(d => d.ReadyAt, DateTime.UtcNow)
+                .SetProperty(d => d.FilePath, made));
         }
 
         var ready = await client.GetFromJsonAsync<JsonElement>(new Uri($"/api/v1/offline/{id}", UriKind.Relative));

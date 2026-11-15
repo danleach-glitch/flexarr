@@ -27,13 +27,26 @@ public sealed class FakePodcastHost : HttpMessageHandler
     /// <summary>URLs whose fetch fails in a way no HTTP error handling expects.</summary>
     public ConcurrentDictionary<string, bool> Broken { get; } = new();
 
+    /// <summary>URLs whose answer waits until the gate opens (a host that takes the connection and says nothing).</summary>
+    public ConcurrentDictionary<string, TaskCompletionSource> Gates { get; } = new();
+
     public void Feed(string url, string xml) => Files[url] = (Encoding.UTF8.GetBytes(xml), "application/rss+xml");
 
     public void Json(string url, string json) => Files[url] = (Encoding.UTF8.GetBytes(json), "application/json");
 
     public static string ETag(byte[] body) => $"\"{Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(body))[..16]}\"";
 
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        if (Gates.TryGetValue(request.RequestUri!.AbsoluteUri, out var gate))
+        {
+            await gate.Task.WaitAsync(cancellationToken);
+        }
+
+        return await AnswerAsync(request);
+    }
+
+    private Task<HttpResponseMessage> AnswerAsync(HttpRequestMessage request)
     {
         Requests.Enqueue(request);
         var url = request.RequestUri!.AbsoluteUri;
@@ -666,6 +679,70 @@ public sealed class PodcastTests : IDisposable
 
         (await client.PostAsync(Api($"offline/{downloadId}/received"), null)).EnsureSuccessStatusCode();
         Assert.False(File.Exists(kept));
+    }
+
+    /// <summary>Queues a download of the newest episode, the one at ep3.mp3, and gives its id.</summary>
+    private async Task<string> QueueNewestAsync(HttpClient client)
+    {
+        await AddLibraryAsync();
+        var id = (await AddPodcastAsync(client)).GetProperty("id").GetString();
+        var episode = (await GetAsync(client, $"podcasts/{id}/episodes")).GetProperty("items")[0].GetProperty("id").GetString();
+        var created = await (await client.PostAsJsonAsync(Api("offline"), new { itemId = episode, quality = "Original" })).Content.ReadFromJsonAsync<JsonElement>();
+        return created.GetProperty("id").GetString()!;
+    }
+
+    [Fact]
+    public async Task AnEpisodeWhoseFetchThrows_EndsAsFailed_NotGettingReadyForever()
+    {
+        var client = Client();
+        _host.Broken["https://cdn.example.com/ep3.mp3"] = true;
+        var downloadId = await QueueNewestAsync(client);
+
+        await _server.Services.GetRequiredService<Flexarr.Api.Downloads.DownloadPreparer>().RunOnceAsync(CancellationToken.None);
+
+        var failed = await GetAsync(client, $"offline/{downloadId}");
+        Assert.Equal("Failed", failed.GetProperty("status").GetString());
+        Assert.Equal("The episode couldn't be fetched.", failed.GetProperty("error").GetString());
+    }
+
+    [Fact]
+    public async Task AHostThatNeverAnswers_GivesUp_AndFreesThePreparer()
+    {
+        var client = Client();
+        _host.Gates["https://cdn.example.com/ep3.mp3"] = new TaskCompletionSource(); // never opens
+        var downloadId = await QueueNewestAsync(client);
+        var preparer = _server.Services.GetRequiredService<Flexarr.Api.Downloads.DownloadPreparer>();
+        preparer.PodcastStall = TimeSpan.FromMilliseconds(300);
+
+        await preparer.RunOnceAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(20));
+
+        var failed = await GetAsync(client, $"offline/{downloadId}");
+        Assert.Equal("Failed", failed.GetProperty("status").GetString());
+        Assert.Equal("The podcast's host stopped answering.", failed.GetProperty("error").GetString());
+    }
+
+    [Fact]
+    public async Task AnEpisodeTakenOffThePhoneWhileItsFetched_StaysRemoved()
+    {
+        var client = Client();
+        var gate = new TaskCompletionSource();
+        _host.Gates["https://cdn.example.com/ep3.mp3"] = gate;
+        var downloadId = await QueueNewestAsync(client);
+        var round = _server.Services.GetRequiredService<Flexarr.Api.Downloads.DownloadPreparer>().RunOnceAsync(CancellationToken.None);
+        for (var i = 0; i < 100 && (await GetAsync(client, $"offline/{downloadId}")).GetProperty("status").GetString() != "Preparing"; i++)
+        {
+            await Task.Delay(50);
+        }
+
+        (await client.DeleteAsync(Api($"offline/{downloadId}"))).EnsureSuccessStatusCode();
+        gate.SetResult();
+        await round.WaitAsync(TimeSpan.FromSeconds(20));
+
+        // Not made Ready behind the phone's back, nor marked failed: still taken off by hand, so never handed back.
+        using var scope = _server.Services.CreateScope();
+        var row = await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().Downloads.IgnoreQueryFilters().SingleAsync(d => d.Id == Guid.Parse(downloadId));
+        Assert.Equal(Flexarr.Core.Media.DownloadStatus.Removed, row.Status);
+        Assert.Null(row.FilePath);
     }
 
     [Fact]
