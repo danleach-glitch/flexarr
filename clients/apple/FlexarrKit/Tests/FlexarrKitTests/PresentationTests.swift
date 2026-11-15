@@ -327,3 +327,29 @@ struct SkipTimingTests {
         #expect(t.progress(at: 121) == 1)
     }
 }
+
+struct HeroPlayLabelTests {
+    private static func item(_ id: String, _ kind: MediaKind, season: Int? = nil, episode: Int? = nil, position: Double = 0) -> ItemSummary {
+        ItemSummary(id: id, libraryId: "", parentId: nil, kind: kind, title: "Title", year: nil, seasonNumber: season, episodeNumber: episode,
+                    episodeNumberEnd: nil, airDate: nil, childCount: 0, durationSeconds: 1_200, resolution: nil, addedAt: Date(),
+                    artwork: Artwork(), accentColor: nil, communityRating: nil, criticRating: nil, contentRating: nil, runtimeMinutes: nil,
+                    releaseDate: nil, userData: UserData(positionSeconds: position, watched: false, playCount: 0, lastPlayedAt: nil, unwatchedCount: nil),
+                    seriesTitle: nil)
+    }
+
+    @Test func aShowsNextEpisodeNotYetBegunSaysPlayWithItsCode() {
+        let show = Self.item("s", .series)
+        #expect(show.heroPlayLabel(resuming: Self.item("e", .episode, season: 1, episode: 2)) == "Play S1E2")
+    }
+
+    @Test func aShowsEpisodePartWatchedSaysResumeWithItsCode() {
+        let show = Self.item("s", .series)
+        #expect(show.heroPlayLabel(resuming: Self.item("e", .episode, season: 1, episode: 2, position: 300)) == "Resume S1E2")
+    }
+
+    @Test func aFilmSaysResumeOnlyOnceStarted() {
+        #expect(Self.item("m", .movie).heroPlayLabel(resuming: nil) == "Play")
+        let started = Self.item("m", .movie, position: 300)
+        #expect(started.heroPlayLabel(resuming: started) == "Resume")
+    }
+}

@@ -387,7 +387,7 @@ struct HomeHero: View {
                         default: if let resume { model.play(resume) } else { Task { await model.playBest(item, router: router) } }
                         }
                     } label: {
-                        Label(resume != nil || item.isResumable ? t("Resume") : t(Words.play), systemImage: Symbol.play)
+                        Label(item.heroPlayLabel(resuming: resume), systemImage: Symbol.play)
                     }
                     .buttonStyle(ActionButtonStyle(ambient: item.ambientColor, prominent: true))
                     if item.kind == .artist {

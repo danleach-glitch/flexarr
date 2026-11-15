@@ -73,6 +73,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On iPhone, swiping to delete a download or a recording shows Delete in the delete colour, not the app's silver-blue.
 - On iPhone and iPad, the clock and battery stay readable over a pale backdrop on a title's page.
 - On iPhone, Now Playing's Shuffle, Previous, Next and Repeat, and each row's See all, are easier to tap: the whole button takes the tap, not just its icon or word.
+- On iPhone and iPad, Home's featured show says Play S1E2 when its next episode hasn't been started, and Resume S1E2 once it has, as the show's page does.
 
 ### Downloads
 
