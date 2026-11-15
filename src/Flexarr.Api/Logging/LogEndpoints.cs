@@ -177,6 +177,7 @@ public static class LogEndpoints
         await http.Response.WriteAsync(": connected\n\n", ct);
         await http.Response.Body.FlushAsync(ct);
 
+        var signedIn = OpenStreamSignIn.Of(http, admin: true);
         using var watcher = feed.Watch();
         try
         {
@@ -190,9 +191,19 @@ public static class LogEndpoints
                 }
                 catch (OperationCanceledException) when (!ct.IsCancellationRequested)
                 {
+                    if (!signedIn.Holds())
+                    {
+                        return; // locked, or signed out, since it opened
+                    }
+
                     await http.Response.WriteAsync(": ping\n\n", ct);
                     await http.Response.Body.FlushAsync(ct);
                     continue;
+                }
+
+                if (!signedIn.Holds())
+                {
+                    return;
                 }
 
                 while (watcher.Entries.TryRead(out var entry))

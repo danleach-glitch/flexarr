@@ -50,6 +50,7 @@ public static class EventEndpoints
         http.Response.Headers.CacheControl = "no-cache";
         http.Response.Headers["X-Accel-Buffering"] = "no";
         http.Features.Get<IHttpResponseBodyFeature>()?.DisableBuffering();
+        var signedIn = Authentication.OpenStreamSignIn.Of(http);
         using var listener = events.Listen(added: true);
         await http.Response.WriteAsync(": connected\n\n", ct);
         await http.Response.Body.FlushAsync(ct);
@@ -67,6 +68,11 @@ public static class EventEndpoints
                 }
 
                 ct.ThrowIfCancellationRequested();
+                if (!signedIn.Holds())
+                {
+                    return; // signed out, or another profile chosen there, since it opened
+                }
+
                 if (listener.Events.Count == 0 && listener.Added.Count == 0)
                 {
                     await http.Response.WriteAsync(": ping\n\n", ct);
