@@ -37,7 +37,7 @@ Flexarr isn't on the public internet. Away from home, the apps reach it over Tai
 1. **Remote access is on.** In the web app, **Settings › Remote access › Away from home** should say **On: Flexarr is available on your tailnet**. If it says Tailscale isn't installed or isn't connected, install Tailscale on the server and sign in first. (Docker can't use Tailscale: see [Away from home](away-from-home.md#an-https-reverse-proxy-instead).)
 2. **Tailscale is connected on your phone or tablet**, signed in to the same tailnet.
 3. **You have a profile.** If people use their own Tailscale accounts, each one needs a profile under **People with their own Tailscale**. Anyone set to **Not allowed** is turned away.
-4. **The app has picked up the address.** It learns the Tailscale address from the server and uses it when the home address can't be reached. If remote access was turned on after the app connected, close and reopen the app at home once. In the app, **Settings › Server** shows both addresses and which one it's using.
+4. **The app has picked up the address.** It learns the Tailscale address from the server and uses it when the home address can't be reached. If remote access was turned on after the app connected, close and reopen the app at home once. In the app, **Settings › Server** shows both addresses and which one it's using. If it says the device **hasn’t reached the server over Tailscale yet**, connect Tailscale on it: the app checks again by itself.
 
 Full details are in [Away from home](away-from-home.md).
 
