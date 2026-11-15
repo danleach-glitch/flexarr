@@ -1,7 +1,8 @@
 import Foundation
 import Security
 
-/// A saved server connection: the addresses and chosen profile live in UserDefaults, the API key in the Keychain.
+/// A saved server connection: the addresses live in UserDefaults, the API key and the chosen profile's token in the
+/// Keychain.
 public struct ServerCredentials: Sendable, Equatable {
     /// The address this device was connected with, usually on the home network.
     public var address: URL
@@ -130,7 +131,7 @@ public struct CredentialStore: Sendable {
         let confirmed = defaults.string(forKey: "\(addressKey).remote").flatMap(URL.init(string:))
         let pending = defaults.string(forKey: "\(addressKey).remotePending").flatMap(URL.init(string:))
         return ServerCredentials(address: url, apiKey: readKey(account: text) ?? "",
-                                 profileToken: defaults.string(forKey: "\(addressKey).profile"),
+                                 profileToken: profileToken(account: text),
                                  remoteAddress: confirmed ?? pending,
                                  guest: defaults.data(forKey: "\(addressKey).guest").flatMap { try? JSONDecoder().decode(GuestTunnelInfo.self, from: $0) },
                                  serverId: defaults.string(forKey: "\(addressKey).serverId"),
@@ -144,8 +145,11 @@ public struct CredentialStore: Sendable {
 
     public func save(_ credentials: ServerCredentials) throws {
         let account = credentials.address.absoluteString
-        // Another server's name mustn't stay behind for this one.
-        if defaults.string(forKey: addressKey) != account { defaults.removeObject(forKey: "\(addressKey).name") }
+        // Another server's name (and profile) mustn't stay behind for this one.
+        if let previous = defaults.string(forKey: addressKey), previous != account {
+            defaults.removeObject(forKey: "\(addressKey).name")
+            deleteKey(account: Self.profileAccount(previous))
+        }
         try writeKey(credentials.apiKey, account: account)
         defaults.set(account, forKey: addressKey)
         // A guest's address is its own tunnel on this device: no use to offer as the server to connect to again.
@@ -171,10 +175,30 @@ public struct CredentialStore: Sendable {
         defaults.set(id?.isEmpty == false ? id : nil, forKey: "\(addressKey).serverId")
     }
 
-    /// Remembers who's watching. The token only works alongside the API key, so it needn't be in the Keychain.
+    /// Remembers who's watching, in the Keychain beside the API key (on this device only, so not in backups).
     public func saveProfile(_ token: String?) {
-        defaults.set(token, forKey: "\(addressKey).profile")
+        // Earlier versions kept it in UserDefaults, which go with backups.
+        defaults.removeObject(forKey: "\(addressKey).profile")
+        guard let account = defaults.string(forKey: addressKey) else { return }
+        if let token, !token.isEmpty {
+            try? writeKey(token, account: Self.profileAccount(account))
+        } else {
+            deleteKey(account: Self.profileAccount(account))
+        }
     }
+
+    /// The chosen profile's token for the sign-in at `account`: from the Keychain, or once, moved there from where
+    /// earlier versions kept it.
+    private func profileToken(account: String) -> String? {
+        if let kept = readKey(account: Self.profileAccount(account)) { return kept }
+        guard let old = defaults.string(forKey: "\(addressKey).profile") else { return nil }
+        guard (try? writeKey(old, account: Self.profileAccount(account))) != nil else { return old }
+        defaults.removeObject(forKey: "\(addressKey).profile")
+        return old
+    }
+
+    /// The Keychain account the profile token goes under, beside the API key's (the address).
+    private static func profileAccount(_ account: String) -> String { "\(account)#profile" }
 
     /// The profile list as the server last gave it (names, colours, which is watching, which are kids), so the app
     /// still knows who's watching while it can't reach the server. `Profile` is saved as it is, so its new fields must
@@ -204,7 +228,10 @@ public struct CredentialStore: Sendable {
     public var savedServerName: String? { defaults.string(forKey: "\(addressKey).name") }
 
     public func clear() {
-        if let text = defaults.string(forKey: addressKey) { deleteKey(account: text) }
+        if let text = defaults.string(forKey: addressKey) {
+            deleteKey(account: text)
+            deleteKey(account: Self.profileAccount(text))
+        }
         defaults.removeObject(forKey: "\(addressKey).profiles")
         defaults.removeObject(forKey: "\(addressKey).kidsLock")
         defaults.removeObject(forKey: addressKey)
