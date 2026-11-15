@@ -169,7 +169,7 @@ struct SearchView: View {
         .toolbar {
             if sizeClass == .regular, searching || !query.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(t("Cancel")) {
+                    Button(t(Words.cancel)) {
                         query = ""
                         typing = false
                         searching = false
