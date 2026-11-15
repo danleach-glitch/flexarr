@@ -1204,7 +1204,10 @@ public sealed partial class MetadataRefresher(
             await ApplyEpisodesAsync(item, series, instance, ct).ConfigureAwait(false);
             result = true;
         }
-        else if (sonarrs.Count > 0 && await LookupSeriesAsync(sonarrs[0], item, ct).ConfigureAwait(false) is { } found)
+        // A match fixed by hand with no TVDB id (a TVmaze result) can only be looked up by title, and the first title
+        // hit would replace the show picked: it's left to TVmaze.
+        else if (sonarrs.Count > 0 && !(item.MatchLocked && item.TvdbId is null)
+            && await LookupSeriesAsync(sonarrs[0], item, ct).ConfigureAwait(false) is { } found)
         {
             await ApplySeriesAsync(item, found, null, local, ct).ConfigureAwait(false);
             await ApplySeasonsAsync(item, found, ct).ConfigureAwait(false);

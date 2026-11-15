@@ -158,6 +158,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Renaming an artist's or album's folder keeps its tracks' plays and places in playlists, whichever folder is scanned first.
 - A film or show that comes back under a new folder keeps its Fix match, edited details and chosen poster along with its watch history, and one matched by hand is found again by its folder's name.
 - While a library folder is held because most of it seemed to vanish, a scan of one title in it (after a download) no longer hides that title, and scanning one folder no longer touches another whose name differs only in capital letters.
+- A music folder holding tracks from several albums, such as a Singles folder, now shows each album on its own, instead of filing every track under the first one's album and artist.
+- Episodes numbered 1000 or more (S01E1071) and shows whose seasons are years (S2024E05, Season 2024) are now added to the library as the right episode, and "Show S01E05 24 Hours" is no longer read as episodes 5 to 24.
+- A show matched by hand to a TVmaze result with no TVDB id keeps that match once a Sonarr is added.
 
 ### Music, audiobooks and podcasts
 

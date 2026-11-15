@@ -1174,6 +1174,24 @@ public sealed class LibraryScannerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Music_AFolderOfSingles_IsAnAlbumForEachOne()
+    {
+        var root = Touch("music/Singles/01 - Hurt.mp3", "music/Singles/02 - Jolene.mp3", "music/Singles/03 - Hurt Live.mp3");
+        _probe.Tags["01 - Hurt.mp3"] = new() { ["artist"] = "Johnny Cash", ["album"] = "American IV", ["title"] = "Hurt" };
+        _probe.Tags["02 - Jolene.mp3"] = new() { ["artist"] = "Dolly Parton", ["album"] = "Jolene", ["title"] = "Jolene" };
+        // The same album under an edition's name is still that album.
+        _probe.Tags["03 - Hurt Live.mp3"] = new() { ["artist"] = "Johnny Cash", ["album"] = "American IV (Deluxe)", ["title"] = "Hurt (Live)" };
+        var library = await AddLibrary(LibraryType.Music, Path.Combine(root, "music"));
+
+        await Scanner().ScanAsync(library, null, default);
+
+        var albums = await _db.MediaItems.Include(i => i.Children).Include(i => i.Parent).Where(i => i.Kind == MediaKind.Album).ToListAsync();
+        // Named by whichever of its tracks came first.
+        Assert.Equal([("Dolly Parton", "Jolene", 1), ("Johnny Cash", "American IV", 2)],
+            albums.OrderBy(a => a.Parent!.Title).Select(a => (a.Parent!.Title, a.Title.Replace(" (Deluxe)", "", StringComparison.Ordinal), a.Children.Count)));
+    }
+
+    [Fact]
     public async Task HomeVideos_FoldersAreShows_TheirFoldersSeasons_InNameOrder()
     {
         var root = Touch(

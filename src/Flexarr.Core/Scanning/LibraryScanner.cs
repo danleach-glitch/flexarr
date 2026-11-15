@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
 using Flexarr.Core.Books;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
@@ -963,9 +964,15 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
     private partial void LogUnmatched(string path);
 
     /// <summary>In-memory index of a library's items so a scan resolves parents without a query per file.</summary>
-    private sealed class ItemIndex(FlexarrDbContext db)
+    private sealed partial class ItemIndex(FlexarrDbContext db)
     {
         private readonly Dictionary<string, MediaItem> _byPath = new(StringComparer.Ordinal);
+
+        /// <summary>Every album with a folder, by that folder: a flat or Singles folder holds several.</summary>
+        private readonly Dictionary<string, List<MediaItem>> _albumsIn = new(StringComparer.Ordinal);
+
+        /// <summary>The folders of albums merged into others (in Library health), and the album each now means.</summary>
+        private readonly Dictionary<string, MediaItem> _mergedFolders = new(StringComparer.Ordinal);
         private readonly Dictionary<(Guid Parent, int Number), MediaItem> _byNumber = [];
 
         /// <param name="db">The database.</param>
@@ -1015,7 +1022,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                     {
                         if (alias.Key.StartsWith(MusicKeys.PathPrefix, StringComparison.Ordinal))
                         {
-                            index._byPath.TryAdd(alias.Key[MusicKeys.PathPrefix.Length..], target);
+                            index._mergedFolders.TryAdd(alias.Key[MusicKeys.PathPrefix.Length..], target);
                         }
                         else
                         {
@@ -1128,10 +1135,15 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             var info = MusicTags.Read(probe?.Tags ?? new Dictionary<string, string>(), root, filePath);
             var albumDirectory = Path.GetDirectoryName(filePath)!;
 
-            // An album folder is one album whatever its tags say, so a title Lidarr corrected (or a stray tag on one
-            // track) doesn't split it in two; and the album's artist is its artist, under whichever name.
+            // An album folder is one album whatever its artist tags say, so a title Lidarr corrected (or a stray
+            // "(Remaster)" on one track) doesn't split it in two; and the album's artist is its artist, under whichever
+            // name. But a flat or Singles folder holds several albums: a track whose tags name another album is that one.
             MediaItem? artist = null;
-            if (_byPath.TryGetValue(PathComparison.Key(albumDirectory), out var album) && album.ParentId is { } artistId)
+            var folderKey = PathComparison.Key(albumDirectory);
+            var album = (_albumsIn.TryGetValue(folderKey, out var here) ? here.FirstOrDefault(a => !NamesAnotherAlbum(a, info)) : null)
+                ?? _mergedFolders.GetValueOrDefault(folderKey);
+
+            if (album?.ParentId is { } artistId)
             {
                 _artistsById.TryGetValue(artistId, out artist);
             }
@@ -1306,6 +1318,28 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
             return files;
         }
+
+        /// <summary>
+        /// Whether a track's tags name an album other than <paramref name="album"/>, one its folder holds: an album tag
+        /// that matches neither of the album's names, once bracketed editions ("(Remaster)", "[Deluxe]") are set aside.
+        /// A track with no album tag, or the album's MusicBrainz id, names none. (Differing ids prove nothing: Lidarr's
+        /// is the release group's, a tag's often the release's.)
+        /// </summary>
+        private static bool NamesAnotherAlbum(MediaItem album, TrackInfo info)
+        {
+            if (!info.AlbumTagged || (album.MusicBrainzId is { Length: > 0 } albumId && string.Equals(albumId, info.AlbumMusicBrainzId, StringComparison.OrdinalIgnoreCase)))
+            {
+                return false;
+            }
+
+            var tagged = AlbumName(info.Album);
+            return tagged.Length > 0 && tagged != AlbumName(album.Title) && (album.OriginalTitle is not { } original || tagged != AlbumName(original));
+
+            static string AlbumName(string title) => Fold(Editions().Replace(title, " ")).Replace("  ", " ", StringComparison.Ordinal).Trim();
+        }
+
+        [GeneratedRegex(@"\s*[\(\[][^\)\]]*[\)\]]")]
+        private static partial Regex Editions();
 
         private static bool IsNamed(MediaItem artist, string name) =>
             MusicTags.SameArtist(artist.Title, name) || (artist.OriginalTitle is { } original && MusicTags.SameArtist(original, name));
@@ -1574,7 +1608,12 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
                     if (item.Path is not null)
                     {
-                        _byPath[PathComparison.Key(item.Path)] = item;
+                        var folder = PathComparison.Key(item.Path);
+                        var here = _albumsIn.TryGetValue(folder, out var list) ? list : _albumsIn[folder] = [];
+                        if (!here.Contains(item))
+                        {
+                            here.Add(item);
+                        }
                     }
 
                     break;

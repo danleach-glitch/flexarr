@@ -134,10 +134,13 @@ public static partial class TvNameParser
         return normalized.StartsWith(seriesTitle, StringComparison.OrdinalIgnoreCase) ? normalized[seriesTitle.Length..] : normalized;
     }
 
-    [GeneratedRegex(@"\bS(?<season>\d{1,2})[\s._-]?E(?<episode>\d{1,3})(?:[-\s]?E?(?<end>\d{1,3})(?=\b|E))*", RegexOptions.IgnoreCase)]
+    // Up to four digits each, so year-numbered seasons (S2024E05) and long-running shows (S01E1071) read whole, and
+    // never part of a longer number. A further episode needs an "E" or a "-" before it ("E05E06", "E05-E06", "E05-06"),
+    // so "S01E05 24 Hours" is episode 5 alone.
+    [GeneratedRegex(@"\bS(?<season>\d{1,4})[\s._-]?E(?<episode>\d{1,4})(?!\d)(?:(?:-\s?E?|\s?E)(?<end>\d{1,4})(?!\d))*", RegexOptions.IgnoreCase)]
     private static partial Regex SeasonEpisode();
 
-    [GeneratedRegex(@"\b(?<season>\d{1,2})x(?<episode>\d{2,3})\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\b(?<season>\d{1,2})x(?<episode>\d{2,4})\b", RegexOptions.IgnoreCase)]
     private static partial Regex CrossEpisode();
 
     [GeneratedRegex(@"\b(?<y>(?:19|20)\d{2})[-._ ](?<m>\d{2})[-._ ](?<d>\d{2})\b")]
@@ -149,7 +152,7 @@ public static partial class TvNameParser
     [GeneratedRegex(@"^(?<title>.+?)\s*\((?<year>(?:19|20)\d{2})\)$")]
     private static partial Regex TrailingYear();
 
-    [GeneratedRegex(@"^(?:Season|Series|S)[\s._-]*(?<season>\d{1,3})\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^(?:Season|Series|S)[\s._-]*(?<season>\d{1,4})\b", RegexOptions.IgnoreCase)]
     private static partial Regex SeasonFolder();
 
     [GeneratedRegex(@"\b(?:(?:19|20)\d{2}\s+)?(?:DVDRip|BDRip|BluRay|WEB-?DL|WEBRip|HDTV|HEVC|x26[45]|H\.?26[45]|\d{3,4}p)\b.*$", RegexOptions.IgnoreCase)]
