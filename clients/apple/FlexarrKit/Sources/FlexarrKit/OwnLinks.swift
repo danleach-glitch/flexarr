@@ -12,16 +12,22 @@ public enum OwnLinks {
     private static let account = "link-key"
 
     /// This device's key: made the first time it's asked for, and kept beside the shared sign-in, where the Top Shelf
-    /// can read it too.
+    /// can read it too. Where the Keychain can't keep it (an unsigned build), the one made stays for as long as the
+    /// app runs, so a link the app signs and the check it then makes still agree.
     public static var key: String {
         if let kept = SharedSignIn.read(account: account).flatMap({ String(data: $0, encoding: .utf8) }), kept.count >= 32 { return kept }
+        return made
+    }
+
+    /// Made once per process, and kept in the Keychain when it can be.
+    private static let made: String = {
         var bytes = [UInt8](repeating: 0, count: 32)
         let made = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess
             ? bytes.map { String(format: "%02x", $0) }.joined()
             : (UUID().uuidString + UUID().uuidString).replacingOccurrences(of: "-", with: "").lowercased()
         SharedSignIn.write(Data(made.utf8), account: account)
         return made
-    }
+    }()
 
     /// `url` with `key` added (replacing any it had).
     public static func signed(_ url: URL, key: String) -> URL {

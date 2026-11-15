@@ -303,7 +303,6 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
         }
     }
 
-    /// <summary>Notes what a device says it is (an app that has started saying, or a sign-in moved to a new device).</summary>
     /// <summary>Notes that the sign-in's app asks who's watching (see <see cref="SignIn.AsksProfile"/>).</summary>
     public void NoteAsksProfile(SignIn signIn)
     {
@@ -320,6 +319,7 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
         }
     }
 
+    /// <summary>Notes what a device says it is (an app that has started saying, or a sign-in moved to a new device).</summary>
     public void NoteDeviceType(SignIn signIn, DeviceType? type)
     {
         ArgumentNullException.ThrowIfNull(signIn);
