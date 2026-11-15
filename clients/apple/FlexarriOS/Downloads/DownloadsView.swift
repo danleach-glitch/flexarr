@@ -73,12 +73,19 @@ struct DownloadsView: View {
 struct DownloadRow: View {
     @Environment(AppModel.self) private var model
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(DownloadStore.self) private var store
     let download: LocalDownload
 
+    private var rowLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(spacing: sizeClass == .regular ? 16 : 12))
+    }
+
     var body: some View {
         Button(action: play) {
-            HStack(spacing: sizeClass == .regular ? 16 : 12) {
+            // At the accessibility text sizes the words go under the picture, not down a narrow column beside it.
+            rowLayout {
                 Color.seat
                     // Bigger on an iPad or a Mac, where the row has the room.
                     .frame(width: sizeClass == .regular ? 192 : 112, height: sizeClass == .regular ? 108 : 63)

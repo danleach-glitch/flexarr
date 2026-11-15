@@ -8,6 +8,7 @@ struct DetailView: View {
     @Environment(Router.self) private var router
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let id: String
     let preview: ItemSummary?
 
@@ -246,9 +247,22 @@ struct DetailView: View {
             .buttonStyle(ActionButtonStyle(ambient: item.ambientColor ?? series?.ambientColor, prominent: true, singleLine: wide))
             .monospacedDigit()
         }
-        let others = HStack(alignment: .top, spacing: wide ? 4 : 8) {
-            ForEach(actions.buttons.filter { $0 != .play }, id: \.self) { button in
-                secondaryButton(button, item: item, playable: playable, watched: watched, menu: actions.menu)
+        let secondary = actions.buttons.filter { $0 != .play }
+        // At the accessibility text sizes on a phone, two a line: four in one broke their names mid-word.
+        let others = Group {
+            if !wide, dynamicTypeSize.isAccessibilitySize {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 8, alignment: .top), GridItem(.flexible(), spacing: 8, alignment: .top)],
+                          spacing: 16) {
+                    ForEach(secondary, id: \.self) { button in
+                        secondaryButton(button, item: item, playable: playable, watched: watched, menu: actions.menu)
+                    }
+                }
+            } else {
+                HStack(alignment: .top, spacing: wide ? 4 : 8) {
+                    ForEach(secondary, id: \.self) { button in
+                        secondaryButton(button, item: item, playable: playable, watched: watched, menu: actions.menu)
+                    }
+                }
             }
         }
         .buttonStyle(LabeledActionStyle(packed: wide))

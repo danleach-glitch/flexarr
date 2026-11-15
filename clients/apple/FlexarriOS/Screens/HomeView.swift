@@ -236,6 +236,7 @@ struct HomeHero: View {
     @Environment(Router.self) private var router
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let items: [ItemSummary]
     let overviews: [String: String?]
     @Binding var index: Int
@@ -373,7 +374,10 @@ struct HomeHero: View {
                         .lineLimit(2)
                         .frame(maxWidth: 520, alignment: .leading)
                 }
-                HStack(spacing: 10) {
+                // One a line at the accessibility text sizes, so "Resume" and "More info" don't break mid-word.
+                let buttons = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10))
+                    : AnyLayout(HStackLayout(spacing: 10))
+                buttons {
                     let resume = resuming(item)
                     Button {
                         switch item.kind {
@@ -399,6 +403,8 @@ struct HomeHero: View {
                 }
                 .padding(.top, 4)
             }
+            // The hero is a fixed height: past the first accessibility size its words would run up under the clock.
+            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
             .padding(.horizontal, Layout.edge)
             .padding(.bottom, 44)
         }

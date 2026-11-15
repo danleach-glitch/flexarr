@@ -180,6 +180,8 @@ struct TabStack<Content: View>: View {
 struct LibrariesView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
+    /// The icon's column grows with the text, so a large icon doesn't run into the name.
+    @ScaledMetric(relativeTo: .title3) private var iconWidth: CGFloat = 32
 
     var body: some View {
         Group {
@@ -223,7 +225,7 @@ struct LibrariesView: View {
                 Image(systemName: icon)
                     .font(.title3)
                     .foregroundStyle(Color.silver)
-                    .frame(width: 32)
+                    .frame(width: iconWidth)
                 Text(name)
                     .font(.body.weight(.semibold))
                     .foregroundStyle(Color.screen)

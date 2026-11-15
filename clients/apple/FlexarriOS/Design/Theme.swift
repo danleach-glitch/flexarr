@@ -162,7 +162,8 @@ struct RoundActionStyle: ButtonStyle {
         @Environment(\.isEnabled) private var isEnabled
         @ScaledMetric(relativeTo: .body) private var scaledSize: CGFloat = 48
 
-        private var size: CGFloat { scales ? scaledSize : 48 }
+        /// Grows with the text up to 64 points, so the largest sizes don't make each one a third of the screen.
+        private var size: CGFloat { scales ? min(scaledSize, 64) : 48 }
 
         var body: some View {
             Group {
@@ -263,6 +264,16 @@ struct LabeledActionStyle: ButtonStyle {
         var packed = false
 
         func makeBody(configuration: Configuration) -> some View {
+            StackedBody(configuration: configuration, packed: packed)
+        }
+    }
+
+    private struct StackedBody: View {
+        let configuration: LabelStyleConfiguration
+        let packed: Bool
+        @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+        var body: some View {
             VStack(spacing: 6) {
                 configuration.icon
                     .font(.body.weight(.semibold))
@@ -275,8 +286,13 @@ struct LabeledActionStyle: ButtonStyle {
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
+                    // The name shrinks a little rather than breaking mid-word at the largest sizes.
+                    .minimumScaleFactor(0.7)
             }
-            .frame(width: packed ? 76 : nil)
+            // Wider at the accessibility sizes, so "Shuffle" or "Watched" fits on a line.
+            .frame(width: packed ? (dynamicTypeSize.isAccessibilitySize ? 120 : 76) : nil)
+            // The circle and its name stop growing at the first accessibility size.
+            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
             .frame(maxWidth: packed ? nil : .infinity)
             .contentShape(Rectangle())
         }

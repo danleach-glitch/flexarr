@@ -77,14 +77,21 @@ struct DownloadThumbnail: View {
 struct DownloadedShowRow: View {
     @Environment(DownloadStore.self) private var store
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let show: DownloadedShow
     @State private var removing = false
+
+    private var rowLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(spacing: sizeClass == .regular ? 16 : 12))
+    }
 
     var body: some View {
         NavigationLink {
             DownloadedShowView(showId: show.id).roomForBottomBars().pushedPageTitle()
         } label: {
-            HStack(spacing: sizeClass == .regular ? 16 : 12) {
+            // At the accessibility text sizes the words go under the picture, not down a narrow column beside it.
+            rowLayout {
                 Color.seat
                     .frame(width: sizeClass == .regular ? 192 : 112, height: sizeClass == .regular ? 108 : 63)
                     .overlay { DownloadThumbnail(names: show.episodes.compactMap(\.imageFileName), symbol: Symbol.shows) }
