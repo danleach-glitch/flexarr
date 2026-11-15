@@ -91,6 +91,7 @@ import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
 import io.github.flexarr.appModel
 import io.github.flexarr.core.CreditRole
+import io.github.flexarr.core.channelsLabel
 import io.github.flexarr.core.DetailActions
 import io.github.flexarr.core.Format
 import io.github.flexarr.core.ItemDetail
@@ -845,15 +846,6 @@ private fun FileInfo(file: MediaFile, version: TitleVersion?, studio: String?) {
             }
         }
     }
-}
-
-/** "5.1", "Stereo", "Mono". */
-internal fun channelsLabel(count: Int) = when (count) {
-    1 -> t("Mono")
-    2 -> t("Stereo")
-    6 -> "5.1"
-    8 -> "7.1"
-    else -> t("{count} ch", "count" to count)
 }
 
 internal fun fileSizeLabel(bytes: Long): String {

@@ -46,6 +46,7 @@ import androidx.tv.material3.Text
 import io.github.flexarr.core.SubtitlePosition
 import io.github.flexarr.core.SubtitleSize
 import io.github.flexarr.core.Teletext
+import io.github.flexarr.core.audioTrackLabels
 import io.github.flexarr.core.i18n.tk
 import io.github.flexarr.data.SoundSettings
 import io.github.flexarr.ui.theme.Flexarr
@@ -188,8 +189,9 @@ private fun panelItems(
             }
             else -> {
                 if (info.audioTracks.size > 1) {
-                    info.audioTracks.forEach { track ->
-                        add(PanelItem(track.label, checked = track.index == info.selectedAudioIndex, enabled = !reopening) { close(); controller.selectAudio(track.index) })
+                    val labels = audioTrackLabels(info.audioTracks)
+                    info.audioTracks.forEachIndexed { position, track ->
+                        add(PanelItem(labels[position], checked = track.index == info.selectedAudioIndex, enabled = !reopening) { close(); controller.selectAudio(track.index) })
                     }
                 }
                 controller.audioSync?.let { sync ->

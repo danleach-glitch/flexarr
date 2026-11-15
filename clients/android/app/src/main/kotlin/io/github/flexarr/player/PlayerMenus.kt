@@ -68,6 +68,7 @@ import androidx.media3.ui.SubtitleView
 import io.github.flexarr.core.SubtitlePosition
 import io.github.flexarr.core.SubtitleSize
 import io.github.flexarr.core.Teletext
+import io.github.flexarr.core.audioTrackLabels
 import io.github.flexarr.data.SoundSettings
 import io.github.flexarr.player.subtitles.StyledSubtitles
 import io.github.flexarr.ui.theme.Flexarr
@@ -232,8 +233,9 @@ private fun MenuScope.AudioMenu(controller: PlaybackController, close: () -> Uni
     }
     MenuTitle(t("Audio"))
     if (info.audioTracks.size > 1) {
-        info.audioTracks.forEach { track ->
-            Choice(track.label, track.index == info.selectedAudioIndex, enabled = !controller.isReopening) {
+        val labels = audioTrackLabels(info.audioTracks)
+        info.audioTracks.forEachIndexed { position, track ->
+            Choice(labels[position], track.index == info.selectedAudioIndex, enabled = !controller.isReopening) {
                 close()
                 controller.selectAudio(track.index)
             }

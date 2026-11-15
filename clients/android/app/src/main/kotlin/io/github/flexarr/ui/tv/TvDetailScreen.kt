@@ -96,7 +96,7 @@ import io.github.flexarr.ui.components.LocalNavigator
 import io.github.flexarr.ui.components.RefreshWhenStale
 import io.github.flexarr.ui.components.RemoteImage
 import io.github.flexarr.ui.components.TitleArt
-import io.github.flexarr.ui.detail.channelsLabel
+import io.github.flexarr.core.channelsLabel
 import io.github.flexarr.ui.detail.fileSizeLabel
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.glowColor
