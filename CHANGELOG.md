@@ -128,6 +128,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 - Converting a 4K HDR film for a screen that can't show HDR is several times lighter on the server's processor: the picture is shrunk before its colours are converted, not after.
 - The limit on videos converted at once now counts only streams whose picture is converted: films played as they are and music no longer fill it, so nobody is told Flexarr is busy while the server is barely working.
+- With Intel Quick Sync, a converted picture is now shrunk on the graphics chip rather than the processor, so a low-power Intel NAS can convert 4K to 1080p.
+- With VA-API, HDR films converted for an SDR screen are mapped from their full 10-bit picture, which stops the conversion failing over to the much slower processor.
+- A 4K HDR film with burned-in subtitles is shrunk before its colours are converted, like one without, so it's several times lighter on the processor.
 
 ### Music, audiobooks and podcasts
 

@@ -156,6 +156,11 @@ public static class FfmpegCommand
                 break;
             case HardwareAcceleration.Qsv:
                 args.AddRange(["-hwaccel", "qsv"]);
+                if (burn is null && QsvDecoder(plan.SourceVideoCodec) is { } qsvDecoder)
+                {
+                    args.AddRange(["-hwaccel_output_format", "qsv", "-c:v", qsvDecoder]);
+                }
+
                 break;
             case HardwareAcceleration.Nvenc:
                 args.AddRange(["-hwaccel", "cuda"]);
@@ -256,6 +261,11 @@ public static class FfmpegCommand
                 break;
             case HardwareAcceleration.Qsv:
                 args.AddRange(["-hwaccel", "qsv"]);
+                if (QsvDecoder(plan?.SourceVideoCodec) is { } qsvDecoder)
+                {
+                    args.AddRange(["-hwaccel_output_format", "qsv", "-c:v", qsvDecoder]);
+                }
+
                 break;
             case HardwareAcceleration.Nvenc:
                 args.AddRange(["-hwaccel", "cuda", "-hwaccel_output_format", "cuda"]);
@@ -360,6 +370,17 @@ public static class FfmpegCommand
             ? HardwareAcceleration.None
             : hw;
 
+    /// <summary>
+    /// Quick Sync's own decoder for the source, so frames stay on the GPU to be scaled there (scale_qsv) and encoded:
+    /// the plain decoder with <c>-hwaccel qsv</c> hands frames back to the CPU. Null when the codec isn't known.
+    /// </summary>
+    internal static string? QsvDecoder(string? sourceCodec) => sourceCodec switch
+    {
+        "h264" => "h264_qsv",
+        "hevc" => "hevc_qsv",
+        _ => null,
+    };
+
     /// <summary>HDR (PQ or HLG) to SDR BT.709 on the CPU, as the start of a filter chain; empty when it can't be done.</summary>
     private static string SoftwareToneMap(TranscodePlan plan, TranscodeSettings settings) =>
         plan.ToneMap && settings.CanToneMapInSoftware
@@ -386,8 +407,9 @@ public static class FfmpegCommand
         {
             var subtitleInput = burn.ExternalPath is null ? $"[0:{burn.StreamIndex}]" : "[1:0]";
             var tail = hw == HardwareAcceleration.Vaapi ? ",format=nv12,hwupload" : ",format=yuv420p";
-            // Burning in runs on the CPU, so HDR is mapped there first, whatever the encoder.
-            var video = toneMap.Length > 0 ? $"[0:{plan.VideoStreamIndex}]{toneMap.TrimEnd(',')}[sdr];" : "";
+            // Burning in runs on the CPU, so HDR is mapped there first, whatever the encoder: at the target size, on
+            // the fewest pixels, with the subtitles then fitted to that.
+            var video = toneMap.Length > 0 ? $"[0:{plan.VideoStreamIndex}]{SoftwareToneMapScaled(plan, settings, width, height).TrimEnd(',')}[sdr];" : "";
             // Picture subtitles are drawn on a canvas of their own (often 1920×1080 whatever the video): scaled to the
             // video's height, keeping their shape, and centred, so a cropped scope film keeps its captions in frame and
             // a 4K one has them full size.
@@ -410,7 +432,13 @@ public static class FfmpegCommand
             {
                 // scale_vt also converts HDR (PQ/HLG) to SDR BT.709 on the media engine.
                 HardwareAcceleration.VideoToolbox => $"scale_vt=w={width}:h={height}" + (plan.ToneMap ? ":color_matrix=bt709:color_primaries=bt709:color_transfer=bt709" : ""),
-                HardwareAcceleration.Vaapi => $"scale_vaapi=w={width}:h={height}:format=nv12" + (plan.ToneMap ? ",tonemap_vaapi=format=nv12:t=bt709:m=bt709:p=bt709" : ""),
+                // The tone-mapper takes 10-bit (P010) frames and makes the 8-bit ones: scaled to NV12 first, it has
+                // nothing left to map from.
+                HardwareAcceleration.Vaapi => plan.ToneMap
+                    ? $"scale_vaapi=w={width}:h={height}:format=p010,tonemap_vaapi=format=nv12:t=bt709:m=bt709:p=bt709"
+                    : $"scale_vaapi=w={width}:h={height}:format=nv12",
+                // Frames from Quick Sync's decoder stay on the GPU (see QsvDecoder).
+                HardwareAcceleration.Qsv when QsvDecoder(plan.SourceVideoCodec) is not null => $"scale_qsv=w={width}:h={height}:format=nv12",
                 HardwareAcceleration.Nvenc => $"scale_cuda={width}:{height}:format=yuv420p",
                 _ => SoftwareToneMapScaled(plan, settings, width, height) is { Length: > 0 } scaled ? $"{scaled}format=yuv420p" : $"scale={width}:{height},format=yuv420p",
             };
