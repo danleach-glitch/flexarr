@@ -164,6 +164,8 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   if ((item.kind === 'Movie' || item.kind === 'Series') && !kids) more.push({ label: t('Add to collection…'), run: () => openAddToCollection(item) })
   if (detail.canSearchSubtitles && !kids) more.push({ label: t('Search for subtitles…'), run: () => setFindingSubtitles(true) })
   if (canFixMatch) more.push({ label: t('Edit…'), run: () => setEditingDetails(true) }, { label: t('Fix match…'), run: () => setMatching(true) })
+  // An episode's show, as in the apps' ⋯ (DetailActions' goToShow): so the menu is never just Delete on its own.
+  if (item.kind === 'Episode' && series) more.push({ label: t(Words.goToShow), run: () => navigate(`/item/${series.id}?season=${item.seasonNumber}`) })
   // A parent's say over the title for profiles with an age limit, once any has one; its episodes follow it.
   const override = detail.kidsOverride
   if (mainProfile && override != null && series === undefined && profiles?.some((p) => p.maxRatingAge != null)) {

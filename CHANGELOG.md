@@ -76,6 +76,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On a phone, Settings › Connections, Security and Remote access lay every row out the same way: icon and name on one line, the buttons on a line under them.
 - On a tablet, the music bar gives the track's title and artist more room, instead of cutting them after a few letters.
 - On a tablet held upright, the player's time and the stream's note at the top each stay on one line.
+- An episode's **⋯** now offers **Go to show**, as in the apps, so it's no longer a menu of just **Delete…**.
 
 ### Playback
 
