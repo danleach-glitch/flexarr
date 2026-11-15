@@ -331,6 +331,7 @@ builder.Services.AddSingleton<LoudnessCache>();
 builder.Services.AddHostedService<LoudnessBackfill>();
 builder.Services.AddHostedService<Flexarr.Api.Scanning.TitleLinkBackfill>();
 builder.Services.AddHostedService<TrickplayWorker>();
+builder.Services.AddHostedService<HardwareProbeStartup>();
 builder.Services.AddScoped<PlaybackService>();
 builder.Services.AddScoped<WatchlistService>();
 builder.Services.AddSingleton(sp => new Flexarr.Streaming.Remux.RemuxIndex(

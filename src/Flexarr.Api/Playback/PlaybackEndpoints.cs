@@ -550,17 +550,24 @@ public static partial class PlaybackEndpoints
         return api;
     }
 
-    public static TranscodeSettings TranscodeSettingsFor(FlexarrOptions options) => new()
+    public static TranscodeSettings TranscodeSettingsFor(FlexarrOptions options)
     {
-        FfmpegPath = options.FfmpegPath,
-        CacheDirectory = options.ResolvedCacheDirectory,
-        HardwareAcceleration = options.Transcoding.HardwareAcceleration,
-        VaapiDevice = options.Transcoding.VaapiDevice,
-        SoftwarePreset = options.Transcoding.SoftwarePreset,
-        SoftwareFallback = options.Transcoding.SoftwareFallback,
-        CanToneMapInSoftware = FfmpegFilters.Has(options.FfmpegPath, "zscale"),
-        MaxConcurrentTranscodes = options.Transcoding.MaxConcurrentTranscodes,
-    };
+        var settings = new TranscodeSettings
+        {
+            FfmpegPath = options.FfmpegPath,
+            CacheDirectory = options.ResolvedCacheDirectory,
+            HardwareAcceleration = options.Transcoding.HardwareAcceleration,
+            Detected = HardwareProbe.Known(options.FfmpegPath, options.Transcoding.VaapiDevice),
+            VaapiDevice = options.Transcoding.VaapiDevice,
+            SoftwarePreset = options.Transcoding.SoftwarePreset,
+            SoftwareFallback = options.Transcoding.SoftwareFallback,
+            CanToneMapInSoftware = FfmpegFilters.Has(options.FfmpegPath, "zscale"),
+        };
+        return settings with
+        {
+            MaxConcurrentTranscodes = options.Transcoding.MaxConcurrentTranscodes ?? TranscodeSettings.DefaultLimit(settings.Resolved, Environment.ProcessorCount),
+        };
+    }
 
     /// <summary>A transcode segment (.ts or fragmented MP4 .m4s), converted if it hasn't been yet.</summary>
     private static async Task<IResult> Segment(string sid, int segment, string contentType, PlaybackSessions sessions, TranscodeManager transcodes, CancellationToken ct)

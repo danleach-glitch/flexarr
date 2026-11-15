@@ -182,7 +182,7 @@
 <p>Flexarr doesn&#39;t limit how many screens play at once. In practice the limit is your server and your network.</p>
 <ul>
 <li><strong>Files played as they are</strong> (most playback on Apple TV, iPhone and iPad) take very little work, so many can run at once.</li>
-<li><strong>Converted streams</strong> take real work. Flexarr converts up to <strong>3 videos at once</strong> by default, which suits a Mac mini. When that&#39;s full, the next person to start one is told the server is busy, and one profile can&#39;t take every slot. You can change the number with <code>maxConcurrentTranscodes</code> under <code>transcoding</code> in <code>config.json</code> (0 means no limit), then restart Flexarr.</li>
+<li><strong>Converted streams</strong> take real work. Flexarr converts up to <strong>3 videos at once</strong> by default, which suits a Mac mini (fewer on a machine with few cores and no hardware encoder). When that&#39;s full, the next person to start one is told the server is busy, and one profile can&#39;t take every slot. You can change the number with <code>maxConcurrentTranscodes</code> under <code>transcoding</code> in <code>config.json</code> (0 means no limit), then restart Flexarr.</li>
 <li><strong>Live TV</strong> is limited by how many connections your IPTV provider allows, though everyone watching the same channel shares one.</li>
 </ul>
 <h3 id="does-it-work-away-from-home"><a class="anchor" href="#does-it-work-away-from-home" aria-hidden="true" tabindex="-1">#</a>Does it work away from home?</h3>

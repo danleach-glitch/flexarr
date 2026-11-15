@@ -75,6 +75,8 @@ public sealed class PlaybackService(
         // What playing a given file would take. Versions differ, so it's asked for each before choosing one. Subtitle files
         // beside a file only change that when one would be shown, and looking for them can wake a sleeping drive holding a
         // version that isn't even chosen, so otherwise only the file chosen is looked beside.
+        // Converting in software, a picture is made no taller than 1080p (see TranscodeSettings.MaxConvertedHeight).
+        var maxConverted = PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue).MaxConvertedHeight;
         var sidecarsMatter = request.SubtitleKey is not "off" && (request.SubtitleKey is not null || preferences.Subtitle is not null);
         var plans = new Dictionary<Guid, Plan>();
         Plan PlanFor(MediaFile candidate)
@@ -113,7 +115,8 @@ public sealed class PlaybackService(
             var caps = new[] { request.MaxBitrate ?? 0, transcoding.MaxStreamingBitrate, slowLink }.Where(b => b > 0).DefaultIfEmpty(0).Min();
             var cap = new[] { caps, awayCap }.Where(b => b > 0).DefaultIfEmpty(0).Min();
             var shaping = request.Sound is { } shaped ? shaped with { MaxChannels = shaped.MaxChannels is { } max ? Math.Clamp(max, 1, 8) : null } : null;
-            var opts = new PlaybackOptions(audioTrack, subtitle, cap, request.MaxHeight, request.ForceTranscode, candidate.AudioDelaySeconds, shaping);
+            var opts = new PlaybackOptions(audioTrack, subtitle, cap, request.MaxHeight, request.ForceTranscode, candidate.AudioDelaySeconds, shaping,
+                maxConverted);
             return new Plan(tracks, audio, audioTrack, subtitle, awayCap, caps, opts, PlaybackDecider.Decide(candidate, request.Profile, tracks, opts));
         }
 

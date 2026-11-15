@@ -387,4 +387,54 @@ public class PlaybackDeciderTests
 
         Assert.Equal((1920, 804), (decision.Transcode!.TargetWidth, decision.Transcode.TargetHeight));
     }
+
+    [Fact]
+    public void ConvertingInSoftware_A4kFilmIsMade1080p_ButOneThatPlaysAsItIsStillDoes()
+    {
+        var hevc = File("mkv", "hevc", "aac", 2, height: 2160, bitrate: 40_000_000);
+        var software = new TranscodeSettings { CacheDirectory = "/c", HardwareAcceleration = HardwareAcceleration.None };
+
+        var converted = PlaybackDecider.Decide(hevc, Chrome, [], new PlaybackOptions(MaxConvertedHeight: software.MaxConvertedHeight));
+        Assert.Equal((1920, 1080), (converted.Transcode!.TargetWidth, converted.Transcode.TargetHeight));
+
+        // A hardware encoder has no such cap.
+        var hardware = software with { HardwareAcceleration = HardwareAcceleration.Vaapi };
+        Assert.Null(hardware.MaxConvertedHeight);
+        Assert.Equal(2160, PlaybackDecider.Decide(hevc, Chrome, [], new PlaybackOptions(MaxConvertedHeight: hardware.MaxConvertedHeight)).Transcode!.TargetHeight);
+
+        // Played as it is, the cap doesn't come into it.
+        var h264 = File("mp4", "h264", "aac", 2, height: 2160, bitrate: 40_000_000);
+        Assert.Equal(PlaybackMethod.DirectPlay, PlaybackDecider.Decide(h264, Chrome, [], new PlaybackOptions(MaxConvertedHeight: 1080)).Method);
+    }
+
+    [Fact]
+    public void Auto_IsWhatTheProbeFound_AndTheDefaultLimitFollowsTheCores()
+    {
+        var auto = new TranscodeSettings { CacheDirectory = "/c" };
+        if (!OperatingSystem.IsMacOS())
+        {
+            Assert.Equal(HardwareAcceleration.None, auto.Resolved);
+            Assert.Equal(HardwareAcceleration.Vaapi, (auto with { Detected = HardwareAcceleration.Vaapi }).Resolved);
+            Assert.Equal(HardwareAcceleration.None, (auto with { Detected = HardwareAcceleration.None }).Resolved);
+        }
+
+        // Chosen by hand, the probe doesn't come into it.
+        Assert.Equal(HardwareAcceleration.None, (auto with { HardwareAcceleration = HardwareAcceleration.None, Detected = HardwareAcceleration.Vaapi }).Resolved);
+
+        Assert.Equal(3, TranscodeSettings.DefaultLimit(HardwareAcceleration.VideoToolbox, 4));
+        Assert.Equal(1, TranscodeSettings.DefaultLimit(HardwareAcceleration.None, 4));
+        Assert.Equal(1, TranscodeSettings.DefaultLimit(HardwareAcceleration.None, 2));
+        Assert.Equal(2, TranscodeSettings.DefaultLimit(HardwareAcceleration.None, 8));
+        Assert.Equal(3, TranscodeSettings.DefaultLimit(HardwareAcceleration.None, 32));
+    }
+
+    [Fact]
+    public void TheProbe_EncodesOneSmallFrameOnEachEncoder_WrittenNowhere()
+    {
+        var vaapi = HardwareProbe.Candidates("/dev/dri/renderD129").Single(c => c.Kind == HardwareAcceleration.Vaapi);
+        var args = string.Join(' ', HardwareProbe.TestArgs(vaapi.Args));
+
+        Assert.Contains("-f lavfi -i color=black:s=256x256:d=0.1 -frames:v 1 -vaapi_device /dev/dri/renderD129 -vf format=nv12,hwupload -c:v h264_vaapi -f null -", args, StringComparison.Ordinal);
+        Assert.Equal([HardwareAcceleration.Nvenc, HardwareAcceleration.Vaapi, HardwareAcceleration.Qsv], HardwareProbe.Candidates("/dev/dri/renderD128").Select(c => c.Kind));
+    }
 }

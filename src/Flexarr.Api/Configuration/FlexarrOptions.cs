@@ -339,8 +339,11 @@ public sealed class TranscodingOptions
     /// </summary>
     public Playback.AwayFromHomeQuality AwayFromHome { get; set; } = Playback.AwayFromHomeQuality.Automatic;
 
-    /// <summary>Most videos converted at once (0 = no limit). A Mac mini's media engine handles about three well.</summary>
-    public int MaxConcurrentTranscodes { get; set; } = 3;
+    /// <summary>
+    /// Most videos converted at once (0 = no limit). Unset, it's three with a hardware encoder (a Mac mini's media
+    /// engine handles about three well) and fewer in software on a machine with few cores (see TranscodeSettings.DefaultLimit).
+    /// </summary>
+    public int? MaxConcurrentTranscodes { get; set; }
 }
 
 /// <summary>Push notifications to phones, through the relay that holds Apple's key (see docs/notifications.md).</summary>

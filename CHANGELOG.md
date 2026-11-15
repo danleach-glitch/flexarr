@@ -137,6 +137,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Starting a film with subtitles off no longer reads the whole file in the background for its subtitles, and scrubbing previews and keyframe scans take turns reading files, so a big film on a network drive streams more smoothly on its first play.
 - Finding intros and credits for a new episode now listens to that episode only, rather than the whole season again.
 - With a hardware encoder, preparing a download keeps going while someone watches a converted stream, as long as the server has a conversion to spare, instead of starting again from nothing each time.
+- On Linux (Docker, a NAS), hardware acceleration left on Auto now finds a working NVIDIA, VA-API or Quick Sync encoder by itself when the server starts. Converting in software, a picture is made no larger than 1080p, and fewer conversions run at once on a machine with few cores unless you set the limit yourself.
 
 ### Music, audiobooks and podcasts
 
