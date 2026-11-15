@@ -31,6 +31,9 @@
 .player-title {
   display: flex;
   flex-direction: column;
+  /* A long title wraps in its own room, so the stream's pill beside it keeps to one line. */
+  min-width: 0;
+  overflow-wrap: anywhere;
   line-height: 1.25;
   font-weight: 700;
 }
@@ -42,7 +45,9 @@
 }
 
 .player-badge {
+  flex: none;
   margin-left: auto;
+  white-space: nowrap;
   padding: 4px 10px;
   border: 1px solid rgb(255 255 255 / 0.25);
   border-radius: 999px;
@@ -72,7 +77,10 @@
 }
 
 .player-time {
+  flex: none;
   margin-left: 10px;
+  /* "0:00 / 1:30" stays on one line however many buttons share the bar (an episode adds Next). */
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
