@@ -108,6 +108,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A phone and a tablet of one profile downloading the same title (a podcast's newest episodes, say) now both get it: the server keeps its copy until each has it, instead of the second failing with "This download ran out on the server".
 - On Android, posters and artwork already seen at home aren't downloaded again away from home over Tailscale, or again once you're back.
 - On Android phones and TVs, going back to a page (Home, a library, Settings) shows it straight away instead of loading it again behind a spinner.
+- On Android phones, going back from a film or show to its library's All grid keeps your place, however far down you'd scrolled.
 
 ### Trakt
 

@@ -56,6 +56,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.ViewModel
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -347,27 +349,39 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort, 
     val tilesServer = rememberLoader(model.credentials) {
         model.serverVersion()?.let { ServerVersion.atLeast(it, 0, 54) } ?: false
     }
-    val items = remember(libraryId, sort, genre) { mutableStateListOf<ItemSummary>() }
-    var total by remember(libraryId, sort, genre) { mutableIntStateOf(0) }
-    var loading by remember(libraryId, sort, genre) { mutableStateOf(true) }
+    // What All has loaded, kept while this page is in the back stack (see [LibraryGridMemory]): back from a title, the
+    // grid is as it was, at the same place, rather than its first page again at the top.
+    val memory = viewModel(key = "library-grid/$libraryId") { LibraryGridMemory() }
+    val profileId = model.currentProfile?.id
+    val restored = remember(libraryId, sort, genre) { memory.restore(listOf(sort, genre), profileId) }
+    val items = memory.items
+    var total by memory::total
+    var loading by remember(libraryId, sort, genre) { mutableStateOf(!restored) }
     var refreshing by remember { mutableStateOf(false) }
     var error by remember(libraryId, sort, genre) { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
-    var loadedAt by remember(libraryId, sort, genre) { mutableStateOf<Long?>(null) }
+    var loadedAt by memory::loadedAt
     var staleVersion by remember { mutableIntStateOf(0) }
     // Back to a list more than a minute old: what's on screen is fetched again, keeping the scroll position.
     RefreshWhenStale(loadedAt) { staleVersion++ }
+    // A kept list needs neither its first page nor everything loaded fetched again when it's shown again (only what's
+    // near the screen, if something was watched meanwhile).
+    val skipFirstLoad = remember(libraryId, sort, genre) { booleanArrayOf(restored) }
+    val skipFirstRefetch = remember(libraryId, sort, genre) { booleanArrayOf(restored) }
 
     LaunchedEffect(libraryId, sort, genre, attempt, allOpened) {
         if (!allOpened) return@LaunchedEffect
+        if (skipFirstLoad[0].also { skipFirstLoad[0] = false } && attempt == 0) return@LaunchedEffect
         loading = true
         try {
+            val version = model.watchStateVersion
             val page = client.libraryItems(libraryId, sort, genre, skip = 0, take = PAGE_SIZE)
             items.clear()
             items.addAll(page.items)
             total = page.total
             error = null
             loadedAt = System.currentTimeMillis()
+            memory.watchState = version
         } catch (e: CancellationException) {
             // A newer load (another sort, say) took over: it says when it's done.
             throw e
@@ -380,7 +394,8 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort, 
     // After playback or watched changes, fetch the titles near the screen (and the one just played) again so their
     // badges update; the rest of a long list stays as it was until it's next opened.
     LaunchedEffect(model.watchStateVersion) {
-        if (items.isEmpty()) return@LaunchedEffect
+        val version = model.watchStateVersion
+        if (items.isEmpty() || version == memory.watchState) return@LaunchedEffect
         val visible = gridState.layoutInfo.visibleItemsInfo
         // The count above the grid is its first item.
         val first = ((visible.firstOrNull()?.index ?: 1) - 1).coerceAtLeast(0)
@@ -394,12 +409,15 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort, 
             items.clear()
             items.addAll(updated)
         }
+        memory.watchState = version
     }
 
     // A while away, or another profile chosen (a child's list leaves out what it may not watch): fetch what's loaded
     // again, so titles added or removed since show so, keeping the scroll position.
-    LaunchedEffect(libraryId, sort, genre, staleVersion, model.currentProfile?.id) {
+    LaunchedEffect(libraryId, sort, genre, staleVersion, profileId) {
+        if (skipFirstRefetch[0].also { skipFirstRefetch[0] = false } && staleVersion == 0) return@LaunchedEffect
         if (items.isEmpty()) return@LaunchedEffect
+        memory.profileId = profileId
         val fresh = refetch(items.size) { skip, take -> client.libraryItems(libraryId, sort, genre, skip = skip, take = take) }
             ?: return@LaunchedEffect
         val replaced = fresh.replacing(items)
@@ -488,6 +506,7 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort, 
                                 items.clear()
                                 items.addAll(page.items)
                                 total = page.total
+                                loadedAt = System.currentTimeMillis()
                             }
                             refreshing = false
                         }
@@ -610,4 +629,35 @@ internal fun LibraryGenreGrid(genres: List<GenreCount>, caption: (GenreCount) ->
 private fun genreCaption(library: Library, genre: GenreCount): String {
     return if (library.type == LibraryType.TvShows) t("{count, plural, one {# show} other {# shows}}", "count" to genre.count)
     else t("{count, plural, one {# movie} other {# movies}}", "count" to genre.count)
+}
+
+/**
+ * A library's All grid, kept while its page is in the back stack (a ViewModel lives as long as its NavHost entry): back
+ * from a title opened there, the titles loaded so far come back with it, so the grid keeps its place. The phone's
+ * [io.github.flexarr.ui.tv.TvGridMemory].
+ */
+internal class LibraryGridMemory : ViewModel() {
+    /** The sort and genre [items] are for. */
+    private var key: List<Any?>? = null
+
+    /** Whose list it is: another profile's isn't shown again (a child's leaves out what it may not watch). */
+    var profileId: String? = null
+    val items = mutableStateListOf<ItemSummary>()
+    var total by mutableIntStateOf(0)
+    var loadedAt by mutableStateOf<Long?>(null)
+
+    /** The watched-state version [items] are from: one that's moved since fetches what's near the screen again. */
+    var watchState = -1
+
+    /** True when what's kept is the list for [key] and [profileId], to show as it is; otherwise it's emptied for them. */
+    fun restore(key: List<Any?>, profileId: String?): Boolean {
+        if (this.key == key && this.profileId == profileId && items.isNotEmpty()) return true
+        this.key = key
+        this.profileId = profileId
+        if (items.isNotEmpty()) items.clear()
+        if (total != 0) total = 0
+        if (loadedAt != null) loadedAt = null
+        watchState = -1
+        return false
+    }
 }
