@@ -140,12 +140,12 @@ struct DetailView: View {
                 backdrop(for: item)
                 VStack(alignment: .leading, spacing: 8) {
                     if item.kind == .episode, let series {
-                        TitleArt(item: series, maxWidth: 240, maxHeight: 80, fontSize: 40)
+                        TitleArt(item: series, maxWidth: 240, maxHeight: 80, fontSize: 40, lines: 3, textWidth: sizeClass == .regular ? 560 : nil)
                         Text(item.episodeSubtitle ?? item.title)
                             .font(.marquee(28, weight: .bold))
                             .foregroundStyle(Color.screen)
                     } else {
-                        TitleArt(item: item, maxWidth: 300, maxHeight: 120, fontSize: 52)
+                        TitleArt(item: item, maxWidth: 300, maxHeight: 120, fontSize: 52, lines: 4, textWidth: sizeClass == .regular ? 640 : nil)
                     }
                     FactsLine(facts: item.facts(scores: !model.isKids, versions: detail?.versions), scores: model.isKids ? nil : item.scores)
                     if let genres = detail?.genres, !genres.isEmpty {

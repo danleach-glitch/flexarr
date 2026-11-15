@@ -360,7 +360,7 @@ struct HomeHero: View {
                             .minimumScaleFactor(0.6)
                     }
                 } else {
-                    TitleArt(item: item, maxWidth: 280, maxHeight: 110, fontSize: 52)
+                    TitleArt(item: item, maxWidth: 280, maxHeight: 110, fontSize: 52, lines: 3, textWidth: sizeClass == .regular ? 560 : nil)
                 }
                 FactsLine(facts: item.facts(scores: !model.isKids && !item.kind.isMusic), scores: model.isKids || item.kind.isMusic ? nil : item.scores)
                 if let overview = overviews[item.id] ?? nil {

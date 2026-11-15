@@ -54,6 +54,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On iPhone, iPad and Apple TV, a show's page asks for its season once, and sooner. On iPhone, Download show on a show with many seasons asks its question sooner, coming back to the app after Control Centre no longer sends a burst of requests, and Downloads › Music scrolls smoothly while its covers load.
 - On iPhone, iPad and Apple TV, subtitle choices name their language (German, Dutch) instead of the file's own codes like "GER (srt)".
 - On iPhone and Apple TV, an episode's long-press menu says "Mark show as watched", so a long show name no longer cuts off what it does.
+- On iPhone and iPad, a long title without a logo gets up to four lines on its own page and three on Home (wider on iPad), and a downloaded show's page shows its whole name.
 - On iPhone, a Home with no featured titles starts its rows below the profile picture, so the first See all can be tapped.
 - On iPhone and iPad, a title's page and Home fade in a band under the clock and the back button once you scroll, so headings and buttons no longer show through them.
 - On iPad held sideways, Home's and a library's featured titles take a little over half the screen, so the first row shows beneath them.

@@ -350,6 +350,10 @@ struct TitleArt: View {
     var maxWidth: CGFloat
     var maxHeight: CGFloat
     var fontSize: CGFloat
+    /// How many lines a title with no logo may take: more on the title's own page, where it can't be read anywhere else.
+    var lines = 2
+    /// How wide that title may run, when wider than the logo may be (an iPad has the room).
+    var textWidth: CGFloat? = nil
 
     var body: some View {
         if let logo = model.client?.imageURL(item.artwork.logo, width: 600) {
@@ -368,9 +372,9 @@ struct TitleArt: View {
         Text(item.displayTitle)
             .font(.marquee(fontSize, weight: .black))
             .foregroundStyle(Color.screen)
-            .lineLimit(2)
+            .lineLimit(lines)
             .minimumScaleFactor(0.6)
-            .frame(maxWidth: maxWidth * 1.2, alignment: .leading)
+            .frame(maxWidth: textWidth ?? maxWidth * 1.2, alignment: .leading)
             .modifier(TitleScrim(reach: maxWidth * 0.6))
     }
 }

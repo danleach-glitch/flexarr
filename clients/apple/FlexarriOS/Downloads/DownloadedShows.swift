@@ -152,6 +152,17 @@ struct DownloadedShowView: View {
         Group {
             if let show {
                 List {
+                    #if !os(macOS)
+                    // The whole name, wrapping: the bar's title is one short line, and a long name ("The
+                    // Extraordinarily Lon…") would be all that showed of it.
+                    Text(show.title)
+                        .font(.marquee(28, weight: .bold))
+                        .foregroundStyle(Color.screen)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityAddTraits(.isHeader)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
+                    #endif
                     ForEach(show.seasons, id: \.number) { season in
                         Section(season.number.map { t("Season {number}", ["number": $0]) } ?? t("Special")) {
                             ForEach(season.episodes) { DownloadRow(download: $0) }
@@ -170,5 +181,8 @@ struct DownloadedShowView: View {
         }
         .background(RoomBackground(ambient: nil))
         .navigationTitle(show?.title ?? "")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 }
