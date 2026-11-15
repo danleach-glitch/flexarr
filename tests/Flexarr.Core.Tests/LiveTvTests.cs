@@ -390,3 +390,18 @@ public sealed class CommunityLogosTests
         Assert.False(CommunityLogos.IsCommunity(new Uri("http://raw.githubusercontent.com/tv-logo/tv-logos/main/x.png")));
     }
 }
+
+public sealed class LiveRecorderTests
+{
+    [Fact]
+    public async Task TailAsync_KeepsOnlyTheLastLines_OfAnEndlessError()
+    {
+        var output = string.Join('\n', Enumerable.Range(1, 10_000).Select(i => $"[mpegts] packet {i} corrupt")) + "\n\n";
+        var tail = await LiveRecorder.TailAsync(new StringReader(output));
+
+        var lines = tail.Split('\n');
+        Assert.Equal(LiveRecorder.KeptErrorLines, lines.Length);
+        Assert.Equal("[mpegts] packet 10000 corrupt", lines[^1]);
+        Assert.Equal($"[mpegts] packet {10_000 - LiveRecorder.KeptErrorLines + 1} corrupt", lines[0]);
+    }
+}
