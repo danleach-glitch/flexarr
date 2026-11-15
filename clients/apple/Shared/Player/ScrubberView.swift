@@ -83,6 +83,11 @@ final class ScrubberView: UIView {
         thumbnailBox.addSubview(thumbnailTime)
         addSubview(thumbnailBox)
 
+        // One adjustable element for VoiceOver: "Timeline, 32:10 of 1:56:00", swiped up or down to move.
+        isAccessibilityElement = true
+        accessibilityTraits = .adjustable
+        accessibilityLabel = t("Timeline")
+
         #if os(tvOS)
         let pan = UIPanGestureRecognizer(target: self, action: #selector(panned))
         pan.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.indirect.rawValue)]
@@ -215,6 +220,36 @@ final class ScrubberView: UIView {
         endScrub(cancelled: false)
     }
     #endif
+
+    // MARK: VoiceOver
+
+    /// How far one VoiceOver swipe moves the head.
+    static let accessibilityStep: Double = 10
+
+    override var accessibilityValue: String? {
+        get {
+            guard duration > 0 else { return nil }
+            return Self.accessibilityValue(position: isScrubbing ? scrubPosition : position, duration: duration)
+        }
+        set {}
+    }
+
+    /// "32:10 of 1:56:00".
+    static func accessibilityValue(position: Double, duration: Double) -> String {
+        t("{position} of {duration}", ["position": clock(max(0, min(position, duration))), "duration": clock(duration)])
+    }
+
+    override func accessibilityIncrement() { stepForAccessibility(Self.accessibilityStep) }
+    override func accessibilityDecrement() { stepForAccessibility(-Self.accessibilityStep) }
+
+    /// A VoiceOver swipe: a scrub there and back at once, so the screen seeks as it does for a tap on the track.
+    private func stepForAccessibility(_ seconds: Double) {
+        guard duration > 0 else { return }
+        let from = isScrubbing ? scrubPosition : position
+        if !isScrubbing { beginScrub() }
+        moveScrub(to: from + seconds)
+        endScrub(cancelled: false)
+    }
 
     // MARK: Scrubbing
 

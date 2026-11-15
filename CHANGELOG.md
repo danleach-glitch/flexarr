@@ -45,6 +45,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Mark as watched, following a podcast, and Download from Now Playing or a podcast episode's swipe now say when they didn't work.
 - On Apple TV and Android, "Update your Flexarr server" stays until you dismiss it.
 - On iPhone, tapping an episode in Search opens its page, as on Apple TV.
+- The video player on iPhone, iPad and Apple TV works with VoiceOver: the timeline reads "32:10 of 1:56:00" and moves with a swipe up or down, the controls stay up, every button says what it does, and a two-finger double tap plays or pauses. On iPhone and iPad the two-finger scrub closes the player.
+- On Apple TV, the guide's programme times are larger and brighter, and VoiceOver reads each programme's times and whether it's recording.
 
 ### Downloads
 

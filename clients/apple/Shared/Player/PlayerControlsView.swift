@@ -84,6 +84,8 @@ final class PlayerControlsView: UIView {
             let seconds = Int(skipSeconds)
             backButton.configuration?.image = UIImage(systemName: "\(seconds).arrow.trianglehead.counterclockwise") ?? UIImage(systemName: "gobackward.\(seconds)") ?? UIImage(systemName: "gobackward")
             forwardButton.configuration?.image = UIImage(systemName: "\(seconds).arrow.trianglehead.clockwise") ?? UIImage(systemName: "goforward.\(seconds)") ?? UIImage(systemName: "goforward")
+            backButton.accessibilityLabel = t("Back {seconds} seconds", ["seconds": seconds])
+            forwardButton.accessibilityLabel = t("Forward {seconds} seconds", ["seconds": seconds])
         }
     }
 
@@ -129,6 +131,7 @@ final class PlayerControlsView: UIView {
 
     func setPlaying(_ playing: Bool) {
         playButton.configuration?.image = UIImage(systemName: playing ? Symbol.pause : Symbol.play)
+        playButton.accessibilityLabel = playing ? t("Pause") : t(Words.play)
     }
 
     /// Live TV: the timeline is the rewind window, so the left label is the time of day at the playhead and the right
@@ -477,6 +480,16 @@ final class PlayerControlsView: UIView {
         (promptButton as? PillButton)?.onUpdate = { [weak self] in self?.updatePromptCover() }
         cancelButton.addAction(UIAction { [weak self] _ in self?.onCancel?() }, for: .primaryActionTriggered)
         channelsButton.addAction(UIAction { [weak self] _ in self?.onChannels?() }, for: .primaryActionTriggered)
+        // Said by VoiceOver: an image button is otherwise read by its symbol's name, or not at all.
+        playButton.accessibilityLabel = t(Words.play)
+        backButton.accessibilityLabel = t("Back {seconds} seconds", ["seconds": Int(skipSeconds)])
+        forwardButton.accessibilityLabel = t("Forward {seconds} seconds", ["seconds": Int(skipSeconds)])
+        previousButton.accessibilityLabel = t("Previous episode")
+        nextButton.accessibilityLabel = t("Next episode")
+        #if os(iOS)
+        closeButton.accessibilityLabel = t("Close")
+        pictureInPictureButton.accessibilityLabel = t("Picture in picture")
+        #endif
         channelsButton.accessibilityLabel = t("Channels")
         channelsButton.isHidden = true
         guideButton.addAction(UIAction { [weak self] _ in self?.onGuide?() }, for: .primaryActionTriggered)
