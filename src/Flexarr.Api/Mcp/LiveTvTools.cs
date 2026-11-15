@@ -29,6 +29,12 @@ public static class LiveTvTools
     {
         ArgumentNullException.ThrowIfNull(db);
         ArgumentNullException.ThrowIfNull(profile);
+        // As over HTTP (NotForKids on /livetv): a kids profile has no Live TV.
+        if (db.ServesKids)
+        {
+            throw new InvalidOperationException("That isn't available on a kids profile.");
+        }
+
         var now = clock.GetUtcNow().UtcDateTime;
         var channels = await db.LiveChannels.AsNoTracking().OrderBy(c => c.Number).ThenBy(c => c.Name).ToListAsync(ct);
         var favourites = (await db.LiveFavourites.AsNoTracking().Where(f => f.ProfileId == profile.Id).Select(f => f.ChannelId).ToListAsync(ct)).ToHashSet();
