@@ -12,6 +12,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Apple TV, playing music with the visualiser on no longer closes the app.
 - On Apple TV, focus goes back to the poster or episode you were on after closing its menu or coming back from a title, and Search's field is no longer covered by the sidebar's label.
 - On Apple TV, Up from any title in a grid's top row reaches the switch and sort buttons above it.
+- On Apple TV, in the player, Right from skip forward no longer jumps back to Play when there's no Next.
 - On Android, Download Season fetches that season and one episode ahead, no longer the whole show.
 - On Android, pages no longer scroll up through the clock and status icons, and Settings pages keep their title and Back in view.
 - On Android, a show's season pills are all readable: Download Season sits on its own line under them.

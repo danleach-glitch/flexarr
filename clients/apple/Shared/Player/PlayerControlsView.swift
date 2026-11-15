@@ -138,6 +138,9 @@ final class PlayerControlsView: UIView {
     #if os(tvOS)
     /// Live TV: down from the circles goes to the buttons bottom-right, not the timeline.
     private let downToMenus = UIFocusGuide()
+    /// Up from the menus to the play button. Only while a menu button has focus: it sits right of the circles, so
+    /// otherwise right from skip forward (with Next off, for a film) found it and went back to Play.
+    private let upFromMenus = UIFocusGuide()
     #endif
 
     /// Kept while the language shown stays the same (it's read on every tick).
@@ -557,9 +560,9 @@ final class PlayerControlsView: UIView {
         ])
         // Up from the menus: the circles are far to the left, outside the focus engine's upward search, so a guide
         // above the capsule points the way to the play button.
-        let upFromMenus = UIFocusGuide()
         addLayoutGuide(upFromMenus)
         upFromMenus.preferredFocusEnvironments = [playButton]
+        upFromMenus.isEnabled = false
         NSLayoutConstraint.activate([
             upFromMenus.leadingAnchor.constraint(equalTo: menus.leadingAnchor),
             upFromMenus.trailingAnchor.constraint(equalTo: menus.trailingAnchor),
@@ -672,6 +675,8 @@ final class PlayerControlsView: UIView {
     override func didUpdateFocus(in context: UIFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {
         super.didUpdateFocus(in: context, with: coordinator)
         if context.nextFocusedItem as? UIView === promptButton { onPromptFocused?() }
+        let next = context.nextFocusedItem as? UIView
+        upFromMenus.isEnabled = next.map { next in [channelsButton, guideButton, audioButton, subtitlesButton, speedButton, sleepButton].contains { next.isDescendant(of: $0) } } ?? false
     }
     #endif
 
