@@ -20,7 +20,12 @@ namespace Flexarr.Api.Security;
 /// network announcement is, and not in a container, where Docker's port forwarding makes visitors from the internet
 /// look as though they're at home (absent before 0.61).
 /// </param>
-public sealed record SetupStatusDto(bool Open, bool CodeRequired = true, string? ServerId = null, Updates.InstallKind? Install = null, string? ServerName = null);
+/// <param name="Proof">
+/// When asked with a challenge and the id of a key this server knows, the answer that shows it holds that key
+/// (<see cref="ServerProof"/>); absent otherwise, and from servers before 0.67.
+/// </param>
+public sealed record SetupStatusDto(bool Open, bool CodeRequired = true, string? ServerId = null, Updates.InstallKind? Install = null, string? ServerName = null,
+    string? Proof = null);
 
 /// <summary>What a browser sends to set the server up: the setup code, and the admin PIN (it guards the server's settings).</summary>
 public sealed record SetupClaimDto(string? Code, string? Pin = null);
@@ -198,12 +203,23 @@ public static class FirstRunEndpoints
     public static RouteGroupBuilder MapFirstRunEndpoints(this RouteGroupBuilder api)
     {
         var group = api.MapGroup("/setup").WithTags("System").AllowAnonymous();
-        group.MapGet("/", (HttpContext http, FirstRun firstRun, IOptionsMonitor<FlexarrOptions> options, Updates.IInstallEnvironment install) =>
+        group.MapGet("/", (HttpContext http, FirstRun firstRun, IOptionsMonitor<FlexarrOptions> options, Updates.IInstallEnvironment install, SignIns signIns,
+            string? challenge, string? keyId) =>
         {
             var open = firstRun.OpenTo(http);
-            return Results.Ok(new SetupStatusDto(open, ServerId: options.CurrentValue.ServerId, Install: open ? install.Kind : null,
+            var current = options.CurrentValue;
+            // An app about to send its key over plain HTTP asks the server to show it holds that key first.
+            string? proof = null;
+            if (current.ServerId is { Length: > 0 } serverId && ServerProof.IsChallenge(challenge) && ServerProof.IsKeyId(keyId))
+            {
+                var apiKeyHash = string.IsNullOrEmpty(current.ApiKey) ? null : ServerProof.HashOf(current.ApiKey);
+                var keyHash = apiKeyHash is not null && ServerProof.KeyId(apiKeyHash) == keyId ? apiKeyHash : signIns.TokenHashKnownAs(keyId!);
+                proof = keyHash is null ? null : ServerProof.Answer(keyHash, serverId, challenge!);
+            }
+
+            return Results.Ok(new SetupStatusDto(open, ServerId: current.ServerId, Install: open ? install.Kind : null,
                 ServerName: NetworkZones.Of(http) == NetworkZone.Internet || Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true"
-                    ? null : Configuration.ServerName.Of(options.CurrentValue)));
+                    ? null : Configuration.ServerName.Of(current), Proof: proof));
         });
         // Only the web app's own scripts send X-Requested-With, so a form on another site can't claim the server.
         // The PIN comes with the code, so setup is done all at once or not at all: closing the page before the button

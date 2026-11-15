@@ -19,8 +19,9 @@ import Foundation
 /// The away address is asked the same once, when it's one the app kept without hearing from it (`remoteConfirmed`
 /// false: the device couldn't reach it over Tailscale when the server gave it). Until it gives the server's id, it
 /// counts as not there either; once it has, it stays trusted for this launch. The id isn't secret (anyone may ask
-/// for it), so this catches a different server at the address (a Tailscale address handed to another machine, a
-/// name that now leads elsewhere), not one set up to pretend.
+/// for it), so the address is also asked to show it holds the app's key (see `ServerProof`): that catches one set up
+/// to pretend as well as a different server at the address (a Tailscale address handed to another machine, a name
+/// that now leads elsewhere).
 ///
 /// Shared by every client made for the same sign-in (see `shared(home:remote:)`), so what one request learns, the
 /// next one uses.

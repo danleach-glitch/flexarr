@@ -217,21 +217,33 @@ public struct FlexarrClient: Sendable {
         // Home may be slow to wake; the away address is only asked while Tailscale may well be off, so it isn't waited
         // on as long.
         let limit: TimeInterval = url == addresses.home ? 20 : 10
+        let key = apiKey
         return await addresses.prove(url, fresh: fresh) { there, id in
-            await Self.idAnswering(at: there, session: session, timeout: limit) == id
+            let challenge = ServerProof.challenge()
+            guard let answer = await Self.setupAnswering(at: there, key: key, challenge: challenge, session: session, timeout: limit)
+            else { return false }
+            return ServerProof.accepts(id: answer.serverId, proof: answer.proof, expected: id, key: key, challenge: challenge,
+                                       memory: .standard)
         }
     }
 
-    /// The id of the server answering at `url` (GET /setup, which anyone may ask), asked without any sign-in and
-    /// without following a redirect; nil when nothing answered, or what did gave none. Waits as long as a request
-    /// would (`timeout`), so a server that's slow to wake is still found.
-    private static func idAnswering(at url: URL, session: URLSession, timeout: TimeInterval) async -> String? {
-        var request = GuestTunnelToken.request(url.appending(path: "api/v1/setup"))
+    /// What the server answering at `url` says of itself (GET /setup, which anyone may ask): its id and, asked with
+    /// `challenge` and which key the app holds (never the key itself), its answer showing it holds that key (see
+    /// `ServerProof`). Asked without any sign-in and without following a redirect; nil when nothing answered. Waits
+    /// as long as a request would (`timeout`), so a server that's slow to wake is still found.
+    private static func setupAnswering(at url: URL, key: String?, challenge: String, session: URLSession,
+                                       timeout: TimeInterval) async -> SetupStatus? {
+        var address = url.appending(path: "api/v1/setup")
+        if let key, !key.isEmpty {
+            address.append(queryItems: [URLQueryItem(name: "challenge", value: challenge),
+                                        URLQueryItem(name: "keyId", value: ServerProof.keyId(ServerProof.hash(of: key)))])
+        }
+        var request = GuestTunnelToken.request(address)
         request.timeoutInterval = timeout
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         guard let (data, response) = try? await session.data(for: request, delegate: NoRedirects.shared),
               (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
-        return (try? decoder.decode(SetupStatus.self, from: data))?.serverId
+        return try? decoder.decode(SetupStatus.self, from: data)
     }
 
     /// API requests' own connections. Artwork loads on the shared session, and a session opens only a handful of

@@ -38,6 +38,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On iPhone, iPad and Apple TV, a link into the app is only followed when it names a title plainly, so a crafted link can't make the app ask the server for something else.
 - Every profile's PIN now has a daily limit on wrong guesses from devices that aren't signed in, as the admin PIN does. Signed-in devices, and a browser that has given that PIN before, still get in.
 - A request from a Tailscale address is only treated as one of your devices when it really came in over Tailscale. In Docker, with **Only away from home**, a request handed over by the container's own gateway (as Docker Desktop does with everyone's) now needs a key, since it could come from anywhere.
+- Before an iPhone, iPad, Apple TV or Android device sends its sign-in to your server's home address, the server now shows it holds that device's key, not just its name. Once your server has done so, something else answering at the same address on another network gets nothing.
 
 ### iPad
 

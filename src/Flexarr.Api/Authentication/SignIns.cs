@@ -539,6 +539,19 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
         }
     }
 
+    /// <summary>
+    /// The SHA-256 of the token of the sign-in an app calls <paramref name="keyId"/> (see <see cref="Security.ServerProof"/>),
+    /// or null when there's none.
+    /// </summary>
+    public string? TokenHashKnownAs(string keyId)
+    {
+        lock (_lock)
+        {
+            return Loaded().Keys.Select(h => h.StartsWith(GuestHashPrefix, StringComparison.Ordinal) ? h[GuestHashPrefix.Length..] : h)
+                .FirstOrDefault(h => Security.ServerProof.KeyId(h) == keyId);
+        }
+    }
+
     /// <summary>What a guest sign-in's token hash starts with (see <see cref="IssueGuest"/>).</summary>
     public const string GuestHashPrefix = "guest:";
 
