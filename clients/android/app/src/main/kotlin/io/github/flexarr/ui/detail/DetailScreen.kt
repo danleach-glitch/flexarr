@@ -612,10 +612,6 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
     }
 }
 
-/**
- * How many of the round actions under Play share a line: all of them at the usual text sizes; three, then two, as large
- * text makes their names too wide for a quarter of a phone's width.
- */
 /** Automatic first, then each version, a radio button on the one chosen. */
 @Composable
 private fun VersionChoices(versions: List<TitleVersion>, choose: (String?) -> Unit) {
@@ -637,6 +633,10 @@ private fun VersionChoices(versions: List<TitleVersion>, choose: (String?) -> Un
     }
 }
 
+/**
+ * How many of the round actions under Play share a line: all of them at the usual text sizes; three, then two, as large
+ * text makes their names too wide for a quarter of a phone's width.
+ */
 internal fun actionsPerLine(fontScale: Float, count: Int): Int = when {
     fontScale > 1.6f -> minOf(2, count)
     fontScale > 1.3f -> minOf(3, count)
