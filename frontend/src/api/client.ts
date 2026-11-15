@@ -1347,7 +1347,8 @@ export interface SettingsImportResult {
   problems: string[]
 }
 export const getBackups = (signal?: AbortSignal) => apiGet<Backups>('/backups', signal)
-export const saveBackupSettings = (update: { folder?: string; nightly?: boolean }) => request<Backups>('PUT', '/backups/settings', update)
+/** Moving backups to another folder takes the admin PIN (or a yes, when there's none), as downloading one does. */
+export const saveBackupSettings = (update: { folder?: string; nightly?: boolean } & Partial<KeyConfirmation>) => request<Backups>('PUT', '/backups/settings', update)
 export const backUpNow = () => request<Backup>('POST', '/backups')
 export const deleteBackup = (name: string) => request<void>('DELETE', `/backups/${encodeURIComponent(name)}`)
 /**
