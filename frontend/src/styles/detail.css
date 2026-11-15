@@ -1749,9 +1749,9 @@ button.queue-track:focus-visible {
     width: 44px;
   }
 
+  /* Stop and close stays, as on the iPhone's bar: without it, something once played sits over every page for good. */
   .now-playing-seek,
-  .now-playing-skip,
-  .now-playing-stop {
+  .now-playing-skip {
     display: none;
   }
 
