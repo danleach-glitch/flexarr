@@ -227,7 +227,7 @@ struct SettingsLink<Destination: View>: View {
     }
 
     var body: some View {
-        NavigationLink(destination: { destination().roomForBottomBars().pushedPageTitle() }) {
+        NavigationLink(destination: { destination().roomForBottomBars().pushedPageTitle(large: true) }) {
             if dynamicTypeSize.isAccessibilitySize {
                 // No room beside the name at the largest sizes: the setting goes under it, so neither breaks mid-word.
                 Label {

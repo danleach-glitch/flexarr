@@ -125,8 +125,12 @@ struct TabStack<Content: View>: View {
                 content()
                     .phoneSizesWhenSideways()
                     .roomForBottomBars()
+                    // Said, not left automatic: left to itself a tab's first page could stay small after the phone
+                    // was turned sideways and back.
+                    .navigationBarTitleDisplayMode(.large)
                     .navigationDestination(for: Route.self) { route in
-                        RouteDestination(route: route).phoneSizesWhenSideways().roomForBottomBars().pushedPageTitle()
+                        RouteDestination(route: route).phoneSizesWhenSideways().roomForBottomBars()
+                            .pushedPageTitle(large: route.takesLargeTitle)
                     }
             }
             // On a strip of its own above the page. Not on a wide iPad: its tab bar and the page's back button share

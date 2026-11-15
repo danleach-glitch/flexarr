@@ -13,8 +13,9 @@ extension View {
 
     /// A page pushed onto a tab: on iPad a steady small title, as the tab bar's along the top there. Left automatic, a
     /// pushed page's large title started collapsed and jumped to large (moving the page down) at the first touch.
-    /// Deeper pages left automatic inherit it. The tabs' first pages keep their large titles, and the iPhone is as it was.
-    func pushedPageTitle() -> some View { modifier(PushedPageTitle()) }
+    /// On iPhone a list or grid (`large`: a library, Watchlist, a Settings page) says large, so it's the same size
+    /// however it was reached and after the phone's been turned; a title's own page keeps the small title it asks for.
+    func pushedPageTitle(large: Bool = false) -> some View { modifier(PushedPageTitle(large: large)) }
 
     /// A large iPhone held sideways reports a regular width but a compact height: the pages under this see a compact
     /// width there, so their grids, rows and covers keep the phone's sizes and fit the short screen. Only an iPad (whose
@@ -46,11 +47,18 @@ private struct BottomBarsRoom: ViewModifier {
 }
 
 private struct PushedPageTitle: ViewModifier {
+    let large: Bool
+    #if os(iOS)
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.verticalSizeClass) private var vertical
+    #endif
 
     func body(content: Content) -> some View {
         #if os(iOS)
-        content.navigationBarTitleDisplayMode(sizeClass == .regular ? .inline : .automatic)
+        // Only an iPad (always a regular height) is wide here: a large iPhone held sideways is still a phone, so its
+        // titles don't change size as it turns.
+        let iPad = sizeClass == .regular && vertical == .regular
+        content.navigationBarTitleDisplayMode(iPad ? .inline : large ? .large : .automatic)
         #else
         content
         #endif
