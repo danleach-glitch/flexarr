@@ -41,11 +41,19 @@ public final class Localization: @unchecked Sendable {
     private var pack: LanguagePack?
     private var parsed: [String: [MessageFormat.Part]] = [:]
     private var failed: Set<String> = []
+    /// The pack `startWithLastShown` is reading, off the main thread; whatever asks for a string meanwhile waits for it.
+    private var starting: DispatchGroup?
 
     /// The language shown: a BCP 47 code, "en" for English.
-    public var code: String { lock.withLock { pack?.code ?? "en" } }
+    public var code: String {
+        awaitStart()
+        return lock.withLock { pack?.code ?? "en" }
+    }
 
-    public var isRightToLeft: Bool { lock.withLock { pack?.direction == "rtl" } }
+    public var isRightToLeft: Bool {
+        awaitStart()
+        return lock.withLock { pack?.direction == "rtl" }
+    }
 
     /// The locale to format dates and numbers with: the language shown, in the device's own variant of it where it has
     /// one (English on a British phone writes 3 Mar 2025).
@@ -70,6 +78,7 @@ public final class Localization: @unchecked Sendable {
             english = String(message[sep.upperBound...])
         }
         let key = ctx.map { "\($0)::\(english)" } ?? english
+        awaitStart()
         let (current, translation) = lock.withLock { (pack, pack?.messages[key]) }
         if let current, let translation, let parts = parts(current.code, key, translation) {
             return MessageFormat.format(parts, language: current.code, values: values)
@@ -95,6 +104,8 @@ public final class Localization: @unchecked Sendable {
     /// Shows a pack (nil: English).
     public func show(_ next: LanguagePack?) {
         let changed: Bool = lock.withLock {
+            // A language chosen now wins over the one still being read from the device.
+            starting = nil
             guard pack?.code != next?.code || pack?.version != next?.version else { return false }
             pack = next
             parsed = [:]
@@ -178,6 +189,7 @@ public final class Localization: @unchecked Sendable {
     @discardableResult
     static func keep(_ pack: LanguagePack, askedFor asked: String) -> Bool {
         guard accepts(pack, askedFor: asked) else { return false }
+        deviceLock.withLock { read = [:] }
         guard let folder, let file = file(for: pack.code, in: folder) else { return true }
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         if let data = try? JSONEncoder().encode(Kept(pack: pack)) {
@@ -187,14 +199,23 @@ public final class Localization: @unchecked Sendable {
         return true
     }
 
+    private static let deviceLock = NSLock()
+    /// What `newestOnDevice` found for each language, so the pack read at launch isn't read again when the server
+    /// answers; only `keep` changes the files.
+    nonisolated(unsafe) private static var read: [String: LanguagePack?] = [:]
+
     /// The newest pack on the device for a language: built in or kept from the server.
     public static func newestOnDevice(_ code: String) -> LanguagePack? {
+        if let found = deviceLock.withLock({ read[code] }) { return found }
         let built = bundled(code)
         let downloaded = fallbacks(code).lazy.compactMap { kept($0)?.pack }.first
+        let newest: LanguagePack?
         switch (built, downloaded) {
-        case let (b?, d?): return d.version > b.version ? d : b
-        case let (b, d): return b ?? d
+        case let (b?, d?): newest = d.version > b.version ? d : b
+        case let (b, d): newest = b ?? d
         }
+        deviceLock.withLock { read[code] = .some(newest) }
+        return newest
     }
 
     /// The language this device showed last (for extensions, and to start in it before the server answers).
@@ -203,9 +224,31 @@ public final class Localization: @unchecked Sendable {
         set { UserDefaults(suiteName: appGroup)?.set(newValue, forKey: "flexarr.language") }
     }
 
-    /// Starts in the language shown last, before anything draws, so it doesn't flash English first.
+    /// Starts in the language shown last, so it doesn't flash English first. Its pack is read off the main thread while
+    /// the app sets itself up; the first string asked for (as anything draws) waits for it.
     public func startWithLastShown() {
-        if let code = Self.lastShown { show(Self.newestOnDevice(code)) }
+        guard let code = Self.lastShown else { return }
+        let group = DispatchGroup()
+        group.enter()
+        lock.withLock { starting = group }
+        DispatchQueue.global(qos: .userInteractive).async { [self] in
+            let found = Self.newestOnDevice(code)
+            lock.withLock {
+                // Unless a language was shown meanwhile. Nothing has drawn in another yet, so nothing needs telling.
+                if starting === group {
+                    starting = nil
+                    pack = found
+                    parsed = [:]
+                    failed = []
+                }
+            }
+            group.leave()
+        }
+    }
+
+    /// Waits for the pack `startWithLastShown` is reading, if it's still being read.
+    private func awaitStart() {
+        lock.withLock { starting }?.wait()
     }
 
     /// The best of the device's languages among those offered (pt-BR, then pt); nil for English or none.

@@ -9,9 +9,8 @@ struct FlexarrTVApp: App {
     @State private var language: LanguageState
 
     init() {
-        // The language shown last, before anything draws (tvOS has no App Group: the Top Shelf reads its own copy).
+        // The language shown last, read while the app sets up (tvOS has no App Group: the Top Shelf reads its own copy).
         Localization.shared.startWithLastShown()
-        _language = State(initialValue: LanguageState())
         Symbol.checkAll()
         ThisDevice.identify()
         // Which way focus moves, for telling focus coming in from the sidebar from focus moving on a screen.
@@ -29,6 +28,8 @@ struct FlexarrTVApp: App {
         }
         // Siri and Shortcuts intents share the sign-in and the player (see Shared/Intents).
         AppDependencyManager.shared.add(dependency: model)
+        // Last, so the pack has the rest of setting up to be read in: the language is the first thing it waits for.
+        _language = State(initialValue: LanguageState())
     }
 
     var body: some Scene {

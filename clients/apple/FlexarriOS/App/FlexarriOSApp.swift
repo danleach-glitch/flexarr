@@ -244,10 +244,9 @@ struct FlexarriOSApp: App {
     @State private var language: LanguageState
 
     init() {
-        // The language shown last, before anything draws; kept where the widgets and notifications can read it too.
+        // The language shown last, read while the app sets up; kept where the widgets and notifications can read it too.
         Localization.appGroup = Bundle.main.object(forInfoDictionaryKey: "FlexarrAppGroup") as? String
         Localization.shared.startWithLastShown()
-        _language = State(initialValue: LanguageState())
         Symbol.checkAll()
         ThisDevice.identify()
         // Artwork is fetched constantly while browsing; give it a generous disk cache.
@@ -259,6 +258,8 @@ struct FlexarriOSApp: App {
         // Siri and Shortcuts intents share the sign-in and the player (see Shared/Intents), and so does the car.
         AppDependencyManager.shared.add(dependency: model)
         CarPlaySceneDelegate.model = model
+        // Last, so the pack has the rest of setting up to be read in: the language is the first thing it waits for.
+        _language = State(initialValue: LanguageState())
     }
 
     var body: some Scene {
