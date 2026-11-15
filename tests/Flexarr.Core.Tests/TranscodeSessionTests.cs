@@ -103,8 +103,8 @@ public sealed class TranscodeSessionTests : IDisposable
 
         await manager.SweepAsync();
 
-        // Started with the full run-ahead, so one taken up while it's still going keeps building it.
-        Assert.Contains($"-readrate_initial_burst {FfmpegCommand.RunAheadSeconds}", File.ReadAllText(args), StringComparison.Ordinal);
+        // Started with only enough to open on; one taken up while it's still going keeps running until it needs more.
+        Assert.Contains($"-readrate_initial_burst {FfmpegCommand.WarmingRunAheadSeconds}", File.ReadAllText(args), StringComparison.Ordinal);
         Assert.Equal(takenUp, session.IsRunning);
         Assert.NotNull(await session.GetSegmentAsync(1, CancellationToken.None));
     }
@@ -406,9 +406,30 @@ public sealed class TranscodeSessionTests : IDisposable
     }
 
     [Fact]
+    public async Task ConvertingInSoftware_NothingIsGotReadyAheadOfPlay_WhileSomeoneWatchesAConversion()
+    {
+        await using var software = Manager(limit: 0, hw: HardwareAcceleration.None);
+        var copy = Plan with { Repackage = new Flexarr.Streaming.Remux.Repackage([0, 4], "hvc1", "hvc1.2.4.L150.B0", null, "PQ", StripDolbyVision: false) };
+
+        // Nobody converting: a page looked at gets its stream ready.
+        Assert.NotNull(await software.CreateAsync("a", "/in.mkv", 600, Plan, preparing: true));
+        var watching = await software.CreateAsync("b", "/in.mkv", 600, Plan);
+
+        // Someone watching a conversion: the processor is theirs, though a copy can still be got ready.
+        await Assert.ThrowsAsync<TranscodeLimitException>(() => software.CreateAsync("a", "/in.mkv", 600, Plan, preparing: true));
+        Assert.NotNull(await software.CreateAsync("a", "/in.mkv", 600, copy, preparing: true));
+
+        // With a hardware encoder, the warm-up is cheap enough to run beside it.
+        await using var hardware = Manager(limit: 0, hw: HardwareAcceleration.VideoToolbox);
+        await hardware.CreateAsync("b", "/in.mkv", 600, Plan);
+        Assert.NotNull(await hardware.CreateAsync("a", "/in.mkv", 600, Plan, preparing: true));
+        Assert.True(watching.IsActive);
+    }
+
+    [Fact]
     public async Task EncodingCount_LeavesOutRepackagedStreams_SoundOnly_AndWarming()
     {
-        await using var manager = Manager(limit: 0);
+        await using var manager = Manager(limit: 0, hw: HardwareAcceleration.VideoToolbox);
         await manager.CreateAsync("a", "/in.mkv", 600, Plan);
         await manager.CreateAsync("a", "/in.mkv", 600, Plan with { Repackage = new Flexarr.Streaming.Remux.Repackage([0, 4], "hvc1", "hvc1.2.4.L150.B0", null, "PQ", StripDolbyVision: false) });
         await manager.CreateAsync("b", "/in.flac", 240, Plan with { VideoStreamIndex = -1 });
@@ -554,6 +575,7 @@ public sealed class TranscodeSessionTests : IDisposable
         Assert.False(Directory.Exists(session.Directory));
     }
 
-    private TranscodeManager Manager(int limit, string ffmpeg = "ffmpeg") =>
-        new(() => new TranscodeSettings { CacheDirectory = _cache, MaxConcurrentTranscodes = limit, FfmpegPath = ffmpeg }, NullLoggerFactory.Instance);
+    private TranscodeManager Manager(int limit, string ffmpeg = "ffmpeg", HardwareAcceleration hw = HardwareAcceleration.Auto) =>
+        new(() => new TranscodeSettings { CacheDirectory = _cache, MaxConcurrentTranscodes = limit, FfmpegPath = ffmpeg, HardwareAcceleration = hw },
+            NullLoggerFactory.Instance);
 }

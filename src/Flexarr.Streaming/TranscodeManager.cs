@@ -97,6 +97,12 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
         {
             var active = _sessions.Values.Where(s => s.IsActive && s.Plan.EncodesVideo).ToList();
             var others = otherWork?.Invoke() ?? 0;
+            if (preparing && plan.EncodesVideo && current.Resolved == HardwareAcceleration.None && (EncodingCount + others) > 0)
+            {
+                // Converting in software, a page looked at would take the processor from someone watching.
+                throw new TranscodeLimitException(Loc.T("Flexarr is busy playing on other screens, so this wasn’t got ready ahead of time."));
+            }
+
             if (preparing)
             {
                 // One profile keeps only its newest few: browsing doesn't pile up conversions.
