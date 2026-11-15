@@ -968,6 +968,25 @@ describe('Settings', () => {
     expect(sent).toEqual([{ name: 'Films', type: 'Movies', folders: ['/media/movies'] }])
   })
 
+  it('asks before removing a library with a short heading, saying the files stay', async () => {
+    let removed = false
+    mockApi({
+      '/libraries': () => (removed ? [] : [{ ...movies, scan: null }]),
+      '/library-health': { score: null },
+      'DELETE /libraries/lib-movies': () => {
+        removed = true
+        return undefined
+      },
+    })
+
+    renderAt('/settings/libraries')
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove' }))
+    const dialog = await screen.findByRole('alertdialog', { name: 'Remove Movies?' })
+    expect(dialog).toHaveTextContent('This removes it from Flexarr. The files themselves stay where they are.')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove library' }))
+    await waitFor(() => expect(removed).toBe(true))
+  })
+
   it('sends a profile that isn’t the main one from a server page to its own', async () => {
     mockApi({
       '/libraries': [],

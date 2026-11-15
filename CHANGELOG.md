@@ -43,6 +43,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Web
 
+- Removing a library in Settings asks with a short heading, with the note that the files stay underneath.
 - A card's ⋯ in Continue watching says **Remove from Continue watching**, not just **Remove**.
 - Search clears with the app's own button, gives a shorter hint on a phone, shows **Searching…** while it looks, and no longer leaves an empty strip under the field.
 - On a phone, Podcasts › Browse's search box spans the screen, so its hint isn't cut short.
