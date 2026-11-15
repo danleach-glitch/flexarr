@@ -671,19 +671,33 @@
     border-inline-start: 1px solid var(--aisle);
   }
 
+  /* Every line the same shape: dot, logo and text on one line (the text wraps in its own column, never under the
+     icons), and the buttons always on a line of their own under the text, however short its words. */
   .connection-line {
     flex-wrap: wrap;
   }
 
+  .connection-line .setting-text {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
   .connection-actions {
+    /* A whole line, less the start margin (it shrinks to fit beside it). */
+    flex: 1 1 100%;
+    justify-content: flex-start;
+    /* Under the text: past the dot (10px and a 12px gap) and, where there is one, the logo (24px and a gap). */
     margin-inline-start: 22px;
   }
 
-  /* A media folder's paths are long: they wrap within their column, beside the dot and logo, not under them. */
-  .media-folder .setting-text {
-    flex: 1 1 calc(100% - 60px);
-    min-width: 0;
-    overflow-wrap: anywhere;
+  .connection-line:has(.app-logo) > .connection-actions {
+    margin-inline-start: 58px;
+  }
+
+  /* A line with no icons (Path mappings): its text takes the line and the button goes under it. */
+  .saved-mappings.connection-line .setting-text {
+    flex-basis: 100%;
   }
 }
 
@@ -1270,7 +1284,15 @@
 }
 
 @media (max-width: 600px) {
+  /* The icon and the text stay on one line (the text wraps beside the icon), and the buttons go on a line of their
+     own under the text, starting where it starts. */
+  .sign-in-text {
+    flex: 1 1 0;
+  }
+
   .sign-in-list .sign-in-actions {
+    flex: 1 1 100%;
+    justify-content: flex-start;
     margin-inline-start: 52px;
   }
 }

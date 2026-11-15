@@ -73,6 +73,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A home-videos folder's page speaks of folders and videos rather than seasons and episodes (**Mark folder as watched**), and a folder with just one inside shows no tab for it.
 - A long title on Home's featured slide takes a smaller size and at most three lines, so the rows below stay in sight.
 - On a phone, Watchlist's sort box lines up with the chips beside it, the two rows of chips sit closer, and a ready title's bookmark sits on its poster's corner.
+- On a phone, Settings › Connections, Security and Remote access lay every row out the same way: icon and name on one line, the buttons on a line under them.
 
 ### Playback
 
