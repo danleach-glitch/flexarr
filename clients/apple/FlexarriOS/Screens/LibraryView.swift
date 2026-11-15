@@ -268,7 +268,7 @@ struct LibraryView: View {
     @ViewBuilder
     private var titles: some View {
         HStack(spacing: 10) {
-            Text(content.count(total))
+            Text(content.count(total, folders: library.type == .homeVideos))
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(Color.usher)
                 .monospacedDigit()

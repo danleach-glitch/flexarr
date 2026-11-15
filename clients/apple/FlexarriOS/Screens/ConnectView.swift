@@ -303,7 +303,9 @@ private struct PairWithServer: View {
                             .foregroundStyle(Color.screen)
                             .fixedSize(horizontal: false, vertical: true)
                         code(start, renewed: pairing.renewedAt != nil)
-                        markdown(t("Or on a computer, open **{address}** and type in the code.", ["address": server.address.appending(path: "settings/tv").absoluteString]))
+                        // /link, the page a TV's QR code opens: the same code box as Settings › Connect a device,
+                        // without an address that says TV to a phone.
+                        markdown(t("Or on a computer, open **{address}** and type in the code.", ["address": server.address.appending(path: "link").absoluteString]))
                             .font(.subheadline)
                             .foregroundStyle(Color.usher)
                             .fixedSize(horizontal: false, vertical: true)

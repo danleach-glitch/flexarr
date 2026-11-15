@@ -6,7 +6,7 @@ package io.github.flexarr.core.i18n
 @Suppress("ktlint")
 object Words {
     const val addToPlaylist = "Add to playlist"
-    const val addToQueue = "Add to queue"
+    const val addToQueue = "Add to Up next"
     const val addToWatchlist = "Add to watchlist"
     const val albums = "Albums"
     const val artists = "Artists"

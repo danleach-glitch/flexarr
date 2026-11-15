@@ -84,6 +84,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On iPhone and iPad, Search's "Nothing matches" line sits at the top of the page, so it shows above the search field when the phone is held sideways, and the search field's hint now mentions music.
 - On iPhone and iPad, a downloaded album or playlist shows the same filled green arrow as a downloaded film, instead of a tick that looked like Watched.
 - On iPhone and iPad, the Connect button on the page for entering a server's address is green.
+- Everywhere, a track's, album's or artist's menu says Add to Up next rather than Add to queue, matching the Up next list it adds to and the same choice on podcast episodes.
+- On iPhone and iPad, a home videos library counts its folders ("2 folders") rather than calling them titles.
+- On iPhone and iPad, connecting with a code from a computer points to the server's /link page instead of an address ending in settings/tv.
 
 ### Downloads
 

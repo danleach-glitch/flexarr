@@ -3,7 +3,7 @@
 /// Flexarr's shared words: `t(Words.play)`.
 public enum Words {
     public static let addToPlaylist = "Add to playlist"
-    public static let addToQueue = "Add to queue"
+    public static let addToQueue = "Add to Up next"
     public static let addToWatchlist = "Add to watchlist"
     public static let albums = "Albums"
     public static let artists = "Artists"

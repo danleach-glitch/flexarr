@@ -320,7 +320,7 @@ function EpisodeRow({
   const actions: MenuAction[] = [
     // Up Next lives on the server, so it's the same on the phone.
     { label: t(Words.playNext), run: () => addToUpNext(episode.id, true).then(onChanged) },
-    { label: t('Add to Up next'), run: () => addToUpNext(episode.id).then(onChanged) },
+    { label: t(Words.addToQueue), run: () => addToUpNext(episode.id).then(onChanged) },
     ...(showPodcast ? [{ label: t('Go to {title}', { title: episode.podcastTitle }), run: () => navigate(`/podcasts/${episode.podcastId}`) }] : []),
     // Part way through: forget the place without marking it played, which takes it out of the listening list.
     ...(progress !== null && !played ? ['divider' as const, { label: t('Mark as unplayed'), run: () => mark(false) }] : []),

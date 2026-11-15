@@ -169,7 +169,7 @@ struct PodcastEpisodeRow: View {
                 Button(role: .destructive, action: removeFromUpNext) { Label(t("Remove from Up next"), systemImage: Symbol.removeFromRow) }
             } else {
                 Button { Task { await model.addToUpNext(episode.id, next: false) } } label: {
-                    Label(t("Add to Up next"), systemImage: "text.line.last.and.arrowtriangle.forward")
+                    Label(t(Words.addToQueue), systemImage: Symbol.addToQueue)
                 }
                 .tint(Color.upNext)
                 downloadSwipe
@@ -181,7 +181,7 @@ struct PodcastEpisodeRow: View {
                 Label(t(Words.playNext), systemImage: "text.line.first.and.arrowtriangle.forward")
             }
             Button { Task { await model.addToUpNext(episode.id, next: false) } } label: {
-                Label(t("Add to Up next"), systemImage: "text.line.last.and.arrowtriangle.forward")
+                Label(t(Words.addToQueue), systemImage: Symbol.addToQueue)
             }
             if let removeFromUpNext {
                 Button(role: .destructive, action: removeFromUpNext) { Label(t("Remove from Up next"), systemImage: Symbol.removeFromRow) }

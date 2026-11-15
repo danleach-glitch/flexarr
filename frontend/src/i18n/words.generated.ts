@@ -2,7 +2,7 @@
 
 export const Words = {
   addToPlaylist: 'Add to playlist',
-  addToQueue: 'Add to queue',
+  addToQueue: 'Add to Up next',
   addToWatchlist: 'Add to watchlist',
   albums: 'Albums',
   artists: 'Artists',

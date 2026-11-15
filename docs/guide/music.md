@@ -44,7 +44,7 @@ On the web, an album's or artist's **⋯ › Delete…** deletes it for good, fo
 
 Every artist, album and playlist has **Play** and **Shuffle**, which open Now Playing. An artist's Play runs through their whole catalogue, oldest album first. Picking a single song leaves you on the list.
 
-**On the web**, the now-playing bar stays with you as you browse. Click its cover for Now Playing across the whole window: a big cover, the controls and what's up next, with light in the cover's colours moving with the music. Escape closes it. Tracks and albums have **Play next** and **Add to queue** in their menus. The queue panel above the bar lets you drag tracks into order, remove them, clear the lot or skip to any track. The queue and your place in it survive a page reload.
+**On the web**, the now-playing bar stays with you as you browse. Click its cover for Now Playing across the whole window: a big cover, the controls and what's up next, with light in the cover's colours moving with the music. Escape closes it. Tracks and albums have **Play next** and **Add to Up next** in their menus. The queue panel above the bar lets you drag tracks into order, remove them, clear the lot or skip to any track. The queue and your place in it survive a page reload.
 
 **On Apple TV, iPhone and iPad**, the player has next and previous, seeking, shuffle and repeat, and shows the whole queue. Music carries on while you browse, and playing a movie pauses it until you're done.
 
