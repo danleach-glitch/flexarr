@@ -522,17 +522,25 @@ struct HomeRowSlot: View {
     }
 }
 
+extension EnvironmentValues {
+    /// Set by a library's page under its Browse: a row's See all into that same library switches the page already open
+    /// to its titles in the row's order (true), rather than opening a second copy of the library on top. Given the
+    /// library and the row's sort.
+    @Entry var showsLibraryTitles: ((Library, LibrarySort) -> Bool)?
+}
+
 struct HomeRowView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.showsLibraryTitles) private var showsLibraryTitles
     let row: HomeRow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             SectionHeading(title: row.title, action: row.style == .live ? { router.push(.liveTv) }
                 : row.link == "/watchlist" ? { router.push(.watchlist) }
-                : linkedLibrary.map { route in { router.push(route) } })
+                : linkedLibrary.map { route in { open(route) } })
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: row.style == .top10 ? 6 : Layout.rowSpacing) {
                     // A playlists row carries playlists rather than items.
@@ -566,6 +574,12 @@ struct HomeRowView: View {
             }
             .scrollIndicators(.hidden)
         }
+    }
+
+    /// A library's own titles, from its Browse, on the page already open; anything else pushed.
+    private func open(_ route: Route) {
+        if case .library(let library, let sort, genre: nil) = route, showsLibraryTitles?(library, sort) == true { return }
+        router.push(route)
     }
 
     /// Rows link to "/library/{id}?sort=added" (a library's Browse rows to "?view=all&sort=added" or "&genre=Drama");

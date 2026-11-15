@@ -103,6 +103,14 @@ struct LibraryView: View {
                         MusicLibraryView(library: library) { viewSwitch }
                     } else {
                         LibraryBrowseView(library: library, showAll: { showing = .all }) { viewSwitch }
+                            // A row's See all here goes to All movies (or shows) in the row's order, on this page.
+                            .environment(\.showsLibraryTitles) { linked, linkedSort in
+                                guard linked.id == library.id else { return false }
+                                if showsGenreFilter { genre = nil }
+                                sort = content.sorts.contains(linkedSort) ? linkedSort : .title
+                                showing = .all
+                                return true
+                            }
                     }
                 }
             }
