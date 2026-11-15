@@ -548,7 +548,7 @@ const answers = new Map<string, unknown>()
  * Like keepPage, it outlives the cache and goes with the profile.
  */
 export function keepAnswer(key: string, value: unknown) {
-  const full = `${profileToken() ?? ''} ${key}`
+  const full = `${chosenProfileId() ?? ''} ${key}`
   answers.delete(full)
   answers.set(full, value)
   for (const old of answers.keys()) {
@@ -557,7 +557,7 @@ export function keepAnswer(key: string, value: unknown) {
   }
 }
 
-export const keptAnswer = <T>(key: string) => answers.get(`${profileToken() ?? ''} ${key}`) as T | undefined
+export const keptAnswer = <T>(key: string) => answers.get(`${chosenProfileId() ?? ''} ${key}`) as T | undefined
 
 /** Runs `load` with its cached GETs fetched afresh (a page reloading on purpose); they must start synchronously. */
 export function freshly<T>(load: () => T): T {
