@@ -30,6 +30,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Apple TV, Settings › Sidebar says "Between Home and Discover", as the Sidebar row does, and Settings › Libraries lists Books and Music only when the server has such a library.
 - On Apple TV, every Settings page's title starts at the same height, clear of "‹ Settings", and the Watchlist tab no longer repeats its name under the sidebar's label.
 - On Apple TV, Down from an artist's Play lands on their first (newest) album, not the one nearest Play.
+- On Apple TV, Home scrolls back to the top when its hero takes focus from the sidebar or the rows below, so the picture and title aren't left half off the screen.
 - On Android, Download Season fetches that season and one episode ahead, no longer the whole show.
 - On Android, pages no longer scroll up through the clock and status icons, and Settings pages keep their title and Back in view.
 - On Android, a show's season pills are all readable: Download Season sits on its own line under them.

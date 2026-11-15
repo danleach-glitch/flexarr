@@ -10,6 +10,8 @@ struct HomeView: View {
     @State private var loadedToken: Int?
     @State private var loadedAt: Date?
     @State private var isVisible = false
+    /// Scrolled back to the top as the hero takes focus from outside it (see `HomeHero.onFocusEnter`).
+    @State private var scroll = ScrollPosition(edge: .top)
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -47,7 +49,10 @@ struct HomeView: View {
         ScrollView(.vertical) {
             LazyVStack(alignment: .leading, spacing: 30) {
                 if !home.featured.isEmpty {
-                    HomeHero(items: home.featured, overviews: home.overviews, index: $featuredIndex, resuming: home.resuming)
+                    // Its buttons sit along its foot, so the focus engine scrolls only far enough to show them: coming
+                    // back from the sidebar or up from the rows would leave the hero's top cut off.
+                    HomeHero(items: home.featured, overviews: home.overviews, index: $featuredIndex, resuming: home.resuming,
+                             onFocusEnter: { withAnimation(.easeInOut(duration: 0.35)) { scroll.scrollTo(edge: .top) } })
                 } else if let message = EmptyHomeMessage(libraries: model.libraries, limitedProfile: model.hasAgeLimit ? model.currentProfile?.name : nil) {
                     // Above whatever else Home has (Coming soon, channels).
                     EmptyHome(message: message)
@@ -65,6 +70,7 @@ struct HomeView: View {
             }
             .padding(.bottom, 80)
         }
+        .scrollPosition($scroll)
         .scrollClipDisabled()
         // Under the hero; with none (only Live TV so far), the rows start below the sidebar's label at the top.
         .ignoresSafeArea(edges: home.featured.isEmpty ? [.horizontal] : [.top, .horizontal])
@@ -138,6 +144,9 @@ struct HomeHero: View {
     var resuming: (ItemSummary) -> ItemSummary? = { _ in nil }
     /// Controls at the top-left, under the sidebar's label (a library's Browse and All switch); up from Play reaches them.
     var top: AnyView?
+    /// Focus has come into the hero from outside it (the sidebar, the rows below): the page can bring the whole hero
+    /// into view, since the focus engine scrolls only as far as the buttons along its foot.
+    var onFocusEnter: (() -> Void)? = nil
     @Environment(\.focusesContent) private var takesFocus
     @FocusState private var focusedButton: HeroButton?
     @Namespace private var heroScope
@@ -258,6 +267,7 @@ struct HomeHero: View {
             // The focus engine picks the geometrically nearest button (often More info, nearer
             // the sidebar); entering the hero should always land on Play.
             if old == nil, new != nil, new != .play { focusedButton = .play }
+            if old == nil, new != nil { onFocusEnter?() }
         }
         // Moving on from an artist (by itself, or left and right) while Radio has focus: the next slide may not have
         // Radio, so focus goes to Play rather than wherever the focus engine sends it.
