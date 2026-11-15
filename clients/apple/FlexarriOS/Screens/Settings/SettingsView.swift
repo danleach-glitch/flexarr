@@ -23,15 +23,21 @@ struct SettingsView: View {
     @State private var notificationProblem: String?
     /// Nil until known, and from servers without Trakt (before 0.57) or on kids profiles.
     @State private var trakt: TraktStatus?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         List {
             if let current = model.currentProfile {
                 Section {
-                    HStack(spacing: 14) {
-                        ProfileAvatar(profile: current, size: 44)
-                        Text(current.name).font(.body.weight(.semibold))
-                        Spacer()
+                    // At the accessibility text sizes Switch goes under the name, rather than breaking ("Switc h").
+                    let stacked = dynamicTypeSize.isAccessibilitySize
+                    let layout = stacked ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10)) : AnyLayout(HStackLayout(spacing: 14))
+                    layout {
+                        HStack(spacing: 14) {
+                            ProfileAvatar(profile: current, size: 44)
+                            Text(current.name).font(.body.weight(.semibold))
+                        }
+                        if !stacked { Spacer() }
                         // Choosing someone else takes the server.
                         if model.offersProfilePicker, !model.isOffline {
                             Button(t("Switch")) { choosingProfile = true }

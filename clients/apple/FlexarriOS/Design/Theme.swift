@@ -82,13 +82,18 @@ struct SectionHeading: View {
     var action: (() -> Void)?
     /// What VoiceOver says for the action, when "See all" alone wouldn't say what of.
     var actionLabel: String?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
+        // At the accessibility text sizes See all goes under the heading, so the heading has the width and doesn't
+        // break mid-word ("unwatche d").
+        let stacked = dynamicTypeSize.isAccessibilitySize
+        let layout = stacked ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4)) : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
+        layout {
             Text(title)
                 .font(.marquee(26, weight: .bold))
                 .foregroundStyle(Color.screen)
-            Spacer()
+            if !stacked { Spacer() }
             if let action {
                 #if os(iOS)
                 Button(action: action) {
