@@ -683,6 +683,7 @@ final class AppModel {
     func checkAwayAddress() async {
         guard let credentials, !credentials.isGuest, credentials.remoteAddress != nil, !credentials.remoteConfirmed else { return }
         await checkRemoteAddress(credentials)
+        confirmRemoteLater()
     }
 
     /// While the away address isn't confirmed (Tailscale wasn't connected here when the server gave it), it's asked
@@ -693,8 +694,12 @@ final class AppModel {
         guard remoteRetry == nil, let started = credentials, started.remoteAddress != nil, !started.remoteConfirmed else { return }
         remoteRetry = Task { [weak self] in
             var wait = Duration.seconds(30)
-            while !Task.isCancelled {
+            var waited = Duration.zero
+            // For an hour at most: someone who never connects Tailscale here needn't be asked for ever. Coming back
+            // online, or opening Settings › Server, starts it again.
+            while !Task.isCancelled, waited < .seconds(3600) {
                 try? await Task.sleep(for: wait)
+                waited += wait
                 guard let self, !Task.isCancelled else { return }
                 guard let credentials = self.credentials, credentials.address == started.address, credentials.remoteAddress != nil,
                       !credentials.remoteConfirmed else { break }
@@ -867,6 +872,8 @@ final class AppModel {
             }
         } else {
             if tunnelProblem != nil, credentials?.isGuest == true { Task { await ensureGuestTunnel() } }
+            // Tailscale may have come up with the network: an unconfirmed away address is asked again.
+            if credentials?.isGuest == false { confirmRemoteLater() }
             // Once the new network has settled.
             if isOffline {
                 Task {

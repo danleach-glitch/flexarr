@@ -1258,6 +1258,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         val credentials = credentials ?: return
         if (credentials.isGuest || credentials.remoteAddress == null || credentials.remoteConfirmed) return
         checkRemoteAddress(credentials)
+        confirmRemoteLater()
     }
 
     /**
@@ -1271,8 +1272,12 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         if (remoteRetry?.isActive == true || started.remoteAddress == null || started.remoteConfirmed) return
         remoteRetry = scope.launch {
             var waitMs = 30_000L
-            while (true) {
+            var waitedMs = 0L
+            // For an hour at most: someone who never connects Tailscale here needn't be asked for ever. Coming back
+            // online, or opening Settings › Server, starts it again.
+            while (waitedMs < 3_600_000L) {
                 delay(waitMs)
+                waitedMs += waitMs
                 val credentials = credentials ?: break
                 if (credentials.address != started.address || credentials.remoteAddress == null || credentials.remoteConfirmed) break
                 checkRemoteAddress(credentials)
@@ -2096,10 +2101,14 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                 // A moment's grace: moving from Wi-Fi to mobile data drops the network briefly.
                 delay(2_000)
                 if (network.isOffline && profilesLoaded && !serverUnreachable) goOffline()
-            } else if (serverUnreachable) {
-                // Once the new network has settled.
-                delay(1_000)
-                checkConnection()
+            } else {
+                // Tailscale may have come up with the network: an unconfirmed away address is asked again.
+                if (credentials?.isGuest == false) confirmRemoteLater()
+                if (serverUnreachable) {
+                    // Once the new network has settled.
+                    delay(1_000)
+                    checkConnection()
+                }
             }
         }
     }
