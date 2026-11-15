@@ -61,6 +61,11 @@ final class PlayerControlsView: UIView {
     private let remainingLabel = UILabel()
     private let topShade = GradientView(top: 0.55, bottom: 0)
     private let bottomShade = GradientView(top: 0, bottom: 0.7)
+    #if os(tvOS)
+    /// Darkens the picture while an Audio, Subtitles, Speed or Sleep menu is open: the system draws those menus see-through,
+    /// and over a bright picture their headings and values were too faint to read.
+    private let menuScrim = UIView()
+    #endif
     private let hud = UILabel()
     private var hudTask: Task<Void, Never>?
 
@@ -392,6 +397,14 @@ final class PlayerControlsView: UIView {
             addSubview(shade)
         }
         #if os(tvOS)
+        menuScrim.backgroundColor = UIColor(Color.room).withAlphaComponent(0.6)
+        menuScrim.alpha = 0
+        menuScrim.isUserInteractionEnabled = false
+        menuScrim.frame = bounds
+        menuScrim.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        addSubview(menuScrim)
+        #endif
+        #if os(tvOS)
         titleLabel.font = .systemFont(ofSize: 40, weight: .bold)
         subtitleLabel.font = .systemFont(ofSize: 27, weight: .medium)
         detailLabel.font = .systemFont(ofSize: 20, weight: .semibold)
@@ -653,6 +666,13 @@ final class PlayerControlsView: UIView {
     /// A menu is open (or has just closed) on one of the menu buttons.
     var onMenuVisibility: ((_ button: UIButton, _ visible: Bool) -> Void)?
     #if os(tvOS)
+    /// Dims the picture behind an open menu, in step with the menu's own animation.
+    fileprivate func setMenuScrim(_ visible: Bool, animator: (any UIContextMenuInteractionAnimating)?) {
+        let change = { [menuScrim] in menuScrim.alpha = visible ? 1 : 0 }
+        if let animator { animator.addAnimations(change) } else { UIView.animate(withDuration: 0.25, animations: change) }
+    }
+    #endif
+    #if os(tvOS)
     /// Where focus goes next, once: the button whose menu just closed.
     var focusNext: UIView?
     /// Focus reached the Skip intro / Next Episode pill (on a TV, that stops a countdown).
@@ -732,11 +752,17 @@ final class PlayerControlsView: UIView {
 
         override func contextMenuInteraction(_ interaction: UIContextMenuInteraction, willDisplayMenuFor configuration: UIContextMenuConfiguration, animator: (any UIContextMenuInteractionAnimating)?) {
             super.contextMenuInteraction(interaction, willDisplayMenuFor: configuration, animator: animator)
+            #if os(tvOS)
+            controls?.setMenuScrim(true, animator: animator)
+            #endif
             controls?.onMenuVisibility?(self, true)
         }
 
         override func contextMenuInteraction(_ interaction: UIContextMenuInteraction, willEndFor configuration: UIContextMenuConfiguration, animator: (any UIContextMenuInteractionAnimating)?) {
             super.contextMenuInteraction(interaction, willEndFor: configuration, animator: animator)
+            #if os(tvOS)
+            controls?.setMenuScrim(false, animator: animator)
+            #endif
             controls?.onMenuVisibility?(self, false)
         }
     }
