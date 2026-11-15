@@ -101,9 +101,10 @@ struct ProfilePickerView: View {
         .animation(.easeInOut(duration: 0.2), value: asking)
         .animation(.easeInOut(duration: 0.2), value: forgetting)
         .animation(.easeInOut(duration: 0.2), value: kidsLockPin)
-        // A link asked to play as a profile with a PIN: straight to its PIN.
-        .onAppear { if let profile = model.linkProfile, !marksCurrent { asking = profile } }
-        .onChange(of: model.linkProfile) { _, profile in if let profile, !marksCurrent { asking = profile } }
+        // A link asked to play as a profile with a PIN: straight to its PIN. One without (a link from another app
+        // asks first) leaves the choice here, where pressing it is enough.
+        .onAppear { if let profile = model.linkProfile, profile.needsPinToChoose, !marksCurrent { asking = profile } }
+        .onChange(of: model.linkProfile) { _, profile in if let profile, profile.needsPinToChoose, !marksCurrent { asking = profile } }
         .onDisappear { knownParentPin = nil }
         // Child lock can be turned off from the web while the app's open: what it says now.
         .task { await model.refreshKidsLock() }
