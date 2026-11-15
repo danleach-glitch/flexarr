@@ -138,9 +138,12 @@ struct ProfilePickerView: View {
                                         if lockBadge(for: profile) { padlock }
                                     }
                                 VStack(spacing: 2) {
+                                    // A long name takes a second line rather than being cut short beside room to spare.
                                     Text(profile.name)
                                         .font(.body.weight(.semibold))
                                         .foregroundStyle(Color.screen)
+                                        .lineLimit(2)
+                                        .multilineTextAlignment(.center)
                                     Text(caption(for: profile) ?? " ")
                                         .font(.caption.weight(.medium))
                                         .foregroundStyle(Color.usher)
@@ -178,9 +181,10 @@ struct ProfilePickerView: View {
                         #endif
                     }
                 }
-                // One row's width at most, so a few profiles sit in the middle rather than starting from the left edge; a
-                // narrower window wraps them. (An iPhone's fill its width as they are.)
-                .frame(maxWidth: centred ? CGFloat(min(model.profiles.count, 6)) * Self.columnStride - Self.columnSpacing : .infinity)
+                // One row's width at most, so profiles that fit one row sit in the middle rather than starting from the
+                // left edge (an iPad's sheet, which is compact, as well as the full-screen picker); a narrower window
+                // wraps them, and more than fit an iPhone fill its width as they are.
+                .frame(maxWidth: CGFloat(min(max(model.profiles.count, 1), 6)) * Self.columnStride - Self.columnSpacing)
                 .padding(.horizontal, 32)
 
                 if let error {
