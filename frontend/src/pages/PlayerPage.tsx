@@ -49,7 +49,7 @@ import { speedLabel } from '../lib/podcasts'
 import { drawStyled, fontsFor, type StyledSubtitles } from '../lib/styledSubtitles'
 import { cueLine, pictureIn } from '../lib/subtitlePlacement'
 import { skipAt, skipCancelled, skipFresh, skipPressed, skipSeeked, type SkipNow, type SkipState } from '../lib/skipTiming'
-import { NEXT_EPISODE_COUNTDOWN_SECONDS, nextEpisodeTiming, upNextAt, upNextAtEnd, upNextFresh, upNextMoved, type UpNextState } from '../lib/upNext'
+import { NEXT_EPISODE_COUNTDOWN_SECONDS, nextEpisodeTiming, timeMattersHidden, upNextAt, upNextAtEnd, upNextFresh, upNextMoved, type UpNextState } from '../lib/upNext'
 import { dialogueBoostChoices, isShaping, nightModeChoices, readSoundSettings, shapingFor, speakerChoices, timeOfDay, unshaped, useSoundSettings, useSoundShaping, writeSoundSettings } from '../lib/soundSettings'
 import { detectProfile, prefersNativeHls } from '../lib/profile'
 import { prepareVideo, rememberCopyingFailed, startVideo, streamBadge, wasCopyAsked } from '../lib/copiedVideo'
@@ -234,6 +234,12 @@ export function PlayerPage() {
   const [nativeHls, setNativeHls] = useState(false)
   const [time, setTime] = useState(0)
   const [bufferedTo, setBufferedTo] = useState(0)
+  /**
+   * Whether timeupdate should redraw the page each second: with the controls showing, or when something on screen
+   * follows the position (set each render, below). Otherwise the whole player needn't redraw beside the decoding.
+   */
+  const followTime = useRef<(position: number) => boolean>(() => true)
+  const timeShown = useRef(0)
   const [volume, setVolume] = useState(1)
   const [muted, setMuted] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
@@ -518,6 +524,7 @@ export function PlayerPage() {
     // The last title's position goes too: left over, it would put the next episode in its own credits at once (Skip
     // credits would mark it watched and count down to the one after).
     setTime(0)
+    timeShown.current = 0
     setBufferedTo(0)
     skipState.current = skipFresh
     setSkipShown({})
@@ -607,11 +614,19 @@ export function PlayerPage() {
     if (!el) return
     // timeupdate fires about four times a second; whole seconds are all the controls show, and React skips a
     // render when the value hasn't changed.
+    // With the controls hidden and nothing following the position, it's kept to within 15 seconds.
     const onTime = () => {
-      setTime(Math.floor(el.currentTime))
+      const position = Math.floor(el.currentTime)
+      const follow = followTime.current(el.currentTime)
+      if (follow || Math.abs(position - timeShown.current) >= 15) {
+        timeShown.current = position
+        setTime(position)
+      }
       // Next Episode follows the real position, so it moves on on time rather than up to a second late.
       upNextTick.current(el.currentTime)
       skipTick.current(el.currentTime)
+      // Only the seek bar shows what's buffered.
+      if (!follow) return
       for (let i = 0; i < el.buffered.length; i++) {
         if (el.buffered.start(i) <= el.currentTime + 0.5 && el.buffered.end(i) >= el.currentTime) setBufferedTo(Math.floor(el.buffered.end(i)))
       }
@@ -809,6 +824,13 @@ export function PlayerPage() {
   }, [wake])
 
   const chromeShown = chrome || !playing || menu !== null || !!error
+  // Back from hidden, the controls show the position as it is now, not up to 15 seconds ago.
+  useEffect(() => {
+    const el = video.current
+    if (!chromeShown || !el) return
+    timeShown.current = Math.floor(el.currentTime)
+    setTime(timeShown.current)
+  }, [chromeShown])
 
   // An open menu closes at a press anywhere outside it. A press on the picture only closes it (it doesn't pause too);
   // another control goes on to do its own thing, opening its menu instead, say.
@@ -848,7 +870,9 @@ export function PlayerPage() {
   const now = useRef({ info, time, duration, finished: ended, credits: undefined as number | undefined })
   now.current = { info, time, duration, finished: ended, credits: info?.markers.find((m) => m.type === 'Credits')?.start }
   const endingNow = (): PlaybackEnding | undefined => {
-    const { info: playing, time: at, duration: length, finished: over, credits: creditsStart } = now.current
+    const { info: playing, time: shownAt, duration: length, finished: over, credits: creditsStart } = now.current
+    // The real position: with the controls hidden, the one shown can be a few seconds behind.
+    const at = Math.max(shownAt, video.current?.currentTime ?? 0)
     // A shuffle belongs to its show, whose page has nothing to move on to.
     if (!playing || shuffleRef.current) return undefined
     return { from: origin.current, startedWith: startedWith.current, stoppedOn: playing.item.id, watched: over || isWatched(at, length, creditsStart), next: playing.next?.id ?? null }
@@ -993,6 +1017,9 @@ export function PlayerPage() {
   const countdown = countingLive ? upNow.countdown : (endCountdown ?? 0)
   // After Cancel the card stays, with only Play now.
   const showUpNext = !!info?.next && !sleepStopped && (upNow.show || counting)
+  useEffect(() => {
+    followTime.current = (position) => chromeShown || counting || timeMattersHidden({ timing: upNext, sleeping: sleep !== null, position })
+  })
 
   const playNext = useCallback(() => {
     if (info?.next) navigate(`/play/${info.next.id}?t=0${shuffle ? '&shuffle=1' : ''}`, { replace: true })
@@ -1290,8 +1317,15 @@ export function PlayerPage() {
 
   // ---------- Keyboard
 
+  // The handler is this render's (it reads the current state); the listener is added once.
+  const keyHandler = useRef<(e: KeyboardEvent) => void>(() => undefined)
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
+    const onKey = (e: KeyboardEvent) => keyHandler.current(e)
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+  useEffect(() => {
+    keyHandler.current = (e: KeyboardEvent) => {
       // The subtitle search dialog has the keys (Escape closes it, not the player).
       if (belongsToFocused(e) || e.metaKey || e.ctrlKey || findingSubtitles) return
       // With an error showing, only its buttons (and Escape, to leave) do anything.
@@ -1352,8 +1386,6 @@ export function PlayerPage() {
           break
       }
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
   })
 
   // ---------- The secondary controls' menus: each beside its own button, or all in one ⋯ on a phone

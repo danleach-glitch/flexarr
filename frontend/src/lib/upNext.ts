@@ -156,3 +156,16 @@ export function upNextAtEnd({
   if (state.cancelled || !autoPlayNext) return 'close'
   return holds ? null : 'countdown'
 }
+
+/** How long before the Next Episode card could show the player starts following the position each second again. */
+export const TIME_MATTERS_LEAD_SECONDS = 60
+
+/**
+ * Whether the position, to the second, matters to what the player shows with its controls hidden: a sleep timer
+ * counting down, or the Next Episode card near (or showing). Otherwise the hidden controls needn't follow it.
+ */
+export function timeMattersHidden({ timing, sleeping, position }: { timing: NextEpisodeTiming | null; sleeping: boolean; position: number }) {
+  if (sleeping) return true
+  if (!timing) return false
+  return position >= Math.min(timing.showAt, timing.countdownFrom ?? Infinity) - TIME_MATTERS_LEAD_SECONDS
+}
