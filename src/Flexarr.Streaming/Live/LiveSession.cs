@@ -20,6 +20,8 @@ public sealed partial class LiveSession : IAsyncDisposable
     private const int MaxRestarts = 5;
 
     private readonly LiveSource _source;
+    private readonly LiveRelay? _relay;
+    private LiveRelayLease? _lease;
     private readonly TranscodeSettings _settings;
     private readonly ILogger _logger;
     private readonly ConcurrentDictionary<string, DateTime> _viewers = new(StringComparer.Ordinal);
@@ -29,10 +31,15 @@ public sealed partial class LiveSession : IAsyncDisposable
     private volatile bool _disposed;
     private string? _lastError;
 
-    public LiveSession(string channelKey, LiveSource source, LivePlan plan, TimeSpan rewind, TranscodeSettings settings, ILogger logger)
+    /// <param name="relay">
+    /// Where ffmpeg reads a source with a secret in its address from, so the secret stays off its command line (see
+    /// <see cref="LiveRelay"/>); null to give ffmpeg every address as it is (tests).
+    /// </param>
+    public LiveSession(string channelKey, LiveSource source, LivePlan plan, TimeSpan rewind, TranscodeSettings settings, ILogger logger, LiveRelay? relay = null)
     {
         ChannelKey = channelKey;
         _source = source;
+        _relay = relay;
         Plan = plan;
         Rewind = rewind;
         _settings = settings;
@@ -77,12 +84,26 @@ public sealed partial class LiveSession : IAsyncDisposable
     private void StartProcess(bool resume)
     {
         var start = new ProcessStartInfo(_settings.FfmpegPath) { UseShellExecute = false, RedirectStandardError = true };
-        foreach (var arg in LiveCommand.Hls(_source, Plan, Directory, _settings, Rewind, resume))
+        // Each run of ffmpeg gets its own one-time relay address; the last run's ends with it.
+        _lease?.Dispose();
+        var lease = _relay?.Open(_source);
+        _lease = lease;
+        foreach (var arg in LiveCommand.Hls(lease?.Source ?? _source, Plan, Directory, _settings, Rewind, resume))
         {
             start.ArgumentList.Add(arg);
         }
 
-        var process = Process.Start(start) ?? throw new LiveStreamException($"Could not start {_settings.FfmpegPath}");
+        Process process;
+        try
+        {
+            process = Process.Start(start) ?? throw new LiveStreamException($"Could not start {_settings.FfmpegPath}");
+        }
+        catch
+        {
+            lease?.Dispose();
+            throw;
+        }
+
         var startedAt = DateTime.UtcNow;
         process.ErrorDataReceived += (_, e) =>
         {
@@ -118,6 +139,12 @@ public sealed partial class LiveSession : IAsyncDisposable
             catch (InvalidOperationException)
             {
                 return;
+            }
+
+            // Through the relay, ffmpeg only sees its side: what the provider itself said is the better reason.
+            if (_lease is { UpstreamError: { } upstream })
+            {
+                _lastError = _source.Redact(upstream);
             }
 
             LogExited(ChannelKey, code, _lastError ?? "no message");
@@ -471,6 +498,9 @@ public sealed partial class LiveSession : IAsyncDisposable
             _disposed = true;
             process = _process;
         }
+
+        // The relay's token ends with the channel, along with its connection to the provider.
+        _lease?.Dispose();
 
         if (process is not null)
         {

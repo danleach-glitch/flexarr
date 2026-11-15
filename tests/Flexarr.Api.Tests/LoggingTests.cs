@@ -32,6 +32,9 @@ public class LoggingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApiF
     [InlineData("mail dan@example.com about https://example.com/a@b", "mail dan@example.com about https://example.com/a@b")]
     [InlineData("the author= field stays", "the author= field stays")]
     [InlineData("nothing secret here", "nothing secret here")]
+    [InlineData("http://dispatcharr:9191/live/flexarr/pw/7.ts: Server returned 404", "http://dispatcharr:9191/live/***/***/7.ts: Server returned 404")]
+    [InlineData("GET /movie/me/p%40ss/12.mkv", "GET /movie/***/***/12.mkv")]
+    [InlineData("library /Volumes/live/tv/shows/Show 1", "library /Volumes/live/tv/shows/Show 1")]
     public void RedactsNamedSecrets(string line, string expected) => Assert.Equal(expected, Redactor.Redact(line));
 
     [Fact]

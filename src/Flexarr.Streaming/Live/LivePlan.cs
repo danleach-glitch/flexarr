@@ -88,15 +88,17 @@ public static class LiveProbe
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(20);
 
-    public static async Task<LiveFormat> ProbeAsync(string ffprobePath, LiveSource source, CancellationToken ct)
+    /// <param name="relay">Where a source with a secret in its address is read from (see <see cref="LiveRelay"/>).</param>
+    public static async Task<LiveFormat> ProbeAsync(string ffprobePath, LiveSource source, CancellationToken ct, LiveRelay? relay = null)
     {
         ArgumentNullException.ThrowIfNull(source);
+        using var lease = relay?.Open(source);
         var start = new ProcessStartInfo(ffprobePath) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
         foreach (var arg in new[]
         {
             "-v", "error", "-protocol_whitelist", "http,https,tcp,tls", "-rw_timeout", "15000000",
             "-analyzeduration", "4000000", "-probesize", "5000000",
-            "-print_format", "json", "-show_streams", "-i", source.Url,
+            "-print_format", "json", "-show_streams", "-i", (lease?.Source ?? source).Url,
         })
         {
             start.ArgumentList.Add(arg);
@@ -112,7 +114,7 @@ public static class LiveProbe
             await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
             if (process.ExitCode != 0)
             {
-                throw LiveStreamException.FromError(source.Redact((await stderr.ConfigureAwait(false)).Trim()));
+                throw LiveStreamException.FromError(source.Redact(lease?.UpstreamError ?? (await stderr.ConfigureAwait(false)).Trim()));
             }
 
             return Parse(await stdout.ConfigureAwait(false));

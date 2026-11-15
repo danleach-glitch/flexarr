@@ -268,6 +268,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Live TV
 
+- Live TV logins stay inside Flexarr: a channel whose address holds the login (every Dispatcharr channel does) is now fetched by Flexarr itself and handed to its video converter on this computer only, so the password no longer shows in the list of running programs. Channels play, reconnect and record as before.
 - A channel's rewind window no longer fills the server's disk: each channel keeps at most 8 GB (about four hours of HD), so a 4K channel can be rewound less far, and when the disk is nearly full the oldest part of the window goes first.
 
 ### Server

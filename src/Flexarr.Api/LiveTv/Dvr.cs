@@ -97,7 +97,7 @@ public sealed class DvrSignal
 /// a recording by stopping live viewing of other channels, and running the recordings.
 /// </summary>
 public sealed partial class DvrService(IServiceScopeFactory scopes, IOptionsMonitor<FlexarrOptions> options, LiveStreams streams, LiveTvViewers viewers,
-    ILibraryScanQueue scans, TimeProvider clock, ILogger<DvrService> logger) : IAsyncDisposable
+    ILibraryScanQueue scans, TimeProvider clock, ILogger<DvrService> logger, LiveRelay relay) : IAsyncDisposable
 {
     private static readonly TimeSpan ReportKeptFor = TimeSpan.FromHours(1);
 
@@ -282,7 +282,7 @@ public sealed partial class DvrService(IServiceScopeFactory scopes, IOptionsMoni
 
         LogStarted(recording.Title, recording.ChannelName, active.Until);
         var work = Path.Combine(folder, ".recording", id.ToString("N"));
-        var result = await LiveRecorder.RecordAsync(settings.FfmpegPath, source, work, active.Until, clock, logger, active.Stop.Token);
+        var result = await LiveRecorder.RecordAsync(settings.FfmpegPath, source, work, active.Until, clock, logger, active.Stop.Token, relay);
         if (_shuttingDown)
         {
             // The parts stay, and it's still Recording: after the restart it carries on (or, if it's over by then, the

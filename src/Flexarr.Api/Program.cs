@@ -186,11 +186,14 @@ builder.Services.AddHostedService<LiveTvGuideWorker>();
 // Live channels and films share the one transcode limit: each counts the other's (resolved when asked, as each needs the other),
 // under one lock, so simultaneous starts on both sides can't go over it.
 var transcodeSlots = new Lock();
+// Live TV sign-ins (in every Xtream stream address) stay inside Flexarr: ffmpeg reads such channels from 127.0.0.1.
+builder.Services.AddSingleton(sp => new Flexarr.Streaming.Live.LiveRelay(sp.GetRequiredService<ILogger<Flexarr.Streaming.Live.LiveRelay>>()));
 builder.Services.AddSingleton(sp => new Flexarr.Streaming.Live.LiveStreams(
     () => PlaybackEndpoints.TranscodeSettingsFor(sp.GetRequiredService<IOptionsMonitor<FlexarrOptions>>().CurrentValue),
     sp.GetRequiredService<ILoggerFactory>(),
     () => sp.GetRequiredService<TranscodeManager>().EncodingCount,
-    transcodeSlots));
+    transcodeSlots,
+    sp.GetRequiredService<Flexarr.Streaming.Live.LiveRelay>()));
 builder.Services.AddHostedService<LiveTvSweeper>();
 builder.Services.AddSingleton<DvrSignal>();
 builder.Services.AddSingleton<DvrService>();

@@ -32,6 +32,7 @@ public static partial class Redactor
         }
 
         text = UserInfo().Replace(text, "$1***@");
+        text = XtreamPath().Replace(text, "$1***/***/");
         text = Named().Replace(text, m => $"{m.Groups[1].Value}***");
         text = Bearer().Replace(text, "$1***");
 
@@ -50,6 +51,10 @@ public static partial class Redactor
     /// <summary>The user name and password in an address (<c>https://user:pass@host</c>).</summary>
     [GeneratedRegex(@"\b([a-z][a-z0-9+.\-]*://)[^/\s@?#""'<>]+@", RegexOptions.IgnoreCase)]
     private static partial Regex UserInfo();
+
+    /// <summary>The user name and password in an Xtream stream address (<c>/live/user/pass/123.ts</c>), whatever their length.</summary>
+    [GeneratedRegex(@"(/(?:live|movie|series|timeshift)/)[^/\s?#""'<>]+/[^/\s?#""'<>]+/(?=[^/\s?#""'<>]*\d)", RegexOptions.IgnoreCase)]
+    private static partial Regex XtreamPath();
 
     [GeneratedRegex(@"\b(Bearer\s+)[^\s""\\]+", RegexOptions.IgnoreCase)]
     private static partial Regex Bearer();
