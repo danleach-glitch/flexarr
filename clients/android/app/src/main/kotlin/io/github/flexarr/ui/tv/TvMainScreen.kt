@@ -96,6 +96,9 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import androidx.tv.material3.LocalContentColor
+import androidx.tv.material3.LocalTextStyle
+import io.github.flexarr.ui.components.FittingText
 import io.github.flexarr.AppModel
 import io.github.flexarr.BuildConfig
 import io.github.flexarr.ui.Navigator
@@ -530,7 +533,15 @@ private fun SidebarRow(title: String, selected: Boolean, onClick: () -> Unit, mo
     ) {
         Row(Modifier.fillMaxSize().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             icon()
-            Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            // A name too long for the sidebar (a language that runs long, a library's own name) is drawn smaller to fit.
+            FittingText(
+                title,
+                largest = 15.sp,
+                smallest = 12.sp,
+                color = LocalContentColor.current,
+                style = LocalTextStyle.current.copy(fontWeight = FontWeight.SemiBold),
+                modifier = Modifier.weight(1f),
+            )
         }
     }
 }

@@ -38,6 +38,9 @@ import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import io.github.flexarr.ui.components.isWide
+import io.github.flexarr.ui.components.FittingText
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarDuration
@@ -53,7 +56,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
@@ -465,14 +467,18 @@ fun MainScreen(model: AppModel) {
 
 /**
  * A tab's name on one line. It grows with the system's font size up to a third larger, then stops, so "Libraries"
- * still fits five across at the largest sizes (the screens' own text keeps growing).
+ * still fits five across at the largest sizes (the screens' own text keeps growing). A name too long for its tab (a
+ * language that runs long) is drawn smaller to fit, rather than cut short.
  */
 @Composable
 private fun TabLabel(text: String) {
     val scale = LocalDensity.current.fontScale
     val size = if (scale > MAX_TAB_SCALE) 12.sp * (MAX_TAB_SCALE / scale) else 12.sp
-    Text(text, fontSize = size, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+    FittingText(text, largest = size, smallest = size * MIN_TAB_SHRINK, color = LocalContentColor.current, style = LocalTextStyle.current)
 }
+
+/** How small a tab's name may get to fit: three quarters of its size (9 points, at the usual text size). */
+private const val MIN_TAB_SHRINK = 0.75f
 
 private const val MAX_TAB_SCALE = 1.3f
 

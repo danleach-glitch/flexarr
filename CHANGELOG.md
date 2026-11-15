@@ -109,6 +109,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Android, posters and artwork already seen at home aren't downloaded again away from home over Tailscale, or again once you're back.
 - On Android phones and TVs, going back to a page (Home, a library, Settings) shows it straight away instead of loading it again behind a spinner.
 - On Android phones, going back from a film or show to its library's All grid keeps your place, however far down you'd scrolled.
+- On Android phones and TVs, a tab or sidebar name too long to fit (in a language that runs long) is drawn a little smaller instead of being cut short.
 
 ### Trakt
 
