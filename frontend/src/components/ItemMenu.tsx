@@ -86,7 +86,7 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
       if (resumable) actions.push({ label: t(Words.startOver), run: go(`/play/${item.id}?t=0`) })
       actions.push('divider', { label: item.userData.watched ? t('Mark episode as unwatched') : t('Mark episode as watched'), run: mark(item, !item.userData.watched), marks: true })
       if (started) actions.push({ label: t('Mark episode as unwatched'), run: mark(item, false), marks: true })
-      else if (continueWatching && !item.userData.watched) actions.push({ label: t('Remove'), run: remove })
+      else if (continueWatching && !item.userData.watched) actions.push({ label: t('Remove from Continue watching'), run: remove })
       if (showId)
         actions.push({
           label: item.seriesTitle ? t('Mark all of {show} as watched', { show: item.seriesTitle }) : t('Mark all of the show as watched'),
@@ -126,14 +126,14 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
       // Remove (which stops it first) takes it off Continue listening instead, so the two are never offered together.
       const playing = music.current?.id === item.id
       if ((finished || started) && !playing) actions.push({ label: t(Words.markAsUnread), run: markBook(false), marks: true })
-      else if (continueWatching && started) actions.push({ label: t('Remove'), run: remove })
+      else if (continueWatching && started) actions.push({ label: t('Remove from Continue watching'), run: remove })
       if (!kids) actions.push({ label: t('Add to collection…'), run: () => openAddToCollection(item) })
       break
     }
     case 'PodcastEpisode':
       actions.push({ label: started ? t('Resume') : t(Words.play), run: () => music.play([item]) })
       // Played takes it out of the row as well; Remove forgets the place without marking it.
-      if (continueWatching) actions.push('divider', { label: t(Words.markAsPlayed), run: mark(item, true), marks: true }, { label: t('Remove'), run: remove })
+      if (continueWatching) actions.push('divider', { label: t(Words.markAsPlayed), run: mark(item, true), marks: true }, { label: t('Remove from Continue watching'), run: remove })
       break
   }
 
