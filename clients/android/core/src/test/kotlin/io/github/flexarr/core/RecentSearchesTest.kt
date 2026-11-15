@@ -71,5 +71,8 @@ class RecentSearchesTest {
     fun `a server from before recent searches has none`() = runTest {
         server.enqueue(MockResponse.Builder().code(404).build())
         assertTrue(FlexarrClient(server.url("/")).recentSearches().isEmpty)
+        // Before 0.59 a path the server doesn't know gets the web app's page.
+        server.enqueue(MockResponse.Builder().addHeader("Content-Type", "text/html; charset=utf-8").body("<!doctype html>").build())
+        assertTrue(FlexarrClient(server.url("/")).recentSearches().isEmpty)
     }
 }

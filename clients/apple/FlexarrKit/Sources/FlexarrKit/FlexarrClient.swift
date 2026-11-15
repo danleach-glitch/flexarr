@@ -490,11 +490,12 @@ public struct FlexarrClient: Sendable {
         try await get("search", query: [.init(name: "q", value: query)])
     }
 
-    /// The profile's recent searches and the titles opened from them. Servers before 0.56 have none.
+    /// The profile's recent searches and the titles opened from them. Servers before 0.56 have none: they answer 404,
+    /// or (before 0.59) with the web app's page, an unexpected response.
     public func recentSearches() async throws -> RecentSearches {
         do {
             return try await get("search/recent")
-        } catch FlexarrClientError.http(status: 404, _) {
+        } catch FlexarrClientError.http(status: 404, _), FlexarrClientError.unexpectedResponse {
             return RecentSearches()
         }
     }
@@ -730,11 +731,12 @@ public struct FlexarrClient: Sendable {
         try await waitingPairingsIfKept() ?? []
     }
 
-    /// As `waitingPairings`, but nil from servers before 0.56, so a list of them can say there's none to show.
+    /// As `waitingPairings`, but nil from servers before 0.56, so a list of them can say there's none to show. Those
+    /// answer 404, or (before 0.59) with the web app's page, an unexpected response.
     public func waitingPairingsIfKept() async throws -> [PairingRequest]? {
         do {
             return try await get("pairing/waiting")
-        } catch FlexarrClientError.http(status: 404, _) {
+        } catch FlexarrClientError.http(status: 404, _), FlexarrClientError.unexpectedResponse {
             return nil
         }
     }
@@ -939,13 +941,14 @@ public struct FlexarrClient: Sendable {
         try await get("me")
     }
 
-    /// The languages this server offers, English first. Empty from servers before 0.61 (which answer 404).
+    /// The languages this server offers, English first. Empty from servers before 0.61, which answer 404 (or, before
+    /// 0.59, with the web app's page: an unexpected response).
     public func languages() async throws -> [LanguageInfo] {
         struct Languages: Decodable { let languages: [LanguageInfo] }
         do {
             let list: Languages = try await get("languages")
             return list.languages
-        } catch FlexarrClientError.http(status: 404, _) {
+        } catch FlexarrClientError.http(status: 404, _), FlexarrClientError.unexpectedResponse {
             return []
         }
     }

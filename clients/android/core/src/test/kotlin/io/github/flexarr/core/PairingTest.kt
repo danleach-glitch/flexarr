@@ -71,8 +71,11 @@ class PairingTest {
             server.start()
             server.enqueue(MockResponse.Builder().addHeader("Content-Type", "application/json").body("[$waiting]").build())
             server.enqueue(MockResponse.Builder().code(404).build())
+            // Before 0.59 a path the server doesn't know gets the web app's page.
+            server.enqueue(MockResponse.Builder().addHeader("Content-Type", "text/html; charset=utf-8").body("<!doctype html>").build())
             val client = FlexarrClient(server.url("/"), apiKey = "token")
             assertEquals(listOf("ABC-DEF"), client.waitingDevices().map { it.code })
+            assertEquals(emptyList<WaitingDevice>(), client.waitingDevices())
             assertEquals(emptyList<WaitingDevice>(), client.waitingDevices())
             assertEquals("/api/v1/pairing/waiting", server.takeRequest().url.encodedPath)
         }

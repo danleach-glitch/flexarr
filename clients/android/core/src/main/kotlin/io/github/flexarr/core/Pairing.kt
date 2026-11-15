@@ -85,12 +85,17 @@ sealed interface DeviceEvent {
 /** Codes are letters, digits and a dash: anything else could reach another of the server's paths once put in one. */
 internal fun isPairingCode(code: String): Boolean = code.length in 1..32 && code.all { it.isLetterOrDigit() || it == '-' }
 
-/** The devices waiting to be let in now. Only the main profile may ask; empty from servers before it could be asked. */
+/**
+ * The devices waiting to be let in now. Only the main profile may ask; empty from servers before it could be asked
+ * (0.56). Servers before 0.59 answer a path they don't know with the web app's page, which reads as UnexpectedResponse.
+ */
 suspend fun FlexarrClient.waitingDevices(): List<WaitingDevice> =
     try {
         get("pairing/waiting")
     } catch (e: FlexarrException.Http) {
         if (e.status == 404) emptyList() else throw e
+    } catch (_: FlexarrException.UnexpectedResponse) {
+        emptyList()
     }
 
 /**

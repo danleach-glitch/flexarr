@@ -17,11 +17,14 @@ data class RecentSearches(
 @Serializable
 internal data class RecentSearchBody(val query: String?, val itemId: String?)
 
+/** None from servers before 0.56: a 404, or before 0.59 the web app's page (UnexpectedResponse). */
 suspend fun FlexarrClient.recentSearches(): RecentSearches =
     try {
         get("search/recent")
     } catch (e: FlexarrException.Http) {
         if (e.status == 404) RecentSearches() else throw e
+    } catch (_: FlexarrException.UnexpectedResponse) {
+        RecentSearches()
     }
 
 /**
