@@ -294,3 +294,16 @@ describe('Player taps and clicks on the picture', () => {
     await act(async () => page.unmount())
   })
 })
+
+describe('Player with a title that isn’t there', () => {
+  it('says so plainly and offers only Go back, since trying again won’t help', async () => {
+    mockApi({ 'POST /playback': () => new Response('', { status: 404, statusText: 'Not Found' }) })
+    const page = renderPlayer()
+    const box = await waitFor(() => page.getByRole('alertdialog'))
+    expect(box).toHaveTextContent('This isn’t in your library any more.')
+    expect(box).not.toHaveTextContent('404')
+    expect(within(box).queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument()
+    expect(within(box).getByRole('button', { name: 'Go back' })).toHaveFocus()
+    await act(async () => page.unmount())
+  })
+})

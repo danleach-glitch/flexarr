@@ -68,6 +68,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On a phone, the music bar keeps its **Stop and close** button, so music, a podcast or an audiobook can be stopped and the bar put away, as on the iPhone.
 - Discover on a server without Seerr says what it needs, with **Set up Seerr** for the main profile, instead of a search that always finds nothing. Your library's genres stay, under their own heading.
 - Home's featured slide for a title with no backdrop no longer shows a broken-image mark.
+- An old link to a removed film, person, playlist or collection now says it isn't in your library any more, with a **Home** button, instead of "404 Not Found"; the player says the same and offers only **Go back**.
 
 ### Playback
 
