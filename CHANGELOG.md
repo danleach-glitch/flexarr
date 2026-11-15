@@ -37,6 +37,11 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Android, a show's season pills are all readable: Download Season sits on its own line under them.
 - An iPhone, iPad, Apple TV or Android device that signed in at home with Tailscale off now reaches your server away from home once Tailscale is on. Settings › Server says when it hasn't yet.
 
+### Downloads
+
+- A film or episode watched from a download now counts as watched by the same rule as streaming (past the credits or most of the way), so it no longer stays in Continue Watching at 93%.
+- A podcast episode heard offline keeps its place however short, and a phone whose clock runs fast no longer holds back what other devices watched offline.
+
 ### Trakt
 
 - Signing in to Trakt now goes from your server straight to Trakt, with nothing passing through flexarr.io.

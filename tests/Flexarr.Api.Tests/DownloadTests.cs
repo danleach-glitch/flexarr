@@ -5,6 +5,7 @@ using System.Text.Json;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
+using Flexarr.Core.Podcasts;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -196,6 +197,93 @@ public sealed class DownloadTests : IDisposable
         var state = await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().PlaybackStates.SingleAsync(p => p.MediaItemId == movie);
         Assert.True(state.Watched);
         Assert.Equal(1, state.PlayCount);
+    }
+
+    [Fact]
+    public async Task WatchingOffline_CountsAsWatched_ByStreamingsRule_PastTheCreditsOrMostOfTheWay()
+    {
+        var (movie, _) = await AddMovieAsync("mov,mp4,m4a,3gp,3g2,mj2", "h264", "aac");
+        var client = Client();
+        var uri = new Uri($"/api/v1/items/{movie}/offline-progress", UriKind.Relative);
+
+        // 93% of a 600-second film, sent as unfinished by an app with a later rule: watched all the same.
+        (await client.PostAsJsonAsync(uri, new { positionSeconds = 558, finished = false, playedAt = DateTime.UtcNow.AddHours(-2) })).EnsureSuccessStatusCode();
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var state = await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().PlaybackStates.SingleAsync(p => p.MediaItemId == movie);
+            Assert.True(state.Watched);
+            Assert.Equal(0, state.PositionSeconds);
+        }
+
+        // Credits that start earlier count first.
+        var (credited, _) = await AddMovieAsync("mov,mp4,m4a,3gp,3g2,mj2", "h264", "aac");
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var file = await db.MediaFiles.SingleAsync(f => f.MediaItemId == credited);
+            db.Add(new MediaMarker { MediaFileId = file.Id, Type = MarkerType.Credits, StartSeconds = 480, EndSeconds = 600, Source = "chapters" });
+            await db.SaveChangesAsync();
+        }
+
+        var creditedUri = new Uri($"/api/v1/items/{credited}/offline-progress", UriKind.Relative);
+        (await client.PostAsJsonAsync(creditedUri, new { positionSeconds = 400, finished = false, playedAt = DateTime.UtcNow.AddHours(-2) })).EnsureSuccessStatusCode();
+        Assert.Equal(400, await PositionAsync(credited));
+        (await client.PostAsJsonAsync(creditedUri, new { positionSeconds = 490, finished = false, playedAt = DateTime.UtcNow.AddHours(-1) })).EnsureSuccessStatusCode();
+        using (var scope = _factory.Services.CreateScope())
+        {
+            Assert.True((await scope.ServiceProvider.GetRequiredService<FlexarrDbContext>().PlaybackStates.SingleAsync(p => p.MediaItemId == credited)).Watched);
+        }
+    }
+
+    [Fact]
+    public async Task WatchingOffline_FromAClockAhead_DoesntBlockWhatFollows()
+    {
+        var (movie, _) = await AddMovieAsync("mov,mp4,m4a,3gp,3g2,mj2", "h264", "aac");
+        var client = Client();
+        var uri = new Uri($"/api/v1/items/{movie}/offline-progress", UriKind.Relative);
+
+        (await client.PostAsJsonAsync(uri, new { positionSeconds = 100, finished = false, playedAt = DateTime.UtcNow.AddDays(1) })).EnsureSuccessStatusCode();
+        Assert.Equal(100, await PositionAsync(movie));
+        await Task.Delay(20);
+        (await client.PostAsJsonAsync(uri, new { positionSeconds = 200, finished = false, playedAt = DateTime.UtcNow })).EnsureSuccessStatusCode();
+        Assert.Equal(200, await PositionAsync(movie));
+    }
+
+    [Fact]
+    public async Task ListeningOffline_ToAPodcast_KeepsAShortPlace_AndFinishesOnlyAtTheEnd()
+    {
+        Guid episode;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var library = new Library { Name = $"Podcasts {Guid.NewGuid():N}", Type = LibraryType.Podcasts };
+            var podcast = new MediaItem
+            {
+                LibraryId = library.Id, Kind = MediaKind.Podcast, Title = "Show", SortTitle = "show",
+                Feed = new PodcastFeed { Url = $"https://feeds.example.com/{Guid.NewGuid():N}.xml" },
+            };
+            var item = new MediaItem
+            {
+                LibraryId = library.Id, Kind = MediaKind.PodcastEpisode, Title = "Episode", SortTitle = "episode", Parent = podcast,
+                Enclosure = new PodcastEpisode { FeedId = podcast.Id, EpisodeGuid = "e1", AudioUrl = "https://cdn.example.com/e1.mp3", DurationSeconds = 1000 },
+            };
+            db.AddRange(library, podcast, item);
+            await db.SaveChangesAsync();
+            episode = item.Id;
+        }
+
+        var client = Client();
+        var uri = new Uri($"/api/v1/items/{episode}/offline-progress", UriKind.Relative);
+        (await client.PostAsJsonAsync(uri, new { positionSeconds = 20, finished = false, playedAt = DateTime.UtcNow.AddHours(-3) })).EnsureSuccessStatusCode();
+        Assert.Equal(20, await PositionAsync(episode));
+
+        // 95% is still the conversation: not finished.
+        (await client.PostAsJsonAsync(uri, new { positionSeconds = 950, finished = false, playedAt = DateTime.UtcNow.AddHours(-2) })).EnsureSuccessStatusCode();
+        Assert.Equal(950, await PositionAsync(episode));
+
+        (await client.PostAsJsonAsync(uri, new { positionSeconds = 990, finished = false, playedAt = DateTime.UtcNow.AddHours(-1) })).EnsureSuccessStatusCode();
+        using var check = _factory.Services.CreateScope();
+        Assert.True((await check.ServiceProvider.GetRequiredService<FlexarrDbContext>().PlaybackStates.SingleAsync(p => p.MediaItemId == episode)).Watched);
     }
 
     [Fact]
