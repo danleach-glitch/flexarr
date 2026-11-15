@@ -7,6 +7,8 @@ struct SearchView: View {
     @Environment(Router.self) private var router
     @State private var query = ""
     @FocusState private var typing: Bool
+    /// The search is active: on iPad that takes the tab bar away until it ends.
+    @State private var searching = false
     @State private var results: SearchResults?
     @State private var error: String?
     @State private var recents = RecentSearches()
@@ -159,7 +161,22 @@ struct SearchView: View {
             }
         }
         #else
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: t("Movies, shows, episodes and people"))
+        .searchable(text: $query, isPresented: $searching, placement: .navigationBarDrawer(displayMode: .always),
+                    prompt: t("Movies, shows, episodes and people"))
+        // On iPad an active search hid the navigation bar, and the tab bar with it (it's along the top there), and the
+        // field has no Cancel of its own: the bar stays, with a Cancel that ends the search.
+        .searchPresentationToolbarBehavior(sizeClass == .regular ? .avoidHidingContent : .automatic)
+        .toolbar {
+            if sizeClass == .regular, searching || !query.isEmpty {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(t("Cancel")) {
+                        query = ""
+                        typing = false
+                        searching = false
+                    }
+                }
+            }
+        }
         // Opening Search is for typing: the field's ready with the keyboard up.
         .searchFocused($typing)
         .onSubmit(of: .search, keepSearch)
