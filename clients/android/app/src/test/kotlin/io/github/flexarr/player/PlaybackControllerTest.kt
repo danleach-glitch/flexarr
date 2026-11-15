@@ -17,9 +17,18 @@ class PlaybackControllerTest {
 
     @Test
     fun `watched once the credits start`() {
-        assertFalse(PlaybackController.isPastCredits(withCredits, 2_811.7))
-        assertTrue(PlaybackController.isPastCredits(withCredits, 2_811.72))
+        val early = withCredits.copy(markers = withCredits.markers.map { if (it.type == MarkerType.Credits) it.copy(start = 2_000.0) else it })
+        assertFalse(PlaybackController.isPastCredits(early, 1_999.9))
+        assertTrue(PlaybackController.isPastCredits(early, 2_000.0))
         assertTrue(PlaybackController.isPastCredits(withCredits, 2_831.0))
+    }
+
+    @Test
+    fun `credits later than 92 percent wait no longer than the server does`() {
+        // 92% of 2831 seconds is 2604.52; the credits start at 2811.72. A download stopped between the two is watched,
+        // as the server counts it.
+        assertFalse(PlaybackController.isPastCredits(withCredits, 2_604.0))
+        assertTrue(PlaybackController.isPastCredits(withCredits, 2_700.0))
     }
 
     @Test

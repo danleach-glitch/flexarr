@@ -1952,6 +1952,8 @@ final class AppModel {
     func setShowWatched(of episode: ItemSummary) async {
         guard let client, let show = episode.seriesId else { return }
         try? await client.setWatched(show, watched: true)
+        // Its downloaded episodes are finished too, so none resumes part way and un-watches it with its next report.
+        player.offlineLibrary?.markedPlayed(itemId: show)
         watchStateChanged()
     }
 

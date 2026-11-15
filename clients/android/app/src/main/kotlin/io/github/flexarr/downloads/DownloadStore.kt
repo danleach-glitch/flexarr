@@ -49,10 +49,12 @@ import io.github.flexarr.core.checkOffline
 import io.github.flexarr.core.PlaylistSummary
 import io.github.flexarr.core.ServerAnswer
 import io.github.flexarr.core.TransferQueue
+import io.github.flexarr.core.UserData
 import io.github.flexarr.core.deleteDownload
 import io.github.flexarr.core.downloadOptions
 import io.github.flexarr.core.markDownloadReceived
 import io.github.flexarr.core.offlineDownload
+import io.github.flexarr.core.offlineDownloads
 import io.github.flexarr.core.podcastAutoDownloads
 import io.github.flexarr.core.podcastPlayedDownloads
 import io.github.flexarr.core.artistName
@@ -562,7 +564,8 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         } finally {
             if (sent) model.watchStateChanged()
         }
-        removeFinished() // podcast episodes whose play was waiting to be sent
+        takeServerPlaces(client)
+        removeFinished() // podcast episodes whose play was waiting to be sent, or finished elsewhere
         removePlayedPodcasts(client)
         // A title saved by an app that didn't know its kind (a podcast episode, kept by an older version) was saved as
         // Unknown and would stay so, filed under Films: what the server says now puts it right, as on iPhone.
@@ -579,6 +582,39 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         reconcilePodcasts()
         // Whole books are kept apart, and catch up with the rest.
         model.bookDownloads.catchUp()
+    }
+
+    /**
+     * Where each download's title has got to on the server (watched on the TV since, say), taken by the ones with no place
+     * of their own still to send, so a download starts from there and its next report doesn't put the old place back.
+     * Out of reach, or a server that can't list them, leaves them as they are.
+     */
+    private suspend fun takeServerPlaces(client: FlexarrClient) {
+        val profile = profileId ?: return
+        if (downloads.none { it.followsServerPlace }) return
+        val remote = try {
+            client.offlineDownloads()
+        } catch (_: FlexarrException) {
+            return
+        }
+        if (profileId != profile) return
+        remote.forEach { takeServerPlace(it.id, it.item.userData) }
+    }
+
+    private fun takeServerPlace(id: String, state: UserData) {
+        val local = byId(id)?.takeIf { it.profileId == profileId } ?: return
+        if (model.podcasts.isPlayingFile(local.item.id)) return
+        val now = System.currentTimeMillis()
+        if (local.withServerPlace(state, now) != local) update(id) { it.withServerPlace(state, now) }
+    }
+
+    /** Brings one download's place up to date from the server before it plays, when it's in reach: a slow answer isn't waited for long. */
+    suspend fun takeServerPlace(id: String) {
+        val client = currentClient ?: return
+        val local = byId(id) ?: return
+        if (!isOnline || !local.followsServerPlace || local.unsent != null) return
+        val remote = withTimeoutOrNull(FRESH_PLACE_MS) { runCatching { client.offlineDownload(id) }.getOrNull() } ?: return
+        takeServerPlace(id, remote.item.userData)
     }
 
     /**
@@ -648,6 +684,9 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
             automatic = automatic,
             createdAtMillis = System.currentTimeMillis(),
             queued = waits,
+            // Part way through already (here or anywhere else): the download carries on from there, as streaming would.
+            position = if (remote.item.userData.watched) 0.0 else remote.item.userData.positionSeconds.coerceAtLeast(0.0),
+            placeHeardHere = false,
         )
         all = all.filterNot { it.id == remote.id } + local
         save()
@@ -929,7 +968,8 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
             }
             val ids = wanted.map { it.episodeId }.toSet()
             downloads.filter { it.isPodcastEpisode && it.automatic && it.item.id !in ids }.forEach {
-                if (it.unsent == null && (it.finishedAtMillis != null || it.position == 0.0)) remove(it.id, tellServer = true)
+                // Part-heard here, it stays; a place only taken from the server (heard elsewhere) is no reason to.
+                if (it.unsent == null && (it.finishedAtMillis != null || it.position == 0.0 || it.placeHeardHere == false)) remove(it.id, tellServer = true)
             }
             if (!mayStartAutomatic) return
             for (episode in wanted) {
@@ -967,9 +1007,12 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
      * left to send. (A played podcast episode's download then goes, in [markedPlayed].)
      */
     fun marked(itemId: String, played: Boolean) {
-        val download = entry(itemId) ?: return
-        update(download.id) {
-            it.copy(position = 0.0, unsent = null, finishedAtMillis = if (played) it.finishedAtMillis ?: System.currentTimeMillis() else null)
+        // A whole show or season: each of its downloaded episodes too.
+        val episodes = downloads.filter { it.item.kind == MediaKind.Episode && (it.item.seriesId == itemId || it.item.parentId == itemId) }
+        for (download in listOfNotNull(entry(itemId)) + episodes) {
+            update(download.id) {
+                it.copy(position = 0.0, unsent = null, finishedAtMillis = if (played) it.finishedAtMillis ?: System.currentTimeMillis() else null)
+            }
         }
     }
 
@@ -1181,6 +1224,8 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         private const val WIFI_ONLY = "wifiOnly"
         private const val ASKED_NOTIFICATIONS = "askedNotifications"
         private const val DECLINED = "declinedEpisodes"
+        private const val SKIPPED_NEXT = "skippedNextEpisodes"
+        private const val FRESH_PLACE_MS = 3_000L
         private const val UNSENT_DELETES = "unsentDeletes"
         private const val STARTED_GROUPS = "startedGroups"
         /** The server whose downloads were kept when it refused this device's sign-in. */

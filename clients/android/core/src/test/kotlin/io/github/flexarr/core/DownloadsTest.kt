@@ -1,5 +1,6 @@
 package io.github.flexarr.core
 
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.serializer

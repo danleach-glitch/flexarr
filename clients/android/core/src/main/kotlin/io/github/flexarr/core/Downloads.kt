@@ -79,6 +79,9 @@ suspend fun FlexarrClient.requestDownload(itemId: String, quality: DownloadQuali
 
 suspend fun FlexarrClient.offlineDownload(id: String): OfflineDownload = get("offline/$id")
 
+/** Every download this profile asked for that the server still knows of, each with its title's place now (`item.userData`). */
+suspend fun FlexarrClient.offlineDownloads(): List<OfflineDownload> = get("offline")
+
 /** The phone has the file: the server's copy can go. */
 suspend fun FlexarrClient.markDownloadReceived(id: String) {
     sendRaw("POST", "offline/$id/received")
@@ -157,6 +160,11 @@ data class LocalDownload(
     /** Where watching got to, and when it was finished (an episode is deleted a day after). */
     val position: Double = 0.0,
     val finishedAtMillis: Long? = null,
+    /**
+     * Whether [position] was reached on this phone (true) or taken from the server (false: where another device had got
+     * to, when it was asked for or since). Null in lists saved before it was kept.
+     */
+    val placeHeardHere: Boolean? = null,
     val unsent: UnsentProgress? = null,
     /** Fetched by itself: as the next episode, or a podcast's newest. Only these wait for Wi-Fi. */
     val automatic: Boolean = false,
@@ -191,8 +199,27 @@ data class LocalDownload(
     fun recorded(position: Double, finished: Boolean, now: Long): LocalDownload = copy(
         position = if (finished) 0.0 else position,
         finishedAtMillis = if (finished) finishedAtMillis ?: now else if (position > 30) null else finishedAtMillis,
+        placeHeardHere = true,
         unsent = UnsentProgress(position, finished, now),
     )
+
+    /** Films, episodes and podcast episodes follow the server's place; tracks keep none. */
+    val followsServerPlace: Boolean get() = item.kind == MediaKind.Movie || item.kind == MediaKind.Episode || isPodcastEpisode
+
+    /**
+     * The server's place for it ([state], as it is now), taken unless this phone has its own still to send: watched there,
+     * it's finished here too (from the start); otherwise it carries on from the server's place, or the start where that
+     * was forgotten. Itself when nothing changes.
+     */
+    fun withServerPlace(state: UserData, now: Long): LocalDownload {
+        if (!followsServerPlace || unsent != null) return this
+        return if (state.watched) {
+            if (finishedAtMillis != null) this else copy(position = 0.0, finishedAtMillis = now, placeHeardHere = false)
+        } else {
+            val place = state.positionSeconds.coerceAtLeast(0.0)
+            if (position == place && finishedAtMillis == null) this else copy(position = place, finishedAtMillis = null, placeHeardHere = false)
+        }
+    }
 }
 
 /** What a download does after hearing from the server. */

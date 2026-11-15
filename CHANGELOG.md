@@ -41,6 +41,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 - A film or episode watched from a download now counts as watched by the same rule as streaming (past the credits or most of the way), so it no longer stays in Continue Watching at 93%.
 - A podcast episode heard offline keeps its place however short, and a phone whose clock runs fast no longer holds back what other devices watched offline.
+- On iPhone and Android, a downloaded film or episode now starts from where you got to on another device (an hour watched on the TV, say), rather than from the beginning or an old place, and no longer puts the old place back afterwards. One finished elsewhere starts from the beginning.
+- On iPhone and Android, marking a whole show or season watched also finishes its downloaded episodes, so none resumes part way.
+- A podcast episode fetched by itself that you'd only part-heard on another device now makes way for newer ones, as it should.
 
 ### Trakt
 

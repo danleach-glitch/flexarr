@@ -42,6 +42,9 @@ struct LocalDownload: Codable, Identifiable, Hashable {
     /// Where watching got to, and when it was finished (an episode's deleted a day after, a podcast episode's at once).
     var position: Double = 0
     var finishedAt: Date?
+    /// Whether `position` was reached on this phone (true) or taken from the server (false: where another device had
+    /// got to, when it was asked for or since). Nil in lists saved before it was kept.
+    var placeHeardHere: Bool?
     /// Watched offline and not yet told to the server.
     var unsent: UnsentProgress?
     /// Fetched by itself: as the next episode, or a podcast's newest (see `reconcilePodcasts`).
@@ -78,7 +81,7 @@ struct LocalBook: Codable, Hashable {
 extension LocalDownload {
     private enum CodingKeys: String, CodingKey {
         case id, profileId, quality, item, markers, durationSeconds, nextId, state, sizeBytes, fileName, remoteFileName
-        case imageFileName, position, finishedAt, unsent, automatic, manual, createdAt, book, askedAs
+        case imageFileName, position, finishedAt, placeHeardHere, unsent, automatic, manual, createdAt, book, askedAs
     }
 
     init(from decoder: Decoder) throws {
@@ -97,6 +100,7 @@ extension LocalDownload {
         imageFileName = try c.decodeIfPresent(String.self, forKey: .imageFileName)
         position = try c.decodeIfPresent(Double.self, forKey: .position) ?? 0
         finishedAt = try c.decodeIfPresent(Date.self, forKey: .finishedAt)
+        placeHeardHere = try? c.decodeIfPresent(Bool.self, forKey: .placeHeardHere)
         unsent = try? c.decodeIfPresent(UnsentProgress.self, forKey: .unsent)
         automatic = try c.decodeIfPresent(Bool.self, forKey: .automatic) ?? false
         manual = try c.decodeIfPresent(Bool.self, forKey: .manual)
@@ -623,7 +627,8 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
                 log.warning("Couldn't send a book's speed", error: error)
             }
         }
-        deleteFinished() // podcast episodes whose play was waiting to be sent
+        await takeServerPlaces()
+        deleteFinished() // podcast episodes whose play was waiting to be sent, or finished elsewhere
         await deletePlayedPodcasts()
         await removeWithdrawn()
         // A title saved by an app that didn't know its kind (a podcast episode, kept by an older version) was saved as
@@ -692,6 +697,61 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         return names
     }
 
+    /// Where each download's title has got to on the server (watched on the TV since, say), taken by the ones with no
+    /// place of their own still to send, so a download starts from there and its next report doesn't put the old
+    /// place back. Out of reach, or a server that can't list them, leaves them as they are.
+    private func takeServerPlaces() async {
+        guard let client, isOnline, let profileId, downloads.contains(where: Self.followsServerPlace),
+              let remote = try? await client.downloads() else { return }
+        guard self.profileId == profileId else { return }
+        for download in remote { takeServerPlace(download.item, for: download.id) }
+    }
+
+    /// Films, episodes and podcast episodes: tracks keep no place, and a book's is its manifest's.
+    nonisolated private static func followsServerPlace(_ download: LocalDownload) -> Bool {
+        download.book == nil && [.movie, .episode, .podcastEpisode].contains(download.item.kind)
+    }
+
+    /// Takes the server's place for one download (`item` as the server has it now), unless this phone has its own
+    /// still to send, or it's playing. Watched there, it's finished here too (from the start); otherwise it carries on
+    /// from the server's place, or the start where that was forgotten.
+    private func takeServerPlace(_ item: ItemSummary, for id: String) {
+        guard let local = all.first(where: { $0.id == id && $0.profileId == profileId }), Self.followsServerPlace(local),
+              local.unsent == nil, !isPlaying(local.item.id) else { return }
+        let state = item.userData
+        update(id) {
+            if state.watched {
+                guard $0.finishedAt == nil else { return }
+                $0.position = 0
+                $0.finishedAt = Date()
+                $0.placeHeardHere = false
+            } else {
+                let place = max(0, state.positionSeconds)
+                guard $0.position != place || $0.finishedAt != nil else { return }
+                $0.position = place
+                $0.finishedAt = nil
+                $0.placeHeardHere = false
+            }
+        }
+    }
+
+    /// How to play a download, its place first brought up to date from the server when it's in reach (watched on
+    /// the TV since it was last looked at, say). A slow answer isn't waited for long.
+    func freshPlaybackInfo(for download: LocalDownload, preferences: PlaybackPreferences?) async -> PlaybackInfo? {
+        if let client, isOnline, Self.followsServerPlace(download), download.unsent == nil {
+            let id = download.id
+            let remote = await withTaskGroup(of: OfflineDownload?.self) { group in
+                group.addTask { try? await client.download(id) }
+                group.addTask { try? await Task.sleep(for: .seconds(3)); return nil }
+                let first = await group.next() ?? nil
+                group.cancelAll()
+                return first
+            }
+            if let remote { takeServerPlace(remote.item, for: id) }
+        }
+        return playbackInfo(for: all.first { $0.id == download.id } ?? download, preferences: preferences)
+    }
+
     /// Listening done with no connection: a book's place goes to its progress with the time it was heard (the newest
     /// wins on the server); anything else's as offline progress.
     private func send(_ unsent: UnsentProgress, itemId: String, isBook: Bool, with client: FlexarrClient) async throws {
@@ -723,14 +783,23 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         for download in downloads where download.item.kind == .podcastEpisode && (download.item.id == itemId || download.item.parentId == itemId) {
             if !isPlaying(download.item.id) { delete(download.id) }
         }
+        // A whole show or season: each of its downloaded episodes is finished too.
+        for download in downloads where download.item.kind == .episode && (download.item.seriesId == itemId || download.item.parentId == itemId) {
+            finishHere(download.id)
+        }
         guard let download = entry(for: itemId), download.item.kind != .podcastEpisode else { return }
-        update(download.id) {
+        finishHere(download.id)
+        if download.book != nil { bookFinished(itemId: itemId) }
+    }
+
+    /// Finished, from the start, with no place of its own left to send.
+    private func finishHere(_ id: String) {
+        update(id) {
             $0.position = 0
             $0.unsent = nil
             $0.finishedAt = $0.finishedAt ?? Date()
             if let manifest = $0.book?.manifest { $0.book?.manifest = manifest.withProgress(BookProgress(positionSeconds: 0, finished: true, finishedAt: Date())) }
         }
-        if download.book != nil { bookFinished(itemId: itemId) }
     }
 
     /// Makes the phone hold what the server says it should: the newest unplayed episodes of each podcast that
@@ -748,7 +817,8 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         }
         let wantedIds = Set(wanted.map(\.episodeId))
         for download in downloads where download.item.kind == .podcastEpisode && download.automatic && !wantedIds.contains(download.item.id) {
-            if download.unsent == nil, download.finishedAt != nil || download.position == 0 { delete(download.id) }
+            // Part-heard here, it stays; a place only taken from the server (heard on another device) is no reason to.
+            if download.unsent == nil, download.finishedAt != nil || download.position == 0 || download.placeHeardHere == false { delete(download.id) }
         }
         guard isOnWiFi || (isOnline && !autoDownloadsOnWiFiOnly) else { return }
         for episode in wanted where entry(for: episode.episodeId) == nil && !declined.contains(episode.episodeId) {
@@ -820,7 +890,10 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         if remote.item.id != itemId { local.askedAs = [itemId] }
         // Part way through already (on this phone or anywhere else): the download carries on from there, as playing it
         // from the server would, rather than from the start.
-        if !remote.item.userData.watched { local.position = max(0, remote.item.userData.positionSeconds) }
+        if !remote.item.userData.watched {
+            local.position = max(0, remote.item.userData.positionSeconds)
+            local.placeHeardHere = false
+        }
         all.removeAll { $0.id == remote.id }
         all.append(local)
         save()
@@ -1222,6 +1295,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         update(download.id) {
             $0.position = finished ? 0 : position
             if finished { $0.finishedAt = $0.finishedAt ?? Date() } else if position > 30 { $0.finishedAt = nil }
+            $0.placeHeardHere = true
             $0.unsent = UnsentProgress(position: position, finished: finished, playedAt: Date())
         }
         if finished, let updated = entry(for: itemId) { fetchNext(after: updated) }

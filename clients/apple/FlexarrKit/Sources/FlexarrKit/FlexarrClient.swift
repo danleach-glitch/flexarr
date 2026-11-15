@@ -579,6 +579,12 @@ public struct FlexarrClient: Sendable {
         try await get("offline/\(id)")
     }
 
+    /// Every download this profile has asked for that the server still knows of, each with its title's place now
+    /// (`item.userData`): what another device has watched since.
+    public func downloads() async throws -> [OfflineDownload] {
+        try await get("offline")
+    }
+
     /// The device has the file: the server can delete its copy.
     public func markDownloadReceived(_ id: String) async throws {
         _ = try await send("POST", "offline/\(id)/received")

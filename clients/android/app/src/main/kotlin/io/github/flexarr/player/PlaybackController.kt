@@ -440,7 +440,14 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         trail.clear()
         origin = model.downloads.byId(downloadId)?.item?.id?.let { null to it }
         model.videoStarted()
-        playOffline(downloadId)
+        if (closed) return
+        // With the server in reach, its place first (watched on the TV since, say): waited for a few seconds at most.
+        val mine = ++openGeneration
+        isOpening = true
+        scope.launch {
+            model.downloads.takeServerPlace(downloadId)
+            if (!closed && mine == openGeneration) playOffline(downloadId)
+        }
     }
 
     private fun playOffline(downloadId: String) {
@@ -1593,11 +1600,9 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         /** Past this, Previous starts the title again before going to the one before. */
         private const val RESTART_AFTER_SECONDS = 3.0
 
-        /** At the credits (or, with none marked, near enough the end): watched, as the iPhone app counts it. */
-        internal fun isPastCredits(current: PlaybackInfo, at: Double): Boolean {
-            val credits = current.markers.firstOrNull { it.type == MarkerType.Credits }?.start
-            return at > 0 && at >= (credits ?: (current.durationSeconds * 0.92))
-        }
+        /** At the credits or near enough the end, whichever comes first: watched, by the server's own rule. */
+        internal fun isPastCredits(current: PlaybackInfo, at: Double): Boolean =
+            PlaybackEnding.isWatched(at, current.durationSeconds, current.markers.firstOrNull { it.type == MarkerType.Credits }?.start)
         private val DECODER_ERRORS = setOf(
             PlaybackException.ERROR_CODE_DECODING_FAILED,
             PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,

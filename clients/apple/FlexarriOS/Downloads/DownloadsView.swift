@@ -136,8 +136,10 @@ struct DownloadRow: View {
     }
 
     private func play() {
-        guard let info = store.playbackInfo(for: download, preferences: nil) else { return }
-        model.player.playOffline(info)
+        Task {
+            guard let info = await store.freshPlaybackInfo(for: download, preferences: nil) else { return }
+            model.player.playOffline(info)
+        }
     }
 }
 
