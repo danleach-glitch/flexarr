@@ -132,7 +132,7 @@ struct MainTabView: View {
             } header: {
                 // A rule between them and the libraries: the sidebar takes a section's heading as plain text, so a
                 // Divider, a shape or a strikethrough here would be dropped; a run of box-drawing lines draws it.
-                Text(verbatim: String(repeating: "\u{2500}", count: 12))
+                Text(verbatim: String(repeating: "\u{2500}", count: 9))
             }
         }
         .tabViewStyle(.sidebarAdaptable)
