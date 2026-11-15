@@ -59,6 +59,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On iPhone and iPad, a title's page and Home fade in a band under the clock and the back button once you scroll, so headings and buttons no longer show through them.
 - On iPad held sideways, Home's and a library's featured titles take a little over half the screen, so the first row shows beneath them.
 - On iPhone and iPad, a sign-in that fails on the connect form says why above Connect and puts the keyboard away, so the message is never hidden behind it.
+- On iPhone and iPad, a link, widget or notification for a title that's gone from your server says "This isn't in your library any more." instead of an HTTP error with a Try again that can't work.
 
 ### Downloads
 

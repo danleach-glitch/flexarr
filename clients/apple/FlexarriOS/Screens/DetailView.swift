@@ -17,6 +17,8 @@ struct DetailView: View {
     /// Given to the player with Play, so this page knows the sitting was started here (`takeEnding`).
     @State private var pageToken = UUID().uuidString
     @State private var error: String?
+    /// The server says this title isn't there (deleted since the link or widget named it): no Try again.
+    @State private var isGone = false
     @State private var nextUp: ItemSummary?
     @State private var similar: [ItemSummary] = []
     @State private var selectedSeasonID: String?
@@ -80,6 +82,8 @@ struct DetailView: View {
                 .trackingTopFade(heroHeight: heroHeight, into: $topFade)
                 .refreshable { await load() }
                 TopBarFade(strength: topFade)
+            } else if isGone {
+                StatusView(state: .empty(ConnectionError.gone))
             } else if let error {
                 StatusView(state: .failed(error) { Task { await load() } })
             } else {
@@ -609,6 +613,7 @@ struct DetailView: View {
             loadedToken = token
             loadedAt = Date()
             error = nil
+            isGone = false
 
             let item = loaded.item
             // After the page, on their own: Sonarr or Seerr being slow never holds up the season, More like this
@@ -648,7 +653,10 @@ struct DetailView: View {
             if selectedSeasonID != freshSeasonID { await loadSelectedSeason(force: true) }
             if let shown = await shownSimilar { similar = shown }
         } catch {
-            if detail == nil { self.error = ConnectionError(error).message }
+            if detail == nil {
+                isGone = error.isGone
+                self.error = ConnectionError(error).message
+            }
         }
     }
 

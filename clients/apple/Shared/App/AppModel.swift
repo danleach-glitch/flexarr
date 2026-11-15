@@ -2334,6 +2334,9 @@ struct ConnectionError: LocalizedError {
     }
 
     var errorDescription: String? { message }
+
+    /// For a title the server no longer has (`Error.isGone`).
+    static var gone: String { t("This isn’t in your library any more.") }
 }
 
 extension Error {
@@ -2341,6 +2344,12 @@ extension Error {
     /// can also surface as a URL error.
     var isCancellation: Bool {
         self is CancellationError || (self as? URLError)?.code == .cancelled
+    }
+
+    /// The server answered that this isn't there (404): a title deleted since a link, widget or notification named it.
+    /// Trying again can't help, so a page says `ConnectionError.gone` with no Try again.
+    var isGone: Bool {
+        if case .http(status: 404, _)? = self as? FlexarrClientError { true } else { false }
     }
 }
 
