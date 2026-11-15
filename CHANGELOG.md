@@ -22,6 +22,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Apple TV, Down from the server address lands on Connect, not Back.
 - On Apple TV, See all at the end of a row of albums is square, like the covers beside it.
 - On Apple TV, the sidebar's dividing line no longer ends in "…".
+- On Apple TV, a part-watched title's menu no longer offers "Mark as watched" and "Mark as unwatched" together: the second is now Remove in Continue watching, and Clear progress elsewhere.
 - On Apple TV, the player darkens the picture while its Audio, Subtitles, Speed or Sleep timer menu is open, so the menu is easy to read over a bright scene.
 - On Apple TV, home videos go by their names: a video is no longer labelled "Episode 1", and a folder with only one folder inside no longer shows a pill with its own name.
 - On Android, Download Season fetches that season and one episode ahead, no longer the whole show.

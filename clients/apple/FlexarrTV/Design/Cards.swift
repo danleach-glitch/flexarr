@@ -279,13 +279,14 @@ struct ItemContextMenu: View {
                 Label(onList ? t(Words.removeFromWatchlist) : t(Words.addToWatchlist), systemImage: onList ? Symbol.offWatchlist : Symbol.watchlist)
             }
         }
-        // Part way through: unwatched forgets the place, which takes it out of Continue Watching.
+        // Part way through: forgetting the place takes it out of Continue Watching. Not "Mark as unwatched" beside
+        // "Mark as watched": in Continue watching it's Remove, as for the row's other cards; elsewhere it clears progress.
         if marks && item.isResumable && !watched {
             Button {
                 leavesRow?(item.id)
                 Task { await model.setWatched(item, false) }
             } label: {
-                Label(t(Words.markAsUnwatched), systemImage: Symbol.markUnwatched)
+                Label(inContinueWatching ? t("Remove") : t("Clear progress"), systemImage: Symbol.removeFromRow)
             }
         } else if inContinueWatching, item.kind == .episode, !watched {
             Button {
