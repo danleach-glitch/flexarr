@@ -128,7 +128,8 @@ private fun ShowStatusLine(model: AppModel, show: DownloadedShow) {
         }
         is EpisodeGroupState.Failed -> Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             caption(count)
-            Text(state.message, fontSize = 12.sp, color = Flexarr.danger, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // Each episode that failed, asked for again.
+            FailedDownloadLine(model, state.message, maxLines = 1) { retryFailed(model, show) }
         }
         is EpisodeGroupState.NotDownloaded -> caption(count)
     }
@@ -189,4 +190,13 @@ internal fun StopDownloadsDialog(onStop: () -> Unit, onDismiss: () -> Unit) {
         dismissButton = { TextButton(onClick = onDismiss) { Text(t(Words.cancel), color = Flexarr.screen) } },
         containerColor = Flexarr.seat,
     )
+}
+
+/** A show's episodes that failed, each asked for again; the first problem is thrown once all have been asked. */
+internal suspend fun retryFailed(model: AppModel, show: DownloadedShow) {
+    var problem: Exception? = null
+    for (episode in show.episodes.filter { it.phase == io.github.flexarr.core.LocalPhase.Failed }) {
+        try { model.downloads.retry(episode.id) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { problem = problem ?: e }
+    }
+    problem?.let { throw it }
 }

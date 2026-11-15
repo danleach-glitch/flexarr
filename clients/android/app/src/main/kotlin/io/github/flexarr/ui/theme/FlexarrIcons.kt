@@ -107,6 +107,8 @@ object FlexarrIcons {
     val removeFromRow: ImageVector get() = Icons.Outlined.RemoveCircleOutline
     /** Refresh the Live TV guide. */
     val refresh: ImageVector get() = Icons.Filled.Refresh
+    /** Try again after something failed (a download). */
+    val retry: ImageVector get() = Icons.Filled.Refresh
     /** Choose a title's version (4K or 1080p, a director's cut). */
     val version: ImageVector get() = Icons.Outlined.Layers
     /** Play on another screen. */

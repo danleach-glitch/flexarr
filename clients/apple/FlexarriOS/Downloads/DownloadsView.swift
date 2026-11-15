@@ -15,6 +15,15 @@ struct DownloadsView: View {
                     : t("Download movies, episodes, albums, playlists and podcasts to watch and listen with no connection. Look for the download button on a title’s page.")))
             } else {
                 List {
+                    // Several failed (a season, an album and a film, say): one press asks for them all again.
+                    let failed = store.failedDownloads
+                    if failed.downloads.count + failed.collections.count > 1 {
+                        Section {
+                            TryAgainButton(retry: { try await store.retryAllFailed() }, title: t("Try all again"))
+                                .listRowBackground(Color.clear)
+                                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                        }
+                    }
                     let films = store.videoDownloads.filter { $0.item.kind != .episode }
                     if !films.isEmpty {
                         Section(t(Words.movies)) {
@@ -83,7 +92,8 @@ struct DownloadRow: View {
     }
 
     var body: some View {
-        Button(action: play) {
+        // A failed one isn't a button (there's nothing to play), so its Try again takes its own taps.
+        PlayableRow(playable: !download.hasFailed, enabled: download.isDownloaded, action: play) {
             // At the accessibility text sizes the words go under the picture, not down a narrow column beside it.
             rowLayout {
                 // The well colour, so a picture that hasn't come shows as a box on the row, not empty space.
@@ -106,15 +116,9 @@ struct DownloadRow: View {
                 }
                 Spacer(minLength: 0)
             }
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .disabled(!download.isDownloaded)
         .listRowBackground(Color.seat)
-        .swipeActions {
-            Button(role: .destructive) { store.remove(download.id) } label: { Label(t(Words.delete), systemImage: Symbol.delete) }
-                .tint(Color.danger)
-        }
+        .failedDownloadActions(download.hasFailed, retry: { try await store.retry(download.id) }) { store.remove(download.id) }
         .accessibilityHint(download.isDownloaded ? t("Plays") : "")
     }
 
@@ -136,7 +140,7 @@ struct DownloadRow: View {
                          download.finishedAt != nil ? t("Watched") : nil].compactMap { $0 }.joined(separator: "  "))
             }
         case .failed(let message):
-            Text(message).font(.caption).foregroundStyle(Color.danger)
+            FailedDownloadLine(message: message) { try await store.retry(download.id) }
         }
     }
 
@@ -148,6 +152,115 @@ struct DownloadRow: View {
         Task {
             guard let info = await store.freshPlaybackInfo(for: download, preferences: nil) else { return }
             model.player.playOffline(info, client: model.isOffline ? nil : model.client)
+        }
+    }
+}
+
+/// A Downloads row: a button that plays it (`enabled` once it's here), or, when `playable` is false (it failed), the
+/// row as it is, so the Try again on it takes its own taps rather than sitting inside a disabled button.
+struct PlayableRow<Content: View>: View {
+    let playable: Bool
+    let enabled: Bool
+    let action: () -> Void
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        if playable {
+            Button(action: action) { content().contentShape(Rectangle()) }
+                .buttonStyle(.plain)
+                .disabled(!enabled)
+        } else {
+            content().contentShape(Rectangle())
+        }
+    }
+}
+
+/// Why a download failed, in red, and under it Try again: asks for it again the way its title's page does. A
+/// problem asking (the server out of reach, say) is said.
+struct FailedDownloadLine: View {
+    let message: String
+    let retry: () async throws -> Void
+    var lineLimit: Int?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(message).font(.caption).foregroundStyle(Color.danger).lineLimit(lineLimit)
+            TryAgainButton(retry: retry)
+        }
+    }
+}
+
+/// Try again, as a small capsule on a failed Downloads row (or Try all again at the top of the list).
+struct TryAgainButton: View {
+    let retry: () async throws -> Void
+    var title = t("Try again")
+    @State private var trying = false
+    @State private var problem: String?
+
+    var body: some View {
+        Button {
+            trying = true
+            Task {
+                defer { trying = false }
+                do { try await retry() } catch is CancellationError {} catch { problem = ConnectionError(error).message }
+            }
+        } label: {
+            Label(title, systemImage: Symbol.retry).font(.caption.weight(.semibold))
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .controlSize(.small)
+        .tint(Color.screen)
+        .disabled(trying)
+        .downloadProblem($problem)
+    }
+}
+
+extension View {
+    /// A failed Downloads row's swipe actions and long-press (or right-click) menu: Try again beside Delete. Any other
+    /// row keeps just Delete in its swipe actions.
+    func failedDownloadActions(_ failed: Bool, retry: @escaping () async throws -> Void, delete: @escaping () -> Void) -> some View {
+        modifier(FailedDownloadActions(failed: failed, retry: retry, delete: delete))
+    }
+
+    /// "Couldn’t download this", with why, while `problem` is set.
+    func downloadProblem(_ problem: Binding<String?>) -> some View {
+        alert(t("Couldn’t download this"), isPresented: Binding(get: { problem.wrappedValue != nil }, set: { if !$0 { problem.wrappedValue = nil } })) {
+            Button(t("OK"), role: .cancel) {}
+        } message: {
+            Text(problem.wrappedValue ?? "")
+        }
+    }
+}
+
+private struct FailedDownloadActions: ViewModifier {
+    let failed: Bool
+    let retry: () async throws -> Void
+    let delete: () -> Void
+    @State private var problem: String?
+
+    func body(content: Content) -> some View {
+        content
+            .swipeActions {
+                Button(role: .destructive, action: delete) { Label(t(Words.delete), systemImage: Symbol.delete) }
+                    .tint(Color.danger)
+                if failed {
+                    Button(action: tryAgain) { Label(t("Try again"), systemImage: Symbol.retry) }
+                        .tint(Color.aisle)
+                }
+            }
+            .contextMenu {
+                if failed {
+                    Button(action: tryAgain) { Label(t("Try again"), systemImage: Symbol.retry) }
+                    Button(role: .destructive, action: delete) { Label(t(Words.delete), systemImage: Symbol.delete) }
+                }
+            }
+            .downloadProblem($problem)
+    }
+
+    private func tryAgain() {
+        Task {
+            do { try await retry() } catch is CancellationError {} catch { problem = ConnectionError(error).message }
         }
     }
 }
@@ -171,7 +284,7 @@ private struct PodcastDownloadRow: View {
     private var isBook: Bool { download.item.kind == .audiobook }
 
     var body: some View {
-        Button { if isBook { model.playBook(download.item) } else { model.playEpisode(download.item) } } label: {
+        PlayableRow(playable: !download.hasFailed, enabled: download.isDownloaded, action: play) {
             HStack(spacing: DownloadRowArt.spacing(sizeClass)) {
                 Color.well
                     .frame(width: sizeClass == .regular ? 96 : 63, height: sizeClass == .regular ? 96 : 63)
@@ -195,15 +308,13 @@ private struct PodcastDownloadRow: View {
                 }
                 Spacer(minLength: 0)
             }
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .disabled(!download.isDownloaded)
         .listRowBackground(Color.seat)
-        .swipeActions {
-            Button(role: .destructive) { store.remove(download.id) } label: { Label(t(Words.delete), systemImage: Symbol.delete) }
-                .tint(Color.danger)
-        }
+        .failedDownloadActions(download.hasFailed, retry: { try await store.retry(download.id) }) { store.remove(download.id) }
+    }
+
+    private func play() {
+        if isBook { model.playBook(download.item) } else { model.playEpisode(download.item) }
     }
 
     @ViewBuilder private var status: some View {
@@ -224,7 +335,7 @@ private struct PodcastDownloadRow: View {
                      download.finishedAt != nil ? (isBook ? t("Finished") : t("Played")) : nil].compactMap { $0 }.joined(separator: "  "))
             }
         case .failed(let message):
-            Text(message).font(.caption).foregroundStyle(Color.danger)
+            FailedDownloadLine(message: message) { try await store.retry(download.id) }
         }
     }
 
@@ -285,11 +396,16 @@ struct DownloadButton: View {
                 Button(t(Words.cancel), role: .cancel) {}
             case .failed:
                 Button(t("Try again")) {
-                    // Taken off as the app's own doing (not declined), and the server told before it's asked again.
+                    // As it was asked for (the same size), the way Try again in Downloads does it.
                     let failed = store.entry(for: item.id, orCopies: copies)?.id
                     Task {
-                        if let failed { await store.dropFailed(failed) }
-                        await start()
+                        guard let failed else { return await start() }
+                        do {
+                            try await store.retry(failed)
+                        } catch is CancellationError {
+                        } catch {
+                            question = .couldNotStart(ConnectionError(error).message)
+                        }
                     }
                 }
                 Button(t(Words.cancel), role: .cancel) {}

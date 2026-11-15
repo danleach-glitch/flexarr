@@ -108,10 +108,8 @@ struct DownloadedShowRow: View {
             }
         }
         .listRowBackground(Color.seat)
-        .swipeActions {
-            Button(role: .destructive) { removing = true } label: { Label(t(Words.delete), systemImage: Symbol.delete) }
-                .tint(Color.danger)
-        }
+        // Delete asks first here (it's every episode), so it's this row's own; Try again sits beside it.
+        .failedDownloadActions(show.episodes.contains(where: \.hasFailed), retry: retryFailed) { removing = true }
         .alert(t("Remove these downloads?"), isPresented: $removing) {
             Button(t("Remove downloads"), role: .destructive) {
                 // Through the group stop, so a Download show or season still asking for them ends too.
@@ -137,7 +135,8 @@ struct DownloadedShowRow: View {
         case .failed(let message, _):
             VStack(alignment: .leading, spacing: 3) {
                 caption(count)
-                Text(message).font(.caption).foregroundStyle(Color.danger).lineLimit(1)
+                // Each episode that failed, asked for again.
+                FailedDownloadLine(message: message, retry: retryFailed, lineLimit: 1)
             }
         case .notStarted:
             caption(count)
@@ -146,6 +145,15 @@ struct DownloadedShowRow: View {
 
     private func caption(_ text: String) -> some View {
         Text(text).font(.caption).foregroundStyle(Color.usher).monospacedDigit()
+    }
+
+    /// Its episodes that failed, each asked for again; the first problem is said once all have been.
+    private func retryFailed() async throws {
+        var problem: Error?
+        for episode in show.episodes where episode.hasFailed {
+            do { try await store.retry(episode.id) } catch is CancellationError { throw CancellationError() } catch { problem = problem ?? error }
+        }
+        if let problem { throw problem }
     }
 }
 

@@ -275,6 +275,7 @@ fun CollectionArtwork(model: AppModel, collection: LocalCollection, modifier: Mo
 @Composable
 fun CollectionRow(model: AppModel, collection: LocalCollection, onOpen: () -> Unit) {
     val store = model.downloads
+    val navigator = io.github.flexarr.ui.components.LocalNavigator.current
     var menu by remember { mutableStateOf(false) }
     Row(
         Modifier.fillMaxWidth().pressable(onOpen, onLongClick = { menu = true }).padding(start = 12.dp, top = 10.dp, bottom = 10.dp),
@@ -290,6 +291,12 @@ fun CollectionRow(model: AppModel, collection: LocalCollection, onOpen: () -> Un
         Box {
             IconButton(onClick = { menu = true }) { Icon(FlexarrIcons.more, contentDescription = t("More for {title}", "title" to collection.title), tint = Flexarr.usher) }
             DropdownMenu(menu, onDismissRequest = { menu = false }) {
+                if (store.status(collection) is CollectionStatus.Failed) {
+                    DropdownMenuItem(text = { Text(t("Try again")) }, leadingIcon = { Icon(FlexarrIcons.retry, contentDescription = null) }, onClick = {
+                        menu = false
+                        tryAgain(model, navigator) { store.retryCollection(collection.id) }
+                    })
+                }
                 DropdownMenuItem(
                     text = { Text(if (store.status(collection) == CollectionStatus.Downloaded) t("Remove download") else t("Stop download"), color = Flexarr.danger) },
                     onClick = { menu = false; store.removeCollection(collection.id) },
@@ -316,7 +323,7 @@ private fun CollectionStatusLine(model: AppModel, collection: LocalCollection) {
             DownloadedMark()
             caption(listOf(t("{count, plural, one {# track} other {# tracks}}", "count" to total), Format.bytes(store.bytesUsed(collection))).joinToString("   "))
         }
-        is CollectionStatus.Failed -> Text(status.message, fontSize = 12.sp, color = Flexarr.danger)
+        is CollectionStatus.Failed -> FailedDownloadLine(model, status.message) { store.retryCollection(collection.id) }
     }
 }
 

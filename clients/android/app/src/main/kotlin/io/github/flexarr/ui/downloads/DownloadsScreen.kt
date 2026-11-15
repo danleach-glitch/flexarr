@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.widthIn
 import io.github.flexarr.core.i18n.t
 import io.github.flexarr.core.i18n.Words
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -13,6 +14,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -32,6 +35,8 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -131,6 +136,18 @@ fun DownloadsScreen(model: AppModel) {
                 },
             ) {
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                    // Several failed (a season, an album and a film, say): one press asks for them all again.
+                    val failedBooks = model.bookDownloads.books.filter { it.phase == LocalPhase.Failed }
+                    if (store.failedDownloads.size + store.failedCollections.size + failedBooks.size > 1) {
+                        item(key = "try-all-again") {
+                            Box(Modifier.padding(horizontal = Edge)) {
+                                TryAgainButton(model, title = t("Try all again")) {
+                                    store.retryAllFailed()
+                                    failedBooks.forEach { model.bookDownloads.download(it.item) }
+                                }
+                            }
+                        }
+                    }
                     section(t(Words.movies), store.films) { DownloadRow(model, it) }
                     section(t(Words.shows), store.shows) { DownloadedShowRow(model, it, onOpen = { openedShow = it.key }) }
                     section(t(Words.music), store.musicCollections) { CollectionRow(model, it, onOpen = { opened = it.id }) }
@@ -200,7 +217,7 @@ private fun BookDownloadRow(model: AppModel, book: io.github.flexarr.core.LocalB
             book.item.book?.authors?.let { Text(it, fontSize = 12.sp, color = Flexarr.usher, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             @Composable fun caption(text: String) = Text(text, fontSize = 12.sp, color = Flexarr.usher, style = io.github.flexarr.ui.podcasts.Tabular)
             when {
-                book.phase == LocalPhase.Failed -> Text(book.failure ?: t("Couldn’t download this"), fontSize = 12.sp, color = Flexarr.danger)
+                book.phase == LocalPhase.Failed -> FailedDownloadLine(model, book.failure ?: t("Couldn’t download this")) { store.download(book.item) }
                 !book.isDownloaded -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     val progress = store.progress(book)
                     caption(t("Downloading, {percent}%", "percent" to (progress * 100).toInt()))
@@ -216,7 +233,7 @@ private fun BookDownloadRow(model: AppModel, book: io.github.flexarr.core.LocalB
             IconButton(onClick = { menu = true }) { Icon(FlexarrIcons.more, contentDescription = t("More for {title}", "title" to book.item.title), tint = Flexarr.usher) }
             DropdownMenu(menu, onDismissRequest = { menu = false }) {
                 if (book.phase == LocalPhase.Failed) {
-                    DropdownMenuItem(text = { Text(t("Try again")) }, onClick = { menu = false; navigator.downloadBook(book.item) })
+                    DropdownMenuItem(text = { Text(t("Try again")) }, leadingIcon = { Icon(FlexarrIcons.retry, contentDescription = null) }, onClick = { menu = false; navigator.downloadBook(book.item) })
                 }
                 DropdownMenuItem(
                     text = { Text(if (book.isDownloaded) t("Remove download") else t("Stop download"), color = Flexarr.danger) },
@@ -254,6 +271,7 @@ private fun DownloadListRow(
     onPlay: () -> Unit,
 ) {
     val store = model.downloads
+    val navigator = io.github.flexarr.ui.components.LocalNavigator.current
     var menu by remember { mutableStateOf(false) }
     Row(
         Modifier.fillMaxWidth().pressable(onPlay, enabled = download.isDownloaded, onLongClick = { menu = true }).padding(start = 12.dp, top = 10.dp, bottom = 10.dp),
@@ -277,9 +295,9 @@ private fun DownloadListRow(
             IconButton(onClick = { menu = true }) { Icon(FlexarrIcons.more, contentDescription = t("More for {title}", "title" to title), tint = Flexarr.usher) }
             DropdownMenu(menu, onDismissRequest = { menu = false }) {
                 if (download.phase == LocalPhase.Failed) {
-                    DropdownMenuItem(text = { Text(t("Try again")) }, onClick = {
+                    DropdownMenuItem(text = { Text(t("Try again")) }, leadingIcon = { Icon(FlexarrIcons.retry, contentDescription = null) }, onClick = {
                         menu = false
-                        model.scope.launch { runCatching { store.download(download.item.id, download.quality, automatic = false) } }
+                        tryAgain(model, navigator) { store.retry(download.id) }
                     })
                 }
                 DropdownMenuItem(
@@ -304,10 +322,55 @@ private fun DownloadStatusLine(model: AppModel, download: LocalDownload, doneLin
             caption(t("Downloading, {percent}%", "percent" to (progress * 100).toInt()))
             LinearProgressIndicator(progress = { progress.toFloat() }, color = Flexarr.silver, trackColor = Flexarr.aisle, modifier = Modifier.fillMaxWidth().padding(end = 4.dp))
         }
-        download.phase == LocalPhase.Failed -> Text(download.failure ?: t("Couldn’t download this"), fontSize = 12.sp, color = Flexarr.danger)
+        download.phase == LocalPhase.Failed -> FailedDownloadLine(model, download.failure ?: t("Couldn’t download this")) { store.retry(download.id) }
         else -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Filled.ArrowCircleDown, contentDescription = t("Downloaded"), tint = Flexarr.go, modifier = Modifier.size(14.dp))
             caption(doneLine.joinToString("   "))
+        }
+    }
+}
+
+/** Why a download failed, in red, and under it Try again: asks for it again the way its title's page does. */
+@Composable
+internal fun FailedDownloadLine(model: AppModel, message: String, maxLines: Int = Int.MAX_VALUE, retry: suspend () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(message, fontSize = 12.sp, color = Flexarr.danger, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
+        TryAgainButton(model, retry = retry)
+    }
+}
+
+/** Try again, as a small outlined button on a failed Downloads row (or Try all again at the top of the list). */
+@Composable
+internal fun TryAgainButton(model: AppModel, title: String = t("Try again"), retry: suspend () -> Unit) {
+    val navigator = io.github.flexarr.ui.components.LocalNavigator.current
+    var trying by remember { mutableStateOf(false) }
+    OutlinedButton(
+        onClick = {
+            trying = true
+            tryAgain(model, navigator, done = { trying = false }, retry = retry)
+        },
+        enabled = !trying,
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+        border = BorderStroke(1.dp, Flexarr.screen.copy(alpha = 0.3f)),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = Flexarr.screen),
+    ) {
+        Icon(FlexarrIcons.retry, contentDescription = null, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(title, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+/** Runs a Try again past this screen (the model's scope), and says a problem asking ("Couldn’t download this. …"). */
+internal fun tryAgain(model: AppModel, navigator: io.github.flexarr.ui.Navigator, done: () -> Unit = {}, retry: suspend () -> Unit) {
+    model.scope.launch {
+        try {
+            retry()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            navigator.tellFailure(t("Couldn’t download this"), e)
+        } finally {
+            done()
         }
     }
 }
@@ -437,11 +500,17 @@ fun DownloadAction(model: AppModel, item: ItemSummary, modifier: Modifier = Modi
             confirmButton = {
                 TextButton(onClick = {
                     problem = null
-                    // Taken off as the app's own doing (not declined), and the server told before it's asked again.
+                    // As it was asked for (the same size), the way Try again in Downloads does it.
                     val failed = download?.id
                     model.scope.launch {
-                        failed?.let { store.dropFailed(it) }
-                        start()
+                        if (failed == null) return@launch start()
+                        try {
+                            store.retry(failed)
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            problem = e.message ?: t("Couldn’t download this")
+                        }
                     }
                 }) { Text(t("Try again"), color = Flexarr.screen) }
             },
@@ -535,12 +604,10 @@ private fun DownloadIconButton(model: AppModel, itemId: String, title: String, r
             confirmButton = {
                 TextButton(onClick = {
                     problem = null
-                    // Taken off as the app's own doing (not declined), and the server told before it's asked again.
+                    // As it was asked for, the way Try again in Downloads does it.
                     val failed = download?.id
-                    model.scope.launch {
-                        failed?.let { store.dropFailed(it) }
-                        begin()
-                    }
+                    if (failed == null) begin()
+                    else model.scope.launch { runCatching { store.retry(failed) }.onFailure { problem = it.message ?: t("Couldn’t download this") } }
                 }) { Text(t("Try again"), color = Flexarr.screen) }
             },
             dismissButton = { TextButton(onClick = { problem = null }) { Text(t(Words.cancel), color = Flexarr.screen) } },

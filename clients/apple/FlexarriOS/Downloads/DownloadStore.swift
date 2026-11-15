@@ -63,6 +63,8 @@ struct LocalDownload: Codable, Identifiable, Hashable {
     func isDownload(of itemId: String) -> Bool { item.id == itemId || askedAs?.contains(itemId) == true }
 
     var isDownloaded: Bool { state == .downloaded && fileName != nil }
+
+    var hasFailed: Bool { if case .failed = state { true } else { false } }
 }
 
 /// A downloaded book: the manifest it was fetched with (the item's own file addresses, its chapters and timeline) and
@@ -741,6 +743,50 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         }
     }
 
+    /// Try again, for a download that failed: asked for once more as it was (the same size, as the same profile), the
+    /// old one taken off first as the app's own doing. A title's page and the Downloads list both come here, so trying
+    /// again is the same wherever it's pressed. A book is fetched again from its manifest.
+    func retry(_ id: String) async throws {
+        guard let download = all.first(where: { $0.id == id }), case .failed = download.state else { return }
+        // Someone else is watching now: not theirs to ask for.
+        guard download.profileId == profileId else { throw CancellationError() }
+        if download.book != nil {
+            try await self.download(book: download.item)
+        } else {
+            await dropFailed(id)
+            try await self.download(itemId: download.item.id, quality: download.quality)
+        }
+    }
+
+    /// Try again, for an album or playlist: each of its tracks that failed (or was never asked for) is asked for again,
+    /// the rest left as they are.
+    func retry(collectionId: String) async throws {
+        guard let collection = collection(for: collectionId) else { return }
+        try await fetchTracks(of: collection, ids: collection.trackIds)
+    }
+
+    /// This profile's downloads in Downloads that failed: films, episodes, books and podcast episodes, then albums and
+    /// playlists (whose tracks show under them, not one by one).
+    var failedDownloads: (downloads: [LocalDownload], collections: [LocalCollection]) {
+        let rows = (videoDownloads + bookDownloads + podcastDownloads).filter(\.hasFailed)
+        let albums = musicCollections.filter { if case .failed = status(of: $0) { true } else { false } }
+        return (rows, albums)
+    }
+
+    /// Try all again: every failed download in Downloads, one after another. The first problem is said once all have
+    /// been asked for.
+    func retryAllFailed() async throws {
+        let failed = failedDownloads
+        var problem: Error?
+        for download in failed.downloads {
+            do { try await retry(download.id) } catch is CancellationError { throw CancellationError() } catch { problem = problem ?? error }
+        }
+        for collection in failed.collections {
+            do { try await retry(collectionId: collection.id) } catch is CancellationError { throw CancellationError() } catch { problem = problem ?? error }
+        }
+        if let problem { throw problem }
+    }
+
     /// Downloads this profile may no longer play: a title a parent has since blocked, put above a lowered age limit or
     /// hidden the library of, and one the server no longer has. The server says which (`OfflineCheck`), and they go,
     /// books too, unless one's playing or has a play here still to send (the next catch-up tries again). One whose
@@ -1153,12 +1199,19 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
            let estimate = try? await client.downloadOptions(collection.id).first?.estimatedBytes {
             updateCollection(collection.id) { $0.estimatedBytes = estimate }
         }
-        // One track the server can't offer doesn't stop the rest: each is asked for, and the first problem is
-        // reported once all have been.
+        try await fetchTracks(of: collection, ids: collection.trackIds)
+    }
+
+    /// Asks for each of a collection's tracks (those here or on their way stay as they are; failed ones start again).
+    /// One track the server can't offer doesn't stop the rest: each is asked for, and the first problem is reported
+    /// once all have been.
+    private func fetchTracks(of collection: LocalCollection, ids: [String]) async throws {
+        queueing.insert(collection.id)
+        defer { queueing.remove(collection.id) }
         var problem: Error?
-        for track in tracks {
+        for id in ids {
             do {
-                try await download(itemId: track.id, quality: .original)
+                try await download(itemId: id, quality: .original)
             } catch is CancellationError {
                 throw CancellationError()
             } catch {
