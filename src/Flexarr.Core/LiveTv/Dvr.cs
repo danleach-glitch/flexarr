@@ -257,6 +257,44 @@ public static class RecordingNames
             cleaned = cleaned[..120].TrimEnd('.', ' ');
         }
 
+        cleaned = WithinBytes(cleaned, MaxPieceBytes).TrimEnd('.', ' ');
         return cleaned.Length == 0 ? "Recording" : cleaned;
+    }
+
+    /// <summary>
+    /// The most a title or episode title takes of a file name, in bytes. File systems count a name's bytes (255 at
+    /// most), not its letters, and macOS may store accented letters decomposed, which takes more: two of these with the
+    /// rest of a name (" - S01E01 - ", " (2)", ".mkv.partial") stay well inside.
+    /// </summary>
+    public const int MaxPieceBytes = 100;
+
+    /// <summary><paramref name="text"/> cut, between whole letters, to what fits in <paramref name="maxBytes"/> of UTF-8, decomposed.</summary>
+    public static string WithinBytes(string text, int maxBytes)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        if (Bytes(text) <= maxBytes)
+        {
+            return text;
+        }
+
+        var kept = new StringBuilder();
+        var used = 0;
+        var letters = StringInfo.GetTextElementEnumerator(text);
+        while (letters.MoveNext())
+        {
+            var letter = letters.GetTextElement();
+            var size = Bytes(letter);
+            if (used + size > maxBytes)
+            {
+                break;
+            }
+
+            kept.Append(letter);
+            used += size;
+        }
+
+        return kept.ToString();
+
+        static int Bytes(string s) => Encoding.UTF8.GetByteCount(s.Normalize(NormalizationForm.FormD));
     }
 }

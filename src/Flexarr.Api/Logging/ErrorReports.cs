@@ -157,6 +157,7 @@ public sealed partial class ErrorReports : ILogEventSink, IDisposable
         // Quotes first: .NET quotes the paths it complains about, and a quoted path may have spaces in it.
         text = Quoted().Replace(text, "\"…\"");
         text = Url().Replace(text, "<server>");
+        text = HostAndPort().Replace(text, "<server>");
         text = WindowsPath().Replace(text, "<path>");
         text = UnixPath().Replace(text, "<path>");
         text = MediaFile().Replace(text, "<file>");
@@ -167,6 +168,11 @@ public sealed partial class ErrorReports : ILogEventSink, IDisposable
 
     [GeneratedRegex(@"\b[a-z][a-z0-9+.-]*://[^\s/""'<>]+", RegexOptions.IgnoreCase)]
     private static partial Regex Url();
+
+    // A bare name and port, as socket errors give them ("Connection refused (sonarr.example.net:8989)"). It has a letter
+    // in it: an address alone is left to IPv4, and a time ("00:12:34") isn't a server.
+    [GeneratedRegex(@"(?<![\w.:/@-])(?=[a-z0-9.-]*[a-z])[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?:\d{1,5}\b", RegexOptions.IgnoreCase)]
+    private static partial Regex HostAndPort();
 
     [GeneratedRegex(@"\b[A-Za-z]:\\[^\s""'<>]*")]
     private static partial Regex WindowsPath();

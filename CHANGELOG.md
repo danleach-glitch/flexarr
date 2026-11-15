@@ -44,6 +44,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Each profile can now add up to 60 new podcasts an hour and follow up to 1,000, and pulling to refresh a show that was checked moments ago no longer fetches it again. A profile watches up to four Live TV channels at once: starting a fifth stops the one it started longest ago, and that screen says why.
 - The Live TV guide and channel list, a book's description files, fonts inside a video and uploaded pictures now each have a size limit, so an oversized or malformed one can't tie up the server. Trying teletext page after page no longer holds up subtitles for everyone else.
 - Through an assistant, a kids profile has no watchlist or Live TV, as in the apps, and a profile with an age limit no longer looks up films and shows outside the library.
+- Error reports, when they're on, now leave out server names given with a port (`sonarr.example.net:8989`), not only full addresses.
+- A Live TV programme with a very long title, or one in a script that takes more room on disk, now records: its file name is kept short enough, and a recording that can't be saved no longer leaves its pieces behind.
 
 ### iPad
 

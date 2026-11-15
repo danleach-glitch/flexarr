@@ -299,9 +299,20 @@ public sealed partial class DvrService(IServiceScopeFactory scopes, IOptionsMoni
         }
 
         var target = Unique(Path.Combine(folder, RecordingNames.RelativePath(recording, TimeZoneInfo.Local)));
-        var error = await LiveRecorder.RemuxAsync(settings.FfmpegPath, result.Parts, target, CancellationToken.None);
+        string? error;
+        try
+        {
+            error = await LiveRecorder.RemuxAsync(settings.FfmpegPath, result.Parts, target, CancellationToken.None);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            error = "The recording couldn't be saved.";
+        }
+
         if (error is not null)
         {
+            // A failed recording isn't tried again, so its parts would only sit in the hidden folder for good.
+            TryDelete(work);
             await FinishAsync(id, RecordingState.Failed, error, null, null);
             return;
         }
