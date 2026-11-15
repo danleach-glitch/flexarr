@@ -15,6 +15,7 @@ struct MainTabView: View {
     @Environment(DownloadStore.self) private var downloads
     @Environment(TVRemote.self) private var remote
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var selection: TabID = .home
 
     var body: some View {
@@ -48,6 +49,12 @@ struct MainTabView: View {
             }
         }
         .tabViewStyle(.sidebarAdaptable)
+        // Names in a longer language drawn smaller rather than running into each other (#310): again whenever they
+        // change (the language settles after the tabs are up) or the width does.
+        .task(id: "\(t(Words.home))#\(t(Words.libraries))#\(t(Words.downloads))#\(t(Words.settings))#\(sizeClass == .regular)") {
+            try? await Task.sleep(for: .milliseconds(150))
+            TabLabelFit.apply()
+        }
         // Opened offline: straight to what can be watched, if there's anything. Going offline later leaves you where you are.
         .onAppear { if model.isOffline, downloads.hasAnything { selection = .downloads } }
         // Said aloud too, as the bar comes and goes.
