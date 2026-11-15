@@ -107,6 +107,7 @@ struct TabStack<Content: View>: View {
     @Environment(AppModel.self) private var model
     @Environment(TVRemote.self) private var remote
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.verticalSizeClass) private var heightClass
     @State private var router = Router()
     @State private var barsHeight: CGFloat = 0
     /// The on-screen keyboard is up: the bars step aside, or they'd ride up with it and show through iOS 26's search
@@ -133,10 +134,11 @@ struct TabStack<Content: View>: View {
                             .pushedPageTitle(large: route.takesLargeTitle)
                     }
             }
-            // On a strip of its own above the page. Not on a wide iPad: its tab bar and the page's back button share
-            // that strip, so the bar is down with the others there.
+            // On a strip of its own above the page. Not on a wide iPad, whose tab bar and the page's back button share
+            // that strip, nor on a phone held sideways, where the strip pressed against the page's small title: the
+            // pill floats down with the other bars there.
             .safeAreaInset(edge: .top, spacing: 0) {
-                if model.isOffline, sizeClass != .regular { OfflineBar() }
+                if model.isOffline, !offlinePillFloats { OfflineBar() }
             }
             if !keyboardUp {
                 bottomBars
@@ -160,7 +162,7 @@ struct TabStack<Content: View>: View {
     /// So does a TV's: its bar opens the remote.
     private var bottomBars: some View {
         VStack(spacing: 0) {
-            if model.isOffline, sizeClass == .regular { OfflineBar(floats: true) }
+            if model.isOffline, offlinePillFloats { OfflineBar(floats: true) }
             // The remote has its own (on iPad its sheet doesn't cover the bars: one notice, not two).
             // Neither while offline: what the TVs are doing can't be known, or changed.
             if !remote.showsRemote, !model.isOffline { RemoteNoticeView() }
@@ -168,6 +170,9 @@ struct TabStack<Content: View>: View {
             NowPlayingBar()
         }
     }
+
+    /// The Offline pill floats above the bottom bars rather than taking a strip above the page.
+    private var offlinePillFloats: Bool { sizeClass == .regular || heightClass == .compact }
 
     private func consumeDeepLink() {
         guard handlesDeepLinks, let route = model.pendingRoute else { return }

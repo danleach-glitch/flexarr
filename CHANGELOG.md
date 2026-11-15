@@ -87,6 +87,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Everywhere, a track's, album's or artist's menu says Add to Up next rather than Add to queue, matching the Up next list it adds to and the same choice on podcast episodes.
 - On iPhone and iPad, a home videos library counts its folders ("2 folders") rather than calling them titles.
 - On iPhone and iPad, connecting with a code from a computer points to the server's /link page instead of an address ending in settings/tv.
+- On iPhone held sideways, the welcome cards' words stay clear of the page dots (scrolling if they need more room), and the Offline pill floats above the bottom bars instead of pressing against the page title.
+- On iPhone and iPad, Settings › Server puts a value that's too long for one line (a long list of libraries) under its name, rather than a second line pushed to the right edge.
 
 ### Downloads
 
