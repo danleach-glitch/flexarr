@@ -515,6 +515,8 @@ class FlexarrClient(
         fun probe(base: HttpUrl) = Request.Builder().url(base.newBuilder().addPathSegments("api/v1/system/status").build())
             .header("Accept", "application/json").build()
         suspend fun answers(base: HttpUrl): Boolean = runCatching {
+            // An away address kept unconfirmed has to be this server, not just something that answers, before it's used.
+            if (base == addresses.remote && !addresses.remoteTrustedNow) return@runCatching remoteTrusted(quick)
             quick.newCall(probe(base)).await().use { it.code !in 300..399 && it.header("Content-Type")?.contains("text/html") != true }
         }.getOrDefault(false)
         val reached = withContext(Dispatchers.IO) {

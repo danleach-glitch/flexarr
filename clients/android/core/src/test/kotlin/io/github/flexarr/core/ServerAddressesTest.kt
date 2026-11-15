@@ -372,4 +372,18 @@ class ServerAddressesTest {
             ServerAddresses.onRemoteProven = null
         }
     }
+
+    @Test
+    fun `an unconfirmed away address is only reachable once it answers as this server`() = runTest {
+        val addresses = unconfirmed()
+        away.enqueue(json("""{"open":false,"serverId":"someone-else"}"""))
+        assertFalse(FlexarrClient(addresses, apiKey = "token").isReachable())
+        assertFalse(addresses.isAway)
+
+        addresses.networkChanged()
+        away.enqueue(json("""{"open":false,"serverId":"abc"}"""))
+        assertTrue(FlexarrClient(addresses, apiKey = "token").isReachable())
+        assertTrue(addresses.isAway)
+        repeat(2) { assertEquals("/api/v1/setup", away.takeRequest().url.encodedPath) }
+    }
 }
