@@ -216,7 +216,7 @@ public static partial class LiveTvEndpoints
 
         group.MapPost("/channels/{id:guid}/watch", async (Guid id, [FromBody] WatchRequest? request, FlexarrDbContext db, IOptionsMonitor<FlexarrOptions> options,
             LiveStreams streams, LiveTvViewers viewers, DvrService dvr, CurrentProfile profile, IMemoryCache memory, TimeProvider clock, HttpContext http,
-            CancellationToken ct) =>
+            LiveRelay relay, CancellationToken ct) =>
         {
             var settings = options.CurrentValue;
             if (settings.LiveTv is not { Account: { } account } liveTv)
@@ -281,7 +281,7 @@ public static partial class LiveTvEndpoints
                 {
                     if (!memory.TryGetValue(formatKey, out LiveFormat? format) || format is null)
                     {
-                        format = await LiveProbe.ProbeAsync(ffprobe, source, token);
+                        format = await LiveProbe.ProbeAsync(ffprobe, source, token, relay);
                         memory.Set(formatKey, format, FormatKeptFor);
                     }
 

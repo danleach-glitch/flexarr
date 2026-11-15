@@ -19,8 +19,9 @@ public static partial class LiveRecorder
     /// <summary>A part shorter than this, ending early, counts as the stream not playing (rather than a drop).</summary>
     private static readonly TimeSpan Retry = TimeSpan.FromSeconds(10);
 
+    /// <param name="relay">Where a source with a secret in its address is read from (see <see cref="LiveRelay"/>).</param>
     public static async Task<RecordResult> RecordAsync(string ffmpeg, LiveSource source, string workDirectory, DateTime until,
-        TimeProvider clock, ILogger logger, CancellationToken ct)
+        TimeProvider clock, ILogger logger, CancellationToken ct, LiveRelay? relay = null)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(clock);
@@ -37,7 +38,14 @@ public static partial class LiveRecorder
             }
 
             var part = Path.Combine(workDirectory, $"part{parts.Count + 1:000}.ts");
-            var (code, stderr) = await RunAsync(ffmpeg, RecordArguments(source, part, left), ct).ConfigureAwait(false);
+            int code;
+            string stderr;
+            using (var lease = relay?.Open(source))
+            {
+                (code, stderr) = await RunAsync(ffmpeg, RecordArguments(lease?.Source ?? source, part, left), ct).ConfigureAwait(false);
+                stderr = lease?.UpstreamError ?? stderr;
+            }
+
             if (File.Exists(part) && new FileInfo(part).Length > 0)
             {
                 parts.Add(part);

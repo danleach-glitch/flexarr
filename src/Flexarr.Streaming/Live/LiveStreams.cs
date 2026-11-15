@@ -13,7 +13,9 @@ namespace Flexarr.Streaming.Live;
 /// Held while either side counts the other and takes a slot (shared with <see cref="TranscodeManager"/>), so a channel
 /// and a film starting at the same moment can't both take the last one.
 /// </param>
-public sealed class LiveStreams(Func<TranscodeSettings> settings, ILoggerFactory loggers, Func<int>? transcoding = null, Lock? slots = null) : IAsyncDisposable
+/// <param name="relay">Keeps sources' secrets off ffmpeg's command line (see <see cref="LiveRelay"/>).</param>
+public sealed class LiveStreams(Func<TranscodeSettings> settings, ILoggerFactory loggers, Func<int>? transcoding = null, Lock? slots = null,
+    LiveRelay? relay = null) : IAsyncDisposable
 {
     private readonly Lock _slots = slots ?? new();
 
@@ -103,7 +105,7 @@ public sealed class LiveStreams(Func<TranscodeSettings> settings, ILoggerFactory
                     }
 
                     // Counted from here, before its ffmpeg starts, so a film starting meanwhile sees the slot taken.
-                    running = new LiveSession(channelKey, source, made, rewind, current, _logger);
+                    running = new LiveSession(channelKey, source, made, rewind, current, _logger, relay);
                     _sessions[channelKey] = running;
                 }
 

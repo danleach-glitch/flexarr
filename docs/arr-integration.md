@@ -14,7 +14,7 @@ Each \*arr app sends a webhook when it imports, upgrades, renames or deletes med
 | Radarr | `/api/v1/webhooks/radarr?secret=SECRET` | `movie.folderPath` |
 | Lidarr | `/api/v1/webhooks/lidarr?secret=SECRET` | `artist.path` |
 
-`SECRET` is the webhook secret from Settings › Connections (`webhookSecret` in `config.json`). It can only queue scans, so the API key needn't live in the \*arr apps' settings. Webhooks set up with `?apikey=KEY` keep working.
+`SECRET` is the webhook secret from Settings › Connections (`webhookSecret` in `config.json`). It can only queue scans, so the API key needn't live in the \*arr apps' settings. Webhooks set up with `?apikey=KEY` still work for now, but will stop working in a coming release: replace them with the `?secret=` address from Settings › Connections.
 
 Events that trigger a scan: `Download` (import/upgrade), `Rename`, `SeriesAdd`/`MovieAdded`/`ArtistAdd`, `*Delete`, `AlbumDownload`, `Retag` (Lidarr's track retag). `Test` returns `200 OK`; other events (`Grab`, `Health`, …) are accepted and ignored.
 

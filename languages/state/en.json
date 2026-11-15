@@ -2830,6 +2830,7 @@
   "The guide from the Live TV source couldn’t be read.": "s",
   "The import is already running.": "s",
   "The invite couldn’t be opened.": "n",
+  "The key was sent in an address for {path} on {date}. That will stop working: send the {header} header instead, or the webhook secret for Sonarr, Radarr and Lidarr.": "w",
   "The language Flexarr is in for this profile, on every device.": "a",
   "The library a movie is added to when you request it.": "w",
   "The library a show is added to when you request it.": "w",

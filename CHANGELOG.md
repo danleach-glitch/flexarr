@@ -165,6 +165,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Security
 
+- The API key in an address (`?apikey=`) will stop working in a coming release. Send it as the `X-Api-Key` header instead, or, for Sonarr, Radarr and Lidarr webhooks, use the webhook address with the webhook secret from **Settings › Connections**. Until then the server's log warns about each use, and **Settings › Security** shows where it was last used.
 - The main profile's own PIN, when it has one, is now asked for on every app and browser that hasn't been given it, older apps and other programs included. An app too old to ask who's watching says to update it.
 - A damaged or hostile `.nfo` or `.opf` file in a library folder can no longer crash the server during a scan.
 - Family guests can no longer set or see the household's recordings by asking through an assistant.
@@ -267,6 +268,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Live TV
 
+- Live TV logins stay inside Flexarr: a channel whose address holds the login (every Dispatcharr channel does) is now fetched by Flexarr itself and handed to its video converter on this computer only, so the password no longer shows in the list of running programs. Channels play, reconnect and record as before.
 - A channel's rewind window no longer fills the server's disk: each channel keeps at most 8 GB (about four hours of HD), so a 4K channel can be rewound less far, and when the disk is nearly full the oldest part of the window goes first.
 
 ### Server

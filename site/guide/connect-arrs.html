@@ -260,7 +260,7 @@
 http://&lt;flexarr-host&gt;:8383/api/v1/webhooks/radarr?secret=&lt;webhook-secret&gt;
 http://&lt;flexarr-host&gt;:8383/api/v1/webhooks/lidarr?secret=&lt;webhook-secret&gt;
 </code></pre>
-<p>The secret can only start scans, so you don&#39;t hand your API key to the *arr apps.</p>
+<p>The secret can only start scans, so you don&#39;t hand your API key to the *arr apps. A webhook you set up long ago with <code>?apikey=</code> in its address still works for now, but will stop working in a coming release: replace it with the address above. <strong>Settings › Security</strong> says if one is still in use.</p>
 <p>In each app:</p>
 <ol>
 <li>Go to <strong>Settings › Connect</strong>, choose <strong>+</strong>, then <strong>Webhook</strong>.</li>

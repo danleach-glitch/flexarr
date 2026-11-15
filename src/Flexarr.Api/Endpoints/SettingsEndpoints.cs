@@ -54,7 +54,10 @@ public sealed record SettingsDto(
     string? ServerName = null,
     string? DefaultServerName = null,
     // Whether library folders are watched for new files (Settings › Libraries; absent from servers before 0.64).
-    bool? WatchFolders = null);
+    bool? WatchFolders = null,
+    // The last time something signed in with the API key in an address (?apikey=) rather than the X-Api-Key header,
+    // and for which path: only within the last 30 days, and null otherwise (absent from servers before 0.67).
+    Authentication.KeyInAddressDto? KeyInAddress = null);
 
 /// <summary>The admin's own Trakt app, used instead of Flexarr's; the secret is never sent back, only whether there is one.</summary>
 public sealed record TraktAppDto(string ClientId, bool HasSecret);
@@ -148,9 +151,9 @@ public static class SettingsEndpoints
     {
         var group = api.MapGroup("/settings").WithTags("Settings").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
-        group.MapGet("/", async (IOptionsMonitor<FlexarrOptions> options, FlexarrDbContext db, CancellationToken ct) =>
+        group.MapGet("/", async (IOptionsMonitor<FlexarrOptions> options, FlexarrDbContext db, Authentication.KeyInAddress keyInAddress, CancellationToken ct) =>
             ToDto(options.CurrentValue, await AvailableAsync(options.CurrentValue, ct), await LiveTv.DvrFolders.ResolveAsync(db, options.CurrentValue, ct),
-                await MainHasOwnPinAsync(db, ct)));
+                await MainHasOwnPinAsync(db, ct)) with { KeyInAddress = keyInAddress.Recent() });
 
         group.MapPut("/", async (SettingsUpdate update, IOptionsMonitor<FlexarrOptions> options, LiveTv.LiveTvRefreshSignal liveTvRefresh, LiveTv.DispatcharrGuides guides, FlexarrDbContext db,
             ILibraryScanQueue scans, HttpContext http, CurrentProfile profile, PinGuard guard, CancellationToken ct) =>

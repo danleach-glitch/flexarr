@@ -18,7 +18,9 @@ namespace Flexarr.Api.Authentication;
 /// Flexarr's sign-in, checked in this order:
 /// <list type="number">
 /// <item>A key, as an <c>X-Api-Key</c> header or <c>apikey</c> query parameter: the server's API key (scripts, *arr
-/// apps, Apple TVs set up before per-device sign-ins), or a device's own token (an Apple TV once it's connected).</item>
+/// apps, Apple TVs set up before per-device sign-ins), or a device's own token (an Apple TV once it's connected). The
+/// query form will stop working in a coming release: until then each use is logged and shown in Settings (see
+/// <see cref="KeyInAddress"/>).</item>
 /// <item>The web app's session cookie, which a browser gets in exchange for the API key (so it never keeps the key),
 /// or over Tailscale for choosing the main profile with its PIN (that one only with the same Tailscale login). Each
 /// browser has its own, which can be signed out from Settings.</item>
@@ -38,6 +40,7 @@ public sealed class ApiKeyAuthenticationHandler(
     SignIns signIns,
     AdminUnlocks unlocks,
     ITailnetWhois whois,
+    KeyInAddress keyInAddress,
     ILoggerFactory loggerFactory,
     UrlEncoder encoder)
     : AuthenticationHandler<AuthenticationSchemeOptions>(schemeOptions, loggerFactory, encoder)
@@ -77,11 +80,22 @@ public sealed class ApiKeyAuthenticationHandler(
     {
         var options = flexarrOptions.CurrentValue;
 
-        string? provided = Request.Headers[HeaderName].FirstOrDefault() ?? Request.Query[QueryName].FirstOrDefault();
+        string? provided = Request.Headers[HeaderName].FirstOrDefault();
+        var inAddress = string.IsNullOrEmpty(provided);
+        if (inAddress)
+        {
+            provided = Request.Query[QueryName].FirstOrDefault();
+        }
+
         if (!string.IsNullOrEmpty(provided))
         {
             if (IsApiKey(provided, options.ApiKey))
             {
+                if (inAddress)
+                {
+                    keyInAddress.Note(Request.Path, Methods.ApiKey);
+                }
+
                 return await SucceedAsync(Methods.ApiKey);
             }
 
@@ -97,6 +111,11 @@ public sealed class ApiKeyAuthenticationHandler(
             }
 
             signIns.NoteDeviceType(device, DeviceTypes.Of(Request));
+            if (inAddress)
+            {
+                keyInAddress.Note(Request.Path, Methods.Device);
+            }
+
             return await SucceedAsync(Methods.Device, device);
         }
 

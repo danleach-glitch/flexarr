@@ -12,6 +12,25 @@ const renderSecurity = () =>
   )
 
 describe('Security', () => {
+  it('says where the key was last sent in an address', async () => {
+    mockApi({
+      '/me': { profileId: 'owner', isAdmin: true },
+      '/settings': { authenticationRequired: 'Enabled', keyInAddress: { lastUsed: '2026-11-14T09:30:00Z', path: '/api/v1/library' } },
+      '/sign-ins': [],
+    })
+    renderSecurity()
+    const note = await screen.findByTestId('key-in-address')
+    expect(note).toHaveTextContent('/api/v1/library')
+    expect(note).toHaveTextContent('X-Api-Key')
+  })
+
+  it('says nothing when the key hasn’t been sent in an address lately', async () => {
+    mockApi({ '/me': { profileId: 'owner', isAdmin: true }, '/settings': { authenticationRequired: 'Enabled', keyInAddress: null }, '/sign-ins': [] })
+    renderSecurity()
+    await screen.findByDisplayValue('Always')
+    expect(screen.queryByTestId('key-in-address')).not.toBeInTheDocument()
+  })
+
   it('sets a forgotten admin PIN with the API key', async () => {
     let sent: Record<string, unknown> = {}
     mockApi({

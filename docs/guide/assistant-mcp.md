@@ -77,6 +77,6 @@ Some apps, including Claude Desktop's configuration file, only start MCP servers
 
 - **Keep the assistant on your network.** Use Flexarr's home address, or its Tailscale address away from home (see [Watch away from home](away-from-home.md)). Never put Flexarr on the internet over plain `http://` to reach it from an assistant.
 - **Don't share configuration files** that contain the key, or commit them to a code repository.
-- **Prefer the header.** Flexarr also accepts the key in the address as `?apikey=`, for tools that can't send headers, but addresses end up in logs and histories more easily.
+- **Send the key as a header.** Flexarr still accepts the key in the address as `?apikey=`, but that will stop working in a coming release (addresses end up in logs and histories too easily). Until then, **Settings › Security** says where it was last used, so you can switch that tool to the `X-Api-Key` header.
 - **If the key leaks**, choose **Make a new key** in **Settings › Security**. Everything using the old key stops working until you give it the new one.
 - **Check before it acts.** An assistant can play, stop, mark things watched and set recordings. Most assistant apps ask before using a tool; leave that on if you'd rather approve each one.
