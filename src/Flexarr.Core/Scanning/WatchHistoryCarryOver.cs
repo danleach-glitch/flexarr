@@ -8,7 +8,9 @@ namespace Flexarr.Core.Scanning;
 /// Keeps watch history and collections with a title when its files come back somewhere new: Radarr or Sonarr renamed
 /// the folder, or a drive stayed away past the grace period. The new item, matched by TMDB, TVDB or IMDb id (and, for
 /// an episode, its show's ids and its number), takes them from the missing item it replaces, or from the
-/// <see cref="WatchTombstone"/> left when that was removed.
+/// <see cref="WatchTombstone"/> left when that was removed. From a missing item it also takes what was set by hand:
+/// a fixed match (with its ids), edited details and a chosen poster. A title matched by hand whose new item matched
+/// by its folder's name to something else is found by that folder's name instead.
 /// </summary>
 public static class WatchHistoryCarryOver
 {
@@ -109,7 +111,8 @@ public static class WatchHistoryCarryOver
                 && (tmdb.Contains(i.TmdbId!) || tvdb.Contains(i.TvdbId!) || imdb.Contains(i.ImdbId!)))
             .Select(i => new Title(i.Id, i.Kind, i.TmdbId, i.TvdbId, i.ImdbId))
             .ToListAsync(ct).ConfigureAwait(false);
-        if (present.Count == 0)
+        var byFolder = await ByFolderAsync(db, missing.Where(m => !present.Any(p => p.Same(m))).Select(m => m.Id).ToList(), ct).ConfigureAwait(false);
+        if (present.Count == 0 && byFolder.Count == 0)
         {
             return 0;
         }
@@ -121,12 +124,13 @@ public static class WatchHistoryCarryOver
         var handedOver = new List<Guid>();
         foreach (var from in missing)
         {
-            if (present.FirstOrDefault(p => p.Same(from)) is not { } to)
+            if ((present.FirstOrDefault(p => p.Same(from)) ?? byFolder.GetValueOrDefault(from.Id)) is not { } to)
             {
                 continue;
             }
 
             await CopyCollectionsAsync(db, added, from.Id, to.Id, ct).ConfigureAwait(false);
+            await CopyHandEditsAsync(db, from.Id, to.Id, ct).ConfigureAwait(false);
             var kids = await items.Where(i => i.Id == from.Id).Select(i => i.KidsOverride).FirstAsync(ct).ConfigureAwait(false);
             await KeepKidsOverrideAsync(db, kids, to.Id, ct).ConfigureAwait(false);
             if (from.Kind == MediaKind.Movie)
@@ -210,6 +214,99 @@ public static class WatchHistoryCarryOver
         }
 
         return carried;
+    }
+
+    /// <summary>
+    /// For missing titles matched by hand (Fix match), the title on disk that has replaced each by its folder: one of
+    /// the same kind, in the same library, in a folder of the same name, that wasn't matched by hand and first turned up
+    /// no earlier than a day before the missing one went. Its own match came from that folder's name, which is what
+    /// gave the wrong one in the first place.
+    /// </summary>
+    private static async Task<Dictionary<Guid, Title>> ByFolderAsync(FlexarrDbContext db, List<Guid> unmatched, CancellationToken ct)
+    {
+        var result = new Dictionary<Guid, Title>();
+        if (unmatched.Count == 0)
+        {
+            return result;
+        }
+
+        var items = db.MediaItems.IgnoreQueryFilters();
+        var locked = await items.Where(i => unmatched.Contains(i.Id) && i.MatchLocked && i.Path != null)
+            .Select(i => new { i.Id, i.Kind, i.LibraryId, Path = i.Path!, MissingSince = i.MissingSince!.Value })
+            .ToListAsync(ct).ConfigureAwait(false);
+        if (locked.Count == 0)
+        {
+            return result;
+        }
+
+        var libraries = locked.Select(l => l.LibraryId).Distinct().ToList();
+        var since = locked.Min(l => l.MissingSince) - TimeSpan.FromDays(1);
+        var candidates = await items
+            .Where(i => i.MissingSince == null && (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Series) && !i.MatchLocked && i.Path != null
+                && libraries.Contains(i.LibraryId) && i.FirstSeenAt != null && i.FirstSeenAt >= since)
+            .Select(i => new { i.Id, i.Kind, i.LibraryId, Path = i.Path!, FirstSeenAt = i.FirstSeenAt!.Value, i.TmdbId, i.TvdbId, i.ImdbId })
+            .ToListAsync(ct).ConfigureAwait(false);
+        foreach (var from in locked)
+        {
+            var name = Path.GetFileName(from.Path.TrimEnd('/'));
+            var to = candidates.Where(c => c.Kind == from.Kind && c.LibraryId == from.LibraryId && c.FirstSeenAt >= from.MissingSince - TimeSpan.FromDays(1)
+                    && string.Equals(Path.GetFileName(c.Path.TrimEnd('/')), name, StringComparison.OrdinalIgnoreCase)
+                    && !result.Values.Any(r => r.Id == c.Id))
+                .ToList();
+            if (to.Count == 1)
+            {
+                result[from.Id] = new Title(to[0].Id, to[0].Kind, to[0].TmdbId, to[0].TvdbId, to[0].ImdbId);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Gives title <paramref name="to"/> what was set by hand on the one it replaces: a fixed match and its ids, edited
+    /// details, a chosen poster. Not when the new one has had something set by hand already: that's someone's say since.
+    /// A fixed match is looked up again (by its ids) at the next refresh.
+    /// </summary>
+    private static async Task CopyHandEditsAsync(FlexarrDbContext db, Guid from, Guid to, CancellationToken ct)
+    {
+        var items = db.MediaItems.IgnoreQueryFilters();
+        if (!await items.AnyAsync(i => i.Id == from && (i.MatchLocked || i.DetailsLocked || i.ArtworkLocked), ct).ConfigureAwait(false)
+            || await items.AnyAsync(i => i.Id == to && (i.MatchLocked || i.DetailsLocked || i.ArtworkLocked), ct).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        var old = await items.Include(i => i.Genres).FirstAsync(i => i.Id == from, ct).ConfigureAwait(false);
+        var item = await items.Include(i => i.Genres).FirstAsync(i => i.Id == to, ct).ConfigureAwait(false);
+        if (old.MatchLocked)
+        {
+            item.MatchLocked = true;
+            item.TmdbId = old.TmdbId;
+            item.TvdbId = old.TvdbId;
+            item.ImdbId = old.ImdbId;
+            item.TvMazeId = old.TvMazeId;
+            item.MetadataUpdatedAt = null; // Looked up again by the ids chosen, not the folder's.
+        }
+
+        if (old.DetailsLocked)
+        {
+            item.DetailsLocked = true;
+            item.Title = old.Title;
+            item.SortTitle = old.SortTitle;
+            item.OriginalTitle = old.OriginalTitle;
+            item.Year = old.Year;
+            item.Overview = old.Overview;
+            item.Studio = old.Studio;
+            item.AlbumType = old.AlbumType;
+            item.Genres.Clear();
+            item.Genres.AddRange(old.Genres);
+        }
+
+        if (old.ArtworkLocked)
+        {
+            item.ArtworkLocked = true;
+            item.PosterUrl = old.PosterUrl;
+        }
     }
 
     /// <summary>

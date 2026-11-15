@@ -362,6 +362,64 @@ public sealed class LibraryScannerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task FilmBackUnderANewFolder_KeepsItsFixedMatchEditsAndPoster()
+    {
+        var root = Touch("movies/Dune (2021) {tmdb-438631}/Dune (2021).mkv");
+        var movies = Path.Combine(root, "movies");
+        var library = await AddLibrary(LibraryType.Movies, movies);
+        await Scanner().ScanAsync(library, null, default);
+        var dune = await _db.MediaItems.SingleAsync(i => i.Title == "Dune");
+        dune.MatchLocked = true;
+        dune.ImdbId = "tt1160419";
+        dune.DetailsLocked = true;
+        dune.Title = "Dune: Part One";
+        dune.Overview = "Written by hand.";
+        dune.ArtworkLocked = true;
+        dune.PosterUrl = "https://image.tmdb.org/t/p/original/chosen.jpg";
+        await _db.SaveChangesAsync();
+
+        Directory.Move(Path.Combine(movies, "Dune (2021) {tmdb-438631}"), Path.Combine(movies, "Dune Part One (2021) {tmdb-438631}"));
+        await Scanner().ScanAsync(library, null, default);
+
+        _db.ChangeTracker.Clear();
+        var renamed = await _db.MediaItems.SingleAsync(i => i.Kind == MediaKind.Movie && i.MissingSince == null);
+        Assert.NotEqual(dune.Id, renamed.Id);
+        Assert.Equal((true, "tt1160419", true, "Dune: Part One", "Written by hand.", true, "https://image.tmdb.org/t/p/original/chosen.jpg"),
+            (renamed.MatchLocked, renamed.ImdbId, renamed.DetailsLocked, renamed.Title, renamed.Overview, renamed.ArtworkLocked, renamed.PosterUrl));
+        Assert.Null(renamed.MetadataUpdatedAt); // looked up again by the ids chosen
+    }
+
+    [Fact]
+    public async Task AFilmMatchedByHand_FoundUnderTheSameFolderNameElsewhere_KeepsItsMatchAndHistory()
+    {
+        var root = Touch("movies-a/Holiday Film (2019)/Holiday Film (2019).mkv", "movies-a/Heat (1995)/Heat (1995).mkv");
+        Directory.CreateDirectory(Path.Combine(root, "movies-b"));
+        var library = new Library
+        {
+            Name = "Films", Type = LibraryType.Movies,
+            Folders = [new LibraryFolder { Path = Path.Combine(root, "movies-a") }, new LibraryFolder { Path = Path.Combine(root, "movies-b") }],
+        };
+        _db.Libraries.Add(library);
+        await _db.SaveChangesAsync();
+        await Scanner().ScanAsync(library, null, default);
+        // Its folder's name finds the wrong film; Fix match gave it the right one.
+        var film = await _db.MediaItems.SingleAsync(i => i.Title == "Holiday Film");
+        film.TmdbId = "555";
+        film.MatchLocked = true;
+        _db.PlaybackStates.Add(new PlaybackState { MediaItemId = film.Id, Watched = true, PlayCount = 1 });
+        await _db.SaveChangesAsync();
+
+        Directory.Move(Path.Combine(root, "movies-a", "Holiday Film (2019)"), Path.Combine(root, "movies-b", "Holiday Film (2019)"));
+        await Scanner().ScanAsync(library, null, default);
+
+        _db.ChangeTracker.Clear();
+        var moved = await _db.MediaItems.SingleAsync(i => i.Title == "Holiday Film" && i.MissingSince == null);
+        Assert.NotEqual(film.Id, moved.Id);
+        Assert.Equal(("555", true), (moved.TmdbId, moved.MatchLocked));
+        Assert.True((await _db.PlaybackStates.SingleAsync(p => p.MediaItemId == moved.Id)).Watched);
+    }
+
+    [Fact]
     public async Task FilmBackUnderANewFolder_IsHandedOverOnce()
     {
         var root = Touch("movies/Dune (2021) {tmdb-438631}/Dune (2021).mkv", "movies/Heat (1995)/Heat (1995).mkv");
@@ -861,6 +919,80 @@ public sealed class LibraryScannerTests : IAsyncLifetime
         Assert.All(tracks, t => Assert.Null(t.MissingSince));
         Assert.EndsWith("01 - Airbag.flac", tracks.Single(t => t.Title == "Airbag").Path, StringComparison.Ordinal);
         Assert.All(tracks, t => Assert.Single(t.Files, f => f.MissingSince == null));
+    }
+
+    [Fact]
+    public async Task Music_ARenamedArtistFolder_ScannedNewFolderFirst_KeepsItsTracks()
+    {
+        var root = Touch("music/ABBA/Gold/01 Dancing Queen.flac", "music/ABBA/Gold/02 Knowing Me.flac");
+        _probe.Tags["01 Dancing Queen.flac"] = new() { ["artist"] = "ABBA", ["album"] = "Gold", ["title"] = "Dancing Queen", ["track"] = "1" };
+        _probe.Tags["02 Knowing Me.flac"] = new() { ["artist"] = "ABBA", ["album"] = "Gold", ["title"] = "Knowing Me, Knowing You", ["track"] = "2" };
+        var music = Path.Combine(root, "music");
+        var library = await AddLibrary(LibraryType.Music, music);
+        await Scanner().ScanAsync(library, null, default);
+        var before = await _db.MediaItems.AsNoTracking().Where(i => i.Kind == MediaKind.Track).ToDictionaryAsync(i => i.Title, i => i.Id);
+        var playlist = new Playlist { Name = "Party", ProfileId = PlaybackState.DefaultUser };
+        _db.Playlists.Add(playlist);
+        _db.PlaylistItems.Add(new PlaylistItem { PlaylistId = playlist.Id, MediaItemId = before["Dancing Queen"], Position = 0 });
+        _db.PlaybackStates.Add(new PlaybackState { MediaItemId = before["Knowing Me, Knowing You"], PlayCount = 5 });
+        await _db.SaveChangesAsync();
+
+        // The folder's renamed, and the watcher's scan of the new one comes before the old one's.
+        Directory.Move(Path.Combine(music, "ABBA"), Path.Combine(music, "ABBA (Band)"));
+        await Scanner().ScanAsync(library, Path.Combine(music, "ABBA (Band)"), default);
+        await Scanner().ScanAsync(library, Path.Combine(music, "ABBA"), default);
+
+        _db.ChangeTracker.Clear();
+        var tracks = await _db.MediaItems.IgnoreQueryFilters().Include(i => i.Files).Where(i => i.Kind == MediaKind.Track).ToListAsync();
+        Assert.Equal(2, tracks.Count);
+        Assert.All(tracks, t => Assert.Equal(before[t.Title], t.Id));
+        Assert.All(tracks, t => Assert.Null(t.MissingSince));
+        Assert.All(tracks, t => Assert.Contains(t.Files, f => f.MissingSince == null && f.Path.Contains("ABBA (Band)", StringComparison.Ordinal)));
+        Assert.Equal(before["Dancing Queen"], (await _db.PlaylistItems.SingleAsync(p => p.PlaylistId == playlist.Id)).MediaItemId);
+        Assert.Equal(5, (await _db.PlaybackStates.SingleAsync(p => p.MediaItemId == before["Knowing Me, Knowing You"])).PlayCount);
+    }
+
+    [Fact]
+    public async Task AScanOfOneTitle_HidesNothing_WhileTheFolderIsHeldAsMostlyGone()
+    {
+        var root = Touch(Enumerable.Range(1, 12).Select(n => $"movies/Film {n} (2000)/Film {n} (2000).mkv").ToArray());
+        var movies = Path.Combine(root, "movies");
+        var library = await AddLibrary(LibraryType.Movies, movies);
+        await Scanner().ScanAsync(library, null, default);
+        for (var n = 1; n <= 7; n++)
+        {
+            Directory.Delete(Path.Combine(movies, $"Film {n} (2000)"), recursive: true);
+        }
+
+        await Scanner().ScanAsync(library, null, default); // Held: 7 of 12 gone.
+        var webhook = await Scanner().ScanAsync(library, Path.Combine(movies, "Film 1 (2000)"), default);
+        var deleted = await Scanner().ScanAsync(library, Path.Combine(movies, "Film 2 (2000)"), retryFailedProbes: false, deleted: true, default);
+
+        Assert.Equal(0, webhook.Missing);
+        Assert.Equal(1, deleted.Missing); // Radarr said it deleted that one: it goes through.
+        Assert.Equal(11, await _db.MediaItems.CountAsync(i => i.Kind == MediaKind.Movie));
+    }
+
+    [Fact]
+    public async Task AScanOfOneFolder_LeavesAFolderDifferingOnlyByCase()
+    {
+        var probe = Directory.CreateDirectory(Path.Combine(_dir, "case-probe")).FullName;
+        if (Directory.Exists(probe.ToUpperInvariant()))
+        {
+            return; // A file system that ignores case can't hold both.
+        }
+
+        var root = Touch("music/ABBA/Gold/01 Song.flac", "music/Abba/Arrival/01 Song.flac");
+        var music = Path.Combine(root, "music");
+        var library = await AddLibrary(LibraryType.Music, music);
+        await Scanner().ScanAsync(library, null, default);
+
+        Directory.Delete(Path.Combine(music, "ABBA"), recursive: true);
+        await Scanner().ScanAsync(library, Path.Combine(music, "ABBA"), default);
+
+        var files = await _db.MediaFiles.IgnoreQueryFilters().AsNoTracking().ToListAsync();
+        Assert.NotNull(files.Single(f => f.Path.Contains("/ABBA/", StringComparison.Ordinal)).MissingSince);
+        Assert.Null(files.Single(f => f.Path.Contains("/Abba/", StringComparison.Ordinal)).MissingSince);
     }
 
     [Fact]

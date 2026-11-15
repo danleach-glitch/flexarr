@@ -330,7 +330,14 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             }
 
             var holding = false;
-            if (!released && full && existing.Count >= MassRemovalMinimum && gone.Count * 2 > existing.Count)
+            if (!full && !deleted && folder is { Hold: not null, ReleasedAt: null } && gone.Count > 0)
+            {
+                // A full scan holds the folder as mostly gone (or unmounted): a scan of one corner of it (a webhook's)
+                // hides nothing either. Only Radarr, Sonarr or Lidarr saying they deleted it lets that go through.
+                holding = true;
+                held = true;
+            }
+            else if (!released && full && existing.Count >= MassRemovalMinimum && gone.Count * 2 > existing.Count)
             {
                 // Most of a library vanishing at once is far likelier a mount or permissions problem than a clear-out.
                 suspicious = true;
@@ -366,6 +373,11 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         if (!held)
         {
             removed = await RemoveExpiredAsync(library.Id, roots, scope is null ? null : targets.Select(t => t.Scope).ToList(), unreadableFolders, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (library.Type == LibraryType.Music && !held)
+        {
+            await ReconcileMovedTracksAsync(library.Id, touched, cancellationToken).ConfigureAwait(false);
         }
 
         var within = touched is null ? null : await WithParentsAsync(touched, cancellationToken).ConfigureAwait(false);
@@ -458,7 +470,9 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         var files = db.MediaFiles.IgnoreQueryFilters().AsNoTracking().Where(f => f.MediaItem!.LibraryId == libraryId);
         if (Directory.Exists(target) || File.Exists(target))
         {
-            return Tracked(await files.Where(f => f.Path == target || f.Path.StartsWith(target + "/")).ToListAsync(ct).ConfigureAwait(false));
+            // StartsWith is a LIKE, which ignores case: /music/Abba isn't under /music/ABBA, so the exact test is made here.
+            return Tracked([.. (await files.Where(f => f.Path == target || f.Path.StartsWith(target + "/")).ToListAsync(ct).ConfigureAwait(false))
+                .Where(f => f.Path == target || PathComparison.IsUnder(f.Path, target))]);
         }
 
         var prefix = Path.GetDirectoryName(target);
@@ -736,6 +750,80 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
         return removed;
     }
+
+    /// <summary>
+    /// Tracks whose files have all gone, matched to new tracks of the same artist, album, disc and number (or title,
+    /// without one) elsewhere in the library: an artist's or album's folder renamed, whose new folder a scan of its own
+    /// found first (a scan of the old one then sees only what went). The gone track takes the new one's files and
+    /// place, keeping its plays and its places in playlists; the new one, with none of its own yet, goes. A track
+    /// someone has played or added to a playlist already is left as it is.
+    /// </summary>
+    /// <param name="libraryId">The library.</param>
+    /// <param name="touched">What a scan of part of the library changed, which the tracks and albums changed here join.</param>
+    /// <param name="ct">Stops it.</param>
+    private async Task ReconcileMovedTracksAsync(Guid libraryId, HashSet<Guid>? touched, CancellationToken ct)
+    {
+        var tracks = db.MediaItems.IgnoreQueryFilters().Where(i => i.LibraryId == libraryId && i.Kind == MediaKind.Track && i.ParentId != null && i.Files.Any());
+        var gone = await tracks.Where(i => i.Files.All(f => f.MissingSince != null))
+            .Select(i => new MovedTrack(i.Id, i.ParentId!.Value, i.Parent!.Title, i.Parent.Parent!.Title, i.DiscNumber, i.TrackNumber, i.Title))
+            .ToListAsync(ct).ConfigureAwait(false);
+        if (gone.Count == 0)
+        {
+            return;
+        }
+
+        var albums = gone.Select(g => g.Album).Distinct().ToList();
+        var found = await tracks.Where(i => albums.Contains(i.Parent!.Title) && i.Files.All(f => f.MissingSince == null)
+                && !i.PlaybackStates.Any() && !db.PlaylistItems.Any(p => p.MediaItemId == i.Id) && !db.CollectionItems.Any(c => c.MediaItemId == i.Id))
+            .Select(i => new MovedTrack(i.Id, i.ParentId!.Value, i.Parent!.Title, i.Parent.Parent!.Title, i.DiscNumber, i.TrackNumber, i.Title))
+            .ToListAsync(ct).ConfigureAwait(false);
+        var pool = found.GroupBy(f => f.Key).ToDictionary(g => g.Key, g => new Queue<MovedTrack>(g));
+        foreach (var old in gone)
+        {
+            if (!pool.TryGetValue(old.Key, out var waiting) || !waiting.TryDequeue(out var now))
+            {
+                continue;
+            }
+
+            var newer = await db.MediaItems.IgnoreQueryFilters().AsNoTracking().FirstAsync(i => i.Id == now.Id, ct).ConfigureAwait(false);
+            await db.MediaFiles.IgnoreQueryFilters().Where(f => f.MediaItemId == now.Id)
+                .ExecuteUpdateAsync(u => u.SetProperty(f => f.MediaItemId, old.Id), ct).ConfigureAwait(false);
+            await db.MediaItems.IgnoreQueryFilters().Where(i => i.Id == old.Id).ExecuteUpdateAsync(u => u
+                .SetProperty(i => i.ParentId, now.AlbumId)
+                .SetProperty(i => i.Path, newer.Path)
+                .SetProperty(i => i.Title, newer.Title)
+                .SetProperty(i => i.SortTitle, newer.SortTitle)
+                .SetProperty(i => i.Year, newer.Year)
+                .SetProperty(i => i.TrackArtist, newer.TrackArtist)
+                .SetProperty(i => i.MissingSince, (DateTime?)null), ct).ConfigureAwait(false);
+            await db.MediaItems.IgnoreQueryFilters().Where(i => i.Id == now.Id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+
+            // What the scan has tracked of them is out of date now: forgotten, so nothing saves it back.
+            foreach (var entry in db.ChangeTracker.Entries<MediaItem>().Where(e => e.Entity.Id == old.Id || e.Entity.Id == now.Id).ToList())
+            {
+                entry.State = EntityState.Detached;
+            }
+
+            foreach (var entry in db.ChangeTracker.Entries<MediaFile>().Where(e => e.Entity.MediaItemId == now.Id || e.Entity.MediaItemId == old.Id).ToList())
+            {
+                entry.State = EntityState.Detached;
+            }
+
+            touched?.UnionWith([old.Id, old.AlbumId, now.AlbumId]);
+            LogTrackMoved(PathComparison.Printable(newer.Path ?? newer.Title));
+        }
+    }
+
+    /// <param name="Album">Its album's title.</param>
+    /// <param name="Artist">Its album's artist's name.</param>
+    private sealed record MovedTrack(Guid Id, Guid AlbumId, string Album, string Artist, int? Disc, int? Number, string Title)
+    {
+        public (string, string, int, int?, string?) Key =>
+            (MusicKeys.Fold(Artist), MusicKeys.Fold(Album), Disc ?? 1, Number, Number is null ? MusicKeys.Fold(Title) : null);
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "A track gone from its folder turned up at {Path}: it keeps its plays and playlists")]
+    private partial void LogTrackMoved(string path);
 
     /// <summary><paramref name="items"/> with their parents and grandparents (an episode's season and show, a track's album and artist).</summary>
     private async Task<HashSet<Guid>> WithParentsAsync(HashSet<Guid> items, CancellationToken ct)

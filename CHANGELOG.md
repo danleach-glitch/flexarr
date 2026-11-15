@@ -155,6 +155,9 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Taking back a show request with two Sonarrs stops the right seasons in each.
 - Changing a library's folders no longer throws away what was in them. A folder swapped for one holding the same files keeps every title as it was, with its plays, playlists, progress, bookmarks and hand edits; titles in a folder taken out are hidden for a day before they go, so putting it back in time brings them back.
 - Removing a library keeps its films' and shows' watch history for a while, so adding its folders again brings it back.
+- Renaming an artist's or album's folder keeps its tracks' plays and places in playlists, whichever folder is scanned first.
+- A film or show that comes back under a new folder keeps its Fix match, edited details and chosen poster along with its watch history, and one matched by hand is found again by its folder's name.
+- While a library folder is held because most of it seemed to vanish, a scan of one title in it (after a download) no longer hides that title, and scanning one folder no longer touches another whose name differs only in capital letters.
 
 ### Music, audiobooks and podcasts
 
