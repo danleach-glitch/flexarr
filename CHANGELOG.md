@@ -127,6 +127,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Playback
 
 - Converting a 4K HDR film for a screen that can't show HDR is several times lighter on the server's processor: the picture is shrunk before its colours are converted, not after.
+- The limit on videos converted at once now counts only streams whose picture is converted: films played as they are and music no longer fill it, so nobody is told Flexarr is busy while the server is barely working.
 
 ### Music, audiobooks and podcasts
 

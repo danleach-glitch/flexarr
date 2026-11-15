@@ -32,7 +32,10 @@ public sealed record TranscodeSettings
     /// </summary>
     public bool CanToneMapInSoftware { get; init; } = true;
 
-    /// <summary>Most transcodes running at once (0 = no limit); playback beyond it is refused rather than slowing everyone.</summary>
+    /// <summary>
+    /// Most streams converting the picture at once (0 = no limit); playback beyond it is refused rather than slowing
+    /// everyone. Repackaged streams and sound-only ones don't count.
+    /// </summary>
     public int MaxConcurrentTranscodes { get; init; } = 3;
 
     public HardwareAcceleration Resolved => HardwareAcceleration switch

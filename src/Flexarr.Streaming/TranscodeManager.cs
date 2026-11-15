@@ -87,13 +87,15 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
         bool preparing = false)
     {
         var current = settings();
-        var limit = current.MaxConcurrentTranscodes;
+        // Only converting the picture counts towards the limit: a repackaged stream or a song costs next to nothing,
+        // so it neither waits for a slot nor holds one.
+        var limit = plan.EncodesVideo ? current.MaxConcurrentTranscodes : 0;
         TranscodeSession session;
         List<TranscodeSession> ended = [];
         List<TranscodeSession> yielded = [];
         lock (_createLock)
         {
-            var active = _sessions.Values.Where(s => s.IsActive).ToList();
+            var active = _sessions.Values.Where(s => s.IsActive && s.Plan.EncodesVideo).ToList();
             var others = otherWork?.Invoke() ?? 0;
             if (preparing)
             {
@@ -195,11 +197,11 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
     /// <exception cref="TranscodeLimitException">The others are using every slot.</exception>
     private void Reserve(TranscodeSession session)
     {
-        var limit = settings().MaxConcurrentTranscodes;
+        var limit = session.Plan.EncodesVideo ? settings().MaxConcurrentTranscodes : 0;
         List<TranscodeSession> yielded = [];
         lock (_createLock)
         {
-            var others = _sessions.Values.Where(s => s != session && s.IsActive).ToList();
+            var others = _sessions.Values.Where(s => s != session && s.IsActive && s.Plan.EncodesVideo).ToList();
             var outside = otherWork?.Invoke() ?? 0;
             if (limit > 0 && others.Count + outside >= limit && !session.Warming)
             {

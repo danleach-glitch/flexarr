@@ -388,6 +388,24 @@ public sealed class TranscodeSessionTests : IDisposable
     }
 
     [Fact]
+    public async Task RepackagedStreamsAndSongs_NeitherWaitForNorHoldASlot()
+    {
+        await using var manager = Manager(limit: 1);
+        var copy = Plan with { Repackage = new Flexarr.Streaming.Remux.Repackage([0, 4], "hvc1", "hvc1.2.4.L150.B0", null, "PQ", StripDolbyVision: false) };
+        await manager.CreateAsync("a", "/in.mkv", 600, copy);
+        await manager.CreateAsync("b", "/in.mkv", 600, copy);
+        await manager.CreateAsync("c", "/in.flac", 240, Plan with { VideoStreamIndex = -1 });
+
+        // Three copies at next to no cost leave the one conversion slot free...
+        var converting = await manager.CreateAsync("d", "/in.mkv", 600, Plan);
+        Assert.NotNull(converting);
+
+        // ...and once it's taken, copies still start.
+        Assert.NotNull(await manager.CreateAsync("e", "/in.mkv", 600, copy));
+        Assert.Equal(5, manager.ActiveCount);
+    }
+
+    [Fact]
     public async Task EncodingCount_LeavesOutRepackagedStreams_SoundOnly_AndWarming()
     {
         await using var manager = Manager(limit: 0);

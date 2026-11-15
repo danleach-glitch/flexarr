@@ -188,7 +188,7 @@ var transcodeSlots = new Lock();
 builder.Services.AddSingleton(sp => new Flexarr.Streaming.Live.LiveStreams(
     () => PlaybackEndpoints.TranscodeSettingsFor(sp.GetRequiredService<IOptionsMonitor<FlexarrOptions>>().CurrentValue),
     sp.GetRequiredService<ILoggerFactory>(),
-    () => sp.GetRequiredService<TranscodeManager>().ActiveCount,
+    () => sp.GetRequiredService<TranscodeManager>().EncodingCount,
     transcodeSlots));
 builder.Services.AddHostedService<LiveTvSweeper>();
 builder.Services.AddSingleton<DvrSignal>();
