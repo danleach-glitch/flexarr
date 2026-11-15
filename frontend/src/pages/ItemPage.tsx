@@ -59,6 +59,7 @@ import {
   pictureLabel,
 } from '../lib/format'
 import { locale, t, Words } from '../i18n'
+import { tablistKeys } from '../lib/menuKeys'
 
 // Only someone with audiobooks opens a book's page, so it isn't part of the first page everyone loads.
 const BookPage = lazy(() => onDemand(() => import('./BookPage').then((m) => ({ default: m.BookPage }))))
@@ -403,12 +404,13 @@ function Seasons({ series, counts, onChange }: { series: ItemDetail; counts?: Sh
 
   return (
     <section className="seasons">
-      <div className="season-tabs" role="tablist" aria-label={t('Seasons')}>
+      <div className="season-tabs" role="tablist" aria-label={t('Seasons')} onKeyDown={tablistKeys}>
         {seasons.map((s) => (
           <button
             key={s.id}
             role="tab"
             aria-selected={s.id === selected.id}
+            tabIndex={s.id === selected.id ? 0 : -1}
             className={s.id === selected.id ? 'season-tab active' : 'season-tab'}
             onClick={() => setParams({ season: String(s.seasonNumber) }, { replace: true })}
           >

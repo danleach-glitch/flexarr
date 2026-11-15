@@ -11,6 +11,7 @@ import { Info } from './icons'
 import { icon } from './icons.generated'
 import { ScoreChips } from './ScoreChips'
 import { t, Words } from '../i18n'
+import { tablistKeys } from '../lib/menuKeys'
 
 const ROTATE_MS = 10_000
 const BACKDROP_WIDTHS = [780, 1280, 1920]
@@ -201,9 +202,9 @@ export function Hero({ items, overviews, resume, resumes, top }: {
         </div>
       </div>
       {items.length > 1 && (
-        <div className="hero-pager" role="tablist" aria-label={t('Featured titles')}>
+        <div className="hero-pager" role="tablist" aria-label={t('Featured titles')} onKeyDown={tablistKeys}>
           {items.map((it, i) => (
-            <button key={it.id} role="tab" aria-selected={i === index} aria-label={it.title} onClick={() => setIndex(i)}>
+            <button key={it.id} role="tab" aria-selected={i === index} tabIndex={i === index ? 0 : -1} aria-label={it.title} onClick={() => setIndex(i)}>
               <span />
             </button>
           ))}

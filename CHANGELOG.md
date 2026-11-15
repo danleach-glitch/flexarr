@@ -57,6 +57,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - When the server can't be reached, the web app now has a **Try again** button.
 - The watched tick and a channel's star say so when the change didn't go through, and the tick is easier to tap on a touch screen.
 - With no libraries yet, a profile that can't add one is told who can, and an empty Watchlist says how to add a title.
+- In the web player on a phone or tablet, tapping the picture while the controls are hidden brings them back instead of pausing, and double-clicking for full screen no longer pauses and resumes on the way.
+- The web player's Subtitles, Audio, Speed, Quality and Sleep menus work from the keyboard or a TV remote: they open on the current choice, the arrows move through them, and closing one goes back to its button. Seasons and Live TV's views move with the left and right arrows.
+- The web player's full screen button uses the iPhone's own full screen, and is left out where the browser can't go full screen.
+- The search button is read out as Search on phones, shows Ctrl K rather than ⌘K off Apple devices, and the seek bar shows where the keyboard is.
 
 ### Playback
 

@@ -209,6 +209,12 @@
   opacity: 1;
 }
 
+/* The bar's own outline would run round the whole width: a ring round the thumb shows where the keyboard is. */
+.scrubber:focus-visible .scrubber-thumb {
+  outline: 2px solid var(--screen);
+  outline-offset: 3px;
+}
+
 .scrubber-tooltip {
   position: absolute;
   bottom: 30px;

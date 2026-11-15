@@ -876,6 +876,14 @@ describe('Discover', () => {
 })
 
 describe('Search', () => {
+  it('names the search button even where its word is hidden, and shows the shortcut this computer uses', async () => {
+    mockApi({ '/libraries': [], '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 } })
+    renderAt('/')
+    const button = await screen.findByRole('button', { name: 'Search' })
+    // Not a Mac (jsdom says neither Mac nor iPhone): Ctrl K, and not read out as part of the name.
+    expect(within(button).getByText('Ctrl K')).toHaveAttribute('aria-hidden', 'true')
+  })
+
   it('opens with ⌘K and goes to the highlighted result on Enter', async () => {
     mockApi({
       '/libraries': [],

@@ -1,3 +1,5 @@
+import { canFullscreen, toggleFullscreenOf } from '../lib/fullscreen'
+import { focusMenu, moveInMenu } from '../lib/menuKeys'
 import { errorText } from '../lib/errorText'
 import Hls from 'hls.js/light'
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
@@ -142,6 +144,10 @@ function HoldButton({ onStep, ...props }: { onStep: (held: boolean) => void } & 
   )
 }
 const HIDE_CHROME_MS = 3000
+/** How long a click on the picture waits to see whether it's the first of a double-click. */
+const DOUBLE_CLICK_MS = 250
+/** What Up and Down move between in the player's menus: every button there, choices and actions (Search, Re-sync) alike. */
+const PLAYER_MENU_ITEM = 'button'
 // Said through t() where shown.
 const STREAM_STOPPED = tk('The stream stopped. The server may have had trouble converting this file.')
 const TAKEN_OVER = tk('Someone started watching on another screen, so this one had to stop.')
@@ -835,6 +841,25 @@ export function PlayerPage() {
   // An open menu closes at a press anywhere outside it. A press on the picture only closes it (it doesn't pause too);
   // another control goes on to do its own thing, opening its menu instead, say.
   const closedByPress = useRef(false)
+  // A menu opened moves the focus into it, on its chosen item, and closing it puts the focus back on its button, so a
+  // keyboard or a TV remote's arrows can work it.
+  const menuOpener = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    const root = container.current
+    if (menu === null) {
+      const opener = menuOpener.current
+      menuOpener.current = null
+      const lost = !document.activeElement || document.activeElement === document.body
+      if (opener?.isConnected && lost) opener.focus({ preventScroll: true })
+      return
+    }
+    menuOpener.current = root?.querySelector<HTMLElement>('.menu-anchor > button[aria-expanded="true"]') ?? menuOpener.current
+    focusMenu(root?.querySelector<HTMLElement>('.player-menu'), PLAYER_MENU_ITEM)
+  }, [menu])
+  // A tap that only showed the controls, and a click held back a moment in case it's the first of a double-click.
+  const tapWoke = useRef(false)
+  const clickTimer = useRef<number>(undefined)
+  useEffect(() => () => window.clearTimeout(clickTimer.current), [])
   useEffect(() => {
     if (menu === null) return
     const onPress = (e: PointerEvent) => {
@@ -862,10 +887,7 @@ export function PlayerPage() {
     const el = video.current
     if (el) el.currentTime = seconds
   }
-  const toggleFullscreen = () => {
-    if (document.fullscreenElement) void document.exitFullscreen()
-    else void container.current?.requestFullscreen?.()
-  }
+  const toggleFullscreen = () => toggleFullscreenOf(container.current, video.current)
   // How this sitting ends, from what was playing when the player closes (by its own Back or the browser's).
   const now = useRef({ info, time, duration, finished: ended, credits: undefined as number | undefined })
   now.current = { info, time, duration, finished: ended, credits: info?.markers.find((m) => m.type === 'Credits')?.start }
@@ -1477,9 +1499,33 @@ export function PlayerPage() {
       className={chromeShown ? 'player' : 'player chrome-hidden'}
       style={{ ...(accent ? { '--ambient': accent } : {}), '--cue-scale': scale } as CSSProperties}
       onMouseMove={wake}
+      onKeyDown={(e) => {
+        if (e.target instanceof Element) moveInMenu(e, e.target.closest<HTMLElement>('.player-menu'), PLAYER_MENU_ITEM)
+      }}
+      onPointerDown={(e) => {
+        // A finger on the picture with the controls hidden only brings them back: someone tapping to see the time
+        // shouldn't pause the film. Mice wake them by moving.
+        tapWoke.current = e.pointerType !== 'mouse' && !chromeShown && e.target === video.current
+        if (e.pointerType !== 'mouse') wake()
+      }}
       onClick={(e) => {
         if (closedByPress.current) closedByPress.current = false
-        else if (!error && e.target === video.current) toggle()
+        else if (tapWoke.current) tapWoke.current = false
+        else if (!error && e.target === video.current) {
+          // A click waits a moment in case it's the first of a double-click (full screen), which then neither pauses
+          // nor resumes; a slow double-click whose first click already paused puts it back.
+          if (e.detail > 1) {
+            if (clickTimer.current !== undefined) window.clearTimeout(clickTimer.current)
+            else toggle()
+            clickTimer.current = undefined
+          } else {
+            window.clearTimeout(clickTimer.current)
+            clickTimer.current = window.setTimeout(() => {
+              clickTimer.current = undefined
+              toggle()
+            }, DOUBLE_CLICK_MS)
+          }
+        }
       }}
     >
       <video
@@ -1962,9 +2008,11 @@ export function PlayerPage() {
               </svg>
             </button>
           )}
-          <button className="icon-button" onClick={toggleFullscreen} aria-label={fullscreen ? t('Exit full screen') : t('Full screen')}>
-            {fullscreen ? <ExitFullscreen /> : <Fullscreen />}
-          </button>
+          {canFullscreen() && (
+            <button className="icon-button" onClick={toggleFullscreen} aria-label={fullscreen ? t('Exit full screen') : t('Full screen')}>
+              {fullscreen ? <ExitFullscreen /> : <Fullscreen />}
+            </button>
+          )}
         </div>
       </footer>
 

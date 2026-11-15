@@ -10,6 +10,7 @@ import { icon } from '../components/icons.generated'
 import { useFavourites } from '../hooks/useFavourites'
 import { usePolling } from '../hooks/usePolling'
 import { formatClock } from '../lib/format'
+import { canFullscreen, toggleFullscreenOf } from '../lib/fullscreen'
 import { belongsToFocused } from '../lib/focusedKeys'
 import { mediaErrorRecovery } from '../lib/hlsRecovery'
 import { prefersNativeHls } from '../lib/profile'
@@ -202,10 +203,7 @@ export default function LivePlayerPage() {
   }
   useEffect(() => () => window.clearTimeout(hideTimer.current), [])
 
-  const toggleFullscreen = () => {
-    if (document.fullscreenElement) void document.exitFullscreen()
-    else void container.current?.requestFullscreen()
-  }
+  const toggleFullscreen = () => toggleFullscreenOf(container.current, video.current)
   useEffect(() => {
     const change = () => setFullscreen(!!document.fullscreenElement)
     document.addEventListener('fullscreenchange', change)
@@ -431,9 +429,11 @@ export default function LivePlayerPage() {
           <button className="player-quality" onClick={() => setList((open) => !open)} aria-expanded={list}>
             {t('Channels')}
           </button>
-          <button className="icon-button" onClick={toggleFullscreen} aria-label={fullscreen ? t('Exit full screen') : t('Full screen')}>
-            {fullscreen ? <ExitFullscreen /> : <Fullscreen />}
-          </button>
+          {canFullscreen() && (
+            <button className="icon-button" onClick={toggleFullscreen} aria-label={fullscreen ? t('Exit full screen') : t('Full screen')}>
+              {fullscreen ? <ExitFullscreen /> : <Fullscreen />}
+            </button>
+          )}
         </div>
       </footer>
     </div>

@@ -8,6 +8,7 @@ import { useAgeLimits } from '../hooks/sessionContext'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { usePlay } from '../hooks/usePlay'
 import { useWatchlistKeys } from '../hooks/useWatchlistKeys'
+import { focusMenu, moveInMenu } from '../lib/menuKeys'
 import { noticeFailure, showNotice } from '../lib/notice'
 import { announceWatched } from '../hooks/watched'
 import { episodeCode, progressOf } from '../lib/format'
@@ -171,8 +172,7 @@ export function Menu({ label, at, actions, onClose, focusBack }: { label: string
     if (!el) return
     const { width, height } = el.getBoundingClientRect()
     setPosition({ x: Math.max(8, Math.min(at.x, innerWidth - width - 8)), y: at.y + height > innerHeight - 8 ? Math.max(8, at.y - height - 12) : at.y })
-    const first = el.querySelector<HTMLButtonElement>('[aria-checked="true"]') ?? el.querySelector<HTMLButtonElement>(ITEM)
-    first?.focus()
+    focusMenu(el, ITEM)
   }, [at])
 
   useEffect(() => {
@@ -191,15 +191,10 @@ export function Menu({ label, at, actions, onClose, focusBack }: { label: string
   }, [onClose])
 
   function onKeyDown(e: KeyboardEvent) {
-    const items = [...(menu.current?.querySelectorAll<HTMLButtonElement>(ITEM) ?? [])]
-    const index = items.indexOf(document.activeElement as HTMLButtonElement)
     if (e.key === 'Escape' || e.key === 'Tab') {
       e.preventDefault()
       onClose()
-    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      e.preventDefault()
-      items[(index + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus()
-    }
+    } else moveInMenu(e, menu.current, ITEM)
   }
 
   return createPortal(

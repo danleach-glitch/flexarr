@@ -17,6 +17,7 @@ import { clock, keepUnchanged, programmeTime, programmeTitle, progress, tidyGrou
 import { liveTvRefresh, type AskedRefresh } from '../lib/liveTvRefresh'
 import { locale, t, Words } from '../i18n'
 import '../styles/livetv.lazy.css'
+import { tablistKeys } from '../lib/menuKeys'
 
 const LiveRecordings = lazy(() => import('./LiveRecordings'))
 const RefreshGuide = icon.refresh
@@ -190,13 +191,14 @@ export default function LiveTvPage() {
       <header className="livetv-header">
         <h1 className="livetv-title">{t(Words.liveTv)}</h1>
         {mainProfile && <IconButton className="button quiet small icon livetv-refresh" label={t(refreshing ? Words.refreshingGuide : Words.refreshGuide)} icon={<RefreshGuide />} busy={refreshing} keepFocus onClick={startRefresh} />}
-        <div className="season-tabs livetv-tabs" role="tablist" aria-label={t('View')}>
-          <button role="tab" aria-selected={view === 'now'} className={view === 'now' ? 'season-tab active' : 'season-tab'} onClick={() => setParams({}, { replace: true })}>
+        <div className="season-tabs livetv-tabs" role="tablist" aria-label={t('View')} onKeyDown={tablistKeys}>
+          <button role="tab" aria-selected={view === 'now'} tabIndex={view === 'now' ? 0 : -1} className={view === 'now' ? 'season-tab active' : 'season-tab'} onClick={() => setParams({}, { replace: true })}>
             {t('On now')}
           </button>
           <button
             role="tab"
             aria-selected={view === 'guide'}
+            tabIndex={view === 'guide' ? 0 : -1}
             className={view === 'guide' ? 'season-tab active' : 'season-tab'}
             onClick={() => setParams({ view: 'guide' }, { replace: true })}
           >
@@ -206,6 +208,7 @@ export default function LiveTvPage() {
             <button
               role="tab"
               aria-selected={view === 'recordings'}
+              tabIndex={view === 'recordings' ? 0 : -1}
               className={view === 'recordings' ? 'season-tab active' : 'season-tab'}
               onClick={() => setParams({ view: 'recordings' }, { replace: true })}
             >
