@@ -3,7 +3,7 @@ import Testing
 @testable import FlexarrKit
 
 @Suite struct LinkSpeedTests {
-    @Test func isTheUpperQuartileOfRecentRates() {
+    @Test func isTheMedianOfRecentRates() {
         let speed = LinkSpeed()
         let now = Date()
         #expect(speed.current(at: now) == nil)
@@ -11,7 +11,9 @@ import Testing
         speed.sample(bitsPerSecond: 8_000_000, at: now)
         speed.sample(bitsPerSecond: 16_000_000, at: now)
         speed.sample(bitsPerSecond: 32_000_000, at: now)
-        #expect(speed.current(at: now) == 32_000_000)
+        #expect(speed.current(at: now) == 8_000_000) // the lower middle of four
+        speed.sample(bitsPerSecond: 64_000_000, at: now)
+        #expect(speed.current(at: now) == 16_000_000)
     }
 
     @Test func ignoresSmallDownloadsAndForgetsOldOnes() {

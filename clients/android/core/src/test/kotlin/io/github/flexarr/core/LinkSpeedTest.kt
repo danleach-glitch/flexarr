@@ -6,7 +6,7 @@ import org.junit.Test
 
 class LinkSpeedTest {
     @Test
-    fun `is the upper quartile of recent big segments, once there are a few`() {
+    fun `is the median of recent big segments, once there are a few`() {
         val speed = LinkSpeed { 0L }
         assertNull(speed.current())
         speed.sample(1_000_000, 2000) // 4 Mbps
@@ -14,7 +14,9 @@ class LinkSpeedTest {
         assertNull(speed.current()) // two say nothing
         speed.sample(1_000_000, 500) // 16 Mbps
         speed.sample(1_000_000, 250) // 32 Mbps
-        assertEquals(32_000_000L, speed.current())
+        assertEquals(8_000_000L, speed.current()) // the lower middle of four
+        speed.sample(1_000_000, 125) // 64 Mbps
+        assertEquals(16_000_000L, speed.current())
     }
 
     @Test

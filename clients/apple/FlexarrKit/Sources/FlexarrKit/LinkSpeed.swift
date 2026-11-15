@@ -3,8 +3,9 @@ import os
 
 /// How fast streams reach this device from the server lately, for the start request's `measuredBitrate`
 /// (docs/fast-start.md). Samples are stream rates the player measured (AVPlayer's observed bitrate, each an average over a
-/// stream's own downloads), never artwork: small files loaded side by side read far below the link. The upper quartile of
-/// the last few, for half an hour; nothing at all with no sample (better to stream as at home than to cap on a guess).
+/// stream's own downloads), never artwork: small files loaded side by side read far below the link. The median of the last
+/// few (the lower middle one when there's an even number), for half an hour: a link that swings is judged by a typical
+/// reading, not its good moments (#539). Nothing at all with no sample (better to stream as at home than to cap on a guess).
 public final class LinkSpeed: Sendable {
     public static let shared = LinkSpeed()
 
@@ -35,6 +36,6 @@ public final class LinkSpeed: Sendable {
     /// The measured speed in bits per second, or nil with nothing recent to go on.
     public func current(at now: Date = Date()) -> Int? {
         let fresh = samples.withLock { $0 }.filter { now.timeIntervalSince($0.at) < Self.freshFor }.map(\.bitsPerSecond).sorted()
-        return fresh.isEmpty ? nil : fresh[Int(Double(fresh.count) * 0.75)]
+        return fresh.isEmpty ? nil : fresh[(fresh.count - 1) / 2]
     }
 }

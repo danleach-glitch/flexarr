@@ -31,14 +31,31 @@ public class AwayFromHomeTests
     [Fact]
     public void Automatic_CapsARemoteFileThatNeedsMoreThanTheConnection()
     {
-        // 10 Mbps measured: three quarters of it.
-        Assert.Equal(7_500_000, AwayFromHome.Cap(AwayFromHomeQuality.Automatic, remote: true, 10_000_000, 40_000_000));
-        // The file fits: left as it is.
-        Assert.Null(AwayFromHome.Cap(AwayFromHomeQuality.Automatic, remote: true, 10_000_000, 6_000_000));
+        // 10 Mbps measured: busy stretches held to three quarters of it, so an average of 7.5 / 1.5 = 5 Mbps.
+        Assert.Equal(5_000_000, AwayFromHome.Cap(AwayFromHomeQuality.Automatic, remote: true, 10_000_000, 40_000_000));
+        // The file fits, busy stretches and all: left as it is.
+        Assert.Null(AwayFromHome.Cap(AwayFromHomeQuality.Automatic, remote: true, 10_000_000, 5_000_000));
         // Its bitrate unknown: left as it is (it may fit, and a cap would give up repackaging).
         Assert.Null(AwayFromHome.Cap(AwayFromHomeQuality.Automatic, remote: true, 10_000_000, null));
         // Never below the floor.
         Assert.Equal(AwayFromHome.MinBitrate, AwayFromHome.Cap(AwayFromHomeQuality.Automatic, remote: true, 1_000_000, 8_000_000));
+    }
+
+    [Theory]
+    // #539: a 4.9 Mbps 1080p episode (peaking near 10) over Tailscale that carried 5–9 Mbps. The old apps' upper
+    // quartile (9) and the new ones' median (7) both convert it, below its own average so the conversion happens.
+    [InlineData(9_000_000L, 4_500_000L)]
+    [InlineData(7_000_000L, 3_500_000L)]
+    // A link with plenty of room plays it as it is.
+    [InlineData(20_000_000L, null)]
+    public void Automatic_JudgesAFileByItsBusyStretches_NotItsAverage(long measured, long? cap)
+    {
+        const long file = 4_900_000;
+        Assert.Equal(cap, AwayFromHome.Cap(AwayFromHomeQuality.Automatic, remote: true, measured, file));
+        if (cap is { } held)
+        {
+            Assert.True(held < file);
+        }
     }
 
     [Fact]
