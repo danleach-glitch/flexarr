@@ -982,6 +982,8 @@ struct TransportStyle: ButtonStyle {
             .font(.system(size: size * (filled ? 0.42 : 0.5), weight: .semibold))
             .foregroundStyle(filled ? Color.room : (active ? Color.silver : Color.screen))
             .frame(width: size, height: size)
+            // The whole frame takes a tap, not only the glyph's few points (Shuffle and Repeat are about 25 wide).
+            .contentShape(Rectangle())
             .background {
                 if filled { Circle().fill(Color.screen) }
             }

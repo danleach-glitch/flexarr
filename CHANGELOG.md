@@ -72,6 +72,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On iPhone and iPad, Music's Browse / Artists / Albums / Genres switch sits at the same height as Films' and TV Shows', so it no longer hops between libraries.
 - On iPhone, swiping to delete a download or a recording shows Delete in the delete colour, not the app's silver-blue.
 - On iPhone and iPad, the clock and battery stay readable over a pale backdrop on a title's page.
+- On iPhone, Now Playing's Shuffle, Previous, Next and Repeat, and each row's See all, are easier to tap: the whole button takes the tap, not just its icon or word.
 
 ### Downloads
 

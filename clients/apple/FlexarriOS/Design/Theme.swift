@@ -90,10 +90,24 @@ struct SectionHeading: View {
                 .foregroundStyle(Color.screen)
             Spacer()
             if let action {
+                #if os(iOS)
+                Button(action: action) {
+                    // A full-size target, 44 points high, overlapping the space around it so the heading keeps its
+                    // height.
+                    Text(actionTitle)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.usher)
+                .padding(.vertical, -13)
+                .accessibilityLabel(actionLabel ?? actionTitle)
+                #else
                 Button(actionTitle, action: action)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.usher)
                     .accessibilityLabel(actionLabel ?? actionTitle)
+                #endif
             }
         }
         .padding(.horizontal, Layout.edge)
