@@ -260,6 +260,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Linux (Docker, a NAS), hardware acceleration left on Auto now finds a working NVIDIA, VA-API or Quick Sync encoder by itself when the server starts. Converting in software, a picture is made no larger than 1080p, and fewer conversions run at once on a machine with few cores unless you set the limit yourself.
 - Away from home, **Automatic** quality now converts a film or episode that would keep buffering on a connection that swings: the apps judge the connection by a typical reading rather than its best moments, and the server allows for the file's busiest stretches, not just its average.
 
+### Live TV
+
+- A channel's rewind window no longer fills the server's disk: each channel keeps at most 8 GB (about four hours of HD), so a 4K channel can be rewound less far, and when the disk is nearly full the oldest part of the window goes first.
+
 ### Server
 
 - Home opens faster while someone else in the household is watching: their progress no longer makes every other profile's Home be worked out again.

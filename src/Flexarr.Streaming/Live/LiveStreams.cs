@@ -196,6 +196,7 @@ public sealed class LiveStreams(Func<TranscodeSettings> settings, ILoggerFactory
         foreach (var session in _sessions.Values)
         {
             dropped.AddRange(session.DropIdle(viewerIdle));
+            session.KeepWithinBudget();
             if (session.EmptySince is { } since && (DateTime.UtcNow - since > linger || session.Failed))
             {
                 await StopAsync(session).ConfigureAwait(false);
