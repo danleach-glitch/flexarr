@@ -214,14 +214,7 @@ struct MacRootView: View {
         } message: {
             Text(model.watchlistError ?? "")
         }
-        .alert(t("Couldn’t mark this"), isPresented: Binding(
-            get: { model.watchedError != nil },
-            set: { if !$0 { model.watchedError = nil } }
-        )) {
-            Button(t("OK"), role: .cancel) {}
-        } message: {
-            Text(model.watchedError ?? "")
-        }
+        .watchedErrorAlert(model)
         .alert(t("Couldn’t play this channel"), isPresented: Binding(
             get: { model.liveTv.errorMessage != nil },
             set: { if !$0 { model.liveTv.errorMessage = nil } }
@@ -260,6 +253,20 @@ struct MacRootView: View {
             } else {
                 Text(model.player.errorMessage ?? "")
             }
+        }
+    }
+}
+
+private extension View {
+    /// Mark as watched that didn't take: on its own, so the long chain of alerts above still type-checks in time.
+    func watchedErrorAlert(_ model: AppModel) -> some View {
+        alert(t("Couldn’t mark this"), isPresented: Binding(
+            get: { model.watchedError != nil },
+            set: { if !$0 { model.watchedError = nil } }
+        )) {
+            Button(t("OK"), role: .cancel) {}
+        } message: {
+            Text(model.watchedError ?? "")
         }
     }
 }
