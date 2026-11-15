@@ -250,10 +250,24 @@ fun PageTitle(title: String, onBack: (() -> Unit)? = null, trailing: @Composable
         }
         // Pages whose content carries its own name (a show, a person) have none here.
         if (title.isNotEmpty()) {
-            Text(title, fontSize = 34.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen, modifier = Modifier.padding(horizontal = Edge).padding(bottom = 8.dp).semantics { heading() }, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // A long title ("Podcasts and audiobooks", a show's full name) steps down to 28 to fit one line, then takes
+            // a second, rather than being cut short: on a downloaded show's page it's the only place the show is named.
+            var twoLines by remember(title) { mutableStateOf(false) }
+            BasicText(
+                title,
+                style = TextStyle(color = Flexarr.screen, fontWeight = FontWeight.Bold, lineHeight = 38.sp),
+                modifier = Modifier.padding(horizontal = Edge).padding(bottom = 8.dp).semantics { heading() },
+                maxLines = if (twoLines) 2 else 1,
+                overflow = TextOverflow.Ellipsis,
+                autoSize = TextAutoSize.StepBased(minFontSize = PAGE_TITLE_SMALLEST, maxFontSize = PAGE_TITLE_SIZE),
+                onTextLayout = { if (!twoLines && it.hasVisualOverflow) twoLines = true },
+            )
         }
     }
 }
+
+private val PAGE_TITLE_SIZE = 34.sp
+private val PAGE_TITLE_SMALLEST = 28.sp
 
 /**
  * [PageTitle] as the `stickyHeader` of a page that scrolls as one list (Settings and the pages under it): it stays at
