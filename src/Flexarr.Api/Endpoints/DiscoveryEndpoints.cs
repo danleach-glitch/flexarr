@@ -456,16 +456,8 @@ public static partial class DiscoveryEndpoints
                 : await Search.NamedItems.Searched(db).OnePerMatch(i => i.Kind == MediaKind.Episode && EF.Functions.Like(i.Title, contains))
                 .OrderByDescending(i => EF.Functions.Like(i.Title, prefix)).ThenBy(i => i.Id).Take(8).Summaries(profile.Id).ToListAsync(ct);
             // People in titles this profile may see: not those only in a hidden library, or only above its age limit.
-            // Each credit's title is looked up by its id. Asking whether the id is in the list of every visible title
-            // (visible.Contains) had SQLite build that whole list first, once for each place it was asked.
-            var people = await db.People.Where(p => EF.Functions.Like(p.Name, contains))
-                .Select(p => new { Person = p, Credits = p.Credits.Count(c => db.MediaItems.Any(i => i.Id == c.MediaItemId
-                    && (i.LinkGroupId == null || !i.LinkGroup!.Items.Any(o => o.Id.CompareTo(i.Id) < 0 && db.Credits.Any(x => x.PersonId == c.PersonId && x.MediaItemId == o.Id))))) })
-                .Where(p => p.Credits > 0)
-                .OrderByDescending(p => EF.Functions.Like(p.Person.Name, prefix)).ThenByDescending(p => p.Credits)
-                .Take(8)
-                .Select(p => new SearchPersonDto(p.Person.Id, p.Person.Name, ArtworkUrls.Person(p.Person.Id, p.Person.ImageUrl != null, p.Person.ImageChangedAt), p.Credits))
-                .ToListAsync(ct);
+            // Their names are matched in memory (the search index), and only the best few have their credits counted.
+            var people = await PeopleNamedAsync(db, index, term.Replace("%", "", StringComparison.Ordinal).Replace("_", "", StringComparison.Ordinal), 8, ct);
             var genres = await db.Genres.Where(g => EF.Functions.Like(g.Name, contains)).Select(g => g.Name).Take(5).ToListAsync(ct);
 
             // Albums and tracks by name; their summaries carry the artist and borrow the album's cover.
@@ -499,10 +491,7 @@ public static partial class DiscoveryEndpoints
             {
                 var close = await index.FindAsync(db, term, Search.SearchIndex.Group.Person, 8 - people.Count, people.Select(p => p.Id).ToHashSet(), ct);
                 var ids = close.Select(m => m.Id).ToList();
-                var found = await db.People.Where(p => ids.Contains(p.Id) && p.Credits.Any(c => db.MediaItems.Any(i => i.Id == c.MediaItemId)))
-                    .Select(p => new SearchPersonDto(p.Id, p.Name, ArtworkUrls.Person(p.Id, p.ImageUrl != null, p.ImageChangedAt), p.Credits.Count(c => db.MediaItems.Any(i => i.Id == c.MediaItemId
-                        && (i.LinkGroupId == null || !i.LinkGroup!.Items.Any(o => o.Id.CompareTo(i.Id) < 0 && db.Credits.Any(x => x.PersonId == c.PersonId && x.MediaItemId == o.Id)))))))
-                    .ToListAsync(ct);
+                var found = await PeopleSeenAsync(db, ids, ct);
                 people.AddRange(found.OrderBy(p => ids.IndexOf(p.Id)));
             }
 
@@ -927,6 +916,50 @@ public static partial class DiscoveryEndpoints
             .Take(RowSize).Select(i => i.Id).ToList();
         var items = await topLevel.Where(i => ids.Contains(i.Id)).Summaries(profileId).ToListAsync(ct);
         return [.. items.OrderBy(i => ids.IndexOf(i.Id))];
+    }
+
+    /// <summary>
+    /// <paramref name="ids"/> as people this profile may see, each with the titles it's credited in that the profile can
+    /// see (a title in two libraries counted once). Those with none it can see are left out. Each credit's title is
+    /// looked up by its id: asking whether the id is in the list of every visible title (visible.Contains) had SQLite
+    /// build that whole list first, once for each place it was asked.
+    /// </summary>
+    private static async Task<List<SearchPersonDto>> PeopleSeenAsync(FlexarrDbContext db, List<Guid> ids, CancellationToken ct)
+    {
+        var people = await db.People.Where(p => ids.Contains(p.Id))
+            .Select(p => new SearchPersonDto(p.Id, p.Name, ArtworkUrls.Person(p.Id, p.ImageUrl != null, p.ImageChangedAt), p.Credits.Count(c => db.MediaItems.Any(i => i.Id == c.MediaItemId
+                && (i.LinkGroupId == null || !i.LinkGroup!.Items.Any(o => o.Id.CompareTo(i.Id) < 0 && db.Credits.Any(x => x.PersonId == c.PersonId && x.MediaItemId == o.Id)))))))
+            .ToListAsync(ct);
+        return [.. people.Where(p => p.Credits > 0)];
+    }
+
+    /// <summary>
+    /// The <paramref name="take"/> people whose names hold <paramref name="term"/>, those starting with it first, then
+    /// by how many titles this profile can see them in. Names are matched in memory, and credits counted a few people
+    /// at a time, most credited first: a person's credits in every library are never fewer than those this profile can
+    /// see, so once the last of the best so far has at least as many as the next one has in all, no one further on
+    /// can beat it.
+    /// </summary>
+    private static async Task<List<SearchPersonDto>> PeopleNamedAsync(FlexarrDbContext db, Search.SearchIndex index, string term, int take, CancellationToken ct)
+    {
+        var named = await index.ContainingAsync(db, term, Search.SearchIndex.Group.Person, ct);
+        var best = new List<(SearchPersonDto Person, bool Starts, int Rank)>();
+        const int batch = 24;
+        for (var from = 0; from < named.Count; from += batch)
+        {
+            var next = named[from];
+            if (best.Count >= take && best[take - 1] is var last && ((last.Starts && !next.Starts) || (last.Starts == next.Starts && last.Person.Credits >= next.Rank)))
+            {
+                break;
+            }
+
+            var chunk = named.Skip(from).Take(batch).ToList();
+            var seen = (await PeopleSeenAsync(db, [.. chunk.Select(c => c.Id)], ct)).ToDictionary(p => p.Id);
+            best = [.. best.Concat(chunk.Select((c, i) => (c, i)).Where(x => seen.ContainsKey(x.c.Id)).Select(x => (seen[x.c.Id], x.c.Starts, from + x.i)))
+                .OrderByDescending(x => x.Item2).ThenByDescending(x => x.Item1.Credits).ThenBy(x => x.Item3).Take(take)];
+        }
+
+        return [.. best.Select(b => b.Person)];
     }
 
     /// <summary>The summaries of <paramref name="ids"/>, in that order.</summary>

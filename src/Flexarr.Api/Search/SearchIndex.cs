@@ -73,6 +73,29 @@ public sealed class SearchIndex(TimeProvider clock) : IDisposable
             .ToList();
     }
 
+    /// <summary>A name holding the words as typed: whether it starts with them, and its rank (a person's credits, in every library).</summary>
+    public sealed record Containing(Guid Id, bool Starts, double Rank);
+
+    /// <summary>
+    /// Everything in <paramref name="group"/> whose name holds <paramref name="text"/> as typed (any case, as the
+    /// database's LIKE finds it), those starting with it first, then by rank. Read from memory rather than the
+    /// database, which would have to read every name.
+    /// </summary>
+    public async Task<IReadOnlyList<Containing>> ContainingAsync(FlexarrDbContext db, string text, Group group, CancellationToken ct)
+    {
+        if (text.Length == 0)
+        {
+            return [];
+        }
+
+        var entries = (await CurrentAsync(db, ct)).Entries;
+        return entries
+            .Where(e => e.Group == group && e.Name.Contains(text, StringComparison.OrdinalIgnoreCase))
+            .Select(e => new Containing(e.Id, e.Name.StartsWith(text, StringComparison.OrdinalIgnoreCase), e.Rank))
+            .OrderByDescending(m => m.Starts).ThenByDescending(m => m.Rank).ThenBy(m => m.Id)
+            .ToList();
+    }
+
     /// <summary>
     /// Up to <paramref name="wanted"/> items close to <paramref name="text"/> that the database didn't find
     /// (<paramref name="found"/>), as this profile sees them.
