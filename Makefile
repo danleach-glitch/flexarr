@@ -60,7 +60,7 @@ apple-install: tunnel-apple ## Build, sign and install the tvOS app on a paired 
 	device="$(DEVICE)"; [ -n "$$device" ] || device=$$(xcrun devicectl list devices 2>/dev/null | awk '/AppleTV/ && !/simulated/ {for (i=1;i<=NF;i++) if ($$i ~ /^[0-9A-F]{8}-[0-9A-F]{16}$$/) {print $$i; exit}}'); \
 	test -n "$$device" || { echo "No paired Apple TV found (Xcode › Window › Devices and Simulators, or ⇧⌘2)"; exit 1; }; \
 	xcodebuild -project clients/apple/Flexarr.xcodeproj -scheme FlexarrTV -configuration Release -destination "id=$$device" \
-		-derivedDataPath build/apple -allowProvisioningUpdates -allowProvisioningDeviceRegistration \
+		-derivedDataPath build/apple -allowProvisioningUpdates -allowProvisioningDeviceRegistration $(ASC_AUTH) \
 		DEVELOPMENT_TEAM=$(TEAM) FLEXARR_TV_BUNDLE_ID=$(BUNDLE_ID) CODE_SIGN_STYLE=Automatic $(APPLE_VERSION) build -quiet && \
 	xcrun devicectl device install app --device "$$device" build/apple/Build/Products/Release-appletvos/FlexarrTV.app && \
 	xcrun devicectl device process launch --device "$$device" $(BUNDLE_ID)
@@ -81,7 +81,7 @@ ios-install: tunnel-apple ## Build, sign and install the iOS app on a connected 
 	device="$(DEVICE)"; [ -n "$$device" ] || device=$$(xcrun devicectl list devices 2>/dev/null | awk '/iPhone|iPad/ && !/simulated/ {for (i=1;i<=NF;i++) if ($$i ~ /^[0-9A-F]{8}-[0-9A-F]{16}$$/ || $$i ~ /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$$/) {print $$i; exit}}'); \
 	test -n "$$device" || { echo "No iPhone or iPad found (connect it, or pair it in Xcode › Window › Devices and Simulators)"; exit 1; }; \
 	xcodebuild -project clients/apple/Flexarr.xcodeproj -scheme FlexarriOS -configuration Release -destination "id=$$device" \
-		-derivedDataPath build/apple -allowProvisioningUpdates -allowProvisioningDeviceRegistration \
+		-derivedDataPath build/apple -allowProvisioningUpdates -allowProvisioningDeviceRegistration $(ASC_AUTH) \
 		DEVELOPMENT_TEAM=$(TEAM) FLEXARR_IOS_BUNDLE_ID=$(BUNDLE_ID) FLEXARR_IOS_ENTITLEMENTS=$(IOS_ENTITLEMENTS) FLEXARR_WIDGET_ENTITLEMENTS=$(WIDGET_ENTITLEMENTS) FLEXARR_NOTIFICATION_ENTITLEMENTS=$(NOTIFICATION_ENTITLEMENTS) CODE_SIGN_STYLE=Automatic $(APPLE_VERSION) build -quiet && \
 	xcrun devicectl device install app --device "$$device" build/apple/Build/Products/Release-iphoneos/FlexarriOS.app && \
 	xcrun devicectl device process launch --device "$$device" $(BUNDLE_ID)
@@ -95,7 +95,7 @@ BUILD ?= $(shell date +%Y%m%d%H%M)
 APPLE_VERSION = $(if $(MARKETING),MARKETING_VERSION=$(MARKETING))
 # Sign in to App Store Connect with an API key instead of Xcode's account: ASC_KEY_ID, ASC_ISSUER_ID and ASC_KEY_PATH (the .p8).
 # Read from ~/.flexarr-release/apple.env when it's there. The key needs the Admin role: only Admin keys can cloud-sign. Xcode's
-# account works too, but xcodebuild can't renew its App Store Connect session, so it lapses within the hour.
+# account works too, but xcodebuild can't renew its App Store Connect session, so it lapses within the hour. The installs use the key too, so they can add a new device to the team.
 APPLE_ENV := $(HOME)/.flexarr-release/apple.env
 apple_env = $(shell [ -f $(APPLE_ENV) ] && sed -n 's/^$(1)=//p' $(APPLE_ENV))
 ASC_KEY_ID ?= $(call apple_env,ASC_KEY_ID)
