@@ -9,6 +9,7 @@ import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Explicit
@@ -108,6 +109,8 @@ object FlexarrIcons {
     val refresh: ImageVector get() = Icons.Filled.Refresh
     /** Choose a title's version (4K or 1080p, a director's cut). */
     val version: ImageVector get() = Icons.Outlined.Layers
+    /** Play on another screen. */
+    val playOn: ImageVector get() = Icons.Filled.Cast
     /** More actions. */
     val more: ImageVector get() = Icons.Filled.MoreHoriz
     /** Home. */

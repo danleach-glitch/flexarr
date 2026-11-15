@@ -1,8 +1,12 @@
 package io.github.flexarr.core
 
+import io.github.flexarr.core.DetailActions.Button.CHOOSE_VERSION
 import io.github.flexarr.core.DetailActions.Button.DOWNLOAD
+import io.github.flexarr.core.DetailActions.Button.FIND_SUBTITLES
 import io.github.flexarr.core.DetailActions.Button.MORE
+import io.github.flexarr.core.DetailActions.Button.OPEN_SHOW
 import io.github.flexarr.core.DetailActions.Button.PLAY
+import io.github.flexarr.core.DetailActions.Button.PLAY_ON
 import io.github.flexarr.core.DetailActions.Button.SHUFFLE
 import io.github.flexarr.core.DetailActions.Button.START_OVER
 import io.github.flexarr.core.DetailActions.Button.TRAILER
@@ -11,6 +15,7 @@ import io.github.flexarr.core.DetailActions.Button.WATCHLIST
 import io.github.flexarr.core.DetailActions.Kind
 import io.github.flexarr.core.DetailActions.MenuItem.GoToShow
 import io.github.flexarr.core.DetailActions.MenuItem.Moved
+import io.github.flexarr.core.DetailActions.MenuItem.PlayOn
 import io.github.flexarr.core.DetailActions.MenuItem.Subtitles
 import io.github.flexarr.core.DetailActions.Platform
 import org.junit.Assert.assertEquals
@@ -32,7 +37,8 @@ class DetailActionsTest {
         canSearchSubtitles: Boolean = false,
         canWatchlist: Boolean = true,
         canChooseVersion: Boolean = false,
-    ) = DetailActions.of(DetailActions.Input(kind, hasProgress, isWatched, hasTrailer, isKids, platform, canPlayTrailers, canDownload, canSearchSubtitles, canWatchlist, canChooseVersion))
+        canPlayOn: Boolean = false,
+    ) = DetailActions.of(DetailActions.Input(kind, hasProgress, isWatched, hasTrailer, isKids, platform, canPlayTrailers, canDownload, canSearchSubtitles, canWatchlist, canChooseVersion, canPlayOn))
 
     @Test
     fun `versions come before subtitles, for a child too, and only with something to choose`() {
@@ -74,9 +80,43 @@ class DetailActionsTest {
     // A phone's row holds three beside Play, like an episode's; the rest go to the top of ⋯.
     @Test
     fun `a phone before starting keeps trailer and watchlist`() {
-        val result = actions(platform = Platform.PHONE, canDownload = true)
+        val result = actions(platform = Platform.PHONE, canDownload = true, canSearchSubtitles = true)
         assertEquals(listOf(PLAY, TRAILER, WATCHLIST, DOWNLOAD, MORE), result.buttons)
-        assertEquals(listOf(Moved(WATCHED)), result.menu)
+        assertEquals(listOf(Moved(WATCHED), Subtitles), result.menu)
+    }
+
+    // ⋯ never holds just one thing on a phone: that one takes its place on the row.
+    @Test
+    fun `a phone's lone menu button goes back on the row in its place`() {
+        val result = actions(platform = Platform.PHONE, canDownload = true)
+        assertEquals(listOf(PLAY, TRAILER, WATCHED, WATCHLIST, DOWNLOAD), result.buttons)
+        assertEquals(emptyList<DetailActions.MenuItem>(), result.menu)
+    }
+
+    @Test
+    fun `a phone's lone menu entry takes the more button's place`() {
+        assertEquals(listOf(PLAY, WATCHED, OPEN_SHOW), actions(kind = Kind.EPISODE, platform = Platform.PHONE, hasTrailer = false, canWatchlist = false).buttons)
+        assertEquals(listOf(PLAY, WATCHED, WATCHLIST, FIND_SUBTITLES), actions(platform = Platform.PHONE, hasTrailer = false, canSearchSubtitles = true).buttons)
+        val versions = actions(platform = Platform.PHONE, hasTrailer = false, canChooseVersion = true)
+        assertEquals(listOf(PLAY, WATCHED, WATCHLIST, CHOOSE_VERSION), versions.buttons)
+        assertEquals(emptyList<DetailActions.MenuItem>(), versions.menu)
+    }
+
+    // Issue 509: a film not started, with only Play on another screen left for ⋯.
+    @Test
+    fun `play on another screen is a button of its own when it's all the menu would hold`() {
+        val result = actions(platform = Platform.PHONE, hasTrailer = false, canDownload = true, canPlayOn = true)
+        assertEquals(listOf(PLAY, WATCHED, WATCHLIST, DOWNLOAD, PLAY_ON), result.buttons)
+        assertEquals(emptyList<DetailActions.MenuItem>(), result.menu)
+    }
+
+    @Test
+    fun `play on another screen comes last in the menu, and stays there with company`() {
+        val result = actions(platform = Platform.PHONE, canDownload = true, canPlayOn = true)
+        assertEquals(listOf(PLAY, TRAILER, WATCHLIST, DOWNLOAD, MORE), result.buttons)
+        assertEquals(listOf(Moved(WATCHED), PlayOn), result.menu)
+        assertEquals(listOf(GoToShow, PlayOn), actions(kind = Kind.EPISODE, platform = Platform.PHONE, hasTrailer = false, canWatchlist = false, canPlayOn = true).menu)
+        assertFalse(PLAY_ON in actions(platform = Platform.PHONE).buttons)
     }
 
     @Test
@@ -88,23 +128,26 @@ class DetailActionsTest {
 
     @Test
     fun `a phone once watched keeps watched and watchlist`() {
-        val result = actions(platform = Platform.PHONE, isWatched = true, canDownload = true)
+        val result = actions(platform = Platform.PHONE, isWatched = true, canDownload = true, canSearchSubtitles = true)
         assertEquals(listOf(PLAY, WATCHED, WATCHLIST, DOWNLOAD, MORE), result.buttons)
-        assertEquals(listOf(Moved(TRAILER)), result.menu)
+        assertEquals(listOf(Moved(TRAILER), Subtitles), result.menu)
     }
 
     @Test
-    fun `a phone show shuffles from the menu`() {
+    fun `a phone show shuffles from the row when it's all the menu would hold`() {
         val result = actions(kind = Kind.SHOW, platform = Platform.PHONE)
-        assertEquals(listOf(PLAY, TRAILER, WATCHED, WATCHLIST, MORE), result.buttons)
-        assertEquals(listOf(Moved(SHUFFLE)), result.menu)
+        assertEquals(listOf(PLAY, SHUFFLE, TRAILER, WATCHED, WATCHLIST), result.buttons)
+        assertEquals(emptyList<DetailActions.MenuItem>(), result.menu)
+        val many = actions(kind = Kind.SHOW, platform = Platform.PHONE, canDownload = true)
+        assertEquals(listOf(PLAY, TRAILER, WATCHLIST, DOWNLOAD, MORE), many.buttons)
+        assertEquals(listOf(Moved(SHUFFLE), Moved(WATCHED)), many.menu)
     }
 
     @Test
     fun `a phone episode matches its page`() {
-        val result = actions(kind = Kind.EPISODE, platform = Platform.PHONE, hasProgress = true, hasTrailer = false, canDownload = true, canWatchlist = false)
+        val result = actions(kind = Kind.EPISODE, platform = Platform.PHONE, hasProgress = true, hasTrailer = false, canDownload = true, canWatchlist = false, canSearchSubtitles = true)
         assertEquals(listOf(PLAY, START_OVER, WATCHED, DOWNLOAD, MORE), result.buttons)
-        assertEquals(listOf(GoToShow), result.menu)
+        assertEquals(listOf(Subtitles, GoToShow), result.menu)
     }
 
     @Test

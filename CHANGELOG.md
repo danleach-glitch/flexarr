@@ -35,6 +35,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Android, Download Season fetches that season and one episode ahead, no longer the whole show.
 - On Android, pages no longer scroll up through the clock and status icons, and Settings pages keep their title and Back in view.
 - On Android, a show's season pills are all readable: Download Season sits on its own line under them.
+- On Android, a title's page no longer opens a ⋯ menu holding a single thing: Play on another screen (now with its own icon), Go to show, Version, subtitles or Shuffle shows as a button of its own instead. On Android TV, a ⋯ holding only Version, subtitles or Go to show does the same.
 - An iPhone, iPad, Apple TV or Android device that signed in at home with Tailscale off now reaches your server away from home once Tailscale is on. Settings › Server says when it hasn't yet.
 - On iPhone, a full swipe no longer deletes a recording or stops a series by itself: tap the button the swipe shows. One that can't be taken off or deleted now says why.
 - On iPhone, iPad, Apple TV and Android, a season whose episodes fail to load says so with Try again, instead of a spinner that never ends.

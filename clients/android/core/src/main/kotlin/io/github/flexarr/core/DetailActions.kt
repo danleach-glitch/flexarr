@@ -8,14 +8,23 @@ package io.github.flexarr.core
  * The phones show at most [PHONE_SLOTS] buttons beside Play (plus ⋯), so the row fits like an episode's: Start over and
  * Download always stay, and the rest fill what's left by where you are with the title. Before you start: Trailer,
  * Watchlist, then Watched; once you've started or watched it: Watched, Watchlist, then Trailer; Shuffle last. Whatever
- * doesn't fit moves to the top of ⋯, in the same order.
+ * doesn't fit moves to the top of ⋯, in the same order. A phone never opens ⋯ for one thing: when it would hold only
+ * one, that one takes ⋯'s place on the row instead.
  */
 object DetailActions {
     enum class Kind { MOVIE, SHOW, EPISODE }
 
     enum class Platform { PHONE, TV }
 
-    enum class Button { PLAY, START_OVER, SHUFFLE, TRAILER, WATCHED, WATCHLIST, DOWNLOAD, MORE }
+    enum class Button {
+        PLAY, START_OVER, SHUFFLE, TRAILER, WATCHED, WATCHLIST, DOWNLOAD,
+
+        /** ⋯, holding the menu; there only when it has something in it (on a phone, more than one thing). */
+        MORE,
+
+        /** Phones only: the menu's Version, Search for subtitles, Go to show or Play on on the row, when it's all ⋯ would hold. */
+        CHOOSE_VERSION, FIND_SUBTITLES, OPEN_SHOW, PLAY_ON,
+    }
 
     /** How many buttons a phone's row holds beside Play and ⋯. */
     const val PHONE_SLOTS = 3
@@ -31,6 +40,8 @@ object DetailActions {
         data object Version : MenuItem
         data object Subtitles : MenuItem
         data object GoToShow : MenuItem
+        /** Play on another screen (Android's phone app). */
+        data object PlayOn : MenuItem
     }
 
     data class Input(
@@ -51,6 +62,8 @@ object DetailActions {
         val canWatchlist: Boolean = true,
         /** It has more than one version. */
         val canChooseVersion: Boolean = false,
+        /** It can be sent to play on another screen from here. */
+        val canPlayOn: Boolean = false,
     )
 
     data class Actions(val buttons: List<Button>, val menu: List<MenuItem>)
@@ -65,6 +78,7 @@ object DetailActions {
             if (!input.isKids && input.canWatchlist) add(Button.WATCHLIST)
             if (input.platform == Platform.PHONE && input.canDownload) add(Button.DOWNLOAD)
         }
+        val everything = row
         var moved = emptyList<MenuItem>()
         if (input.platform == Platform.PHONE && row.size > PHONE_SLOTS) {
             val pinned = row.filter { it == Button.START_OVER || it == Button.DOWNLOAD }
@@ -78,11 +92,23 @@ object DetailActions {
             moved = row.filterNot { it in kept }.map { MenuItem.Moved(it) }
             row = row.filter { it in kept }
         }
-        val menu = buildList {
+        var menu = buildList {
             addAll(moved)
             if (input.canChooseVersion) add(MenuItem.Version)
             if (input.canSearchSubtitles && !input.isKids) add(MenuItem.Subtitles)
             if (input.kind == Kind.EPISODE) add(MenuItem.GoToShow)
+            if (input.canPlayOn) add(MenuItem.PlayOn)
+        }
+        // A phone's ⋯ with a single thing in it is a tap for nothing: show that one on the row in ⋯'s place.
+        if (input.platform == Platform.PHONE && menu.size == 1) {
+            row = when (menu[0]) {
+                is MenuItem.Moved -> everything
+                MenuItem.Version -> row + Button.CHOOSE_VERSION
+                MenuItem.Subtitles -> row + Button.FIND_SUBTITLES
+                MenuItem.GoToShow -> row + Button.OPEN_SHOW
+                MenuItem.PlayOn -> row + Button.PLAY_ON
+            }
+            menu = emptyList()
         }
         return Actions(listOf(Button.PLAY) + row + if (menu.isEmpty()) emptyList() else listOf(Button.MORE), menu)
     }
