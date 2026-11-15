@@ -737,8 +737,9 @@ describe('AudioPlayerProvider', () => {
     function bookApi({ expired = false } = {}) {
       const progress: { positionSeconds: number; paused: boolean; ended: boolean }[] = []
       const direct: { positionSeconds: number; ended: boolean }[] = []
+      const starts: number[] = []
       mockApi({
-        'POST /playback': () => ({
+        'POST /playback': () => (starts.push(starts.length), {
           sessionId: 'session-b1',
           method: 'DirectPlay',
           url: '',
@@ -758,7 +759,7 @@ describe('AudioPlayerProvider', () => {
           expired ? new Response('', { status: 404 }) : void progress.push(JSON.parse(String(init?.body))),
         'PUT /items/b1/progress': (init?: RequestInit) => void direct.push(JSON.parse(String(init?.body))),
       })
-      return { progress, direct }
+      return { progress, direct, starts }
     }
 
     /** The element has read the file's header: it knows its length, and can go to a place in it. */
@@ -810,6 +811,27 @@ describe('AudioPlayerProvider', () => {
 
       ends(a)
       expect(a.getAttribute('src')).toBe('/book/1')
+    })
+
+    it('start a fresh session each time the one they have ends under them, as long as each one plays', async () => {
+      const { starts } = bookApi()
+      const { result, a } = await start()
+      act(() => void a.dispatchEvent(new Event('playing')))
+      tick(a, 30)
+      // The session ended (a day's cap, or hours paused): the file's address answers 404 and the element fails.
+      act(() => void a.dispatchEvent(new Event('error')))
+      await waitFor(() => expect(starts).toHaveLength(2))
+      await waitFor(() => expect(a.getAttribute('src')).toBe('/book/0'))
+      metadata(a)
+      act(() => void a.dispatchEvent(new Event('playing')))
+      // It played on the new session, so the next time it ends gets a fresh one too, rather than giving up.
+      act(() => void a.dispatchEvent(new Event('error')))
+      await waitFor(() => expect(starts).toHaveLength(3))
+      expect(result.current.failure).toBeNull()
+      // A session that fails before it plays at all is tried once, then given up on.
+      act(() => void a.dispatchEvent(new Event('error')))
+      await waitFor(() => expect(result.current.failure).not.toBeNull())
+      expect(starts).toHaveLength(3)
     })
 
     it('move "end of chapter" to the chapter a seek lands in', async () => {

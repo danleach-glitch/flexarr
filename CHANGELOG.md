@@ -179,6 +179,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Music, audiobooks and podcasts
 
 - On iPhone, iPad, Apple TV and Mac, a track, book or episode that can't start now says why, instead of the spinner stopping with nothing playing.
+- In the web player, a book left playing or paused for days carries on when you press Play, rather than stopping on the second time its playback has to be started again.
 
 ## 0.66.0 · 13 November 2026
 

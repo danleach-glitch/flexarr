@@ -558,8 +558,12 @@ export function createEngine(host: EngineHost): AudioEngine {
       lookAhead(s)
     },
     playing: () => {
+      if (s !== current()) return
+      // It plays, so a later failure gets its own try again: a book's session ends after hours paused (or a day, at
+      // most), and its files' addresses with it, so one played for days may need a fresh session more than once.
+      if (retried === s.track) retried = undefined
       // A book's first sound: its start is timed (see lib/startTiming).
-      if (s !== current() || !bookTiming) return
+      if (!bookTiming) return
       reportStart(bookTiming)
       bookTiming = null
     },
