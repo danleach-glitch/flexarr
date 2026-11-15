@@ -70,7 +70,8 @@ struct MusicLibraryView<Header: View>: View {
                     }
                 }
             }
-            .padding(.top, 8)
+            // No room above the switch of its own: it starts where Films' and TV Shows' does, so it doesn't hop when
+            // you go from one library to the other.
             .padding(.bottom, 24)
         }
         .background(RoomBackground(ambient: (featured ?? browse.ambientItem)?.glowColor, intensity: featured == nil ? 0.18 : 0.28)
