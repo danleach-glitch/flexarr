@@ -41,6 +41,54 @@ public class LatestUnwatchedTests(FlexarrApiFactory factory) : IClassFixture<Fle
         Assert.DoesNotContain(seen.ToString(), row.GetRawText(), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task ManyShowsWithTheirNewestEpisodesSeen_StillGiveTheSameRowAsCheckingEveryEpisode()
+    {
+        Guid library;
+        var expected = new List<(Guid Id, DateTime At)>();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            var shows = new Library { Name = "Lots of shows", Type = LibraryType.TvShows };
+            db.Libraries.Add(shows);
+            var now = DateTime.UtcNow;
+            // 130 shows (more than a couple of batches looked at together): the newest episode of most is seen, and
+            // every other one has an older episode left.
+            for (var k = 0; k < 130; k++)
+            {
+                var newest = now.AddHours(-k);
+                var older = now.AddHours(-(200 + (k * 7 % 130)));
+                var (show, episodes) = Show(db, shows.Id, $"Show {k:000}", older, newest);
+                if (k < 90)
+                {
+                    db.PlaybackStates.Add(new PlaybackState { UserId = PlaybackState.DefaultUser, MediaItemId = episodes[1].Id, Watched = true, PlayCount = 1 });
+                    if (k % 2 == 0)
+                    {
+                        expected.Add((show.Id, older));
+                    }
+                    else
+                    {
+                        db.PlaybackStates.Add(new PlaybackState { UserId = PlaybackState.DefaultUser, MediaItemId = episodes[0].Id, Watched = true, PlayCount = 1 });
+                    }
+                }
+                else
+                {
+                    expected.Add((show.Id, newest));
+                }
+            }
+
+            await db.SaveChangesAsync();
+            library = shows.Id;
+        }
+
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        var home = await client.GetFromJsonAsync<JsonElement>(new Uri($"/api/v1/libraries/{library}/browse", UriKind.Relative));
+        var row = home.GetProperty("rows").EnumerateArray().Single(r => r.GetProperty("id").GetString() == "recent");
+
+        Assert.Equal(expected.OrderByDescending(e => e.At).Take(20).Select(e => e.Id), row.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("id").GetGuid()));
+    }
+
     private static (MediaItem Show, List<MediaItem> Episodes) Show(FlexarrDbContext db, Guid library, string title, params DateTime[] added)
     {
         var show = new MediaItem { LibraryId = library, Kind = MediaKind.Series, Title = title, SortTitle = title.ToLowerInvariant(), AddedAt = added.Min() };
