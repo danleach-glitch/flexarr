@@ -290,32 +290,51 @@ struct DetailView: View {
         case .download:
             EmptyView()
         case .more:
-            // Things done now and then, out of the way of the row above.
-            roundButton(t("More"), systemImage: Symbol.more) { showingMore = true }
-                .confirmationDialog(item.title, isPresented: $showingMore) {
-                    ForEach(menu, id: \.self) { entry in
-                        switch entry {
-                        case .button:
-                            // Only a phone's row runs out of room.
-                            EmptyView()
-                        case .version:
-                            Button(t(Words.version)) { showingVersions = true }
-                        case .subtitles:
-                            if let file = detail?.subtitleTargetId {
-                                Button(t("Search for subtitles…")) { subtitleSearchFile = SubtitleSearchFile(id: file) }
-                            }
-                        case .goToShow:
-                            if let series {
-                                Button(t(Words.goToShow)) { router.push(.item(series)) }
-                            }
+            let entries = moreEntries(menu)
+            Group {
+                if entries.count == 1, let only = entries.first {
+                    // One thing needs no menu: it's a round button of its own.
+                    roundButton(only.name, systemImage: only.symbol, action: only.run)
+                } else if !entries.isEmpty {
+                    // Things done now and then, out of the way of the row above.
+                    roundButton(t("More"), systemImage: Symbol.more) { showingMore = true }
+                        .confirmationDialog(item.title, isPresented: $showingMore) {
+                            ForEach(entries) { entry in Button(entry.name, action: entry.run) }
                         }
-                    }
                 }
-                .fullScreenCover(isPresented: $showingVersions) {
-                    VersionChoiceView(versions: detail?.versions ?? [], choose: { chooseVersion(item, $0) },
-                                      close: { showingVersions = false })
-                        .presentationBackground(Color.black.opacity(0.45))
+            }
+            .fullScreenCover(isPresented: $showingVersions) {
+                VersionChoiceView(versions: detail?.versions ?? [], choose: { chooseVersion(item, $0) },
+                                  close: { showingVersions = false })
+                    .presentationBackground(Color.black.opacity(0.45))
+            }
+        }
+    }
+
+    /// What ⋯ holds here, as it can be done now: a phone's overflow never reaches a TV's row.
+    private struct MoreEntry: Identifiable {
+        let id: DetailActions.MenuItem
+        let name: String
+        let symbol: String
+        let run: () -> Void
+    }
+
+    private func moreEntries(_ menu: [DetailActions.MenuItem]) -> [MoreEntry] {
+        menu.compactMap { entry in
+            switch entry {
+            case .button:
+                return nil
+            case .version:
+                return MoreEntry(id: entry, name: t(Words.version), symbol: Symbol.version) { showingVersions = true }
+            case .subtitles:
+                guard let file = detail?.subtitleTargetId else { return nil }
+                return MoreEntry(id: entry, name: t("Search for subtitles…"), symbol: Symbol.subtitles) {
+                    subtitleSearchFile = SubtitleSearchFile(id: file)
                 }
+            case .goToShow:
+                guard let series else { return nil }
+                return MoreEntry(id: entry, name: t(Words.goToShow), symbol: Symbol.goToShow) { router.push(.item(series)) }
+            }
         }
     }
 
