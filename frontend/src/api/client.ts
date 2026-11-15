@@ -291,6 +291,28 @@ function routineReport(path: string, body: unknown) {
 }
 
 /**
+ * A change that leaves every cached answer as it was: starting something playing (stopping, pausing or ending it is
+ * what changes progress), or a search remembered or forgotten (recent searches are never cached).
+ */
+function leavesCacheAlone(method: string, path: string) {
+  return (method === 'POST' && path === '/playback') || /^\/search\/recent(\?|$)/.test(path)
+}
+
+/**
+ * Answers playing something can't change: who's signed in, the profiles, settings, statuses, genre and language
+ * lists, podcast directories. A playback report spares them, so pages opened while music plays don't ask again for
+ * everything; it clears the rest (watched ticks, Continue, Home).
+ */
+const untouchedByPlaying =
+  /^\/(me|profiles|settings|setup-guide|genres|livetv\/status|requests\/(music\/)?status|podcasts\/(genres|countries|top|search|status|preferences)|libraries\?all=true|libraries\/[^/]+\/(genres|album-genres|book-genres|book-languages)|items\/[^/]+\/(lyrics|loudness|chapters))(\?|\/|$)/
+
+/** Forgets what playing can have changed: every cached answer but untouchedByPlaying. */
+const forgetWhatPlayingChanges = () => clearApiCache((path) => !untouchedByPlaying.test(path))
+
+/** A playback report (progress, a pause, an end, or a stop). */
+const playbackReport = (path: string) => /^\/playback\/[^/?]+(\/progress)?$/.test(path)
+
+/**
  * An id as one piece of a path. Ids can come from the page's address (a link someone sent), so nothing in one may add
  * a slash, a query or a step up: the request goes where it was written to go, or nowhere.
  */
@@ -319,14 +341,16 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
   // Any change can show up in any cached answer (a watched tick in a library page, a renamed collection), so a
   // change clears them all, before and after (anything cached while it was under way may predate it). Not the reports
   // sent every few seconds while something plays, or every Back would ask afresh: pausing, ending or stopping does.
+  // Starting playback or remembering a search changes nothing cached; a playback report only what playing can.
   const changes = method !== 'GET' && !routineReport(path, body)
-  if (changes) clearApiCache()
+  const forget = !changes || leavesCacheAlone(method, path) ? undefined : playbackReport(path) ? forgetWhatPlayingChanges : () => clearApiCache()
+  forget?.()
   const response = await fetch(path.startsWith('/api/') ? path : `/api/v1${path}`, {
     method,
     signal,
     headers,
     body: body === undefined ? undefined : file ? body : JSON.stringify(body),
-  }).finally(() => changes && clearApiCache())
+  }).finally(() => forget?.())
 
   // Locked: the PIN, then the same change again (once).
   if (response.status === 403 && changes && !retried && (await lockedHere(path)) && (await askToUnlock!())) return request(method, path, body, signal, true)
@@ -1142,7 +1166,7 @@ export const reportProgress = (sessionId: string, positionSeconds: number, pause
 
 /** Fire-and-forget progress for page unloads, when fetch may be cancelled. */
 export function beaconProgress(sessionId: string, positionSeconds: number) {
-  clearApiCache()
+  forgetWhatPlayingChanges()
   const body = new Blob([JSON.stringify({ positionSeconds, paused: true })], { type: 'application/json' })
   navigator.sendBeacon?.(`/api/v1/playback/${seg(sessionId)}/progress`, body)
 }
@@ -1167,7 +1191,7 @@ export function dropStream(sessionId: string) {
 }
 
 export function stopPlayback(sessionId: string) {
-  clearApiCache()
+  forgetWhatPlayingChanges()
   return fetch(`/api/v1/playback/${seg(sessionId)}`, { method: 'DELETE', headers: authHeaders(), keepalive: true }).catch(() => undefined)
 }
 
