@@ -95,6 +95,8 @@ struct HomeView: View {
                         ForEach(rows.dropFirst(continuing)) { rowView($0, in: home) }
                     }
                 }
+                // With no hero the profile picture would sit on the first row's See all: the rows start below it.
+                .padding(.top, home.featured.isEmpty && showsProfileButton ? 52 : 0)
                 .padding(.bottom, 32)
                 // Part of the page, so it scrolls away with the hero rather than floating over the rows.
                 .overlay(alignment: .topTrailing) {
@@ -124,6 +126,14 @@ struct HomeView: View {
     private func showsNewEpisodes(_ home: Home) -> Bool {
         guard !newEpisodes.isEmpty else { return false }
         return home.placesPodcasts != true || home.rows.contains { $0.id == HomeRow.podcastsRowId }
+    }
+
+    private var showsProfileButton: Bool {
+        #if os(macOS)
+        false
+        #else
+        model.offersProfilePicker && model.currentProfile != nil
+        #endif
     }
 
     /// The profile watching, to switch from. The Mac's is in its sidebar instead.
