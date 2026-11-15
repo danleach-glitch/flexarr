@@ -48,6 +48,20 @@ public static class BookEndpoints
             return Results.Ok(new PagedDto<ItemSummaryDto>(total, items));
         });
 
+        // Where each letter starts in /books sorted by title A–Z, for the same filters (audit perf-16; new in the release
+        // after 0.66, absent before), so a letter jump loads only the page it lands on.
+        library.MapGet("/books/letters", async (Guid id, string? search, string? progress, Guid? author, Guid? narrator, string? genre, string? language, bool? abridged,
+            double? minHours, double? maxHours, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        {
+            if (!await IsBooksAsync(db, id, ct))
+            {
+                return Results.NotFound();
+            }
+
+            var filter = new BookFilter(search, progress, author, narrator, genre, language, abridged, minHours, maxHours, null, null);
+            return Results.Ok(await LibraryLetterEndpoints.LettersAsync(BookQueries.Matching(BookQueries.Books(db, id), filter, profile.Id), ct));
+        });
+
         library.MapGet("/book-series", async (Guid id, string? search, int? skip, int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
             await IsBooksAsync(db, id, ct)
                 ? Results.Ok(await BookQueries.SeriesListAsync(db, id, search, Math.Max(0, skip ?? 0), Math.Clamp(take ?? 60, 1, MaxPage), profile.Id, ct))

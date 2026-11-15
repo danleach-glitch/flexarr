@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import { PageError } from '../components/PageStatus'
 import { Link, Navigate, useNavigationType, useParams, useSearchParams } from 'react-router'
-import { forgetPage, getGenreTracks, getLibraryAlbumGenres, getLibraryAlbums, getLibraryBrowse, getLibraryGenres, getLibraryItems, getLibraryLetters, getMusicRequestStatus, getRequestStatusCached, imageUrl, keepPage, keptPage, type HomeRow, type Library } from '../api/client'
+import { forgetPage, getGenreTracks, getLibraryAlbumGenres, getLibraryAlbumLetters, getLibraryAlbums, getLibraryBrowse, getLibraryGenres, getLibraryItems, getLibraryLetters, getMusicRequestStatus, getRequestStatusCached, imageUrl, keepPage, keptPage, type HomeRow, type Library } from '../api/client'
 import { AsyncButton } from '../components/AsyncButton'
 import { PosterCard } from '../components/Cards'
 import { GenreCovers } from '../components/GenreCovers'
@@ -412,8 +412,8 @@ function LibraryAll({ albums = false, genrePage = false }: { albums?: boolean; g
       pageSize: PAGE_SIZE,
       itemCount: library?.itemCount,
       load: (page, signal) => getPage(id, { search: query, sort, genre, ...page }, signal),
-      // Where letters start is known for titles, not albums.
-      letters: albums ? undefined : (signal) => getLibraryLetters(id, { search: query, genre }, signal),
+      // Where letters start, so a jump loads just the page it lands on.
+      letters: (signal) => (albums ? getLibraryAlbumLetters : getLibraryLetters)(id, { search: query, genre }, signal),
     })
 
   function setParam(key: string, value: string) {

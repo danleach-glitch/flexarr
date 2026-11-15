@@ -6,6 +6,7 @@ import {
   getBookPeople,
   getBookSeriesList,
   getBookShelves,
+  getLibraryBookLetters,
   getLibraryBooks,
   getPerson,
  
@@ -25,7 +26,7 @@ import { Row } from '../components/Row'
 import { ScanProgress } from '../components/ScanProgress'
 import { useApi } from '../hooks/useApi'
 import { useWatchedChanges } from '../hooks/watched'
-import { AlphaPicker, AlphaRail, ShowMore, useLibraryGrid } from './libraryGrid'
+import { AlphaPicker, AlphaRail, ShowEarlier, ShowMore, useLibraryGrid } from './libraryGrid'
 import { locale, t, tk, Words } from '../i18n'
 
 const PAGE_SIZE = 60
@@ -232,13 +233,15 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
     const timer = setTimeout(() => setQuery(search.trim()), 250)
     return () => clearTimeout(timer)
   }, [search])
-  const { items, end, total, error, moreError, busy, jumping, jumpFailed, grid, empty, small, grown, loadedCount, onGridClick, loadMore, jump, restart } = useLibraryGrid({
+  const { items, start, end, total, error, moreError, earlierError, busy, jumping, jumpFailed, grid, empty, small, grown, loadedCount, onGridClick, loadMore, loadEarlier, jump, restart } = useLibraryGrid({
     snapshotKey: `books-${view} ${library.id} ${key}`,
     query,
     pageSize: PAGE_SIZE,
     jumpPageSize: MAX_PAGE,
     itemCount: library.itemCount,
     load: (page, signal) => getLibraryBooks(library.id, { ...filters, search: query || undefined, ...page }, signal),
+    // Where letters start, so a jump loads just the page it lands on.
+    letters: (signal) => getLibraryBookLetters(library.id, { ...filters, search: query || undefined }, signal),
   })
 
   function set(name: string, value: string) {
@@ -250,7 +253,8 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
   }
 
   const filtered = !!query || Object.entries(filters).some(([name, value]) => name !== 'sort' && !(view === 'genre' && name === 'genre') && value !== undefined)
-  const letters = (!filters.sort || filters.sort === 'title') && !query && items.length > 40
+  // Counted to the end of what's loaded: after a jump near the end the grid may hold only a few books.
+  const letters = (!filters.sort || filters.sort === 'title') && !query && end > 40
   return (
     <>
       <div className="library-tools book-filters">
@@ -295,6 +299,7 @@ function AllBooks({ library, view }: { library: Library; view: 'all' | 'genre' }
         <p className="muted book-count">{filtered ? t('{count} matching', { count: total }) : t('{count, plural, one {# book} other {# books}}', { count: total })}</p>
       )}
       {total === 0 && <p className="page-message muted">{query ? t('Nothing in {name} matches “{query}”.', { name: library.name, query }) : filtered ? t('No books match.') : t('No books yet.')}</p>}
+      <ShowEarlier start={start} pageSize={PAGE_SIZE} busy={busy} error={earlierError} onEarlier={() => void loadEarlier()} />
       <div className="library-body">
         {letters && <AlphaPicker jump={(l) => void jump(l)} jumping={jumping} failed={jumpFailed} empty={empty} />}
         <div className="poster-grid square" aria-busy={total === undefined} ref={grid} onClick={onGridClick}>

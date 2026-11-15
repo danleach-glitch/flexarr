@@ -592,10 +592,22 @@ export interface LetterRun {
 export function getLibraryLetters(id: string, options: { search?: string; genre?: string }, signal?: AbortSignal) {
   const params = new URLSearchParams()
   for (const [key, value] of Object.entries(options)) if (value) params.set(key, value)
-  return apiGet<LetterRun[]>(`/libraries/${seg(id)}/items/letters${params.size ? `?${params}` : ''}`, signal).catch((e: unknown) => {
+  return lettersOrNull(`/libraries/${seg(id)}/items/letters${params.size ? `?${params}` : ''}`, signal)
+}
+
+/** A letters answer, or null from a server that can't say (404): a jump then loads everything up to its letter. */
+function lettersOrNull(path: string, signal?: AbortSignal) {
+  return apiGet<LetterRun[]>(path, signal).catch((e: unknown) => {
     if (e instanceof ApiError && e.status === 404) return null
     throw e
   })
+}
+
+/** Where each letter starts in getLibraryAlbums sorted A–Z, for the same search and genre. Null from servers before the release after 0.66. */
+export function getLibraryAlbumLetters(id: string, options: { search?: string; genre?: string }, signal?: AbortSignal) {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(options)) if (value) params.set(key, value)
+  return lettersOrNull(`/libraries/${seg(id)}/albums/letters${params.size ? `?${params}` : ''}`, signal)
 }
 
 /** A music library's albums (its items are its artists), paged like its items. Servers before 0.59 answer 404. */
@@ -658,6 +670,14 @@ export const getBookGenres = (libraryId: string, signal?: AbortSignal) =>
   cachedGet<{ name: string; count: number; covers?: string[] }[]>(`/libraries/${seg(libraryId)}/book-genres`, signal)
 export const getLibraryBooks = (libraryId: string, filters: BookFilters, signal?: AbortSignal) =>
   cachedGet<Paged<ItemSummary>>(`/libraries/${seg(libraryId)}/books${queryString(filters)}`, signal)
+/**
+ * Where each letter starts in getLibraryBooks sorted by title A–Z, for the same filters (its sort and paging left out).
+ * Null from servers before the release after 0.66, and from one whose library has gone.
+ */
+export const getLibraryBookLetters = (libraryId: string, filters: BookFilters, signal?: AbortSignal) => {
+  const { sort: _sort, descending: _descending, skip: _skip, take: _take, ...matching } = filters
+  return lettersOrNull(`/libraries/${seg(libraryId)}/books/letters${queryString(matching)}`, signal)
+}
 export const getBookSeriesList = (libraryId: string, options: { search?: string; skip?: number; take?: number }, signal?: AbortSignal) =>
   cachedGet<Paged<BookSeriesSummary>>(`/libraries/${seg(libraryId)}/book-series${queryString(options)}`, signal)
 export const getBookPeople = (libraryId: string, options: { role: 'author' | 'narrator'; search?: string; skip?: number; take?: number }, signal?: AbortSignal) =>

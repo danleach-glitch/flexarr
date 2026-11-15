@@ -184,6 +184,26 @@ public class AudiobookApiTests(FlexarrApiFactory factory) : IClassFixture<Flexar
         }
     }
 
+    [Theory]
+    [InlineData("", "B C G M P T")]
+    [InlineData("progress=notstarted", "B G P")]
+    public async Task BookLetters_StartWhereTheTitleListHasThem(string query, string expected)
+    {
+        var lib = await SeedAsync();
+
+        var letters = await GetAsync<List<LetterOffsetDto>>($"/api/v1/libraries/{lib.Library}/books/letters?{query}");
+        var books = await GetAsync<PagedDto<ItemSummaryDto>>($"/api/v1/libraries/{lib.Library}/books?{query}&take=200");
+
+        Assert.Equal(expected, string.Join(' ', letters.Select(l => l.Letter)));
+        Assert.Equal(books.Total, letters.Sum(l => l.Count));
+        foreach (var run in letters)
+        {
+            Assert.Equal(run.Letter, SortTitle.For(books.Items[run.Offset].Title)[..1].ToUpperInvariant());
+        }
+
+        Assert.Equal(HttpStatusCode.NotFound, (await Client().GetAsync(new Uri($"/api/v1/libraries/{Guid.NewGuid()}/books/letters", UriKind.Relative))).StatusCode);
+    }
+
     [Fact]
     public async Task Books_ByNarrator()
     {

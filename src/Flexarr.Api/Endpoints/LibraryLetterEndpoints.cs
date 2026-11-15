@@ -1,4 +1,5 @@
 using Flexarr.Core.Data;
+using Flexarr.Core.Media;
 using Microsoft.EntityFrameworkCore;
 
 namespace Flexarr.Api.Endpoints;
@@ -35,13 +36,26 @@ public static class LibraryLetterEndpoints
                 query = query.Where(i => i.Genres.Any(g => g.Name == genre));
             }
 
-            // Grouped by the sort title's first character, in the database's order: the order the list sorts in.
-            var firsts = await query.GroupBy(i => i.SortTitle.Substring(0, 1)).Select(g => new { First = g.Key, Count = g.Count() })
-                .OrderBy(g => g.First).ToListAsync(ct);
-            return Runs(firsts.Select(f => (f.First, f.Count)));
+            return await LettersAsync(query, ct);
         }).WithTags("Items");
 
+        // GET /libraries/{id}/albums/letters (audit perf-16; new in the release after 0.66, absent before): the same for
+        // a music library's albums, A–Z (no sort), for the same search and genre as /libraries/{id}/albums.
+        api.MapGet("/libraries/{id:guid}/albums/letters", async (Guid id, string? search, string? genre, FlexarrDbContext db, CancellationToken ct) =>
+            await LettersAsync(ItemEndpoints.Albums(db, id, search, genre), ct)).WithTags("Items");
+
         return api;
+    }
+
+    /// <summary>
+    /// Where each letter starts among <paramref name="titles"/> sorted by their sort title: grouped by its first
+    /// character, in the database's order, which is the order the lists sort in.
+    /// </summary>
+    internal static async Task<List<LetterOffsetDto>> LettersAsync(IQueryable<MediaItem> titles, CancellationToken ct)
+    {
+        var firsts = await titles.GroupBy(i => i.SortTitle.Substring(0, 1)).Select(g => new { First = g.Key, Count = g.Count() })
+            .OrderBy(g => g.First).ToListAsync(ct);
+        return Runs(firsts.Select(f => (f.First, f.Count)));
     }
 
     /// <summary>First characters in list order, merged into letter runs with their offsets.</summary>

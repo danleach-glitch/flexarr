@@ -48,6 +48,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On a phone, a playlist's tracks show their titles: each row keeps its ⋯ menu, which now holds Move up, Move down and Remove.
 - The setup guide now asks before removing a profile, as Settings does.
 - **Coming soon** now shows that it's loading, and says so with **Try again** when it can't load, instead of an empty page.
+- In a big music or audiobooks library, jumping to a letter in Albums or All books is now quick: only the albums or books at that letter load, with **Show earlier** above them.
 
 ### Playback
 

@@ -151,4 +151,36 @@ describe('Audiobooks library', () => {
     expect(Array.from(container.querySelectorAll('.poster-grid > [data-id]'), (card) => card.getAttribute('data-id'))).toEqual(books.map((b) => b.id))
     expect(asked).toEqual(['0+60', '60+200', '260+200', '460+200', '660+200'])
   })
+
+  it('with where the letters start, a jump loads only the page it lands on, with Show earlier above it', async () => {
+    window.HTMLElement.prototype.scrollIntoView = vi.fn()
+    const books = Array.from({ length: 700 }, (_, i) => summary({ id: `b${i}`, kind: 'Audiobook', title: `${i < 650 ? 'B' : 'T'} Book ${String(i).padStart(3, '0')}` }))
+    const asked: string[] = []
+    let lettersAsked: URL | undefined
+    mockApi({
+      '/libraries/lib-books/books': (_init: RequestInit | undefined, url: URL) => {
+        const skip = Number(url.searchParams.get('skip') ?? 0)
+        asked.push(`${skip}+${url.searchParams.get('take')}`)
+        return { total: books.length, items: books.slice(skip, skip + Math.min(Number(url.searchParams.get('take') ?? 60), 200)) }
+      },
+      '/libraries/lib-books/books/letters': (_init: RequestInit | undefined, url: URL) => {
+        lettersAsked = url
+        return [
+          { letter: 'B', offset: 0, count: 650 },
+          { letter: 'T', offset: 650, count: 50 },
+        ]
+      },
+    })
+    const { container } = show('/library/lib-books?view=all&genre=Fantasy')
+    const rail = await screen.findByRole('navigation', { name: 'Jump to letter' })
+    fireEvent.click(within(rail).getByRole('button', { name: 'T' }))
+
+    await waitFor(() => expect(container.querySelector('[data-id="b650"]')).toBeInTheDocument())
+    expect(container.querySelector('[data-id="b0"]')).not.toBeInTheDocument()
+    expect(asked).toEqual(['0+60', '650+60'])
+    // The same filters as the grid, without its paging.
+    expect(lettersAsked?.searchParams.get('genre')).toBe('Fantasy')
+    expect(lettersAsked?.searchParams.has('take')).toBe(false)
+    expect(screen.getByRole('button', { name: 'Show 60 earlier' })).toBeInTheDocument()
+  })
 })
