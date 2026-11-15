@@ -135,6 +135,8 @@ final class PlaybackController: NSObject {
     private static let losslessKey = "FlexarrEngineLossless"
     /// A title the engine couldn't play: its server stream instead, until the next title.
     @ObservationIgnored private var engineSuppressedItem: String?
+    /// A download that wouldn't play over AirPlay and is being streamed instead: tried once per title.
+    @ObservationIgnored private var streamedInsteadOfDownload: String?
     /// Playing a show on shuffle: each next episode is a random one.
     @ObservationIgnored private var shuffling = false
     /// On shuffle, where this episode gets the next one ready: half a minute after it started, not only in the credits,
@@ -224,8 +226,11 @@ final class PlaybackController: NSObject {
     }
 
     /// Plays a downloaded file: no server, no connection needed.
-    func playOffline(_ info: PlaybackInfo) {
+    /// `client`: the server, when it can be reached, so a download that won't play over AirPlay can be streamed instead.
+    func playOffline(_ info: PlaybackInfo, client: FlexarrClient? = nil) {
         guard !isStarting else { return }
+        self.client = client
+        streamedInsteadOfDownload = nil
         onWillStart?()
         timing = nil
         shuffling = false
@@ -554,6 +559,31 @@ final class PlaybackController: NSObject {
         // The same version: another engine isn't a reason to change what's playing.
         request.fileId = info.fileId
         request.subtitleKey = viewerSubtitleKey.map { $0 ?? "off" } ?? info.selectedSubtitleKey
+        self.info = nil
+        start(request)
+    }
+
+    /// Sent over AirPlay, a download goes from this device in the form it was saved in, which some receivers (a TV's
+    /// own AirPlay, say) won't play; a stream is fetched by the receiver from the server and plays (#548).
+    private var isOnAirPlay: Bool {
+        if transport?.avPlayer?.isExternalPlaybackActive == true { return true }
+        #if os(iOS)
+        return AVAudioSession.sharedInstance().currentRoute.outputs.contains { $0.portType == .airPlay }
+        #else
+        return false
+        #endif
+    }
+
+    /// The download wouldn't play over AirPlay: the server's stream of it instead, from the same place.
+    private func streamInstead(of info: PlaybackInfo, reason: String) {
+        log.warning("Download of \(info.item.title) wouldn't play over AirPlay; streaming it instead: \(reason)", ["playbackId": info.playbackId])
+        streamedInsteadOfDownload = info.item.id
+        if hasPlayed { report(paused: true) }
+        carriedRate = transport?.rate
+        transport?.stop()
+        transport = nil
+        let position = lastPosition > 0 ? lastPosition : info.startPositionSeconds
+        let request = request(for: info.item.id, startAt: position)
         self.info = nil
         start(request)
     }
@@ -1071,6 +1101,10 @@ final class PlaybackController: NSObject {
                 return
             }
             #endif
+            if info.isOffline, isOnAirPlay, client != nil, streamedInsteadOfDownload != info.item.id {
+                streamInstead(of: info, reason: reason)
+                return
+            }
             if hasPlayed {
                 recover(reason: reason)
             } else {

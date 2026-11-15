@@ -7,6 +7,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Apps
 
 - On iPhone, iPad and Android, watching a download, online or offline, now reaches your watch history: Continue watching, the resume point and the watched mark catch up as soon as the server is back in reach (or the app comes to the front), on that device and the others. Plays not yet sent survive signing out and go once you sign in to the same server and profile again.
+- On iPhone and iPad, a download that won't play over AirPlay (on some TVs' own AirPlay) plays as a stream from your server instead, from the same place, when the server is in reach.
 - On iPhone, iPad and Android, choosing another profile no longer breaks the first profile's downloads: what's still coming waits and carries on when that profile is chosen again, rather than failing with "The server doesn't have this download any more". The next episode always comes as the right profile, and two profiles can each keep the same audiobook on one device.
 - On iPhone, iPad and Android, podcast episodes the app removes by itself (keeping only the newest few, once played, signing out, Delete all, or trying a failed download again) can come back by themselves later; only an episode you remove is left out for good. Trying a failed download again no longer ends up with a download that's already gone on the server.
 - Signed in to a server older than 0.59, the apps' list of devices waiting to connect, recent searches and language list show as empty rather than as an error.

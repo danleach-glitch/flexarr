@@ -251,6 +251,12 @@ final class AVPlayerTransport: NSObject, PlayerTransport {
         case .failed:
             let reason = message ?? t("The stream couldn’t be opened.")
             log.error("Item failed: \(reason)", ["playbackId": info.playbackId])
+            // The code says more than the words ("Cannot play"), and the underlying error more again.
+            if let error = item.error as NSError? {
+                let underlying = error.userInfo[NSUnderlyingErrorKey] as? NSError
+                log.warning("Item failed, error: \(error.domain) \(error.code)\(underlying.map { ", underlying \($0.domain) \($0.code)" } ?? "")\(player.isExternalPlaybackActive ? ", over AirPlay" : "")",
+                            ["playbackId": info.playbackId])
+            }
             // AVFoundation's own account of what went wrong with the playlists (the error alone says little).
             for event in item.errorLog()?.events.prefix(5) ?? [] {
                 log.warning("Item failed, detail: \(event.errorStatusCode) \(event.errorComment ?? "")", ["uri": event.uri, "playbackId": info.playbackId])
