@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="room">#1B1720</color>
+    <color name="room">@color/token_room</color>
 
     <!-- The room colour behind everything, so launching never flashes white. -->
     <style name="Theme.Flexarr" parent="android:Theme.Material.NoActionBar">
@@ -20,6 +20,34 @@
     <!-- The Assistant's way in (VoiceActivity): nothing shows while it works out where to go. -->
     <style name="Theme.Flexarr.Voice" parent="android:Theme.Translucent.NoTitleBar">
         <item name="android:windowAnimationStyle">@null</item>
+    </style>
+
+    <!--
+        The Cast chooser and the connected Chromecast's dialog. Media3's Cast button opens them in its own
+        AppThemeDialog, which follows the system's light or dark mode, so on a phone in light mode it came up white
+        and square over the dark app. This style of the same name takes its place: dark, in the app's colours, with
+        the panel's corners.
+    -->
+    <style name="AppThemeDialog" parent="Theme.AppCompat.Dialog.Alert">
+        <item name="colorPrimary">@color/token_seat</item>
+        <item name="colorPrimaryDark">@color/token_room</item>
+        <item name="colorAccent">@color/token_silver</item>
+        <item name="android:windowBackground">@drawable/cast_dialog_background</item>
+        <item name="android:colorBackground">@color/token_seat</item>
+        <item name="android:textColorPrimary">@color/token_screen</item>
+        <item name="android:textColorSecondary">@color/token_usher</item>
+        <item name="mediaRouteTheme">@style/Theme.Flexarr.MediaRouter</item>
+    </style>
+
+    <!-- The chooser's own look on top: MediaRouter's dark theme, with the progress bar and volume in the app's accent. -->
+    <style name="Theme.Flexarr.MediaRouter" parent="Theme.MediaRouter">
+        <item name="colorPrimary">@color/token_seat</item>
+        <item name="colorAccent">@color/token_silver</item>
+        <item name="colorControlActivated">@color/token_silver</item>
+        <item name="android:windowBackground">@drawable/cast_dialog_background</item>
+        <item name="android:colorBackground">@color/token_seat</item>
+        <item name="android:textColorPrimary">@color/token_screen</item>
+        <item name="android:textColorSecondary">@color/token_usher</item>
     </style>
 
     <style name="Theme.Flexarr.Player">

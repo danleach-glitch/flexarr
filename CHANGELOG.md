@@ -138,6 +138,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Android phones and tablets, a profile name too long for its tile in “Who’s watching?” ends in “…” instead of stopping mid-word.
 - On Android, the profiles in Settings › Switch line up: the current one’s ring no longer sets its picture and name lower than the others.
 - On Android phones and tablets, a player menu too tall for the screen (Subtitles with several tracks, in landscape) fades at the edge where there’s more to scroll to, so Size and Position are easy to find.
+- On Android phones and tablets, the Cast chooser is dark with rounded corners in the app’s colours, instead of a white box when the phone is in light mode.
 
 ### Trakt
 

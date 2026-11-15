@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from design/tokens.json by `make tokens`. Don't edit; change the JSON. -->
+<resources>
+    <!-- Base background: a dim, plum-tinted screening room. -->
+    <color name="token_room">#1B1720</color>
+    <!-- Raised surfaces: panels, menus, inputs. -->
+    <color name="token_seat">#25202C</color>
+    <!-- A surface on a surface: a menu over a panel. -->
+    <color name="token_seat_raised">#2E2836</color>
+    <!-- Hairlines and inactive controls. -->
+    <color name="token_aisle">#3A3343</color>
+    <!-- Primary text: warm projected white. -->
+    <color name="token_screen">#F2EEE7</color>
+    <!-- Secondary text. -->
+    <color name="token_usher">#A39AAE</color>
+    <!-- Fallback accent when a title has no ambient colour. -->
+    <color name="token_silver">#A9C2EC</color>
+    <!-- Connected, on, set up, downloaded, in the library. -->
+    <color name="token_go">#7FD1A0</color>
+    <!-- Destructive actions and error messages, never decoration. -->
+    <color name="token_danger">#F08A7E</color>
+    <!-- The live and recording dot on Live TV, nothing else. -->
+    <color name="token_record">#E5484D</color>
+    <!-- Inside text fields and menus, below the panel. -->
+    <color name="token_well">#141118</color>
+    <!-- Posters, stills, covers. -->
+    <dimen name="token_radius_art">4dp</dimen>
+    <!-- Buttons and inputs. -->
+    <dimen name="token_radius_control">10dp</dimen>
+    <!-- Panels, sheets, cards of text. -->
+    <dimen name="token_radius_panel">14dp</dimen>
+</resources>

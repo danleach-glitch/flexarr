@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Cast chooser's card: a raised surface with the panel's corners, inset from the screen's edges like any dialog. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:insetLeft="16dp"
+    android:insetTop="16dp"
+    android:insetRight="16dp"
+    android:insetBottom="16dp">
+    <shape android:shape="rectangle">
+        <solid android:color="@color/token_seat" />
+        <corners android:radius="@dimen/token_radius_panel" />
+    </shape>
+</inset>
