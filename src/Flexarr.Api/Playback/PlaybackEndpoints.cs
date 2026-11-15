@@ -530,6 +530,7 @@ public static partial class PlaybackEndpoints
                 bookConverter.Prepare(parts, progress.PositionSeconds); // the next few files this player can't decode, ahead of it
             }
 
+            session.Judge(progress, DateTime.UtcNow);
             events.Observe(session, progress);
             sessions.Reported(session, progress);
             await playback.ReportProgressAsync(session, progress, ct);

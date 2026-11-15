@@ -94,6 +94,35 @@ public sealed class PlaybackSession
 
     /// <summary>It played to the end, so the Ended event has gone out.</summary>
     public bool Finished { get; set; }
+
+    /// <summary>
+    /// Where the player said it had reached the end, until it goes clearly back: the plain report players send as they
+    /// close after an ended one must not make it unfinished again.
+    /// </summary>
+    public double? EndedAt { get; set; }
+
+    /// <summary>
+    /// The last report leapt further ahead than playing could have taken it since the one before (a scrub, say): a
+    /// credits marker or the watched point it lands past isn't taken as finishing until the next report is there too.
+    /// </summary>
+    public bool JumpedAhead { get; private set; }
+
+    private double? _judgedPosition;
+    private DateTime _judgedAt;
+
+    /// <summary>A report is in: notes whether it <see cref="JumpedAhead"/>. Call once per report, before anything reads it.</summary>
+    public void Judge(ProgressRequest progress, DateTime now)
+    {
+        ArgumentNullException.ThrowIfNull(progress);
+        lock (this)
+        {
+            // Four times as fast as playing (the fastest speed a player offers), and a little more for reports that bunch up.
+            JumpedAhead = !progress.Ended && _judgedPosition is { } before
+                && progress.PositionSeconds - before > (Math.Max(0, (now - _judgedAt).TotalSeconds) * 4) + 30;
+            _judgedPosition = progress.PositionSeconds;
+            _judgedAt = now;
+        }
+    }
 }
 
 /// <summary>What a player told remotes about itself in its progress reports, the latest of each.</summary>

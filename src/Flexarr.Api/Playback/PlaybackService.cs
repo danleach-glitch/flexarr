@@ -513,6 +513,11 @@ public sealed class PlaybackService(
             return;
         }
 
+        if (AfterTheEnd(session, progress))
+        {
+            return;
+        }
+
         for (var attempt = 0; ; attempt++)
         {
             var state = await db.PlaybackStates.FirstOrDefaultAsync(p => p.UserId == session.ProfileId && p.MediaItemId == session.ItemId, ct);
@@ -591,16 +596,46 @@ public sealed class PlaybackService(
         return true;
     }
 
+    /// <summary>
+    /// A plain report after the player said it reached the end, and not clearly back from there: the one players send
+    /// as they close (or move on to the next episode), which would otherwise make it unfinished again where a podcast's
+    /// feed gives no length, or the end came before the watched point. Ignored.
+    /// </summary>
+    private static bool AfterTheEnd(PlaybackSession session, ProgressRequest progress)
+    {
+        lock (session)
+        {
+            if (progress.Ended)
+            {
+                session.EndedAt = progress.PositionSeconds;
+                return false;
+            }
+
+            if (session.EndedAt is { } end && progress.PositionSeconds >= end - EndedRewindSeconds)
+            {
+                return true;
+            }
+
+            session.EndedAt = null; // gone back to watch some again: its reports count
+            return false;
+        }
+    }
+
+    /// <summary>How far back from the end a report must be, after an ended one, to count as watching again.</summary>
+    private const double EndedRewindSeconds = 30;
+
     /// <summary>Applies a progress report to the state; true when it counted a new play.</summary>
     private static bool ApplyProgress(PlaybackState state, PlaybackSession session, ProgressRequest progress)
     {
-
         var duration = session.DurationSeconds > 0 ? session.DurationSeconds : (double?)null;
         // A podcast's last minutes are often still the conversation, so it counts as played only at the very end.
         var threshold = session.RemoteUrl is null ? WatchedThreshold : 0.98;
+        // A scrub that lands past the credits or the watched point isn't the end until the next report is there too:
+        // overshooting and coming back mustn't count a play (or tell Trakt).
         var finished = progress.Ended
-            || (duration is { } d && progress.PositionSeconds >= d * threshold)
-            || (session.CreditsStart is { } credits && progress.PositionSeconds >= credits);
+            || (!session.JumpedAhead
+                && ((duration is { } d && progress.PositionSeconds >= d * threshold)
+                    || (session.CreditsStart is { } credits && progress.PositionSeconds >= credits)));
 
         state.DurationSeconds = duration;
         state.LastPlayedAt = DateTime.UtcNow;

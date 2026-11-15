@@ -1492,8 +1492,9 @@ final class PlaybackController: NSObject {
         timing = StartTiming(.video)
         Task {
             defer { isAdvancing = false }
-            // Ended alongside asking for the next one, rather than first: one wait on the server instead of two.
-            Task { try? await client.stopPlayback(sessionId: finished) }
+            // Ended alongside asking for the next one, rather than first: one wait on the server instead of two. But after
+            // the report above, in the same queue: a stop that overtook it would leave the report nothing to land on.
+            send { try? await client.stopPlayback(sessionId: finished) }
             do {
                 let request = nextRequest(target, after: current)
                 viewerSubtitleKey = request.subtitleKey == "off" ? .some(nil) : nil

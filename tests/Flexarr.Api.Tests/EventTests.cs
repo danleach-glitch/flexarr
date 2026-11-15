@@ -124,14 +124,17 @@ public sealed class EventTests : IDisposable
         await ReportAsync(session, 20);
         Assert.Equal("Resumed", (await NextEventAsync(events)).GetProperty("kind").GetString());
 
+        // A scrub into the credits is the credits once the next report is there too.
         await ReportAsync(session, 541);
+        await ReportAsync(session, 542);
         var credits = await NextEventAsync(events);
         Assert.Equal("Credits", credits.GetProperty("kind").GetString());
-        Assert.Equal(541, credits.GetProperty("positionSeconds").GetDouble());
+        Assert.Equal(542, credits.GetProperty("positionSeconds").GetDouble());
 
         // Back before the credits and through them again: lights down, lights up again.
         await ReportAsync(session, 300);
         await ReportAsync(session, 545);
+        await ReportAsync(session, 546);
         Assert.Equal("Credits", (await NextEventAsync(events)).GetProperty("kind").GetString());
 
         await ReportAsync(session, 600, paused: true, ended: true);
