@@ -58,6 +58,74 @@ public sealed class DownloadConversionTests : IDisposable
     }
 
     [Fact]
+    public async Task WhenFfmpegIsInstalled_AConversionMadeInPieces_JoinsIntoOneMp4_WithItsSubtitlesOnTime()
+    {
+        if (!await HasFfmpegAsync())
+        {
+            return;
+        }
+
+        // Ten seconds with a subtitle inside (at 1 s and 7 s) and one in a file beside it (at 8 s).
+        var source = Path.Combine(_dir, "source.mkv");
+        var inside = Path.Combine(_dir, "inside.srt");
+        await File.WriteAllTextAsync(inside, "1\n00:00:01,000 --> 00:00:02,000\nOne\n\n2\n00:00:07,000 --> 00:00:08,000\nSeven\n");
+        await RunAsync("ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=24", "-f", "lavfi", "-i", "sine=frequency=440", "-i", inside,
+            "-t", "10", "-map", "0", "-map", "1", "-map", "2", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "ac3", "-c:s", "srt", source);
+        var srt = Path.Combine(_dir, "source.fr.srt");
+        await File.WriteAllTextAsync(srt, "1\n00:00:08,000 --> 00:00:09,000\nHuit\n");
+        var file = new MediaFile
+        {
+            Path = source, Container = "matroska,webm", VideoCodec = "h264", Width = 640, Height = 360, AudioCodec = "ac3", AudioChannels = 2,
+            DurationSeconds = 10, Bitrate = 1_000_000,
+            Streams =
+            [
+                new MediaStream { Index = 0, Type = StreamType.Video, Codec = "h264", Width = 640, Height = 360 },
+                new MediaStream { Index = 1, Type = StreamType.Audio, Codec = "ac3", Channels = 2, IsDefault = true },
+            ],
+        };
+        var subtitles = new[] { new SubtitleTrack("e2", 2, null, "subrip", "eng", null, false, false), new SubtitleTrack("x0", null, srt, "subrip", "fre", null, false, false) };
+        var settings = new TranscodeSettings { CacheDirectory = _dir, FfmpegPath = "ffmpeg", HardwareAcceleration = HardwareAcceleration.None, SoftwarePreset = "ultrafast" };
+        var plan = DownloadPlanner.Plan(file, DownloadQuality.Medium, subtitles)!;
+        Assert.NotNull(plan.Convert);
+
+        // The first piece stops at about 4 s (as a q would), the second carries on from where its picture ends.
+        var first = Path.Combine(_dir, "a.part.0.mp4");
+        var args = FfmpegCommand.Mp4(source, plan.Convert, plan.VideoIndex, plan.AudioIndex, plan.VideoCodec, plan.Subtitles, first, settings, stoppable: true).ToList();
+        args.InsertRange(args.LastIndexOf("-f"), ["-t", "4"]);
+        await RunAsync("ffmpeg", [.. args]);
+        var seconds = double.Parse((await RunAsync("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=duration", "-of", "csv=p=0", first)).Trim(),
+            System.Globalization.CultureInfo.InvariantCulture);
+        var second = Path.Combine(_dir, "a.part.1.mp4");
+        await RunAsync("ffmpeg", [.. FfmpegCommand.Mp4(source, plan.Convert, plan.VideoIndex, plan.AudioIndex, plan.VideoCodec, plan.Subtitles, second, settings, seconds, stoppable: true)]);
+
+        var list = Path.Combine(_dir, "a.part.txt");
+        await File.WriteAllTextAsync(list, FfmpegCommand.ConcatList([new(first, seconds), new(second, 0)]));
+        var joined = Path.Combine(_dir, "a.mp4");
+        await RunAsync("ffmpeg", [.. FfmpegCommand.JoinMp4(list, source, plan.Subtitles, joined)]);
+
+        var streams = await StreamsAsync(joined);
+        Assert.Contains(streams, s => s is ("video", "h264", _, _));
+        Assert.Contains(streams, s => s is ("audio", "aac", 2, _));
+        Assert.Contains(streams, s => s is ("subtitle", "mov_text", _, "eng"));
+        Assert.Contains(streams, s => s is ("subtitle", "mov_text", _, "fre"));
+        var length = double.Parse((await RunAsync("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=duration", "-of", "csv=p=0", joined)).Trim(),
+            System.Globalization.CultureInfo.InvariantCulture);
+        Assert.InRange(length, 9.9, 10.1);
+
+        // Each subtitle where it was: none lost or doubled at the join, the file's one not moved by the second piece's start.
+        async Task<List<double>> CuesAsync(string stream) => [.. (await RunAsync("ffprobe", "-v", "error", "-select_streams", stream, "-show_packets",
+                "-show_entries", "packet=pts_time,size", "-of", "csv=p=0", joined)).Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(l => l.Split(',')).Where(p => int.Parse(p[1], System.Globalization.CultureInfo.InvariantCulture) > 2)
+            .Select(p => double.Parse(p[0], System.Globalization.CultureInfo.InvariantCulture))];
+        var english = await CuesAsync("s:0");
+        Assert.Equal(2, english.Count);
+        Assert.InRange(english[0], 0.9, 1.1);
+        Assert.InRange(english[1], 6.9, 7.1);
+        var french = Assert.Single(await CuesAsync("s:1"));
+        Assert.InRange(french, 7.9, 8.1);
+    }
+
+    [Fact]
     public async Task WhenFfmpegIsInstalled_ATrackThePhoneCantPlay_BecomesAnM4aOfStereoAac()
     {
         if (!await HasFfmpegAsync())

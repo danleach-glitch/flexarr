@@ -89,6 +89,45 @@ public class FfmpegCommandTests
     }
 
     [Fact]
+    public void ADownloadMadeInPieces_ListensForQ_AndLaterPiecesStartPartWay()
+    {
+        var sidecar = new SubtitleTrack("x0", null, "/media/in.fr.srt", "subrip", "fre", null, false, false);
+        var first = string.Join(' ', FfmpegCommand.Mp4("/in.mkv", Plan, 0, null, null, [sidecar], "/out.part.mp4", Settings(HardwareAcceleration.None), stoppable: true));
+        var later = string.Join(' ', FfmpegCommand.Mp4("/in.mkv", Plan, 0, null, null, [sidecar], "/out.part.1.mp4", Settings(HardwareAcceleration.None), 1234.5, stoppable: true));
+        var plain = string.Join(' ', FfmpegCommand.Mp4("/in.mkv", Plan, 0, null, null, [sidecar], "/out.mp4", Settings(HardwareAcceleration.None)));
+
+        // Stoppable: no -nostdin, so a q on stdin ends the piece cleanly.
+        Assert.Contains("-nostdin", plain, StringComparison.Ordinal);
+        Assert.DoesNotContain("-nostdin", first, StringComparison.Ordinal);
+        // The first piece may turn out to be the whole film, so it's made as one would be.
+        Assert.DoesNotContain("-ss", first, StringComparison.Ordinal);
+        Assert.Contains("+faststart", first, StringComparison.Ordinal);
+        // A later one starts where the last stopped (only the film seeked), and the join puts the index first.
+        Assert.Contains("-ss 1234.5 -protocol_whitelist file -i /in.mkv -protocol_whitelist file -f srt -i /media/in.fr.srt", later, StringComparison.Ordinal);
+        Assert.DoesNotContain("+faststart", later, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ThePiecesJoin_EachEndingWhereItsPictureDoes_WithTheSubtitleFilesReadWhole()
+    {
+        var list = FfmpegCommand.ConcatList([new("/cache/a.part.0.mp4", 600.125), new("/cache/it's.part.1.mp4", 300), new("/cache/a.part.2.mp4", 0)]);
+        Assert.Equal("ffconcat version 1.0\nfile '/cache/a.part.0.mp4'\noutpoint 600.125\nfile '/cache/it'\\''s.part.1.mp4'\noutpoint 300\nfile '/cache/a.part.2.mp4'\n", list);
+
+        var embedded = new SubtitleTrack("e3", 3, null, "subrip", "eng", null, false, false);
+        var sidecar = new SubtitleTrack("x0", null, "/media/in.fr.srt", "subrip", "fre", null, false, true);
+        var args = string.Join(' ', FfmpegCommand.JoinMp4("/cache/a.part.txt", "/media/in.mkv", [sidecar, embedded], "/cache/a.part.mp4"));
+
+        Assert.Contains("-protocol_whitelist file -f concat -safe 0 -i /cache/a.part.txt -protocol_whitelist file -f srt -i /media/in.fr.srt -protocol_whitelist file -i /media/in.mkv",
+            args, StringComparison.Ordinal);
+        // In the download's order, each from where it started: the file's from the file, the film's own from the film.
+        Assert.Contains("-map 0:v? -map 0:a? -map 1:0 -metadata:s:s:0 language=fre -disposition:s:0 forced -map 2:3 -metadata:s:s:1 language=eng", args, StringComparison.Ordinal);
+        // With no subtitles of its own to take, the film isn't read again.
+        Assert.DoesNotContain("in.mkv", string.Join(' ', FfmpegCommand.JoinMp4("/cache/a.part.txt", "/media/in.mkv", [sidecar], "/cache/a.part.mp4")), StringComparison.Ordinal);
+        Assert.Contains("-c:v copy -c:a copy -c:s mov_text", args, StringComparison.Ordinal);
+        Assert.EndsWith("-movflags +faststart -f mp4 /cache/a.part.mp4", args, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Hdr_IsMappedToSdr_InSoftware_AndOnTheCpuForNvencAndQuickSync()
     {
         var software = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan, 0, "/out", Settings(HardwareAcceleration.None)));

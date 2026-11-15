@@ -164,6 +164,82 @@ public sealed class DownloadTests : IDisposable
     }
 
     [Fact]
+    public async Task AConversionThatStopsForSomeoneWatching_CarriesOnFromWhereItGot_AndIsJoinedAtTheEnd()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        // Stands in for ffmpeg: a first piece that converts until it's sent a q, then finishes its file; a later piece
+        // (-ss) that finishes straight away; the join; and a stream someone's watching, which just runs.
+        var calls = Path.Combine(_factory.DataDirectory, $"calls-{Guid.NewGuid():N}");
+        var ffmpeg = Path.Combine(_factory.DataDirectory, "pausing-ffmpeg");
+        await File.WriteAllTextAsync(ffmpeg, $$"""
+            #!/bin/sh
+            case "$*" in *" -f hls "*) sleep 60; exit 0 ;; esac
+            echo "$*" >> "{{calls}}"
+            for last; do :; done
+            case "$*" in
+              *" -f concat "*) echo joined > "$last"; exit 0 ;;
+              *" -ss "*) echo out_time_us=1000000; echo progress=end; echo rest > "$last"; exit 0 ;;
+            esac
+            ( i=0; while [ $i -lt 240 ]; do echo out_time_us=$((i * 500000)); echo progress=continue; sleep 0.5; i=$((i + 1)); done ) &
+            read -r key
+            kill $!
+            echo start > "$last"
+            exit 0
+            """);
+        var ffprobe = Path.Combine(_factory.DataDirectory, "piece-ffprobe");
+        await File.WriteAllTextAsync(ffprobe, "#!/bin/sh\necho 120.5\n");
+        foreach (var script in new[] { ffmpeg, ffprobe })
+        {
+            File.SetUnixFileMode(script, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+
+        using var server = _factory.WithWebHostBuilder(b => b
+            .UseSetting("Flexarr:FfmpegPath", ffmpeg)
+            .UseSetting("Flexarr:FfprobePath", ffprobe)
+            .UseSetting("Flexarr:Transcoding:HardwareAcceleration", "None"));
+        var preparer = server.Services.GetRequiredService<Downloads.DownloadPreparer>();
+        var transcodes = server.Services.GetRequiredService<Flexarr.Streaming.TranscodeManager>();
+        var (movie, _) = await AddMovieAsync("matroska,webm", "mpeg2video", "aac");
+        var client = server.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        var id = (await (await client.PostAsJsonAsync(new Uri("/api/v1/offline", UriKind.Relative), new { itemId = movie, quality = "Medium" }))
+            .Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString()!;
+        async Task<string?> StatusAsync() =>
+            (await client.GetFromJsonAsync<JsonElement>(new Uri($"/api/v1/offline/{id}", UriKind.Relative))).GetProperty("status").GetString();
+
+        var round = preparer.RunOnceAsync(CancellationToken.None);
+        for (var i = 0; i < 100 && await StatusAsync() != "Preparing"; i++)
+        {
+            await Task.Delay(50);
+        }
+
+        // Someone starts watching a converted stream: the conversion stops, keeping what it made, and waits.
+        var plan = new Flexarr.Streaming.TranscodePlan(0, 1, 1920, 1080, 10_000_000, ToneMap: false, CopyAudio: false, AudioChannels: 2, BurnSubtitle: null);
+        var watching = await transcodes.CreateAsync("tv", "/in.mkv", 600, plan);
+        await round.WaitAsync(TimeSpan.FromSeconds(20));
+        Assert.Equal("Queued", await StatusAsync());
+        Assert.Equal(1, preparer.KeptConversions);
+        var folder = Downloads.DownloadPreparer.Folder(server.Services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions>>().CurrentValue);
+        Assert.True(File.Exists(Path.Combine(folder, $"{Guid.Parse(id):N}.part.0.mp4")));
+
+        // They stop: it carries on from 120.5 seconds, not from the start, and the two pieces are joined.
+        await transcodes.StopAsync(watching.Id);
+        await WaitForAsync(client, id, "Ready", server.Services);
+        var run = (await File.ReadAllLinesAsync(calls)).Where(c => c.Contains("-progress pipe:1", StringComparison.Ordinal)).ToList();
+        Assert.Equal(3, run.Count);
+        Assert.DoesNotContain(" -ss ", run[0], StringComparison.Ordinal);
+        Assert.Contains("-ss 120.5 ", run[1], StringComparison.Ordinal);
+        Assert.Contains("-f concat", run[2], StringComparison.Ordinal);
+        Assert.Equal("joined", (await File.ReadAllTextAsync(Path.Combine(folder, $"{Guid.Parse(id):N}.mp4"))).Trim());
+        Assert.Empty(Directory.EnumerateFiles(folder, $"{Guid.Parse(id):N}.part.*"));
+        Assert.Equal(0, preparer.KeptConversions);
+    }
+
+    [Fact]
     public async Task AnOriginalThePhoneCantPlay_IsNotOffered_AndFailsWithAReason()
     {
         var (movie, _) = await AddMovieAsync("matroska,webm", "hevc", "dts");

@@ -243,14 +243,25 @@ public static class FfmpegCommand
     /// or with no plan the video and <paramref name="copyAudioIndex"/> copied as they are (an Original download that
     /// needs repackaging). Text subtitles go in as tracks of their own; progress is written to stdout for the caller.
     /// </summary>
+    /// <remarks>
+    /// A conversion made in pieces (<see cref="JoinMp4"/>) is <paramref name="stoppable"/>: ffmpeg listens on stdin, so
+    /// a <c>q</c> there ends the piece cleanly, a whole MP4 up to where it got. The pieces after the first start at
+    /// <paramref name="startSeconds"/> of the source and skip faststart, since the join puts the index at the front.
+    /// </remarks>
     public static IReadOnlyList<string> Mp4(string input, TranscodePlan? plan, int videoIndex, int? copyAudioIndex, string? videoCodec,
-        IReadOnlyList<SubtitleTrack> textSubtitles, string output, TranscodeSettings settings)
+        IReadOnlyList<SubtitleTrack> textSubtitles, string output, TranscodeSettings settings, double startSeconds = 0, bool stoppable = false)
     {
         ArgumentNullException.ThrowIfNull(textSubtitles);
         ArgumentNullException.ThrowIfNull(settings);
 
         var hw = plan is null || plan.VideoStreamIndex < 0 ? HardwareAcceleration.None : settings.Resolved;
-        var args = new List<string> { "-hide_banner", "-v", "error", "-nostdin", "-y", "-progress", "pipe:1", "-nostats" };
+        var args = new List<string> { "-hide_banner", "-v", "error" };
+        if (!stoppable)
+        {
+            args.Add("-nostdin");
+        }
+
+        args.AddRange(["-y", "-progress", "pipe:1", "-nostats"]);
         switch (DecodesInHardware(hw, plan?.SourceVideoCodec, plan?.ToneMap == true))
         {
             case HardwareAcceleration.VideoToolbox:
@@ -270,6 +281,13 @@ public static class FfmpegCommand
             case HardwareAcceleration.Nvenc:
                 args.AddRange(["-hwaccel", "cuda", "-hwaccel_output_format", "cuda"]);
                 break;
+        }
+
+        if (startSeconds > 0)
+        {
+            // Before the input: ffmpeg seeks there and, converting, starts on exactly that frame. The subtitles it
+            // writes from here on are no use (see JoinMp4), but keep the piece's tracks the same as the first's.
+            args.AddRange(["-ss", startSeconds.ToString("0.######", CultureInfo.InvariantCulture)]);
         }
 
         args.AddRange([.. LocalFile, "-i", input]);
@@ -329,6 +347,86 @@ public static class FfmpegCommand
             n++;
         }
 
+        if (n > 0)
+        {
+            args.AddRange(["-c:s", "mov_text"]);
+        }
+
+        args.AddRange(["-dn", "-map_metadata", "-1", "-map_chapters", "-1", "-max_muxing_queue_size", "2048"]);
+        if (startSeconds <= 0)
+        {
+            args.AddRange(["-movflags", "+faststart"]);
+        }
+
+        args.AddRange(["-f", "mp4", output]);
+        return args;
+    }
+
+    /// <summary>One piece of a conversion made in pieces: its file, and how long its picture runs.</summary>
+    public sealed record Piece(string Path, double Seconds);
+
+    /// <summary>
+    /// The concat list joining <paramref name="pieces"/> (<see cref="JoinMp4"/>): each piece but the last ends where
+    /// its picture does, so whatever it wrote beyond that (subtitles read ahead) gives way to the next piece.
+    /// </summary>
+    public static string ConcatList(IReadOnlyList<Piece> pieces)
+    {
+        ArgumentNullException.ThrowIfNull(pieces);
+        var list = new System.Text.StringBuilder("ffconcat version 1.0\n");
+        for (var i = 0; i < pieces.Count; i++)
+        {
+            list.Append("file '").Append(pieces[i].Path.Replace("'", "'\\''", StringComparison.Ordinal)).Append("'\n");
+            if (i < pieces.Count - 1)
+            {
+                list.Append("outpoint ").Append(pieces[i].Seconds.ToString("0.######", CultureInfo.InvariantCulture)).Append('\n');
+            }
+        }
+
+        return list.ToString();
+    }
+
+    /// <summary>
+    /// Arguments to join the pieces of a download's conversion (<paramref name="list"/>, from <see cref="ConcatList"/>)
+    /// into one MP4, the picture and sound copied as they are. The subtitles come from where they started, read whole
+    /// (the film's own from <paramref name="input"/>, the rest from their files): ffmpeg starting part way through a
+    /// film gets text subtitles' times wrong, so the pieces' copies of them are left out.
+    /// </summary>
+    public static IReadOnlyList<string> JoinMp4(string list, string input, IReadOnlyList<SubtitleTrack> textSubtitles, string output)
+    {
+        ArgumentNullException.ThrowIfNull(textSubtitles);
+        List<string> args = ["-hide_banner", "-v", "error", "-nostdin", "-y", "-progress", "pipe:1", "-nostats",
+            .. LocalFile, "-f", "concat", "-safe", "0", "-i", list];
+        var sidecars = textSubtitles.Where(t => t.ExternalPath is not null).ToList();
+        foreach (var sidecar in sidecars)
+        {
+            args.AddRange([.. LocalFile, .. Subtitles.SidecarFormat(sidecar.ExternalPath!), "-i", sidecar.ExternalPath!]);
+        }
+
+        var film = sidecars.Count + 1;
+        if (textSubtitles.Any(t => t.ExternalPath is null))
+        {
+            args.AddRange([.. LocalFile, "-i", input]);
+        }
+
+        args.AddRange(["-map", "0:v?", "-map", "0:a?"]);
+        var n = 0;
+        foreach (var track in textSubtitles)
+        {
+            args.AddRange(["-map", track.ExternalPath is null ? $"{film}:{track.StreamIndex}" : $"{sidecars.IndexOf(track) + 1}:0"]);
+            if (track.Language is { Length: > 0 } language)
+            {
+                args.AddRange([$"-metadata:s:s:{n}", $"language={language}"]);
+            }
+
+            if (track.IsForced)
+            {
+                args.AddRange([$"-disposition:s:{n}", "forced"]);
+            }
+
+            n++;
+        }
+
+        args.AddRange(["-c:v", "copy", "-c:a", "copy"]);
         if (n > 0)
         {
             args.AddRange(["-c:s", "mov_text"]);

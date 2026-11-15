@@ -92,6 +92,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Downloads
 
+- A film or episode being converted for a download no longer starts again from the beginning when someone starts watching on a server that converts without a hardware encoder: it pauses, keeping what it's done, and carries on from there when they stop.
 - A film or episode watched from a download now counts as watched by the same rule as streaming (past the credits or most of the way), so it no longer stays in Continue Watching at 93%.
 - A podcast episode heard offline keeps its place however short, and a phone whose clock runs fast no longer holds back what other devices watched offline.
 - On iPhone and Android, a downloaded film or episode now starts from where you got to on another device (an hour watched on the TV, say), rather than from the beginning or an old place, and no longer puts the old place back afterwards. One finished elsewhere starts from the beginning.
