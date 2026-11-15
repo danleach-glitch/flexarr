@@ -80,6 +80,7 @@ builder.Services.AddAuthorizationBuilder()
         context.User.HasClaim(FlexarrClaims.Admin, "true") || context.User.HasClaim(FlexarrClaims.CanUnlock, "true")));
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, AdminHandler>();
 builder.Services.AddSingleton<SignIns>();
+builder.Services.AddSingleton<KeyInAddress>();
 builder.Services.AddSingleton<PinGuard>();
 builder.Services.AddSingleton<AdminUnlocks>();
 

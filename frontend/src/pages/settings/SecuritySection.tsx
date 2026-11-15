@@ -9,7 +9,7 @@ import { useApi } from '../../hooks/useApi'
 import { usePinLockout } from '../../hooks/usePinLockout'
 import { SaveStatus, SettingRow, SettingsGroup, SettingsHeader } from './shared'
 import { errorText, useSettings } from './useSettings'
-import { t, Words } from '../../i18n'
+import { locale, t, Words } from '../../i18n'
 
 const digits = (value: string) => value.replace(/\D/g, '').slice(0, 8)
 
@@ -323,6 +323,15 @@ function ApiKeyGroup({ onSignedOut }: { onSignedOut: () => void }) {
             {rotated.signedOut > 0
               ? ` ${t('{count, plural, one {# browser or TV was signed out.} other {# browsers and TVs were signed out.}}', { count: rotated.signedOut })}`
               : ` ${t('Browsers and TVs signed in below keep working.')}`}
+          </p>
+        )}
+        {settings.keyInAddress && (
+          <p className="key-note" data-testid="key-in-address">
+            {t.rich('The key was sent in an address for {path} on {date}. That will stop working: send the {header} header instead, or the webhook secret for Sonarr, Radarr and Lidarr.', {
+              path: <code>{settings.keyInAddress.path}</code>,
+              date: new Date(settings.keyInAddress.lastUsed).toLocaleDateString(locale(), { day: 'numeric', month: 'short' }),
+              header: <code>X-Api-Key</code>,
+            })}
           </p>
         )}
         <div className="key-row" ref={keyArea}>

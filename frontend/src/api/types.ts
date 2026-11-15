@@ -663,6 +663,8 @@ export interface Settings {
   defaultServerName?: string | null
   /** Whether library folders are watched for new files. Absent from servers before 0.64. */
   watchFolders?: boolean | null
+  /** When and where something last signed in with the API key in an address (?apikey=), within 30 days. Absent from servers before 0.67. */
+  keyInAddress?: { lastUsed: string; path: string } | null
 }
 
 export interface SettingsUpdate {
