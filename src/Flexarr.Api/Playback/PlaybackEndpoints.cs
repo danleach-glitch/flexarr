@@ -252,7 +252,7 @@ public static partial class PlaybackEndpoints
 
     /// <summary>
     /// Media delivery. Anonymous because native players (Safari, AVPlayer) can't add headers;
-    /// the unguessable session id is the credential.
+    /// the unguessable session id is the credential. Changing a session also takes its sign-in (see <see cref="StreamWrites"/>).
     /// </summary>
     public static RouteGroupBuilder MapStreamEndpoints(this RouteGroupBuilder api)
     {
@@ -277,11 +277,16 @@ public static partial class PlaybackEndpoints
         // The viewer chose subtitles (or none) in the player: the session takes note, so the choice is what the next
         // sitting and the next episode start with. Apple's player switches renditions on the device, so without this
         // the server's own first choice came back every time.
-        group.MapPut("/subtitle", async (string sid, SubtitleChoiceRequest request, PlaybackSessions sessions, FlexarrDbContext db, CancellationToken ct) =>
+        group.MapPut("/subtitle", async (string sid, SubtitleChoiceRequest request, PlaybackSessions sessions, FlexarrDbContext db, HttpContext http, CancellationToken ct) =>
         {
             if (sessions.Get(sid) is not { } session)
             {
                 return Results.NotFound();
+            }
+
+            if (StreamWrites.Refusal(http, session.ProfileId, session.SignInId) is { } refused)
+            {
+                return refused;
             }
 
             string? language = null;
@@ -508,11 +513,16 @@ public static partial class PlaybackEndpoints
         });
 
         group.MapPost("/progress", async (string sid, ProgressRequest progress, PlaybackSessions sessions, PlaybackService playback, PlaybackEvents events,
-            Books.BookFileConverter bookConverter, CancellationToken ct) =>
+            Books.BookFileConverter bookConverter, HttpContext http, CancellationToken ct) =>
         {
             if (sessions.Get(sid) is not { } session)
             {
                 return Results.NotFound();
+            }
+
+            if (StreamWrites.Refusal(http, session.ProfileId, session.SignInId) is { } refused)
+            {
+                return refused;
             }
 
             if (session.BookParts is { } parts && parts.Any(p => p.Convert) && double.IsFinite(progress.PositionSeconds))
@@ -526,8 +536,13 @@ public static partial class PlaybackEndpoints
             return Results.NoContent();
         });
 
-        group.MapDelete("", async (string sid, PlaybackSessions sessions) =>
+        group.MapDelete("", async (string sid, PlaybackSessions sessions, HttpContext http) =>
         {
+            if (sessions.Get(sid) is { } session && StreamWrites.Refusal(http, session.ProfileId, session.SignInId) is { } refused)
+            {
+                return refused;
+            }
+
             await sessions.RemoveAsync(sid);
             return Results.NoContent();
         });

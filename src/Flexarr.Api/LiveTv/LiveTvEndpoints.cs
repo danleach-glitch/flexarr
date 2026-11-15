@@ -369,7 +369,7 @@ public static partial class LiveTvEndpoints
         });
 
         // The player is still open (paused, perhaps, so it isn't fetching anything).
-        watch.MapPost("/heartbeat", (string viewer, LiveTvViewers viewers) =>
+        watch.MapPost("/heartbeat", (string viewer, LiveTvViewers viewers, HttpContext http) =>
         {
             if (viewers.Get(viewer) is not { } v)
             {
@@ -379,12 +379,22 @@ public static partial class LiveTvEndpoints
                     : Results.NotFound();
             }
 
+            if (Playback.StreamWrites.Refusal(http, v.ProfileId, v.SignInId) is { } refused)
+            {
+                return refused;
+            }
+
             v.Session.Touch(viewer);
             return Results.NoContent();
         });
 
-        watch.MapDelete("/", async (string viewer, LiveTvViewers viewers, LiveStreams streams) =>
+        watch.MapDelete("/", async (string viewer, LiveTvViewers viewers, LiveStreams streams, HttpContext http) =>
         {
+            if (viewers.Get(viewer) is { } watching && Playback.StreamWrites.Refusal(http, watching.ProfileId, watching.SignInId) is { } refused)
+            {
+                return refused;
+            }
+
             if (viewers.Remove(viewer) is { } v)
             {
                 await streams.LeaveAsync(v.Session, v.Id);

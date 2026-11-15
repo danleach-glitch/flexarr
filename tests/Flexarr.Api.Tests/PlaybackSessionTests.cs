@@ -163,6 +163,55 @@ public sealed class PlaybackSessionTests : IDisposable
     }
 
     [Fact]
+    public async Task ChangingAPlayback_TakesASignIn_WhileItsStreamNeedsOnlyTheAddress()
+    {
+        var movie = await AddMovieAsync();
+        var owner = Client();
+        var session = await StartAsync(owner, movie);
+        var nobody = _factory.CreateClient();
+        Uri At(string path) => new($"/api/v1/playback/{session}{path}", UriKind.Relative);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await nobody.PostAsJsonAsync(At("/progress"), new { positionSeconds = 600, paused = true })).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await nobody.PutAsJsonAsync(At("/subtitle"), new { key = "off" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await nobody.DeleteAsync(At(""))).StatusCode);
+        Assert.True(await ExistsAsync(owner, session));
+
+        Assert.Equal(HttpStatusCode.NoContent, (await owner.PostAsJsonAsync(At("/progress"), new { positionSeconds = 60, paused = true })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await owner.DeleteAsync(At(""))).StatusCode);
+        Assert.False(await ExistsAsync(owner, session));
+    }
+
+    [Theory]
+    [InlineData(null, null, false, 401)]
+    [InlineData("sam", null, false, 0)]
+    [InlineData("kim", "s1", false, 0)]
+    [InlineData("kim", "s2", false, 404)]
+    [InlineData("kim", null, true, 0)]
+    public void WhoMayChangeAPlayback(string? profile, string? signIn, bool trusted, int expected)
+    {
+        var http = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        if (profile is not null)
+        {
+            var claims = new List<System.Security.Claims.Claim> { new(Flexarr.Api.Security.FlexarrClaims.Profile, profile) };
+            if (signIn is not null)
+            {
+                claims.Add(new(Flexarr.Api.Security.FlexarrClaims.SignIn, signIn));
+            }
+
+            if (trusted)
+            {
+                claims.Add(new(Flexarr.Api.Security.FlexarrClaims.Trusted, "true"));
+            }
+
+            http.User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(claims, "Test"));
+        }
+
+        var refused = Flexarr.Api.Playback.StreamWrites.Refusal(http, "sam", "s1");
+
+        Assert.Equal(expected, refused is Microsoft.AspNetCore.Http.IStatusCodeHttpResult r ? r.StatusCode ?? -1 : 0);
+    }
+
+    [Fact]
     public async Task ASegmentOutsideThePlaylist_IsNotFound()
     {
         var movie = await AddMovieAsync();
