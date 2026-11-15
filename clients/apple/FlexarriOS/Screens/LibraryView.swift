@@ -551,7 +551,12 @@ struct GenreTile: View {
                 }
             }
             .overlay {
-                LinearGradient(colors: [Color.room.opacity(0.92), Color.room.opacity(0.1)], startPoint: .bottom, endPoint: .center)
+                // Full strength behind the name and the count (the bottom half or so), so both read on a pale
+                // backdrop, then easing off above them.
+                LinearGradient(stops: [.init(color: Color.room.opacity(0.92), location: 0),
+                                       .init(color: Color.room.opacity(0.92), location: 0.45),
+                                       .init(color: Color.room.opacity(0), location: 0.9)],
+                               startPoint: .bottom, endPoint: .top)
             }
             .overlay(alignment: .bottomLeading) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -560,7 +565,7 @@ struct GenreTile: View {
                         .foregroundStyle(Color.screen)
                     Text(caption)
                         .font(.caption.weight(.medium))
-                        .foregroundStyle(Color.usher)
+                        .foregroundStyle(Color.screen)
                 }
                 .lineLimit(1)
                 .padding(10)

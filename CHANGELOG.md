@@ -75,6 +75,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On iPhone, Now Playing's Shuffle, Previous, Next and Repeat, and each row's See all, are easier to tap: the whole button takes the tap, not just its icon or word.
 - On iPhone and iPad, Home's featured show says Play S1E2 when its next episode hasn't been started, and Resume S1E2 once it has, as the show's page does.
 - On iPhone and iPad, a title's Video line says 1080p for a wide-screen film, as its facts do, not the file's cropped height (818p).
+- On iPhone and iPad, a genre card's name and count stay readable on pale artwork: the shade behind them is deeper and the count is in white.
 
 ### Downloads
 
