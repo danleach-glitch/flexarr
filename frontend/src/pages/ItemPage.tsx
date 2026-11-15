@@ -401,35 +401,45 @@ function Seasons({ series, counts, onChange }: { series: ItemDetail; counts?: Sh
   const shown = season.data && selected && season.data.item.id === selected.id ? season.data : undefined
 
   if (!selected) return null
+  // A home-video folder is folders of videos, not seasons of episodes, and a lone folder needs no tab (#466).
+  const home = !!(series.item.homeVideo || selected.homeVideo)
 
   return (
     <section className="seasons">
-      <div className="season-tabs" role="tablist" aria-label={t('Seasons')} onKeyDown={tablistKeys}>
-        {seasons.map((s) => (
-          <button
-            key={s.id}
-            role="tab"
-            aria-selected={s.id === selected.id}
-            tabIndex={s.id === selected.id ? 0 : -1}
-            className={s.id === selected.id ? 'season-tab active' : 'season-tab'}
-            onClick={() => setParams({ season: String(s.seasonNumber) }, { replace: true })}
-          >
-            {s.homeVideo ? s.title : s.seasonNumber === 0 ? t('Specials') : t('Season {season}', { season: s.seasonNumber })}
-            {(() => {
-              // Only a season that's short of what's aired says so.
-              const count = counts?.find((c) => c.seasonNumber === s.seasonNumber)
-              return count && count.have < count.aired ? (
-                <span className="season-count" aria-label={t('{have} of {count, plural, one {# episode} other {# episodes}}', { have: count.have, count: count.aired })}>
-                  {t('{have} of {aired}', { have: count.have, aired: count.aired })}
-                </span>
-              ) : null
-            })()}
-            {s.userData.watched && <icon.watched aria-label={t('watched')} />}
-          </button>
-        ))}
-      </div>
+      {!(home && seasons.length === 1) && (
+        <div className="season-tabs" role="tablist" aria-label={home ? t('Folders') : t('Seasons')} onKeyDown={tablistKeys}>
+          {seasons.map((s) => (
+            <button
+              key={s.id}
+              role="tab"
+              aria-selected={s.id === selected.id}
+              tabIndex={s.id === selected.id ? 0 : -1}
+              className={s.id === selected.id ? 'season-tab active' : 'season-tab'}
+              onClick={() => setParams({ season: String(s.seasonNumber) }, { replace: true })}
+            >
+              {s.homeVideo ? s.title : s.seasonNumber === 0 ? t('Specials') : t('Season {season}', { season: s.seasonNumber })}
+              {(() => {
+                // Only a season that's short of what's aired says so.
+                const count = counts?.find((c) => c.seasonNumber === s.seasonNumber)
+                return count && count.have < count.aired ? (
+                  <span className="season-count" aria-label={t('{have} of {count, plural, one {# episode} other {# episodes}}', { have: count.have, count: count.aired })}>
+                    {t('{have} of {aired}', { have: count.have, aired: count.aired })}
+                  </span>
+                ) : null
+              })()}
+              {s.userData.watched && <icon.watched aria-label={t('watched')} />}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="season-toolbar">
-        <span className="muted">{shown ? t('{count, plural, one {# episode} other {# episodes}}', { count: shown.children.length }) : ''}</span>
+        <span className="muted">
+          {shown
+            ? home
+              ? t('{count, plural, one {# video} other {# videos}}', { count: shown.children.length })
+              : t('{count, plural, one {# episode} other {# episodes}}', { count: shown.children.length })
+            : ''}
+        </span>
         <AsyncButton
           className="text-button"
           onClick={async () => {
@@ -438,7 +448,13 @@ function Seasons({ series, counts, onChange }: { series: ItemDetail; counts?: Sh
             onChange()
           }}
         >
-          {selected.userData.watched ? t('Mark season as unwatched') : t(Words.markSeasonAsWatched)}
+          {home
+            ? selected.userData.watched
+              ? t('Mark folder as unwatched')
+              : t('Mark folder as watched')
+            : selected.userData.watched
+              ? t('Mark season as unwatched')
+              : t(Words.markSeasonAsWatched)}
         </AsyncButton>
       </div>
       {shown ? (

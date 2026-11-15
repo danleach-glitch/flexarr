@@ -70,6 +70,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Home's featured slide for a title with no backdrop no longer shows a broken-image mark.
 - An old link to a removed film, person, playlist or collection now says it isn't in your library any more, with a **Home** button, instead of "404 Not Found"; the player says the same and offers only **Go back**.
 - On a phone, Settings › Libraries › Library health shows each title and its reason in full, with the buttons on a line under them.
+- A home-videos folder's page speaks of folders and videos rather than seasons and episodes (**Mark folder as watched**), and a folder with just one inside shows no tab for it.
 
 ### Playback
 

@@ -20,7 +20,11 @@ const BACKDROP_WIDTHS = [780, 1280, 1920]
 export function Facts({ item, extra = [] }: { item: ItemSummary; extra?: (string | null | undefined)[] }) {
   const facts = [
     year(item)?.toString(),
-    item.kind === 'Series' ? t('{count, plural, one {# season} other {# seasons}}', { count: item.childCount }) : formatDuration(item.durationSeconds ?? (item.runtimeMinutes ?? 0) * 60),
+    item.kind === 'Series'
+      ? item.homeVideo
+        ? t('{count, plural, one {# folder} other {# folders}}', { count: item.childCount })
+        : t('{count, plural, one {# season} other {# seasons}}', { count: item.childCount })
+      : formatDuration(item.durationSeconds ?? (item.runtimeMinutes ?? 0) * 60),
     ...extra,
   ].filter(Boolean)
   return (
