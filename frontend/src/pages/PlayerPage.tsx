@@ -1,3 +1,5 @@
+import { canFullscreen, toggleFullscreenOf } from '../lib/fullscreen'
+import { focusMenu, moveInMenu } from '../lib/menuKeys'
 import { errorText } from '../lib/errorText'
 import Hls from 'hls.js/light'
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
@@ -49,7 +51,7 @@ import { speedLabel } from '../lib/podcasts'
 import { drawStyled, fontsFor, type StyledSubtitles } from '../lib/styledSubtitles'
 import { cueLine, pictureIn } from '../lib/subtitlePlacement'
 import { skipAt, skipCancelled, skipFresh, skipPressed, skipSeeked, type SkipNow, type SkipState } from '../lib/skipTiming'
-import { NEXT_EPISODE_COUNTDOWN_SECONDS, nextEpisodeTiming, upNextAt, upNextAtEnd, upNextFresh, upNextMoved, type UpNextState } from '../lib/upNext'
+import { NEXT_EPISODE_COUNTDOWN_SECONDS, nextEpisodeTiming, timeMattersHidden, upNextAt, upNextAtEnd, upNextFresh, upNextMoved, type UpNextState } from '../lib/upNext'
 import { dialogueBoostChoices, isShaping, nightModeChoices, readSoundSettings, shapingFor, speakerChoices, timeOfDay, unshaped, useSoundSettings, useSoundShaping, writeSoundSettings } from '../lib/soundSettings'
 import { detectProfile, prefersNativeHls } from '../lib/profile'
 import { prepareVideo, rememberCopyingFailed, startVideo, streamBadge, wasCopyAsked } from '../lib/copiedVideo'
@@ -142,6 +144,10 @@ function HoldButton({ onStep, ...props }: { onStep: (held: boolean) => void } & 
   )
 }
 const HIDE_CHROME_MS = 3000
+/** How long a click on the picture waits to see whether it's the first of a double-click. */
+const DOUBLE_CLICK_MS = 250
+/** What Up and Down move between in the player's menus: every button there, choices and actions (Search, Re-sync) alike. */
+const PLAYER_MENU_ITEM = 'button'
 // Said through t() where shown.
 const STREAM_STOPPED = tk('The stream stopped. The server may have had trouble converting this file.')
 const TAKEN_OVER = tk('Someone started watching on another screen, so this one had to stop.')
@@ -154,7 +160,8 @@ const REASON_TIMEOUT_MS = 5000
  */
 interface PlayerError {
   message: string
-  kind: 'takenOver' | 'busy' | 'other'
+  /** `gone`: the title isn't there any more (404), which trying again won't change. */
+  kind: 'takenOver' | 'busy' | 'gone' | 'other'
 }
 
 interface StartOptions {
@@ -234,6 +241,12 @@ export function PlayerPage() {
   const [nativeHls, setNativeHls] = useState(false)
   const [time, setTime] = useState(0)
   const [bufferedTo, setBufferedTo] = useState(0)
+  /**
+   * Whether timeupdate should redraw the page each second: with the controls showing, or when something on screen
+   * follows the position (set each render, below). Otherwise the whole player needn't redraw beside the decoding.
+   */
+  const followTime = useRef<(position: number) => boolean>(() => true)
+  const timeShown = useRef(0)
   const [volume, setVolume] = useState(1)
   const [muted, setMuted] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
@@ -431,7 +444,10 @@ export function PlayerPage() {
         if (status === 410 && session.current === replaces) session.current = undefined
         const refused = status === 503 || status === 410
         if ((!quiet || refused) && request === requests.current) {
-          setError({ message: errorText(e), kind: status === 410 ? 'takenOver' : status === 503 ? 'busy' : 'other' })
+          // A 400 with no words is an address whose id the server can't even read (/play/not-an-id): gone, too.
+          const unreadable = status === 400 && e instanceof ApiError && !e.messages.length
+          if (status === 404 || unreadable) setError({ message: e instanceof ApiError && e.messages.length ? errorText(e) : t('This isn’t in your library any more.'), kind: 'gone' })
+          else setError({ message: errorText(e), kind: status === 410 ? 'takenOver' : status === 503 ? 'busy' : 'other' })
         }
         return refused
       }
@@ -518,6 +534,7 @@ export function PlayerPage() {
     // The last title's position goes too: left over, it would put the next episode in its own credits at once (Skip
     // credits would mark it watched and count down to the one after).
     setTime(0)
+    timeShown.current = 0
     setBufferedTo(0)
     skipState.current = skipFresh
     setSkipShown({})
@@ -607,11 +624,19 @@ export function PlayerPage() {
     if (!el) return
     // timeupdate fires about four times a second; whole seconds are all the controls show, and React skips a
     // render when the value hasn't changed.
+    // With the controls hidden and nothing following the position, it's kept to within 15 seconds.
     const onTime = () => {
-      setTime(Math.floor(el.currentTime))
+      const position = Math.floor(el.currentTime)
+      const follow = followTime.current(el.currentTime)
+      if (follow || Math.abs(position - timeShown.current) >= 15) {
+        timeShown.current = position
+        setTime(position)
+      }
       // Next Episode follows the real position, so it moves on on time rather than up to a second late.
       upNextTick.current(el.currentTime)
       skipTick.current(el.currentTime)
+      // Only the seek bar shows what's buffered.
+      if (!follow) return
       for (let i = 0; i < el.buffered.length; i++) {
         if (el.buffered.start(i) <= el.currentTime + 0.5 && el.buffered.end(i) >= el.currentTime) setBufferedTo(Math.floor(el.buffered.end(i)))
       }
@@ -809,10 +834,36 @@ export function PlayerPage() {
   }, [wake])
 
   const chromeShown = chrome || !playing || menu !== null || !!error
+  // Back from hidden, the controls show the position as it is now, not up to 15 seconds ago.
+  useEffect(() => {
+    const el = video.current
+    if (!chromeShown || !el) return
+    timeShown.current = Math.floor(el.currentTime)
+    setTime(timeShown.current)
+  }, [chromeShown])
 
   // An open menu closes at a press anywhere outside it. A press on the picture only closes it (it doesn't pause too);
   // another control goes on to do its own thing, opening its menu instead, say.
   const closedByPress = useRef(false)
+  // A menu opened moves the focus into it, on its chosen item, and closing it puts the focus back on its button, so a
+  // keyboard or a TV remote's arrows can work it.
+  const menuOpener = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    const root = container.current
+    if (menu === null) {
+      const opener = menuOpener.current
+      menuOpener.current = null
+      const lost = !document.activeElement || document.activeElement === document.body
+      if (opener?.isConnected && lost) opener.focus({ preventScroll: true })
+      return
+    }
+    menuOpener.current = root?.querySelector<HTMLElement>('.menu-anchor > button[aria-expanded="true"]') ?? menuOpener.current
+    focusMenu(root?.querySelector<HTMLElement>('.player-menu'), PLAYER_MENU_ITEM)
+  }, [menu])
+  // A tap that only showed the controls, and a click held back a moment in case it's the first of a double-click.
+  const tapWoke = useRef(false)
+  const clickTimer = useRef<number>(undefined)
+  useEffect(() => () => window.clearTimeout(clickTimer.current), [])
   useEffect(() => {
     if (menu === null) return
     const onPress = (e: PointerEvent) => {
@@ -840,15 +891,14 @@ export function PlayerPage() {
     const el = video.current
     if (el) el.currentTime = seconds
   }
-  const toggleFullscreen = () => {
-    if (document.fullscreenElement) void document.exitFullscreen()
-    else void container.current?.requestFullscreen?.()
-  }
+  const toggleFullscreen = () => toggleFullscreenOf(container.current, video.current)
   // How this sitting ends, from what was playing when the player closes (by its own Back or the browser's).
   const now = useRef({ info, time, duration, finished: ended, credits: undefined as number | undefined })
   now.current = { info, time, duration, finished: ended, credits: info?.markers.find((m) => m.type === 'Credits')?.start }
   const endingNow = (): PlaybackEnding | undefined => {
-    const { info: playing, time: at, duration: length, finished: over, credits: creditsStart } = now.current
+    const { info: playing, time: shownAt, duration: length, finished: over, credits: creditsStart } = now.current
+    // The real position: with the controls hidden, the one shown can be a few seconds behind.
+    const at = Math.max(shownAt, video.current?.currentTime ?? 0)
     // A shuffle belongs to its show, whose page has nothing to move on to.
     if (!playing || shuffleRef.current) return undefined
     return { from: origin.current, startedWith: startedWith.current, stoppedOn: playing.item.id, watched: over || isWatched(at, length, creditsStart), next: playing.next?.id ?? null }
@@ -993,6 +1043,9 @@ export function PlayerPage() {
   const countdown = countingLive ? upNow.countdown : (endCountdown ?? 0)
   // After Cancel the card stays, with only Play now.
   const showUpNext = !!info?.next && !sleepStopped && (upNow.show || counting)
+  useEffect(() => {
+    followTime.current = (position) => chromeShown || counting || timeMattersHidden({ timing: upNext, sleeping: sleep !== null, position })
+  })
 
   const playNext = useCallback(() => {
     if (info?.next) navigate(`/play/${info.next.id}?t=0${shuffle ? '&shuffle=1' : ''}`, { replace: true })
@@ -1290,8 +1343,15 @@ export function PlayerPage() {
 
   // ---------- Keyboard
 
+  // The handler is this render's (it reads the current state); the listener is added once.
+  const keyHandler = useRef<(e: KeyboardEvent) => void>(() => undefined)
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
+    const onKey = (e: KeyboardEvent) => keyHandler.current(e)
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+  useEffect(() => {
+    keyHandler.current = (e: KeyboardEvent) => {
       // The subtitle search dialog has the keys (Escape closes it, not the player).
       if (belongsToFocused(e) || e.metaKey || e.ctrlKey || findingSubtitles) return
       // With an error showing, only its buttons (and Escape, to leave) do anything.
@@ -1352,8 +1412,6 @@ export function PlayerPage() {
           break
       }
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
   })
 
   // ---------- The secondary controls' menus: each beside its own button, or all in one ⋯ on a phone
@@ -1445,9 +1503,33 @@ export function PlayerPage() {
       className={chromeShown ? 'player' : 'player chrome-hidden'}
       style={{ ...(accent ? { '--ambient': accent } : {}), '--cue-scale': scale } as CSSProperties}
       onMouseMove={wake}
+      onKeyDown={(e) => {
+        if (e.target instanceof Element) moveInMenu(e, e.target.closest<HTMLElement>('.player-menu'), PLAYER_MENU_ITEM)
+      }}
+      onPointerDown={(e) => {
+        // A finger on the picture with the controls hidden only brings them back: someone tapping to see the time
+        // shouldn't pause the film. Mice wake them by moving.
+        tapWoke.current = e.pointerType !== 'mouse' && !chromeShown && e.target === video.current
+        if (e.pointerType !== 'mouse') wake()
+      }}
       onClick={(e) => {
         if (closedByPress.current) closedByPress.current = false
-        else if (!error && e.target === video.current) toggle()
+        else if (tapWoke.current) tapWoke.current = false
+        else if (!error && e.target === video.current) {
+          // A click waits a moment in case it's the first of a double-click (full screen), which then neither pauses
+          // nor resumes; a slow double-click whose first click already paused puts it back.
+          if (e.detail > 1) {
+            if (clickTimer.current !== undefined) window.clearTimeout(clickTimer.current)
+            else toggle()
+            clickTimer.current = undefined
+          } else {
+            window.clearTimeout(clickTimer.current)
+            clickTimer.current = window.setTimeout(() => {
+              clickTimer.current = undefined
+              toggle()
+            }, DOUBLE_CLICK_MS)
+          }
+        }
       }}
     >
       <video
@@ -1535,10 +1617,12 @@ export function PlayerPage() {
           )}
           <div className="player-error-actions">
             {/* Starts afresh rather than picking up the stream that was ended, so it can take the place back. */}
-            <button className="button" autoFocus onClick={() => void retry(error.kind === 'other' ? { forceTranscode: true } : {})}>
-              {error.kind === 'takenOver' ? t('Watch here instead') : t('Try again')}
-            </button>
-            <button className="button quiet" onClick={exit}>
+            {error.kind !== 'gone' && (
+              <button className="button" autoFocus onClick={() => void retry(error.kind === 'other' ? { forceTranscode: true } : {})}>
+                {error.kind === 'takenOver' ? t('Watch here instead') : t('Try again')}
+              </button>
+            )}
+            <button className={error.kind === 'gone' ? 'button' : 'button quiet'} autoFocus={error.kind === 'gone'} onClick={exit}>
               {t('Go back')}
             </button>
           </div>
@@ -1930,9 +2014,11 @@ export function PlayerPage() {
               </svg>
             </button>
           )}
-          <button className="icon-button" onClick={toggleFullscreen} aria-label={fullscreen ? t('Exit full screen') : t('Full screen')}>
-            {fullscreen ? <ExitFullscreen /> : <Fullscreen />}
-          </button>
+          {canFullscreen() && (
+            <button className="icon-button" onClick={toggleFullscreen} aria-label={fullscreen ? t('Exit full screen') : t('Full screen')}>
+              {fullscreen ? <ExitFullscreen /> : <Fullscreen />}
+            </button>
+          )}
         </div>
       </footer>
 

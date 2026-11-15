@@ -735,6 +735,22 @@
   box-shadow: 0 20px 60px rgb(0 0 0 / 0.5), 0 0 60px -20px color-mix(in srgb, var(--ambient) 60%, transparent);
 }
 
+/* A tablet's width: a quarter of the bar cut a title after a few letters while space sat beside the queue button.
+   The buttons on the right take only their own width and the title shares the rest evenly with the controls. */
+@media (min-width: 761px) and (max-width: 1100px) {
+  .now-playing {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  }
+}
+
+/* Solid on touch screens and TVs, as the top bar. */
+@media (hover: none), (pointer: coarse) {
+  .now-playing {
+    backdrop-filter: none;
+    background: var(--seat);
+  }
+}
+
 .now-playing-track {
   display: flex;
   align-items: center;
@@ -1741,9 +1757,9 @@ button.queue-track:focus-visible {
     width: 44px;
   }
 
+  /* Stop and close stays, as on the iPhone's bar: without it, something once played sits over every page for good. */
   .now-playing-seek,
-  .now-playing-skip,
-  .now-playing-stop {
+  .now-playing-skip {
     display: none;
   }
 
@@ -1815,6 +1831,15 @@ button.queue-track:focus-visible {
 .playlist-new,
 .playlist-rename {
   align-items: center;
+}
+
+/* On a phone the name takes the first row and both buttons share the second, rather than Cancel dropping alone.
+   .field-row in the selector outranks settings.css's .field-row label.grow, which loads after this sheet. */
+@media (max-width: 600px) {
+  .field-row.playlist-new label.grow,
+  .field-row.playlist-rename label.grow {
+    flex: 1 1 100%;
+  }
 }
 
 .playlist-rename {

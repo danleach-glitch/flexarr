@@ -229,3 +229,91 @@ describe('Player Skip intro', () => {
     await act(async () => page.unmount())
   })
 })
+
+describe('Player menus from the keyboard', () => {
+  it('opens on the chosen item, moves with the arrows, and gives the focus back to its button', async () => {
+    mockApi({ 'POST /playback': () => playback(), 'DELETE /playback/s1': undefined })
+    const page = renderPlayer()
+    const audio = await waitFor(() => page.getByRole('button', { name: 'Audio' }))
+    await waitFor(() => expect(page.container.querySelector('video')?.getAttribute('src')).toContain('/playback/s1/'))
+
+    fireEvent.click(audio)
+    const english = page.getByRole('menuitemradio', { name: /English/ })
+    await waitFor(() => expect(english).toHaveFocus())
+    fireEvent.keyDown(english, { key: 'ArrowDown' })
+    expect(page.getByRole('menuitemradio', { name: /French/ })).toHaveFocus()
+
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    await waitFor(() => expect(page.queryByRole('menu')).toBeNull())
+    expect(audio).toHaveFocus()
+    await act(async () => page.unmount())
+  })
+})
+
+describe('Player taps and clicks on the picture', () => {
+  it('only brings the controls back at a tap while they’re hidden, rather than pausing', async () => {
+    mockApi({ 'POST /playback': () => playback(), 'DELETE /playback/s1': undefined })
+    const page = renderPlayer()
+    const video = page.container.querySelector('video')!
+    await waitFor(() => expect(video.getAttribute('src')).toContain('/playback/s1/'))
+    Object.defineProperty(video, 'paused', { configurable: true, get: () => false })
+    fireEvent.play(video)
+    // The controls hide after a few seconds of playing untouched.
+    await waitFor(() => expect(page.container.querySelector('.player.chrome-hidden')).not.toBeNull(), { timeout: 4000 })
+
+    const pause = vi.mocked(window.HTMLMediaElement.prototype.pause)
+    pause.mockClear()
+    fireEvent.pointerDown(video, { pointerType: 'touch' })
+    fireEvent.click(video, { detail: 1 })
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(pause).not.toHaveBeenCalled()
+    expect(page.container.querySelector('.player.chrome-hidden')).toBeNull()
+    await act(async () => page.unmount())
+  }, 10_000)
+
+  it('neither pauses nor resumes on the way into full screen at a double-click', async () => {
+    mockApi({ 'POST /playback': () => playback(), 'DELETE /playback/s1': undefined })
+    const page = renderPlayer()
+    const video = page.container.querySelector('video')!
+    await waitFor(() => expect(video.getAttribute('src')).toContain('/playback/s1/'))
+    Object.defineProperty(video, 'paused', { configurable: true, get: () => false })
+    fireEvent.play(video)
+
+    const pause = vi.mocked(window.HTMLMediaElement.prototype.pause)
+    pause.mockClear()
+    fireEvent.pointerDown(video, { pointerType: 'mouse' })
+    fireEvent.click(video, { detail: 1 })
+    fireEvent.pointerDown(video, { pointerType: 'mouse' })
+    fireEvent.click(video, { detail: 2 })
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(pause).not.toHaveBeenCalled()
+
+    // A single click still pauses, a moment later.
+    fireEvent.click(video, { detail: 1 })
+    await waitFor(() => expect(pause).toHaveBeenCalledTimes(1))
+    await act(async () => page.unmount())
+  })
+})
+
+describe('Player with a title that isn’t there', () => {
+  it('says so plainly and offers only Go back, since trying again won’t help', async () => {
+    mockApi({ 'POST /playback': () => new Response('', { status: 404, statusText: 'Not Found' }) })
+    const page = renderPlayer()
+    const box = await waitFor(() => page.getByRole('alertdialog'))
+    expect(box).toHaveTextContent('This isn’t in your library any more.')
+    expect(box).not.toHaveTextContent('404')
+    expect(within(box).queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument()
+    expect(within(box).getByRole('button', { name: 'Go back' })).toHaveFocus()
+    await act(async () => page.unmount())
+  })
+
+  it('says the same for an address whose id the server can’t read', async () => {
+    mockApi({ 'POST /playback': () => new Response('', { status: 400, statusText: 'Bad Request' }) })
+    const page = renderPlayer()
+    const box = await waitFor(() => page.getByRole('alertdialog'))
+    expect(box).toHaveTextContent('This isn’t in your library any more.')
+    expect(box).not.toHaveTextContent('400')
+    expect(within(box).queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument()
+    await act(async () => page.unmount())
+  })
+})

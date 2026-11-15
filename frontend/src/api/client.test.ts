@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mockApi, movies } from '../test/mockApi'
-import { apiGet, backdropSources, downloadBackup, linksTakePassphrase, parseAnswer, beaconBookProgress, clearApiCache, FETCH_TIMEOUT_MS, getLibraries, liveHeartbeat, reportProgress, getLibraryGenres, getLibraryItems, keepPage, keptPage, onAdminLapsed, onLockedChange, savePlayerPreferences, setWatched, signOut, stopPlayback, watchLiveChannel } from './client'
+import { apiGet, backdropSources, downloadBackup, linksTakePassphrase, parseAnswer, beaconBookProgress, clearApiCache, FETCH_TIMEOUT_MS, getLibraries, liveHeartbeat, reportProgress, getHome, getLibraryGenres, getLibraryItems, recordSearch, startPlayback, type PlaybackRequest, keepPage, keptPage, onAdminLapsed, onLockedChange, savePlayerPreferences, setWatched, signOut, stopPlayback, watchLiveChannel } from './client'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -12,20 +12,53 @@ const sent = (fetchMock: ReturnType<typeof mockApi>, path: string) =>
 
 describe('API cache', () => {
   it('keeps cached answers through progress reports while playing, but not a pause or a change', async () => {
-    const fetchMock = mockApi({ '/libraries/l/genres': [], 'POST /playback/s/progress': undefined, 'POST /livetv/watch/v/heartbeat': undefined })
+    const fetchMock = mockApi({ '/home': { rows: [] }, 'POST /playback/s/progress': undefined, 'POST /livetv/watch/v/heartbeat': undefined })
     clearApiCache()
-    await getLibraryGenres('l')
+    await getHome()
     await reportProgress('s', 10, false)
     await liveHeartbeat('v')
-    await getLibraryGenres('l')
-    expect(sent(fetchMock, '/libraries/l/genres')).toBe(1)
+    await getHome()
+    expect(sent(fetchMock, '/home')).toBe(1)
 
     await reportProgress('s', 20, true)
+    await getHome()
+    expect(sent(fetchMock, '/home')).toBe(2)
+    await reportProgress('s', 30, false, true)
+    await getHome()
+    expect(sent(fetchMock, '/home')).toBe(3)
+  })
+
+  it('keeps cached answers through starting playback and remembering a search, and a stop keeps what playing can’t change', async () => {
+    const fetchMock = mockApi({
+      '/libraries/l/genres': [],
+      '/home': { rows: [] },
+      'POST /playback': { sessionId: 's' },
+      'POST /search/recent': undefined,
+      'DELETE /playback/s': undefined,
+      'POST /playback/s/progress': undefined,
+      'POST /items/i/watched': undefined,
+    })
+    await getLibraryGenres('l')
+    await getHome()
+    await startPlayback({ itemId: 'i' } as PlaybackRequest)
+    await recordSearch('alien', null)
+    await getLibraryGenres('l')
+    await getHome()
+    expect(sent(fetchMock, '/libraries/l/genres')).toBe(1)
+    expect(sent(fetchMock, '/home')).toBe(1)
+
+    // Stopping or pausing changes Home (Continue), not a library's genres.
+    await stopPlayback('s')
+    await reportProgress('s', 20, true)
+    await getLibraryGenres('l')
+    await getHome()
+    expect(sent(fetchMock, '/libraries/l/genres')).toBe(1)
+    expect(sent(fetchMock, '/home')).toBe(2)
+
+    // Any other change forgets everything.
+    await setWatched('i', true)
     await getLibraryGenres('l')
     expect(sent(fetchMock, '/libraries/l/genres')).toBe(2)
-    await reportProgress('s', 30, false, true)
-    await getLibraryGenres('l')
-    expect(sent(fetchMock, '/libraries/l/genres')).toBe(3)
   })
 
   it('keeps the 100 most recently used answers', async () => {

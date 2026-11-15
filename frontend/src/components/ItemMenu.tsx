@@ -8,6 +8,7 @@ import { useAgeLimits } from '../hooks/sessionContext'
 import { useAudioPlayer } from '../hooks/audioPlayerContext'
 import { usePlay } from '../hooks/usePlay'
 import { useWatchlistKeys } from '../hooks/useWatchlistKeys'
+import { focusMenu, moveInMenu } from '../lib/menuKeys'
 import { noticeFailure, showNotice } from '../lib/notice'
 import { announceWatched } from '../hooks/watched'
 import { episodeCode, progressOf } from '../lib/format'
@@ -85,7 +86,7 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
       if (resumable) actions.push({ label: t(Words.startOver), run: go(`/play/${item.id}?t=0`) })
       actions.push('divider', { label: item.userData.watched ? t('Mark episode as unwatched') : t('Mark episode as watched'), run: mark(item, !item.userData.watched), marks: true })
       if (started) actions.push({ label: t('Mark episode as unwatched'), run: mark(item, false), marks: true })
-      else if (continueWatching && !item.userData.watched) actions.push({ label: t('Remove'), run: remove })
+      else if (continueWatching && !item.userData.watched) actions.push({ label: t('Remove from Continue watching'), run: remove })
       if (showId)
         actions.push({
           label: item.seriesTitle ? t('Mark all of {show} as watched', { show: item.seriesTitle }) : t('Mark all of the show as watched'),
@@ -125,14 +126,14 @@ export function ItemMenu({ item, at, onClose, continueWatching = false }: { item
       // Remove (which stops it first) takes it off Continue listening instead, so the two are never offered together.
       const playing = music.current?.id === item.id
       if ((finished || started) && !playing) actions.push({ label: t(Words.markAsUnread), run: markBook(false), marks: true })
-      else if (continueWatching && started) actions.push({ label: t('Remove'), run: remove })
+      else if (continueWatching && started) actions.push({ label: t('Remove from Continue watching'), run: remove })
       if (!kids) actions.push({ label: t('Add to collection…'), run: () => openAddToCollection(item) })
       break
     }
     case 'PodcastEpisode':
       actions.push({ label: started ? t('Resume') : t(Words.play), run: () => music.play([item]) })
       // Played takes it out of the row as well; Remove forgets the place without marking it.
-      if (continueWatching) actions.push('divider', { label: t(Words.markAsPlayed), run: mark(item, true), marks: true }, { label: t('Remove'), run: remove })
+      if (continueWatching) actions.push('divider', { label: t(Words.markAsPlayed), run: mark(item, true), marks: true }, { label: t('Remove from Continue watching'), run: remove })
       break
   }
 
@@ -171,8 +172,7 @@ export function Menu({ label, at, actions, onClose, focusBack }: { label: string
     if (!el) return
     const { width, height } = el.getBoundingClientRect()
     setPosition({ x: Math.max(8, Math.min(at.x, innerWidth - width - 8)), y: at.y + height > innerHeight - 8 ? Math.max(8, at.y - height - 12) : at.y })
-    const first = el.querySelector<HTMLButtonElement>('[aria-checked="true"]') ?? el.querySelector<HTMLButtonElement>(ITEM)
-    first?.focus()
+    focusMenu(el, ITEM)
   }, [at])
 
   useEffect(() => {
@@ -191,15 +191,10 @@ export function Menu({ label, at, actions, onClose, focusBack }: { label: string
   }, [onClose])
 
   function onKeyDown(e: KeyboardEvent) {
-    const items = [...(menu.current?.querySelectorAll<HTMLButtonElement>(ITEM) ?? [])]
-    const index = items.indexOf(document.activeElement as HTMLButtonElement)
     if (e.key === 'Escape' || e.key === 'Tab') {
       e.preventDefault()
       onClose()
-    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      e.preventDefault()
-      items[(index + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus()
-    }
+    } else moveInMenu(e, menu.current, ITEM)
   }
 
   return createPortal(

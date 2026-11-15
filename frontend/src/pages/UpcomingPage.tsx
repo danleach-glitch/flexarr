@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { getDownloads, getUpcoming, imageUrl, type Download, type DownloadState, type UpcomingItem } from '../api/client'
 import { PageError, PageLoading } from '../components/PageStatus'
 import { useApi } from '../hooks/useApi'
+import { useIsAdmin } from '../hooks/sessionContext'
 import { friendlyTimeLeft, timeLabel } from '../lib/dates'
 import { episodeCode } from '../lib/format'
 import { webLink } from '../lib/links'
@@ -20,6 +21,7 @@ export function UpcomingPage() {
   const daysAhead = Math.ceil((calendarDays[calendarDays.length - 1].getTime() - today.getTime()) / 86_400_000) + 1
   const upcoming = useApi((signal) => getUpcoming(daysAhead, signal), [daysAhead])
   const downloads = useApi(getDownloads, [])
+  const admin = useIsAdmin()
 
   const byDay = new Map<string, UpcomingItem[]>()
   for (const item of upcoming.data ?? []) {
@@ -33,7 +35,9 @@ export function UpcomingPage() {
       <header className="library-header">
         <div>
           <h1>{t(Words.comingSoon)}</h1>
-          <p className="muted">{t('What Sonarr and Radarr expect over the next few weeks. Anything you don’t have yet opens in Sonarr or Radarr.')}</p>
+          <p className="muted">
+            {admin ? t('What Sonarr and Radarr expect over the next few weeks. Anything you don’t have yet opens in Sonarr or Radarr.') : t('What’s due over the next few weeks.')}
+          </p>
         </div>
       </header>
 
@@ -104,12 +108,14 @@ function CalendarEntry({ items }: { items: UpcomingItem[] }) {
   const last = items[items.length - 1]
   const many = items.length > 1
   const sameSeason = items.every((i) => i.seasonNumber === item.seasonNumber)
-  const code = (i: UpcomingItem) => episodeCode({ seasonNumber: i.seasonNumber, episodeNumber: i.episodeNumber, episodeNumberEnd: null, airDate: null })
   const episodes = t('{count, plural, one {# episode} other {# episodes}}', { count: items.length })
   const label = !many
     ? subtitle(item)
     : sameSeason
-      ? t('{range}, {episodes}', { range: `${code(item)}–E${String(last.episodeNumber ?? 0).padStart(2, '0')}`, episodes })
+      ? t('{range}, {episodes}', {
+          range: episodeCode({ seasonNumber: item.seasonNumber, episodeNumber: item.episodeNumber, episodeNumberEnd: last.episodeNumber ?? null, airDate: null }),
+          episodes,
+        })
       : episodes
   const ready = items.every((i) => i.available)
   const state = many ? (ready ? t('Ready to watch') : items.some((i) => i.download) ? t('Downloading') : null) : status(item)

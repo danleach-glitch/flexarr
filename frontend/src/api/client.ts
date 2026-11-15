@@ -291,6 +291,28 @@ function routineReport(path: string, body: unknown) {
 }
 
 /**
+ * A change that leaves every cached answer as it was: starting something playing (stopping, pausing or ending it is
+ * what changes progress), or a search remembered or forgotten (recent searches are never cached).
+ */
+function leavesCacheAlone(method: string, path: string) {
+  return (method === 'POST' && path === '/playback') || /^\/search\/recent(\?|$)/.test(path)
+}
+
+/**
+ * Answers playing something can't change: who's signed in, the profiles, settings, statuses, genre and language
+ * lists, podcast directories. A playback report spares them, so pages opened while music plays don't ask again for
+ * everything; it clears the rest (watched ticks, Continue, Home).
+ */
+const untouchedByPlaying =
+  /^\/(me|profiles|settings|setup-guide|genres|livetv\/status|requests\/(music\/)?status|podcasts\/(genres|countries|top|search|status|preferences)|libraries\?all=true|libraries\/[^/]+\/(genres|album-genres|book-genres|book-languages)|items\/[^/]+\/(lyrics|loudness|chapters))(\?|\/|$)/
+
+/** Forgets what playing can have changed: every cached answer but untouchedByPlaying. */
+const forgetWhatPlayingChanges = () => clearApiCache((path) => !untouchedByPlaying.test(path))
+
+/** A playback report (progress, a pause, an end, or a stop). */
+const playbackReport = (path: string) => /^\/playback\/[^/?]+(\/progress)?$/.test(path)
+
+/**
  * An id as one piece of a path. Ids can come from the page's address (a link someone sent), so nothing in one may add
  * a slash, a query or a step up: the request goes where it was written to go, or nowhere.
  */
@@ -319,14 +341,16 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
   // Any change can show up in any cached answer (a watched tick in a library page, a renamed collection), so a
   // change clears them all, before and after (anything cached while it was under way may predate it). Not the reports
   // sent every few seconds while something plays, or every Back would ask afresh: pausing, ending or stopping does.
+  // Starting playback or remembering a search changes nothing cached; a playback report only what playing can.
   const changes = method !== 'GET' && !routineReport(path, body)
-  if (changes) clearApiCache()
+  const forget = !changes || leavesCacheAlone(method, path) ? undefined : playbackReport(path) ? forgetWhatPlayingChanges : () => clearApiCache()
+  forget?.()
   const response = await fetch(path.startsWith('/api/') ? path : `/api/v1${path}`, {
     method,
     signal,
     headers,
     body: body === undefined ? undefined : file ? body : JSON.stringify(body),
-  }).finally(() => changes && clearApiCache())
+  }).finally(() => forget?.())
 
   // Locked: the PIN, then the same change again (once).
   if (response.status === 403 && changes && !retried && (await lockedHere(path)) && (await askToUnlock!())) return request(method, path, body, signal, true)
@@ -486,7 +510,27 @@ export function forgetPage(key: string) {
 /** Forgets every page's kept state. */
 export function clearKeptPages() {
   pages.clear()
+  answers.clear()
 }
+
+const MAX_ANSWERS = 20
+const answers = new Map<string, unknown>()
+
+/**
+ * Keeps a page's last answer (Home's rows) for showing at once when it's opened again, while it's asked for afresh.
+ * Like keepPage, it outlives the cache and goes with the profile.
+ */
+export function keepAnswer(key: string, value: unknown) {
+  const full = `${profileToken() ?? ''} ${key}`
+  answers.delete(full)
+  answers.set(full, value)
+  for (const old of answers.keys()) {
+    if (answers.size <= MAX_ANSWERS) break
+    answers.delete(old)
+  }
+}
+
+export const keptAnswer = <T>(key: string) => answers.get(`${profileToken() ?? ''} ${key}`) as T | undefined
 
 /** Runs `load` with its cached GETs fetched afresh (a page reloading on purpose); they must start synchronously. */
 export function freshly<T>(load: () => T): T {
@@ -592,10 +636,22 @@ export interface LetterRun {
 export function getLibraryLetters(id: string, options: { search?: string; genre?: string }, signal?: AbortSignal) {
   const params = new URLSearchParams()
   for (const [key, value] of Object.entries(options)) if (value) params.set(key, value)
-  return apiGet<LetterRun[]>(`/libraries/${seg(id)}/items/letters${params.size ? `?${params}` : ''}`, signal).catch((e: unknown) => {
+  return lettersOrNull(`/libraries/${seg(id)}/items/letters${params.size ? `?${params}` : ''}`, signal)
+}
+
+/** A letters answer, or null from a server that can't say (404): a jump then loads everything up to its letter. */
+function lettersOrNull(path: string, signal?: AbortSignal) {
+  return apiGet<LetterRun[]>(path, signal).catch((e: unknown) => {
     if (e instanceof ApiError && e.status === 404) return null
     throw e
   })
+}
+
+/** Where each letter starts in getLibraryAlbums sorted A–Z, for the same search and genre. Null from servers before the release after 0.66. */
+export function getLibraryAlbumLetters(id: string, options: { search?: string; genre?: string }, signal?: AbortSignal) {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(options)) if (value) params.set(key, value)
+  return lettersOrNull(`/libraries/${seg(id)}/albums/letters${params.size ? `?${params}` : ''}`, signal)
 }
 
 /** A music library's albums (its items are its artists), paged like its items. Servers before 0.59 answer 404. */
@@ -658,6 +714,14 @@ export const getBookGenres = (libraryId: string, signal?: AbortSignal) =>
   cachedGet<{ name: string; count: number; covers?: string[] }[]>(`/libraries/${seg(libraryId)}/book-genres`, signal)
 export const getLibraryBooks = (libraryId: string, filters: BookFilters, signal?: AbortSignal) =>
   cachedGet<Paged<ItemSummary>>(`/libraries/${seg(libraryId)}/books${queryString(filters)}`, signal)
+/**
+ * Where each letter starts in getLibraryBooks sorted by title A–Z, for the same filters (its sort and paging left out).
+ * Null from servers before the release after 0.66, and from one whose library has gone.
+ */
+export const getLibraryBookLetters = (libraryId: string, filters: BookFilters, signal?: AbortSignal) => {
+  const { sort: _sort, descending: _descending, skip: _skip, take: _take, ...matching } = filters
+  return lettersOrNull(`/libraries/${seg(libraryId)}/books/letters${queryString(matching)}`, signal)
+}
 export const getBookSeriesList = (libraryId: string, options: { search?: string; skip?: number; take?: number }, signal?: AbortSignal) =>
   cachedGet<Paged<BookSeriesSummary>>(`/libraries/${seg(libraryId)}/book-series${queryString(options)}`, signal)
 export const getBookPeople = (libraryId: string, options: { role: 'author' | 'narrator'; search?: string; skip?: number; take?: number }, signal?: AbortSignal) =>
@@ -1102,7 +1166,7 @@ export const reportProgress = (sessionId: string, positionSeconds: number, pause
 
 /** Fire-and-forget progress for page unloads, when fetch may be cancelled. */
 export function beaconProgress(sessionId: string, positionSeconds: number) {
-  clearApiCache()
+  forgetWhatPlayingChanges()
   const body = new Blob([JSON.stringify({ positionSeconds, paused: true })], { type: 'application/json' })
   navigator.sendBeacon?.(`/api/v1/playback/${seg(sessionId)}/progress`, body)
 }
@@ -1127,7 +1191,7 @@ export function dropStream(sessionId: string) {
 }
 
 export function stopPlayback(sessionId: string) {
-  clearApiCache()
+  forgetWhatPlayingChanges()
   return fetch(`/api/v1/playback/${seg(sessionId)}`, { method: 'DELETE', headers: authHeaders(), keepalive: true }).catch(() => undefined)
 }
 

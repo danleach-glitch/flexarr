@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
-import { getExternalDiscover, getGenreItems, getGenres, getMusicRequestStatus, imageUrl, searchEverything } from '../api/client'
+import { getExternalDiscover, getGenreItems, getGenres, getMusicRequestStatus, getRequestStatusCached, imageUrl, searchEverything } from '../api/client'
 import { ExternalCard } from '../components/ExternalCard'
+import { musicOfflineText } from '../lib/musicOffline'
+import { useIsAdmin, useSession } from '../hooks/sessionContext'
 import { Row } from '../components/Row'
 import { PosterCard } from '../components/Cards'
+import { PageError, PageLoading } from '../components/PageStatus'
 import { useApi } from '../hooks/useApi'
 import { DiscoverSwitch, MusicDiscover, MusicGenrePage, MusicSearchResults } from './DiscoverMusic'
 import { t, Words } from '../i18n'
@@ -15,6 +18,11 @@ export function DiscoverPage() {
   const genre = params.get('genre')
   const kind = params.get('kind') ?? ''
   const musicStatus = useApi(getMusicRequestStatus, [])
+  const admin = useIsAdmin()
+  const { me } = useSession()
+  // Finding new films and shows goes through Seerr: with none set up there's nothing to search or request, so the page
+  // says so rather than offering a search that can only come back empty.
+  const requests = useApi(getRequestStatusCached, [])
   const offersMusic = musicStatus.data?.configured === true
   // Films and shows, unless Music is chosen and offered (an old link to Music, with music requests since turned off, lands here).
   const films = !music || musicStatus.data?.configured === false
@@ -33,7 +41,10 @@ export function DiscoverPage() {
     }, 350)
     return () => clearTimeout(timer)
   }, [typed, query, setParams, music])
-  const results = useApi((signal) => (query && films ? searchEverything(query, signal) : Promise.resolve(undefined)), [query, films])
+  const unset = films && requests.data?.configured === false
+  // Searched once it's known there's something to search (or the question failed, when it's tried anyway).
+  const searchable = films && (requests.data ? requests.data.configured : !!requests.error)
+  const results = useApi((signal) => (query && searchable ? searchEverything(query, signal) : Promise.resolve(undefined)), [query, searchable])
 
   // Music requests turned off (or this profile can't have them): Discover is films and shows.
   const showMusic = !films
@@ -48,7 +59,7 @@ export function DiscoverPage() {
               <Link to="/discover">{t(Words.discover)}</Link>
             </p>
             <h1>{genre}</h1>
-            <p className="muted">{items.data ? t('{count, plural, other {# titles, best rated first}}', { count: items.data.total }) : ' '}</p>
+            <p className="muted">{items.data ? t('{count, plural, one {# title, best rated first} other {# titles, best rated first}}', { count: items.data.total }) : ' '}</p>
           </div>
           <div className="genre-chips" role="group" aria-label={t('Show')}>
             {[
@@ -62,11 +73,17 @@ export function DiscoverPage() {
             ))}
           </div>
         </header>
-        <div className="poster-grid">
-          {items.data?.items.map((item) => (
-            <PosterCard key={item.id} item={item} />
-          ))}
-        </div>
+        {items.error ? (
+          <PageError error={items.error} onRetry={items.reload} retrying={items.loading} />
+        ) : !items.data ? (
+          <PageLoading />
+        ) : (
+          <div className="poster-grid">
+            {items.data.items.map((item) => (
+              <PosterCard key={item.id} item={item} />
+            ))}
+          </div>
+        )}
       </div>
     )
   }
@@ -76,6 +93,20 @@ export function DiscoverPage() {
     <input type="search" className="discover-search" placeholder={placeholder} aria-label={placeholder} value={typed} onChange={(e) => setTyped(e.target.value)} />
   )
   const switcher = offersMusic && <DiscoverSwitch music={music} />
+  const notSetUp = (
+    <div className="panel discover-unset">
+      {me?.isAdmin || me?.canUnlock ? (
+        <>
+          <p>{t('Connect Seerr to search for new movies and shows, and request them.')}</p>
+          <Link className="button" to="/settings/connections">
+            {t('Set up Seerr')}
+          </Link>
+        </>
+      ) : (
+        <p>{t('Finding new movies and shows isn’t set up on this server yet.')}</p>
+      )}
+    </div>
+  )
 
   const heading = (
     <div className="library-heading">
@@ -91,27 +122,27 @@ export function DiscoverPage() {
           {heading}
           {searchBox}
         </header>
-        {musicStatus.data?.reachable === false && <p className="muted discover-note">{t('Lidarr isn’t answering.')}</p>}
+        {musicStatus.data?.reachable === false && <p className="muted discover-note">{musicOfflineText(admin)}</p>}
         {query ? <MusicSearchResults query={query} /> : <MusicDiscover />}
       </div>
     )
   }
 
-  if (query) {
+  if (query && !unset) {
     return (
       <div className="discover-page">
         <header className="library-header">
           {heading}
           {searchBox}
         </header>
-        {results.error && <p className="error">{results.error.message}</p>}
-        {results.loading && !results.data && <p className="muted">{t('Searching…')}</p>}
+        {results.error && <PageError error={results.error} onRetry={results.reload} retrying={results.loading} />}
+        {results.loading && !results.data && !results.error && <p className="muted">{t('Searching…')}</p>}
         {results.data && results.data.length === 0 && <p className="muted">{t('Nothing found for “{query}”. Try a different spelling, or the original title.', { query })}</p>}
         {results.data && results.data.length > 0 && (
           <>
             <p className="muted discover-search-note">
               {results.data.filter((title) => title.libraryItemId).length > 0
-                ? t('{count, plural, other {# already in your library. Request anything else to add it.}}', { count: results.data.filter((title) => title.libraryItemId).length })
+                ? t('{count, plural, one {# already in your library. Request anything else to add it.} other {# already in your library. Request anything else to add it.}}', { count: results.data.filter((title) => title.libraryItemId).length })
                 : t('Request anything to add it to your library.')}
             </p>
             {(
@@ -146,8 +177,11 @@ export function DiscoverPage() {
     <div className="discover-page">
       <header className="library-header">
         {heading}
-        {searchBox}
+        {!unset && searchBox}
       </header>
+      {unset && notSetUp}
+      {unset && genres.data && genres.data.length > 0 && <h2 className="section-title">{t('Your library by genre')}</h2>}
+      {external.error && <p className="muted discover-note">{admin ? t('Seerr isn’t answering, so there’s nothing new to request just now.') : t('There’s nothing new to request just now.')}</p>}
       {external.data && external.data.length > 0 && (
         <div className="discover-external">
           {external.data.map((row) => (
@@ -160,6 +194,8 @@ export function DiscoverPage() {
           <h2 className="section-title">{t('Your library by genre')}</h2>
         </div>
       )}
+      {genres.error && <PageError error={genres.error} onRetry={genres.reload} retrying={genres.loading} />}
+      {!genres.data && !genres.error && <PageLoading />}
       <div className="genre-grid">
         {genres.data?.map((g) => (
           <Link key={g.name} to={`/discover?genre=${encodeURIComponent(g.name)}`} className="genre-tile">
@@ -167,11 +203,11 @@ export function DiscoverPage() {
             <span className="genre-name">{g.name}</span>
             <span className="genre-count">
               {g.movies && g.shows
-                ? t('{movies, plural, other {# movies}} and {shows, plural, other {# shows}}', { movies: g.movies, shows: g.shows })
+                ? t('{movies, plural, one {# movie} other {# movies}} and {shows, plural, one {# show} other {# shows}}', { movies: g.movies, shows: g.shows })
                 : g.movies
-                  ? t('{count, plural, other {# movies}}', { count: g.movies })
+                  ? t('{count, plural, one {# movie} other {# movies}}', { count: g.movies })
                   : g.shows
-                    ? t('{count, plural, other {# shows}}', { count: g.shows })
+                    ? t('{count, plural, one {# show} other {# shows}}', { count: g.shows })
                     : ''}
             </span>
           </Link>

@@ -11,6 +11,8 @@ const MAX_IDLE_POLL_MS = 120_000
  * first scan that failed leaves it that way for good, and the tab shouldn't ask every 2 s forever (about 2 minutes).
  */
 const UNSCANNED_PATIENCE = 60
+/** While a scan runs, cached pages are forgotten at most this often: every 2 s would leave nothing cached at all. */
+const SCAN_FORGET_MS = 30_000
 
 /** Libraries whose titles may have changed between two answers: their count or last scan moved, or they came or went. */
 function changedLibraries(before: Library[], after: Library[]) {
@@ -36,6 +38,9 @@ export function LibrariesProvider({ children }: { children: ReactNode }) {
   const last = useRef<string | undefined>(undefined)
   const previous = useRef<Library[] | undefined>(undefined)
   const inFlight = useRef<AbortController | undefined>(undefined)
+  // Libraries whose cached pages are due to be forgotten, and when that was last done.
+  const due = useRef(new Set<string>())
+  const forgotAt = useRef(0)
 
   const reload = useCallback(() => {
     inFlight.current?.abort()
@@ -50,8 +55,14 @@ export function LibrariesProvider({ children }: { children: ReactNode }) {
           return
         }
         // Titles came and went: cached pages showing them may be out of date (scan progress alone changes none).
-        const changed = changedLibraries(previous.current ?? next, next)
-        if (changed.length) clearApiCache(touches(changed))
+        // While a scan runs that's every answer, so they're forgotten every 30 seconds, and once more when it ends.
+        for (const id of changedLibraries(previous.current ?? next, next)) due.current.add(id)
+        const now = Date.now()
+        if (due.current.size && (!next.some((l) => l.scan) || now - forgotAt.current >= SCAN_FORGET_MS)) {
+          clearApiCache(touches([...due.current]))
+          due.current.clear()
+          forgotAt.current = now
+        }
         last.current = json
         previous.current = next
         setLibraries(next)

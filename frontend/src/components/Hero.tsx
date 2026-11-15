@@ -11,15 +11,23 @@ import { Info } from './icons'
 import { icon } from './icons.generated'
 import { ScoreChips } from './ScoreChips'
 import { t, Words } from '../i18n'
+import { tablistKeys } from '../lib/menuKeys'
 
 const ROTATE_MS = 10_000
 const BACKDROP_WIDTHS = [780, 1280, 1920]
+/** Titles longer than this take the smaller hero size (app.css `.hero-title.long`). */
+const LONG_TITLE = 24
+const titleClass = (title: string) => (title.length > LONG_TITLE ? 'hero-title long' : 'hero-title')
 
 /** Facts as separate quiet items (no middle-dot strings). */
 export function Facts({ item, extra = [] }: { item: ItemSummary; extra?: (string | null | undefined)[] }) {
   const facts = [
     year(item)?.toString(),
-    item.kind === 'Series' ? t('{count, plural, one {# season} other {# seasons}}', { count: item.childCount }) : formatDuration(item.durationSeconds ?? (item.runtimeMinutes ?? 0) * 60),
+    item.kind === 'Series'
+      ? item.homeVideo
+        ? t('{count, plural, one {# folder} other {# folders}}', { count: item.childCount })
+        : t('{count, plural, one {# season} other {# seasons}}', { count: item.childCount })
+      : formatDuration(item.durationSeconds ?? (item.runtimeMinutes ?? 0) * 60),
     ...extra,
   ].filter(Boolean)
   return (
@@ -125,8 +133,9 @@ export function Hero({ items, overviews, resume, resumes, top }: {
       {top && <div className="hero-top">{top}</div>}
       <div className="hero-art" aria-hidden="true">
         {/* Only the backdrops on screen or next up are loaded, sized for the screen; the first one comes first. */}
+        {/* A slide with no art draws no image at all, so there's no broken-image mark (#462). */}
         {items.map((it, i) =>
-          i === index || i === previous || i === (index + 1) % items.length ? (
+          (i === index || i === previous || i === (index + 1) % items.length) && (it.kind === 'Audiobook' ? it.artwork.poster : it.artwork.backdrop) ? (
             it.kind === 'Audiobook' ? (
               // Books have no backdrops: the cover, blurred into a wash of its colours.
               <img
@@ -150,20 +159,20 @@ export function Hero({ items, overviews, resume, resumes, top }: {
           ) : null,
         )}
       </div>
-      {book && <img className="hero-cover" src={imageUrl(item.artwork.poster, 600)} alt="" aria-hidden="true" />}
+      {book && item.artwork.poster && <img className="hero-cover" src={imageUrl(item.artwork.poster, 600)} alt="" aria-hidden="true" />}
       <div className="hero-content" aria-live="polite">
         {item.kind === 'Album' ? (
           // An album's slide: its artist above it, since the backdrop is theirs.
           <>
             {item.seriesTitle && <p className="hero-eyebrow">{item.seriesTitle}</p>}
-            <h1 className="hero-title">{item.title}</h1>
+            <h1 className={titleClass(item.title)}>{item.title}</h1>
           </>
         ) : item.artwork.logo ? (
           <h1 className="hero-logo">
             <img src={imageUrl(item.artwork.logo, 780)} alt={item.title} />
           </h1>
         ) : (
-          <h1 className="hero-title">{item.title}</h1>
+          <h1 className={titleClass(item.title)}>{item.title}</h1>
         )}
         {book ? (
           <p className="facts">
@@ -201,9 +210,9 @@ export function Hero({ items, overviews, resume, resumes, top }: {
         </div>
       </div>
       {items.length > 1 && (
-        <div className="hero-pager" role="tablist" aria-label={t('Featured titles')}>
+        <div className="hero-pager" role="tablist" aria-label={t('Featured titles')} onKeyDown={tablistKeys}>
           {items.map((it, i) => (
-            <button key={it.id} role="tab" aria-selected={i === index} aria-label={it.title} onClick={() => setIndex(i)}>
+            <button key={it.id} role="tab" aria-selected={i === index} tabIndex={i === index ? 0 : -1} aria-label={it.title} onClick={() => setIndex(i)}>
               <span />
             </button>
           ))}

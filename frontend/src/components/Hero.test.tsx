@@ -59,4 +59,33 @@ describe('the home hero', () => {
     act(() => vi.advanceTimersByTime(10_000))
     expect(shownTitle()).toBe('Film 3')
   })
+
+  it('draws no image for a slide with no backdrop, so no broken-image mark', () => {
+    const bare = [summary({ id: 'm1', kind: 'Movie', title: 'Bare' })] as unknown as ItemSummary[]
+    const withArt = [summary({ id: 'm2', kind: 'Movie', title: 'Art', artwork: { poster: null, backdrop: 'b.jpg', logo: null, thumb: null } })] as unknown as ItemSummary[]
+    const draw = (list: ItemSummary[]) =>
+      render(
+        <MemoryRouter>
+          <AudioPlayerContext value={{ play: vi.fn() } as unknown as AudioPlayer}>
+            <Hero items={list} />
+          </AudioPlayerContext>
+        </MemoryRouter>,
+      )
+    const first = draw(bare)
+    expect(first.container.querySelectorAll('.hero-art img')).toHaveLength(0)
+    first.unmount()
+    expect(draw(withArt).container.querySelectorAll('.hero-art img')).toHaveLength(1)
+  })
+
+  it('gives a long title the smaller, three-line size', () => {
+    const long = [summary({ id: 'm1', kind: 'Movie', title: 'The Extraordinarily Long Adventures of Somebody' })] as unknown as ItemSummary[]
+    render(
+      <MemoryRouter>
+        <AudioPlayerContext value={{ play: vi.fn() } as unknown as AudioPlayer}>
+          <Hero items={long} />
+        </AudioPlayerContext>
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('heading', { level: 1 })).toHaveClass('hero-title', 'long')
+  })
 })

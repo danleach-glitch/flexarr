@@ -1,0 +1,678 @@
+/* ---------- Audiobooks: the book pages, the library's lists and the editors (loaded with them) ---------- */
+
+/* Now Playing's switch between the chapter and the whole book on the scrubber: two words, each as wide as it needs. */
+.np-view-scopes {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.np-view-tools .np-view-scope {
+  width: auto;
+  padding: 0 14px;
+  font-weight: 700;
+}
+
+/* Chapter, where no chapter covers the time. */
+.np-view-tools .np-view-scope:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+@media (max-width: 760px) {
+  .np-view-tools .np-view-scope {
+    padding: 0 10px;
+  }
+}
+
+.np-view-details .book-bookmarks {
+  margin: 0;
+  font-size: var(--step--1);
+}
+
+.np-view-details .book-bookmark-jump {
+  grid-template-columns: 3.5rem minmax(0, 1fr);
+  padding: 8px 10px;
+}
+
+/* ---------- Audiobooks: chapter editor ---------- */
+
+.chapter-editor {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto auto;
+  gap: 12px;
+  width: min(640px, 100%);
+  max-height: 84vh;
+}
+
+.chapter-editor h2 {
+  font-size: var(--step-3);
+}
+
+.chapter-edit-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.chapter-edit-list li {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) 7rem auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.chapter-edit-number {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.chapter-edit-start {
+  font-variant-numeric: tabular-nums;
+}
+
+.chapter-edit-start[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.chapter-editor .text-button {
+  justify-self: start;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.chapter-editor .text-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.chapter-edit-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.chapter-edit-tools label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.chapter-edit-tools input {
+  width: 7rem;
+}
+
+/* ---------- Audiobooks: library ---------- */
+
+.books-library {
+  padding-bottom: 48px;
+}
+
+.book-filters {
+  margin-bottom: 18px;
+}
+
+.book-filters select {
+  max-width: 14rem;
+}
+
+.book-count {
+  margin-bottom: 14px;
+}
+
+.people-grid {
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+}
+
+/* ---------- Audiobooks: a book's page ---------- */
+
+.book-page {
+  padding-bottom: 48px;
+}
+
+.book-page .music-header h1 {
+  font-size: clamp(var(--step-4), 4vw, 4rem);
+}
+
+.book-series-link {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+
+.book-subtitle {
+  margin-top: 8px;
+  font-size: var(--step-1);
+  color: color-mix(in srgb, var(--screen) 78%, transparent);
+}
+
+.book-page .facts {
+  margin-top: 12px;
+}
+
+.book-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 40px;
+  align-items: start;
+  margin-bottom: 40px;
+}
+
+.book-body > :only-child {
+  grid-column: 1 / -1;
+  max-width: 900px;
+}
+
+.book-about .detail-overview-block {
+  max-width: 44rem;
+}
+
+.book-edition {
+  margin-top: 12px;
+}
+
+.book-chapters h2 {
+  margin-bottom: 8px;
+  font-size: var(--step-1);
+  font-weight: 700;
+}
+
+.book-chapters .track-title {
+  position: relative;
+  padding-bottom: 6px;
+}
+
+/* How far through the chapter playing: a thin line under its title. */
+.chapter-progress {
+  position: absolute;
+  inset-inline-start: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--ambient);
+}
+
+.book-rows {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 36px;
+  margin: 0 calc(-1 * var(--edge));
+}
+
+.book-rows .row-header {
+  padding: 0 var(--edge);
+}
+
+.book-bookmarks {
+  list-style: none;
+  max-width: 900px;
+  margin: -16px 0 40px;
+  padding: 0;
+}
+
+.book-bookmark {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  border-radius: var(--radius-control);
+}
+
+.book-bookmark:hover,
+.book-bookmark:focus-within {
+  background: var(--seat);
+}
+
+.book-bookmark-jump {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: 16px;
+  align-items: baseline;
+  padding: 10px 12px;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.book-bookmark-time {
+  color: var(--usher);
+  font-variant-numeric: tabular-nums;
+}
+
+.book-bookmark-text {
+  display: flex;
+  flex-direction: column;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .book-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* A series' first covers fanned behind one another, each smaller and dimmer than the one in front. */
+.book-stack {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  padding: 14px 14px 0 0;
+}
+
+.book-stack > .card-frame {
+  grid-area: 1 / 1;
+}
+
+.book-stack-2 > :nth-child(2),
+.book-stack-3 > :nth-child(2) {
+  transform: translate(7px, -7px) scale(0.96);
+  filter: brightness(0.7);
+  z-index: -1;
+}
+
+.book-stack-3 > :nth-child(3) {
+  transform: translate(14px, -14px) scale(0.92);
+  filter: brightness(0.5);
+  z-index: -2;
+}
+
+/* ---------- Audiobooks: a series in reading order ---------- */
+
+.book-series-header {
+  max-width: 900px;
+  margin-bottom: 32px;
+}
+
+.book-series-header h1 {
+  font-size: clamp(var(--step-4), 4vw, 4rem);
+  font-weight: 800;
+  line-height: 0.95;
+  text-wrap: balance;
+}
+
+.book-series-header .facts {
+  margin: 12px 0;
+}
+
+.series-books {
+  list-style: none;
+  max-width: 900px;
+  margin: 0;
+  padding: 0 0 48px;
+}
+
+.series-book {
+  display: grid;
+  grid-template-columns: 2.5rem 64px minmax(0, 1fr) auto auto;
+  gap: 16px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: var(--radius-control);
+}
+
+.series-book:hover,
+.series-book:focus-within {
+  background: var(--seat);
+}
+
+.series-book.next {
+  background: color-mix(in srgb, var(--ambient) 12%, transparent);
+}
+
+.series-book-number {
+  color: var(--usher);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.series-book-cover {
+  display: block;
+  border-radius: var(--radius-art);
+  overflow: hidden;
+}
+
+.series-book-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.series-book-title {
+  color: var(--screen);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.series-book-title:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.series-book .detail-progress {
+  width: min(200px, 100%);
+  margin-top: 6px;
+}
+
+.series-book.finished .series-book-title {
+  color: var(--usher);
+}
+
+.series-book-done {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.series-book-done svg {
+  width: 16px;
+  height: 16px;
+}
+
+.series-book-next {
+  color: var(--ambient);
+  font-weight: 700;
+}
+
+/* ---------- A book's authors ---------- */
+
+.author-cards {
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  max-width: 44rem;
+}
+
+.author-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--aisle);
+  border-radius: var(--radius-panel);
+  color: inherit;
+  text-decoration: none;
+}
+
+.author-card:hover,
+.author-card:focus-visible {
+  border-color: var(--ambient);
+}
+
+.author-card-photo {
+  flex: none;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.author-card-text {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.author-card-bio {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  font-size: var(--step--1);
+}
+
+/* ---------- Edit a book ---------- */
+
+/* The fields scroll between the title and the actions, so Save is always in view. */
+.book-editor {
+  width: min(680px, 100%);
+  max-height: 84vh;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.book-editor-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  gap: 16px;
+  /* Room for the focus ring, which the scrolling would clip. */
+  margin: -6px;
+  padding: 6px;
+}
+
+.book-editor h2 {
+  font-size: var(--step-3);
+}
+
+/* A film's, show's or album's details edited by hand: said beside the title, where Back to automatic undoes it. */
+.book-editor h2 .details-edited {
+  margin-inline-start: 10px;
+  vertical-align: middle;
+}
+
+.book-editor-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  gap: 14px 12px;
+}
+
+/* Settings' fields, laid out in a grid here: no gap of their own, and as wide as their column. */
+.book-editor-fields .field + .field {
+  margin-top: 0;
+}
+
+.book-editor-fields .field input {
+  max-width: none;
+}
+
+/* The labels are bold; what's typed isn't. */
+.book-editor-fields input,
+.book-editor-fields textarea {
+  font-weight: 400;
+}
+
+.book-editor-fields textarea {
+  padding: 10px 14px;
+  border: 1px solid var(--field-line);
+  border-radius: var(--radius-control);
+  background-color: var(--well);
+  color: var(--screen);
+  resize: vertical;
+}
+
+.book-editor-fields .wide {
+  grid-column: 1 / -1;
+}
+
+.book-editor-names {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.book-editor-names input {
+  flex: 1;
+  min-width: 140px;
+}
+
+.book-editor .form-actions {
+  margin-top: 0;
+}
+
+/* ---------- Edit a person ---------- */
+
+.person-editor {
+  width: min(640px, 100%);
+  max-height: 84vh;
+  overflow-y: auto;
+  display: grid;
+  gap: 16px;
+}
+
+.person-editor h2 {
+  font-size: var(--step-3);
+}
+
+.person-editor-photos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 12px;
+}
+
+/* The photos are a radio group, laid out in the grid beside Upload (which isn't one of them). */
+.person-editor-choices {
+  display: contents;
+}
+
+.person-editor-photos > p {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.person-editor-photo,
+.person-editor-upload {
+  display: grid;
+  gap: 6px;
+  padding: 6px;
+  border: 2px solid transparent;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--usher);
+  font-size: var(--step--1);
+  text-align: start;
+  cursor: pointer;
+}
+
+.person-editor-photo img,
+.person-editor-photo canvas {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: var(--radius-art);
+  background: var(--well);
+}
+
+.person-editor-photo > span {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.person-editor-photo[aria-checked='true'] {
+  border-color: var(--ambient);
+  color: var(--screen);
+}
+
+.person-editor .tag.keep {
+  border-color: var(--go);
+  color: var(--go);
+}
+
+/* The upload tile is a dashed empty frame the size of a photo. */
+.person-editor-upload {
+  place-items: center;
+  align-self: start;
+  aspect-ratio: 2 / 3;
+  border: 2px dashed var(--aisle);
+  color: var(--screen);
+  font-weight: 700;
+}
+
+.person-editor textarea {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+  font-weight: 400;
+}
+
+.person-editor-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: -8px 0 0;
+  font-size: var(--step--1);
+}
+
+.person-editor-lock {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-weight: 700;
+}
+
+.person-editor .form-actions {
+  margin-top: 0;
+}
+
+/* A book's bookmarks, each under the chapter it's in. */
+.chapter-bookmarks {
+  list-style: none;
+  margin: 0 0 4px;
+  padding: 0 0 0 44px;
+}
+
+.chapter-bookmark {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  border-radius: var(--radius-control);
+}
+
+.chapter-bookmark:hover,
+.chapter-bookmark:focus-within {
+  background: var(--seat);
+}
+
+.chapter-bookmark-jump {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 0;
+  background: none;
+  color: var(--usher);
+  font: inherit;
+  font-size: var(--step--1);
+  text-align: start;
+  cursor: pointer;
+}
+
+.chapter-bookmark-jump svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: var(--silver);
+}
+
+.chapter-bookmark-time {
+  font-variant-numeric: tabular-nums;
+}
+
+.chapter-bookmark-note {
+  overflow: hidden;
+  color: var(--screen);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Books of the series Audible lists that the library doesn't have: plain cards, nothing to open. */
+.book-series-missing {
+  padding-bottom: 48px;
+}

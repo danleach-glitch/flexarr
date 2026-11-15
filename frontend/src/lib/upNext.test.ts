@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import shared from '../../../docs/next-episode-timing.json'
-import { countdownLeft, nextEpisodeTiming, upNextAt, upNextAtEnd, upNextFresh, upNextMoved, type UpNextState } from './upNext'
+import { countdownLeft, nextEpisodeTiming, timeMattersHidden, TIME_MATTERS_LEAD_SECONDS, upNextAt, upNextAtEnd, upNextFresh, upNextMoved, type UpNextState } from './upNext'
 
 // The shared cases every player tests against (docs/next-episode-timing.md), so the platforms can't drift.
 describe('nextEpisodeTiming', () => {
@@ -115,5 +115,20 @@ describe('upNextAtEnd', () => {
     expect(upNextAtEnd({ counting: true, state: upNextFresh, autoPlayNext: true })).toBe('next')
     expect(upNextAtEnd({ counting: false, state: upNextFresh, autoPlayNext: true })).toBe('countdown')
     expect(upNextAtEnd({ counting: false, state: upNextFresh, autoPlayNext: true, holds: true })).toBeNull()
+  })
+})
+
+describe('the position with the controls hidden', () => {
+  const timing = { showAt: 1300, countdownFrom: 1310, nextAt: 1320 }
+
+  it('matters only near the Next Episode card, or with a sleep timer set', () => {
+    expect(timeMattersHidden({ timing, sleeping: false, position: 600 })).toBe(false)
+    expect(timeMattersHidden({ timing, sleeping: false, position: 1300 - TIME_MATTERS_LEAD_SECONDS })).toBe(true)
+    expect(timeMattersHidden({ timing, sleeping: false, position: 1315 })).toBe(true)
+    expect(timeMattersHidden({ timing, sleeping: true, position: 10 })).toBe(true)
+  })
+
+  it("doesn't matter for a film, with nothing to move on to", () => {
+    expect(timeMattersHidden({ timing: null, sleeping: false, position: 7000 })).toBe(false)
   })
 })

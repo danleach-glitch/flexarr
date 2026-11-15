@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react'
-import { PageError } from '../components/PageStatus'
+import { PageError, PageLoading } from '../components/PageStatus'
 import { Link, Navigate, useNavigationType, useParams, useSearchParams } from 'react-router'
-import { forgetPage, getGenreTracks, getLibraryAlbumGenres, getLibraryAlbums, getLibraryBrowse, getLibraryGenres, getLibraryItems, getLibraryLetters, getMusicRequestStatus, getRequestStatusCached, imageUrl, keepPage, keptPage, type HomeRow, type Library } from '../api/client'
+import { forgetPage, getGenreTracks, getLibraryAlbumGenres, getLibraryAlbumLetters, getLibraryAlbums, getLibraryBrowse, getLibraryGenres, getLibraryItems, getLibraryLetters, getMusicRequestStatus, getRequestStatusCached, imageUrl, keepPage, keptPage, type HomeRow, type Library } from '../api/client'
 import { AsyncButton } from '../components/AsyncButton'
 import { PosterCard } from '../components/Cards'
 import { GenreCovers } from '../components/GenreCovers'
@@ -36,9 +36,9 @@ const albumSorts = sorts.filter((s) => s.value !== 'rating')
 const BooksLibrary = lazy(() => onDemand(() => import('./BooksLibrary').then((m) => ({ default: m.BooksLibrary }))))
 const PlaylistsPage = lazy(() => onDemand(() => import('./PlaylistsPage').then((m) => ({ default: m.PlaylistsPage }))))
 
-/** Says Loading… where the page goes, as the library does before it's known, while a page's code arrives. */
+/** The loading spinner where the page goes, as the library has before it's known, while a page's code arrives. */
 function WhileLoading({ children }: { children: ReactNode }) {
-  return <Suspense fallback={<p className="page-message muted">{t('Loading…')}</p>}>{children}</Suspense>
+  return <Suspense fallback={<PageLoading />}>{children}</Suspense>
 }
 
 /**
@@ -51,7 +51,7 @@ export function LibraryPage() {
   const [params] = useSearchParams()
   const { libraries } = useLibraries()
   const library = libraries.find((l) => l.id === id)
-  if (!library) return <p className="page-message muted">{libraries.length ? t('This library no longer exists.') : t('Loading…')}</p>
+  if (!library) return libraries.length ? <p className="page-message muted">{t('This library no longer exists.')}</p> : <PageLoading />
   // Podcasts have pages of their own: what you follow, and Apple's directory to find more.
   if (library.type === 'Podcasts') return <Navigate to="/podcasts" replace />
   // Books have shelves, series, authors and narrators of their own.
@@ -260,11 +260,11 @@ function LibraryBrowse({ library }: { library: Library }) {
   // A scan changes the count every few seconds; these rows are heavy, so refresh them at most every 30 seconds while
   // it runs, and once more when it's done.
   const itemCount = useThrottled(library.itemCount, library.scan ? 30_000 : 0)
-  const { data: loaded, error, reload } = useApi((signal) => getLibraryBrowse(library.id, signal), [library.id, itemCount])
+  const { data: loaded, error, reload } = useApi((signal) => getLibraryBrowse(library.id, signal), [library.id, itemCount], `browse ${library.id}`)
   useWatchedChanges(reload)
   // A music library's Browse ends with Your artists, as in the apps; See all opens Artists when there are more.
   const music = library.type === 'Music'
-  const artists = useApi((signal) => (music ? getLibraryItems(library.id, { take: ARTISTS_IN_ROW }, signal) : Promise.resolve(undefined)), [library.id, music, itemCount])
+  const artists = useApi((signal) => (music ? getLibraryItems(library.id, { take: ARTISTS_IN_ROW }, signal) : Promise.resolve(undefined)), [library.id, music, itemCount], `browse-artists ${library.id}`)
   const data = useMemo(() => {
     const page = artists.data
     if (!loaded || !page || page.items.length === 0) return loaded
@@ -412,8 +412,8 @@ function LibraryAll({ albums = false, genrePage = false }: { albums?: boolean; g
       pageSize: PAGE_SIZE,
       itemCount: library?.itemCount,
       load: (page, signal) => getPage(id, { search: query, sort, genre, ...page }, signal),
-      // Where letters start is known for titles, not albums.
-      letters: albums ? undefined : (signal) => getLibraryLetters(id, { search: query, genre }, signal),
+      // Where letters start, so a jump loads just the page it lands on.
+      letters: (signal) => (albums ? getLibraryAlbumLetters : getLibraryLetters)(id, { search: query, genre }, signal),
     })
 
   function setParam(key: string, value: string) {

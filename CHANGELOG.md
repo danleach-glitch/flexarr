@@ -43,11 +43,50 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Web
 
+- On a phone, naming a new playlist (or renaming one) puts the name on its own row, with Create and Cancel together under it.
+- In the web player, a long show or episode title keeps to two lines, with Back beside its first line.
+- Settings › About shows file names in the changelog as code, without backticks, and on a phone its folder paths sit on their own line under the label.
+- Removing a library in Settings asks with a short heading, with the note that the files stay underneath.
+- A card's ⋯ in Continue watching says **Remove from Continue watching**, not just **Remove**.
+- Search clears with the app's own button, gives a shorter hint on a phone, shows **Searching…** while it looks, and no longer leaves an empty strip under the field.
+- On a phone, Podcasts › Browse's search box spans the screen, so its hint isn't cut short.
 - On a phone, Settings' row of pages shows the page you're on and fades at its edges, so it's plain there's more to scroll to.
 - On a tablet held upright, the player's Audio menu stays on screen, with both audio sync buttons in reach.
 - On a phone, a playlist's tracks show their titles: each row keeps its ⋯ menu, which now holds Move up, Move down and Remove.
 - The setup guide now asks before removing a profile, as Settings does.
 - **Coming soon** now shows that it's loading, and says so with **Try again** when it can't load, instead of an empty page.
+- In a big music or audiobooks library, jumping to a letter in Albums or All books is now quick: only the albums or books at that letter load, with **Show earlier** above them.
+- Live TV's **On now** stays quick with thousands of channels: starring one or the minute's update redraws only the channels that changed.
+- Back on Home or a library's Browse, after watching something, the rows you left show at once and catch up a moment later, instead of a blank page while they load.
+- Picking another season on a show's page shows that it's loading, or **Try again**, instead of the last season's episodes under the new season's tab.
+- Discover shows that it's loading, says so with **Try again** when it can't load, and notes when Seerr isn't answering, instead of an empty page.
+- Watchlist, Playlists, Collections, Podcasts and Settings › Layout say what went wrong in plain words, with **Try again**, when they can't load.
+- When the server can't be reached, the web app now has a **Try again** button.
+- The watched tick and a channel's star say so when the change didn't go through, and the tick is easier to tap on a touch screen.
+- With no libraries yet, a profile that can't add one is told who can, and an empty Watchlist says how to add a title.
+- In the web player on a phone or tablet, tapping the picture while the controls are hidden brings them back instead of pausing, and double-clicking for full screen no longer pauses and resumes on the way.
+- The web player's Subtitles, Audio, Speed, Quality and Sleep menus work from the keyboard or a TV remote: they open on the current choice, the arrows move through them, and closing one goes back to its button. Seasons and Live TV's views move with the left and right arrows.
+- The web player's full screen button uses the iPhone's own full screen, and is left out where the browser can't go full screen.
+- The search button is read out as Search on phones, shows Ctrl K rather than ⌘K off Apple devices, and the seek bar shows where the keyboard is.
+- Live TV's Recordings asks before stopping a recording that's under way or a series, as it does before deleting one.
+- Profiles other than the main one see plain words on **Coming soon** and Discover in place of Sonarr, Radarr, Lidarr and Seerr's names. A season dropping at once reads S1E3–E5, one title reads 1 title, and Watchlist sorts A–Z like the libraries.
+- On a phone, **Fix match** fits the screen: a long file path no longer pushes it, and its Search and Choose one buttons, past the right edge.
+- On a phone, Settings › Backup & restore fits the screen: the backups folder's box gets narrower instead of pushing the page sideways.
+- On a phone, the music bar keeps its **Stop and close** button, so music, a podcast or an audiobook can be stopped and the bar put away, as on the iPhone.
+- Discover on a server without Seerr says what it needs, with **Set up Seerr** for the main profile, instead of a search that always finds nothing. Your library's genres stay, under their own heading.
+- Home's featured slide for a title with no backdrop no longer shows a broken-image mark.
+- An old link to a removed film, person, playlist or collection now says it isn't in your library any more, with a **Home** button, instead of "404 Not Found"; the player says the same and offers only **Go back**.
+- On a phone, Settings › Libraries › Library health shows each title and its reason in full, with the buttons on a line under them.
+- A home-videos folder's page speaks of folders and videos rather than seasons and episodes (**Mark folder as watched**), and a folder with just one inside shows no tab for it.
+- A long title on Home's featured slide takes a smaller size and at most three lines, so the rows below stay in sight.
+- On a phone, Watchlist's sort box lines up with the chips beside it, the two rows of chips sit closer, and a ready title's bookmark sits on its poster's corner.
+- On a phone, Settings › Connections, Security and Remote access lay every row out the same way: icon and name on one line, the buttons on a line under them.
+- On a tablet, the music bar gives the track's title and artist more room, instead of cutting them after a few letters.
+- On a tablet held upright, the player's time and the stream's note at the top each stay on one line.
+- An episode's **⋯** now offers **Go to show**, as in the apps, so it's no longer a menu of just **Delete…**.
+- Settings no longer offers **Lock settings** before an admin PIN has been chosen to lock them with.
+- On a phone, the keyboard's focus ring shows whole around a page in Settings' row of pages.
+- Live TV's title is the same size as every other page's, with the same room under it.
 
 ### Playback
 

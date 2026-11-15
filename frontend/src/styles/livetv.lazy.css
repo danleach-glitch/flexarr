@@ -15,9 +15,10 @@
   margin-bottom: 24px;
 }
 
+/* The same size as every other page's title (.library-header h1), on a phone too. */
 .livetv-title {
   font-family: var(--display);
-  font-size: var(--step-5);
+  font-size: var(--step-6);
   font-weight: 800;
   line-height: 1;
 }
@@ -82,6 +83,12 @@
   gap: 6px;
   padding: 0;
   list-style: none;
+}
+
+/* A line-up can run to thousands of channels: rows off screen skip layout and paint. */
+.livetv-list > li {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 68px;
 }
 
 .livetv-row {
@@ -519,10 +526,6 @@
 }
 
 @media (max-width: 700px) {
-  .livetv-title {
-    font-size: var(--step-4);
-  }
-
   .livetv-grid {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   }
@@ -676,4 +679,36 @@
   box-shadow:
     inset 3px 0 0 var(--ambient),
     inset 0 0 0 2px var(--record);
+}
+
+/* ---------- Moved from livetv.css: only the Live TV pages use these ---------- */
+
+/* ---------- On now ---------- */
+
+.livetv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 14px;
+  padding: 0;
+  list-style: none;
+}
+
+.chip-star {
+  width: 14px;
+  height: 14px;
+  margin-inline-end: 6px;
+  color: var(--screen);
+}
+
+.livetv-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 22px;
+  font-size: var(--step--1);
+}
+
+.livetv-hint svg {
+  width: 16px;
+  height: 16px;
 }

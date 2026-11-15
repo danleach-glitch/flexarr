@@ -94,7 +94,7 @@ function WhatsNew() {
       <div className="settings-group-head">
         <h3 className="settings-subhead">{t('What’s new')}</h3>
       </div>
-      {error && <p className="error">{t('The changelog couldn’t be loaded: {message}', { message: error.message })}</p>}
+      {error && <p className="error">{t('The changelog couldn’t be loaded: {message}', { message: errorText(error) })}</p>}
       {!data && !error && <p className="muted">{t('Loading…')}</p>}
       <div className="changelog">
         {shown.map((release) => (

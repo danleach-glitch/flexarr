@@ -90,7 +90,7 @@ export function PlaylistsPage({ heading }: { heading?: ReactNode }) {
           {error}
         </p>
       )}
-      {playlists.error && <p className="error">{playlists.error.message}</p>}
+      {playlists.error && <PageError error={playlists.error} onRetry={playlists.reload} retrying={playlists.loading} />}
       {empty ? (
         <div className="playlists-empty">
           <p className="muted">{t('No playlists yet. Make one, or add a track to a new one from its ⋯ menu.')}</p>

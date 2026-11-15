@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { setBookFinished, setWatched, type ItemSummary } from '../api/client'
 import { isBook } from '../lib/books'
 import { episodeName } from '../lib/format'
+import { noticeFailure } from '../lib/notice'
 import { Check } from './icons'
 import { announceWatched } from '../hooks/watched'
 import { t, Words } from '../i18n'
@@ -24,8 +25,10 @@ export function WatchedToggle({ item, onChanged }: { item: ItemSummary; onChange
       await (book ? setBookFinished(item.id, next) : setWatched(item.id, next))
       announceWatched(item)
       onChanged?.()
-    } catch {
+    } catch (e) {
+      // Put back, and said why, so a tick doesn't fill and quietly empty again on flaky Wi-Fi.
       setLocal(!next)
+      noticeFailure(e)
     }
   }
 

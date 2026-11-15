@@ -35,7 +35,7 @@ export function FolderPicker({ onPick, onOpen, pickLabel }: Props) {
           </button>
         )}
       </div>
-      {error && <p className="error">{error.message}</p>}
+      {error && <p className="error">{errorText(error)}</p>}
       <ul className="folder-list">
         {data?.parent && (
           <li>

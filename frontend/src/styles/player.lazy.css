@@ -22,7 +22,8 @@
 .player-top {
   top: 0;
   display: flex;
-  align-items: center;
+  /* Back sits beside a long title's first line, not halfway down it. */
+  align-items: flex-start;
   gap: 14px;
   padding: 18px var(--edge) 60px;
   background: linear-gradient(to bottom, rgb(0 0 0 / 0.7), transparent);
@@ -31,6 +32,9 @@
 .player-title {
   display: flex;
   flex-direction: column;
+  /* A long title wraps in its own room, so the stream's pill beside it keeps to one line. */
+  min-width: 0;
+  overflow-wrap: anywhere;
   line-height: 1.25;
   font-weight: 700;
 }
@@ -41,8 +45,29 @@
   font-weight: 800;
 }
 
+/* A long show or episode title keeps to two lines over the picture. */
+.player-title > span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+/* The back button and the stream's pill line up with the title's first line. */
+.player-top > .icon-button {
+  flex: none;
+  margin-top: calc((var(--step-3) * 1.25 - 44px) / 2);
+}
+
 .player-badge {
+  align-self: flex-start;
+}
+
+.player-badge {
+  flex: none;
   margin-left: auto;
+  white-space: nowrap;
   padding: 4px 10px;
   border: 1px solid rgb(255 255 255 / 0.25);
   border-radius: 999px;
@@ -72,7 +97,10 @@
 }
 
 .player-time {
+  flex: none;
   margin-left: 10px;
+  /* "0:00 / 1:30" stays on one line however many buttons share the bar (an episode adds Next). */
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
@@ -207,6 +235,12 @@
 .scrubber:hover .scrubber-thumb,
 .scrubber:focus-visible .scrubber-thumb {
   opacity: 1;
+}
+
+/* The bar's own outline would run round the whole width: a ring round the thumb shows where the keyboard is. */
+.scrubber:focus-visible .scrubber-thumb {
+  outline: 2px solid var(--screen);
+  outline-offset: 3px;
 }
 
 .scrubber-tooltip {

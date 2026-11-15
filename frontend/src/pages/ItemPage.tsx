@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { PageError } from '../components/PageStatus'
+import { PageError, PageLoading } from '../components/PageStatus'
 import { openAddToCollection } from '../components/AddToCollection'
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import {
@@ -59,6 +59,7 @@ import {
   pictureLabel,
 } from '../lib/format'
 import { locale, t, Words } from '../i18n'
+import { tablistKeys } from '../lib/menuKeys'
 
 // Only someone with audiobooks opens a book's page, so it isn't part of the first page everyone loads.
 const BookPage = lazy(() => onDemand(() => import('./BookPage').then((m) => ({ default: m.BookPage }))))
@@ -163,6 +164,8 @@ function Detail({ detail, onChange }: { detail: ItemDetail; onChange: () => void
   if ((item.kind === 'Movie' || item.kind === 'Series') && !kids) more.push({ label: t('Add to collection…'), run: () => openAddToCollection(item) })
   if (detail.canSearchSubtitles && !kids) more.push({ label: t('Search for subtitles…'), run: () => setFindingSubtitles(true) })
   if (canFixMatch) more.push({ label: t('Edit…'), run: () => setEditingDetails(true) }, { label: t('Fix match…'), run: () => setMatching(true) })
+  // An episode's show, as in the apps' ⋯ (DetailActions' goToShow): so the menu is never just Delete on its own.
+  if (item.kind === 'Episode' && series) more.push({ label: t(Words.goToShow), run: () => navigate(`/item/${series.id}?season=${item.seasonNumber}`) })
   // A parent's say over the title for profiles with an age limit, once any has one; its episodes follow it.
   const override = detail.kidsOverride
   if (mainProfile && override != null && series === undefined && profiles?.some((p) => p.maxRatingAge != null)) {
@@ -396,36 +399,49 @@ function Seasons({ series, counts, onChange }: { series: ItemDetail; counts?: Sh
     (signal) => (embedded ? Promise.resolve(embedded) : selected ? getItem(selected.id, signal) : Promise.resolve(undefined)),
     [selected?.id, embedded],
   )
+  // useApi keeps the last answer while the next one loads, so another season's episodes never show under this one's tab.
+  const shown = season.data && selected && season.data.item.id === selected.id ? season.data : undefined
 
   if (!selected) return null
+  // A home-video folder is folders of videos, not seasons of episodes, and a lone folder needs no tab (#466).
+  const home = !!(series.item.homeVideo || selected.homeVideo)
 
   return (
     <section className="seasons">
-      <div className="season-tabs" role="tablist" aria-label={t('Seasons')}>
-        {seasons.map((s) => (
-          <button
-            key={s.id}
-            role="tab"
-            aria-selected={s.id === selected.id}
-            className={s.id === selected.id ? 'season-tab active' : 'season-tab'}
-            onClick={() => setParams({ season: String(s.seasonNumber) }, { replace: true })}
-          >
-            {s.homeVideo ? s.title : s.seasonNumber === 0 ? t('Specials') : t('Season {season}', { season: s.seasonNumber })}
-            {(() => {
-              // Only a season that's short of what's aired says so.
-              const count = counts?.find((c) => c.seasonNumber === s.seasonNumber)
-              return count && count.have < count.aired ? (
-                <span className="season-count" aria-label={t('{have} of {count, plural, one {# episode} other {# episodes}}', { have: count.have, count: count.aired })}>
-                  {t('{have} of {aired}', { have: count.have, aired: count.aired })}
-                </span>
-              ) : null
-            })()}
-            {s.userData.watched && <icon.watched aria-label={t('watched')} />}
-          </button>
-        ))}
-      </div>
+      {!(home && seasons.length === 1) && (
+        <div className="season-tabs" role="tablist" aria-label={home ? t('Folders') : t('Seasons')} onKeyDown={tablistKeys}>
+          {seasons.map((s) => (
+            <button
+              key={s.id}
+              role="tab"
+              aria-selected={s.id === selected.id}
+              tabIndex={s.id === selected.id ? 0 : -1}
+              className={s.id === selected.id ? 'season-tab active' : 'season-tab'}
+              onClick={() => setParams({ season: String(s.seasonNumber) }, { replace: true })}
+            >
+              {s.homeVideo ? s.title : s.seasonNumber === 0 ? t('Specials') : t('Season {season}', { season: s.seasonNumber })}
+              {(() => {
+                // Only a season that's short of what's aired says so.
+                const count = counts?.find((c) => c.seasonNumber === s.seasonNumber)
+                return count && count.have < count.aired ? (
+                  <span className="season-count" aria-label={t('{have} of {count, plural, one {# episode} other {# episodes}}', { have: count.have, count: count.aired })}>
+                    {t('{have} of {aired}', { have: count.have, aired: count.aired })}
+                  </span>
+                ) : null
+              })()}
+              {s.userData.watched && <icon.watched aria-label={t('watched')} />}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="season-toolbar">
-        <span className="muted">{season.data ? t('{count, plural, one {# episode} other {# episodes}}', { count: season.data.children.length }) : ''}</span>
+        <span className="muted">
+          {shown
+            ? home
+              ? t('{count, plural, one {# video} other {# videos}}', { count: shown.children.length })
+              : t('{count, plural, one {# episode} other {# episodes}}', { count: shown.children.length })
+            : ''}
+        </span>
         <AsyncButton
           className="text-button"
           onClick={async () => {
@@ -434,19 +450,26 @@ function Seasons({ series, counts, onChange }: { series: ItemDetail; counts?: Sh
             onChange()
           }}
         >
-          {selected.userData.watched ? t('Mark season as unwatched') : t(Words.markSeasonAsWatched)}
+          {home
+            ? selected.userData.watched
+              ? t('Mark folder as unwatched')
+              : t('Mark folder as watched')
+            : selected.userData.watched
+              ? t('Mark season as unwatched')
+              : t(Words.markSeasonAsWatched)}
         </AsyncButton>
       </div>
-      <ol className="episode-list">
-        {season.data?.children.map((episode) => (
-          <Episode
-            key={episode.id}
-            episode={episode}
-            overview={season.data?.childOverviews[episode.id] ?? null}
-            onChange={onChange}
-          />
-        ))}
-      </ol>
+      {shown ? (
+        <ol className="episode-list">
+          {shown.children.map((episode) => (
+            <Episode key={episode.id} episode={episode} overview={shown.childOverviews[episode.id] ?? null} onChange={onChange} />
+          ))}
+        </ol>
+      ) : season.error ? (
+        <PageError error={season.error} onRetry={season.reload} retrying={season.loading} />
+      ) : (
+        <PageLoading />
+      )}
     </section>
   )
 }

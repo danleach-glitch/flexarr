@@ -72,6 +72,38 @@ public class LibraryLetterTests(FlexarrApiFactory factory) : IClassFixture<Flexa
     }
 
     [Fact]
+    public async Task Album_letters_start_where_the_A_to_Z_album_list_has_them_and_follow_its_search()
+    {
+        var library = new Library { Name = $"Music {Guid.NewGuid():N}", Type = LibraryType.Music };
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            db.Libraries.Add(library);
+            var artist = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Artist, Title = "Blur", SortTitle = "blur" };
+            db.MediaItems.Add(artist);
+            foreach (var title in new[] { "Parklife", "The Great Escape", "13", "Leisure", "Modern Life Is Rubbish", "Think Tank" })
+            {
+                db.MediaItems.Add(new MediaItem { LibraryId = library.Id, Kind = MediaKind.Album, Parent = artist, Title = title, SortTitle = SortTitle.For(title) });
+            }
+
+            await db.SaveChangesAsync();
+        }
+
+        var letters = await Client().GetFromJsonAsync<List<LetterOffsetDto>>(new Uri($"/api/v1/libraries/{library.Id}/albums/letters", UriKind.Relative), Json);
+        var page = await Client().GetFromJsonAsync<PagedDto<ItemSummaryDto>>(new Uri($"/api/v1/libraries/{library.Id}/albums?take=500", UriKind.Relative), Json);
+
+        Assert.Equal([new("#", 0, 1), new("G", 1, 1), new("L", 2, 1), new("M", 3, 1), new("P", 4, 1), new("T", 5, 1)], letters);
+        foreach (var run in letters!.Where(l => l.Letter != "#"))
+        {
+            Assert.Equal(run.Letter, SortTitle.For(page!.Items[run.Offset].Title)[..1].ToUpperInvariant());
+        }
+
+        // Searching for the artist finds every album; for a title, just its own.
+        Assert.Equal(6, (await Client().GetFromJsonAsync<List<LetterOffsetDto>>(new Uri($"/api/v1/libraries/{library.Id}/albums/letters?search=blur", UriKind.Relative), Json))!.Sum(l => l.Count));
+        Assert.Equal([new("T", 0, 1)], await Client().GetFromJsonAsync<List<LetterOffsetDto>>(new Uri($"/api/v1/libraries/{library.Id}/albums/letters?search=tank", UriKind.Relative), Json));
+    }
+
+    [Fact]
     public void Adjacent_first_characters_of_one_letter_merge()
     {
         Assert.Equal([new("#", 0, 5), new("A", 5, 3)], LibraryLetterEndpoints.Runs([("1", 2), ("9", 3), ("a", 3)]));

@@ -4,6 +4,7 @@ import { formatClock } from '../lib/format'
 import { AsyncButton } from './AsyncButton'
 import { Close } from './icons'
 import { t } from '../i18n'
+import '../styles/books.lazy.css'
 
 /** Bookmarks in a book, in order: each a place (and its chapter) to jump to, its note, and a way to remove it. */
 export function BookmarkList({

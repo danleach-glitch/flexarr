@@ -28,6 +28,13 @@ public static class BookQueries
     public static IQueryable<MediaItem> Filter(IQueryable<MediaItem> books, BookFilter filter, string profileId)
     {
         ArgumentNullException.ThrowIfNull(filter);
+        return Sort(Matching(books, filter, profileId), filter.Sort, filter.Descending, profileId);
+    }
+
+    /// <summary>The books that match a filter, in no particular order (its sort is left out).</summary>
+    public static IQueryable<MediaItem> Matching(IQueryable<MediaItem> books, BookFilter filter, string profileId)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
         if (filter.Search is { Length: > 0 } search)
         {
             var like = $"%{search.Trim()}%";
@@ -86,7 +93,7 @@ public static class BookQueries
             books = books.Where(i => i.Book!.DurationSeconds <= max * 3600);
         }
 
-        return Sort(books, filter.Sort, filter.Descending, profileId);
+        return books;
     }
 
     private static IQueryable<MediaItem> Sort(IQueryable<MediaItem> books, string? sort, bool? descending, string profileId)

@@ -250,6 +250,8 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate()
   const player = useAudioPlayer()
   const input = useRef<HTMLInputElement>(null)
+  // A phone's field is too narrow for the long hint, which was cut off part-way through a word.
+  const [narrow] = useState(() => window.matchMedia?.('(max-width: 600px)').matches === true)
   // Escape closes it, Tab stays inside it, and the focus goes back to whatever opened it.
   const dialog = useModal<HTMLDivElement>(onClose)
 
@@ -408,7 +410,7 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
           <input
             ref={input}
             type="search"
-            placeholder={t('Movies, shows, music, books, people, genres')}
+            placeholder={narrow ? t('Search your library') : t('Movies, shows, music, books, people, genres')}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value)
@@ -418,6 +420,20 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
             aria-activedescendant={results[active] ? `result-${results[active].key}` : undefined}
             aria-controls="search-results"
           />
+          {query && (
+            <button
+              type="button"
+              className="icon-button palette-clear-query"
+              aria-label={t('Clear search')}
+              onClick={() => {
+                setQuery('')
+                setActive(0)
+                input.current?.focus()
+              }}
+            >
+              <Close />
+            </button>
+          )}
           <kbd>{t('esc')}</kbd>
         </label>
         <div className="palette-results" id="search-results" role="listbox">
@@ -435,6 +451,7 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
               </button>
             </div>
           )}
+          {query.trim() && (loading || asked !== query.trim()) && failed?.query !== query.trim() && results.length === 0 && <p className="palette-empty">{t('Searching…')}</p>}
           {query.trim() && asked === query.trim() && failed?.query !== query.trim() && !loading && results.length === 0 && <p className="palette-empty">{t('Nothing in your library matches “{query}”.', { query: query.trim() })}</p>}
           {groups.map(([group, items], g) => (
             <div key={group} role="group" aria-label={group}>

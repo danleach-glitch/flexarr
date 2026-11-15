@@ -80,7 +80,7 @@ export function UpdatesSection() {
       >
         {loaded.error && !current && (
           <p className="error" role="alert">
-            {t('Couldn’t load updates: {message}', { message: loaded.error.message })}
+            {t('Couldn’t load updates: {message}', { message: errorText(loaded.error) })}
           </p>
         )}
         {!current && !loaded.error && <p className="muted">{t('Loading…')}</p>}

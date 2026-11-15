@@ -12,6 +12,7 @@ import { useWatchedChanges } from '../hooks/watched'
 import { authorsLine } from '../lib/books'
 import { formatDuration, progressOf } from '../lib/format'
 import { t, Words } from '../i18n'
+import '../styles/books.lazy.css'
 
 /** A series in reading order, with the next book this profile hasn't finished picked out. */
 export function BookSeriesPage() {

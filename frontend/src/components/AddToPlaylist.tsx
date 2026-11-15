@@ -89,7 +89,7 @@ export function AddToPlaylistDialog({ item, onClose }: { item: PlaylistAddition;
           </div>
           <IconButton label={t('Close')} icon={<Close />} className="icon-button" onClick={onClose} />
         </header>
-        {playlists.error && <p className="error">{playlists.error.message}</p>}
+        {playlists.error && <p className="error">{errorText(playlists.error)}</p>}
         {!none && (
           <ul className="playlist-choices">
             {playlists.data?.map((p) => (

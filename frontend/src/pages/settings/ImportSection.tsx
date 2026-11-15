@@ -71,7 +71,7 @@ export function ImportSection() {
             <span className="field-label">
               {t.rich('Choose Plex’s folder: {folder}, in your Library’s Application Support folder. Flexarr opens it in a window on the Mac.', { folder: <code>Plex Media Server</code> })}
             </span>
-            {source.error && <p className="error">{source.error.message}</p>}
+            {source.error && <p className="error">{errorText(source.error)}</p>}
             <div className="form-actions">
               <AsyncButton className="button small" onClick={chooseOnMac}>
                 {t('Choose Plex’s folder on the Mac…')}

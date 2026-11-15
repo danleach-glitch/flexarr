@@ -1,6 +1,7 @@
 import { useId, type KeyboardEvent } from 'react'
 import { withName } from '../lib/names'
 import { t, Words } from '../i18n'
+import '../styles/books.lazy.css'
 
 /**
  * Names as chips, each with a way to remove it, and a box to add one (Enter or Tab adds it; saving adds what's left

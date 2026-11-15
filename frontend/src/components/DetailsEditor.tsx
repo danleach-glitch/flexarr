@@ -6,6 +6,7 @@ import { NameList } from './NameList'
 import { automaticSort, withName } from '../lib/names'
 import { t, Words } from '../i18n'
 import { errorText } from '../lib/errorText'
+import '../styles/books.lazy.css'
 
 /** An album's kinds of release, as its page names them, with a plain album first. */
 const albumTypes = (): [string, string][] => [

@@ -5,6 +5,7 @@ import { useApi } from '../../hooks/useApi'
 import { t } from '../../i18n'
 
 import { errorText } from '../../lib/errorText'
+import { PageLoading } from '../../components/PageStatus'
 
 export { errorText }
 
@@ -37,7 +38,7 @@ export function useSettings() {
       </AsyncButton>
     </div>
   ) : (
-    <p className="muted">{t('Loading…')}</p>
+    <PageLoading />
   )
   return { settings: data, error, save, saved, saveError, waiting }
 }

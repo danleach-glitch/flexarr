@@ -21,3 +21,12 @@ export function useAgeLimits() {
   const { me } = useSession()
   return { kids: me?.isKids === true, limited: me?.maxRatingAge != null }
 }
+
+/**
+ * Whether this is the main (admin) profile, for wording: the main profile hears the apps' names (Sonarr, Lidarr, Seerr),
+ * the rest plain words. Older servers have no /me, and loading has no answer yet: both count as admin, as the sidebar does.
+ */
+export function useIsAdmin() {
+  const { me } = useSession()
+  return me?.isAdmin !== false
+}

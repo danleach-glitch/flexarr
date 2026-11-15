@@ -181,6 +181,21 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Coming soon' })).toBeInTheDocument()
   })
 
+  it('tells a profile that can’t add a library who can, instead of a button into its own settings', async () => {
+    mockApi({
+      '/system/status': status,
+      '/libraries': [],
+      '/me': { profileId: 'g1', method: 'session', zone: 'Local', isAdmin: false, canUnlock: false, tailscaleLogin: null },
+      '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+    })
+
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
+    expect(screen.getByText('Ask whoever runs this Flexarr to add a library.')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Add a library' })).not.toBeInTheDocument()
+  })
+
   it('shows what Home found rather than an empty library when the library list is behind a scan', async () => {
     const film = summary({ id: 'm9', kind: 'Movie', title: 'Big Buck Bunny', poster: null, backdrop: null })
     mockApi({
@@ -295,16 +310,16 @@ describe('App', () => {
     render(<App />)
     fireEvent.click(await screen.findByRole('button', { name: 'More for Severance S1E5' }))
     let menu = screen.getByRole('menu')
-    // Part way through: either way. Not next up, so no Remove.
+    // Part way through: either way. Not next up, so no Remove from Continue watching.
     expect(within(menu).getByRole('menuitem', { name: 'Mark episode as watched' })).toBeInTheDocument()
-    expect(within(menu).queryByRole('menuitem', { name: 'Remove' })).not.toBeInTheDocument()
+    expect(within(menu).queryByRole('menuitem', { name: 'Remove from Continue watching' })).not.toBeInTheDocument()
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Mark episode as unwatched' }))
     await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'More for Severance S1E5' })).not.toBeInTheDocument())
 
     fireEvent.click(screen.getByRole('button', { name: 'More for Slow Horses S1E2' }))
     menu = screen.getByRole('menu')
     expect(within(menu).queryByRole('menuitem', { name: 'Mark episode as unwatched' })).not.toBeInTheDocument()
-    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Remove' }))
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Remove from Continue watching' }))
     await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'More for Slow Horses S1E2' })).not.toBeInTheDocument())
     expect(calls).toEqual(['watched false', 'removed f2'])
   })
@@ -339,14 +354,14 @@ describe('App', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'More for Project Hail Mary' }))
     let menu = screen.getByRole('menu')
     expect(within(menu).getByRole('menuitem', { name: 'Resume' })).toBeInTheDocument()
-    expect(within(menu).queryByRole('menuitem', { name: 'Remove' })).not.toBeInTheDocument()
+    expect(within(menu).queryByRole('menuitem', { name: 'Remove from Continue watching' })).not.toBeInTheDocument()
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Mark as unread' }))
     await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'More for Project Hail Mary' })).not.toBeInTheDocument())
 
     fireEvent.click(screen.getByRole('button', { name: 'More for The long one' }))
     menu = screen.getByRole('menu')
     expect(within(menu).getByRole('menuitem', { name: 'Resume' })).toBeInTheDocument()
-    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Remove' }))
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Remove from Continue watching' }))
     await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'More for The long one' })).not.toBeInTheDocument())
 
     expect(calls).toEqual(['b1 finished false', 'removed p1'])
@@ -371,7 +386,7 @@ describe('App', () => {
     render(<App />)
     fireEvent.click(await screen.findByRole('button', { name: 'More for The long one' }))
     const menu = screen.getByRole('menu')
-    expect(within(menu).getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Resume', 'Mark as played', 'Remove'])
+    expect(within(menu).getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Resume', 'Mark as played', 'Remove from Continue watching'])
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Mark as played' }))
     await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'More for The long one' })).not.toBeInTheDocument())
     expect(calls).toEqual([{ watched: true }])
@@ -389,7 +404,7 @@ describe('App', () => {
 
     render(<App />)
     fireEvent.click(await screen.findByRole('button', { name: 'More for The long one' }))
-    expect(within(screen.getByRole('menu')).getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Resume', 'Remove'])
+    expect(within(screen.getByRole('menu')).getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Resume', 'Remove from Continue watching'])
   })
 
   it('sends a child following a link to Podcasts Home, without opening Podcasts first', async () => {
@@ -677,7 +692,25 @@ describe('App', () => {
 
     render(<App />)
 
-    expect(await screen.findByText(/Can’t reach the server/)).toBeInTheDocument()
+    expect(await screen.findByText('Can’t reach the server. Check that Flexarr is running.')).toBeInTheDocument()
+  })
+
+  it('tries the server again from the unreachable screen', async () => {
+    let up = false
+    mockApi({
+      '/system/status': () => (up ? status : Promise.reject(new TypeError('Failed to fetch'))),
+      '/libraries': [movies],
+      '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+    })
+
+    render(<App />)
+
+    expect(await screen.findByText('Can’t reach the server. Check that Flexarr is running.')).toBeInTheDocument()
+    // Nothing answered, so the browser's own words aren't added below it.
+    expect(screen.queryByText(/Failed to fetch|didn’t answer/)).not.toBeInTheDocument()
+    up = true
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    await waitFor(() => expect(screen.queryByText(/Can’t reach the server/)).not.toBeInTheDocument())
   })
 })
 
@@ -794,9 +827,63 @@ describe('Series page', () => {
       '/api/v1/items/s/missing',
     ])
   })
+
+  it('never shows one season’s episodes under another’s tab, while it loads or when it fails', async () => {
+    const series = summary({ id: 's', kind: 'Series', title: '30 Rock', childCount: 2 })
+    const one = summary({ id: 'season-1', kind: 'Season', parentId: 's', title: 'Season 1', seasonNumber: 1, childCount: 1 })
+    const two = summary({ id: 'season-2', kind: 'Season', parentId: 's', title: 'Season 2', seasonNumber: 2, childCount: 1 })
+    const pilot = summary({ id: 'e1', kind: 'Episode', parentId: 'season-1', title: 'Pilot', seasonNumber: 1, episodeNumber: 1 })
+    const seasonOne = detail(one, { children: [pilot], ancestors: [series] })
+    let answer: (r: Response) => void = () => {}
+    mockApi({
+      '/libraries': [],
+      '/items/s': detail(series, { children: [one, two], season: seasonOne }),
+      '/items/s/similar': [],
+      '/items/season-2': () => new Promise<Response>((resolve) => (answer = resolve)),
+    })
+
+    renderAt('/item/s')
+    expect(await screen.findByRole('link', { name: 'Pilot' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Season 2' }))
+    expect(await screen.findByRole('status', { name: 'Loading' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Pilot' })).not.toBeInTheDocument()
+
+    await act(async () => answer(new Response('', { status: 500 })))
+    expect(await screen.findByRole('button', { name: 'Try again' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Pilot' })).not.toBeInTheDocument()
+  })
+})
+
+describe('Discover', () => {
+  it('says when the library or Seerr couldn’t be reached, rather than showing an empty page', async () => {
+    let up = false
+    mockApi({
+      '/libraries': [],
+      '/requests/music/status': { configured: false, reachable: false },
+      '/genres': () => (up ? [{ name: 'Drama', movies: 2, shows: 0, backdrop: null }] : new Response('', { status: 502 })),
+      '/requests/discover': new Response('', { status: 502 }),
+    })
+
+    renderAt('/discover')
+
+    expect(await screen.findByText('Flexarr didn’t answer. Try again.')).toBeInTheDocument()
+    expect(screen.getByText('Seerr isn’t answering, so there’s nothing new to request just now.')).toBeInTheDocument()
+    up = true
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByRole('link', { name: /Drama/ })).toBeInTheDocument()
+  })
 })
 
 describe('Search', () => {
+  it('names the search button even where its word is hidden, and shows the shortcut this computer uses', async () => {
+    mockApi({ '/libraries': [], '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 } })
+    renderAt('/')
+    const button = await screen.findByRole('button', { name: 'Search' })
+    // Not a Mac (jsdom says neither Mac nor iPhone): Ctrl K, and not read out as part of the name.
+    expect(within(button).getByText('Ctrl K')).toHaveAttribute('aria-hidden', 'true')
+  })
+
   it('opens with ⌘K and goes to the highlighted result on Enter', async () => {
     mockApi({
       '/libraries': [],
@@ -879,6 +966,25 @@ describe('Settings', () => {
 
     expect(await screen.findByRole('button', { name: 'Rename Films' })).toBeInTheDocument()
     expect(sent).toEqual([{ name: 'Films', type: 'Movies', folders: ['/media/movies'] }])
+  })
+
+  it('asks before removing a library with a short heading, saying the files stay', async () => {
+    let removed = false
+    mockApi({
+      '/libraries': () => (removed ? [] : [{ ...movies, scan: null }]),
+      '/library-health': { score: null },
+      'DELETE /libraries/lib-movies': () => {
+        removed = true
+        return undefined
+      },
+    })
+
+    renderAt('/settings/libraries')
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove' }))
+    const dialog = await screen.findByRole('alertdialog', { name: 'Remove Movies?' })
+    expect(dialog).toHaveTextContent('This removes it from Flexarr. The files themselves stay where they are.')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove library' }))
+    await waitFor(() => expect(removed).toBe(true))
   })
 
   it('sends a profile that isn’t the main one from a server page to its own', async () => {

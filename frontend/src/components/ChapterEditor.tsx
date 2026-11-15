@@ -6,6 +6,7 @@ import { clockText, parseClock } from '../lib/books'
 import { AsyncButton } from './AsyncButton'
 import { AudibleLogo, Close, Plus } from './icons'
 import { t, Words } from '../i18n'
+import '../styles/books.lazy.css'
 
 interface Draft {
   key: number

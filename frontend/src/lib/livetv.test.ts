@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { dateFormat, locale, showLanguage } from '../i18n'
-import { clock, programmeTime } from './livetv'
+import { clock, keepUnchanged, programmeTime } from './livetv'
 
 afterEach(async () => {
   vi.restoreAllMocks()
@@ -58,5 +58,31 @@ describe('programme times', () => {
     expect(locale()).toBe(`${code}-BE`)
     const date = { day: 'numeric', month: 'short', year: 'numeric' } as const
     expect(dateFormat(date).format(monday)).toBe(monday.toLocaleDateString(`${code}-BE`, date))
+  })
+})
+
+describe('a fresh answer of channels', () => {
+  const bbc = { id: 'a', name: 'BBC One', now: { title: 'News' } }
+  const itv = { id: 'b', name: 'ITV', now: { title: 'Quiz' } }
+
+  it('keeps the list itself when nothing changed', () => {
+    const before = [bbc, itv]
+    expect(keepUnchanged(before, structuredClone(before))).toBe(before)
+  })
+
+  it('keeps each unchanged channel as it was, and takes the changed ones', () => {
+    const before = [bbc, itv]
+    const changed = { ...itv, now: { title: 'Film' } }
+    const after = keepUnchanged(before, [structuredClone(bbc), changed])
+    expect(after).not.toBe(before)
+    expect(after[0]).toBe(bbc)
+    expect(after[1]).toBe(changed)
+  })
+
+  it('follows a new order and channels coming or going', () => {
+    const before = [bbc, itv]
+    expect(keepUnchanged(before, [structuredClone(itv), structuredClone(bbc)])).toEqual([itv, bbc])
+    expect(keepUnchanged(before, [structuredClone(bbc)])).toEqual([bbc])
+    expect(keepUnchanged(undefined, before)).toBe(before)
   })
 })

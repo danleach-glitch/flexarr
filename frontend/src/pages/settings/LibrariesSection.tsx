@@ -228,7 +228,12 @@ function LibraryRow({ library, onChange }: { library: Library; onChange: () => v
 
   const [ask, confirmDialog] = useConfirm()
   async function remove() {
-    const yes = await ask({ title: t('Remove “{name}” from Flexarr? The files themselves stay where they are.', { name: library.name }), confirmLabel: t('Remove library'), danger: true })
+    const yes = await ask({
+      title: t('Remove {name}?', { name: library.name }),
+      detail: t('This removes it from Flexarr. The files themselves stay where they are.'),
+      confirmLabel: t('Remove library'),
+      danger: true,
+    })
     if (!yes) return
     await deleteLibrary(library.id)
     onChange()

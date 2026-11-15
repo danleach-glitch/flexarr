@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import type { BookAuthor } from '../api/client'
 import { Artwork } from './Artwork'
 import { t, Words } from '../i18n'
+import '../styles/books.lazy.css'
 
 /**
  * A book's authors, a card each: round photo, name and the start of the biography, opening their page. Nothing when

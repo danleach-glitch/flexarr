@@ -36,6 +36,9 @@ function initialRail() {
   return window.innerWidth < 1200
 }
 
+/** Macs, iPhones and iPads show the search shortcut as ⌘K; everything else as Ctrl K, which is what opens it there. */
+const APPLE_KEYS = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent)
+
 export function Layout() {
   const { libraries } = useLibraries()
   const [scrolled, setScrolled] = useState(false)
@@ -202,10 +205,11 @@ export function Layout() {
           flexarr
         </Link>
         <div className="topbar-tools">
-          <button className="search-trigger" onClick={() => setSearching(true)}>
+          {/* Named by aria-label: a phone hides the word, which would leave only "button". */}
+          <button className="search-trigger" aria-label={t(Words.search)} onClick={() => setSearching(true)}>
             <icon.search />
-            <span>{t(Words.search)}</span>
-            <kbd>⌘K</kbd>
+            <span aria-hidden="true">{t(Words.search)}</span>
+            <kbd aria-hidden="true">{APPLE_KEYS ? '⌘K' : t('Ctrl K')}</kbd>
           </button>
           {/* Every profile has settings of its own; the server's are the main profile's. */}
           {!kids && (

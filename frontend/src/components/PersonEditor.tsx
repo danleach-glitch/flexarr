@@ -8,6 +8,7 @@ import { safeImageSrc } from '../lib/safeImageSrc'
 import { FilePreview } from './FilePreview'
 import { t, tk, Words } from '../i18n'
 import '../styles/settings.lazy.css'
+import '../styles/books.lazy.css'
 
 /** Brand names stay as they are; the rest are words, translated where they're shown. */
 const sourceNames: Record<string, { name: string; word?: true }> = {

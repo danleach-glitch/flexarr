@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { PageLoading } from '../components/PageStatus'
+import { PageError, PageLoading } from '../components/PageStatus'
 import { Link, useSearchParams } from 'react-router'
 import { getWatchlist, imageUrl, type WatchlistEntry, type WatchlistStatus } from '../api/client'
 import { PosterCard } from '../components/Cards'
@@ -44,7 +44,7 @@ export function WatchlistPage() {
     window.addEventListener('flexarr:watchlist', changed)
     return () => window.removeEventListener('flexarr:watchlist', changed)
   }, [])
-  const { data, error } = useApi(getWatchlist, [version])
+  const { data, error, loading, reload } = useApi(getWatchlist, [version])
   // A card taken off by keyboard: focus moves to the bookmark of the card that takes its place.
   const focusAfter = useRef<number | null>(null)
   useEffect(() => {
@@ -96,15 +96,15 @@ export function WatchlistPage() {
                 <option value="status">{t('Ready first')}</option>
                 <option value="added">{t(Words.recentlyAdded)}</option>
                 <option value="release">{t('Release date')}</option>
-                <option value="title">{t('Title')}</option>
+                <option value="title">{t(Words.sortAToZ)}</option>
               </select>
             </div>
           </>
         )}
       </header>
-      {error && <p className="error">{error.message}</p>}
+      {error && <PageError error={error} onRetry={reload} retrying={loading} />}
       {!data && !error && <PageLoading />}
-      {data && data.length === 0 && <p className="muted">{t('Nothing here yet.')}</p>}
+      {data && data.length === 0 && <p className="muted">{t('Nothing here yet. Choose Add to watchlist on any movie or show, in your library or on Discover.')}</p>}
       {data && data.length > 0 && shown.length === 0 && <p className="muted">{t('Nothing on your watchlist matches.')}</p>}
       <div className="poster-grid">
         {shown.map((entry, index) => (

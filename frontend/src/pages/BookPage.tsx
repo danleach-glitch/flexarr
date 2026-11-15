@@ -39,6 +39,7 @@ import { chapterIndexAt, chapterProgress, formatSpeed, languageName, seriesPlace
 import { formatClock, formatDuration } from '../lib/format'
 import { MoreButton } from './MusicPages'
 import { t, Words } from '../i18n'
+import '../styles/books.lazy.css'
 
 /**
  * A book's page: cover, title, its series and people, how long it is and how long is left at the speed it plays at,

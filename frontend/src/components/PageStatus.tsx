@@ -1,6 +1,7 @@
+import { Link, useInRouterContext } from 'react-router'
 import { ApiError } from '../api/client'
 import { AsyncButton } from './AsyncButton'
-import { t } from '../i18n'
+import { t, Words } from '../i18n'
 import { errorText } from '../lib/errorText'
 
 /**
@@ -10,14 +11,27 @@ import { errorText } from '../lib/errorText'
  */
 export function PageError({ error, message, onRetry, retrying }: { error: Error; message?: string; onRetry?: () => void; retrying?: boolean }) {
   const gone = error instanceof ApiError ? error.status === 404 : error.message.includes('404')
+  const routed = useInRouterContext()
+  // A bare 404 (an old link to something removed) gets plain words and a way home, not "404 Not Found" (#463).
+  const said = message ?? (gone && !(error instanceof ApiError && error.messages.length) ? t('This isn’t in your library any more.') : errorText(error))
   return (
     <div className="page-message page-status" role="alert">
-      <p className="error">{message ?? errorText(error)}</p>
+      <p className="error">{said}</p>
       {onRetry && !gone && (
         <AsyncButton className="button quiet small" busy={retrying} keepFocus onClick={onRetry}>
           {t('Try again')}
         </AsyncButton>
       )}
+      {gone &&
+        (routed ? (
+          <Link className="button quiet small" to="/">
+            {t(Words.home)}
+          </Link>
+        ) : (
+          <a className="button quiet small" href="/">
+            {t(Words.home)}
+          </a>
+        ))}
     </div>
   )
 }

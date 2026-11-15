@@ -48,4 +48,12 @@ describe('Settings › About', () => {
     expect(await screen.findByText('Version')).toBeInTheDocument()
     expect(screen.queryByRole('switch', { name: /Start when you log in/ })).not.toBeInTheDocument()
   })
+  it('shows a change’s `code` as code, not with its backticks', async () => {
+    open({ '/system/changelog': new Response('# Changelog\n\n## Unreleased\n\n### Security\n\n- A damaged `.nfo` file, or a **hostile** one.\n') })
+
+    const code = await screen.findByText('.nfo')
+    expect(code.tagName).toBe('CODE')
+    expect(code.closest('li')).toHaveTextContent('A damaged .nfo file, or a hostile one.')
+    expect(screen.getByText('hostile').tagName).toBe('STRONG')
+  })
 })
