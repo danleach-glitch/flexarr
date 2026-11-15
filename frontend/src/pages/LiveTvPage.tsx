@@ -170,7 +170,9 @@ export default function LiveTvPage() {
   if (status.data && !status.data.configured) {
     return (
       <div className="livetv-page">
-        <h1 className="livetv-title">{t(Words.liveTv)}</h1>
+        <header className="livetv-header">
+          <h1 className="livetv-title">{t(Words.liveTv)}</h1>
+        </header>
         <div className="panel livetv-empty">
           <Antenna />
           <p>{t('Live TV isn’t set up yet.')}</p>

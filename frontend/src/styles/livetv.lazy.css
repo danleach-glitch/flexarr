@@ -15,9 +15,10 @@
   margin-bottom: 24px;
 }
 
+/* The same size as every other page's title (.library-header h1), on a phone too. */
 .livetv-title {
   font-family: var(--display);
-  font-size: var(--step-5);
+  font-size: var(--step-6);
   font-weight: 800;
   line-height: 1;
 }
@@ -525,10 +526,6 @@
 }
 
 @media (max-width: 700px) {
-  .livetv-title {
-    font-size: var(--step-4);
-  }
-
   .livetv-grid {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   }
