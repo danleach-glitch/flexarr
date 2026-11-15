@@ -7,7 +7,9 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,6 +52,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -129,7 +135,17 @@ private fun MenuButton(
             Icon(icon, contentDescription = label, tint = Flexarr.screen, modifier = Modifier.size(22.dp))
             badge?.let { Text(it, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen) }
         }
-        DropdownMenu(open, onDismissRequest = { open = false }, containerColor = Flexarr.seat) {
+        // A menu taller than the screen (Subtitles with several tracks, in landscape) scrolls: a fade at the edge
+        // with more past it says so.
+        val scroll = rememberScrollState()
+        LaunchedEffect(page) { scroll.scrollTo(0) }
+        DropdownMenu(
+            open,
+            onDismissRequest = { open = false },
+            containerColor = Flexarr.seat,
+            scrollState = scroll,
+            modifier = Modifier.scrollFades(scroll, Flexarr.seat),
+        ) {
             MenuScope(page, openPage = { page = it }).content { open = false }
         }
     }
@@ -139,6 +155,25 @@ private fun MenuButton(
             onInteract()
             delay(1_000)
         }
+    }
+}
+
+/**
+ * Fades the top or bottom edge into [color] while there's more to scroll to past it, so a list that runs off the
+ * screen shows it does.
+ */
+internal fun Modifier.scrollFades(scroll: ScrollState, color: Color): Modifier = drawWithContent {
+    drawContent()
+    val fade = 40.dp.toPx().coerceAtMost(size.height / 3)
+    if (scroll.canScrollBackward) {
+        drawRect(Brush.verticalGradient(listOf(color, Color.Transparent), startY = 0f, endY = fade), size = Size(size.width, fade))
+    }
+    if (scroll.canScrollForward) {
+        drawRect(
+            Brush.verticalGradient(listOf(Color.Transparent, color), startY = size.height - fade, endY = size.height),
+            topLeft = Offset(0f, size.height - fade),
+            size = Size(size.width, fade),
+        )
     }
 }
 
