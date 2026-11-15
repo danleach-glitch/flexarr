@@ -60,6 +60,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On iPad held sideways, Home's and a library's featured titles take a little over half the screen, so the first row shows beneath them.
 - On iPhone and iPad, a sign-in that fails on the connect form says why above Connect and puts the keyboard away, so the message is never hidden behind it.
 - On iPhone and iPad, a link, widget or notification for a title that's gone from your server says "This isn't in your library any more." instead of an HTTP error with a Try again that can't work.
+- On iPhone, the mini player steps aside while the keyboard is up, so it no longer shows through Search's field.
 
 ### Downloads
 

@@ -109,6 +109,9 @@ struct TabStack<Content: View>: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var router = Router()
     @State private var barsHeight: CGFloat = 0
+    /// The on-screen keyboard is up: the bars step aside, or they'd ride up with it and show through iOS 26's search
+    /// field (which sits just above the keyboard) and whatever else is being typed into.
+    @State private var keyboardUp = false
     var handlesDeepLinks = false
     @ViewBuilder var content: () -> Content
 
@@ -130,8 +133,16 @@ struct TabStack<Content: View>: View {
             .safeAreaInset(edge: .top, spacing: 0) {
                 if model.isOffline, sizeClass != .regular { OfflineBar() }
             }
-            bottomBars
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barsHeight = $0 }
+            if !keyboardUp {
+                bottomBars
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barsHeight = $0 }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            keyboardUp = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            keyboardUp = false
         }
         .environment(\.bottomBarsHeight, barsHeight)
         .animation(.easeInOut(duration: 0.25), value: model.isOffline)
