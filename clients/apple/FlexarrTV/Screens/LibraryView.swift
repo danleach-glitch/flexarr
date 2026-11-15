@@ -229,6 +229,10 @@ struct LibraryView: View {
             .focusSection()
         }
         .padding(.top, onTab ? LibraryViewSwitch.topInset : 20)
+        // One section the full width of the page as well: the switch ends left of the third poster and the sort pills
+        // start right of it, so up from that poster found nothing straight above it and stayed put.
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .focusSection()
     }
 
     /// A page of what this grid lists, as it's sorted and filtered now.
@@ -357,7 +361,8 @@ struct LibraryView: View {
 
     /// From the switch, as the tab opens (see `focusesContent`): to the first title, once it's loaded.
     private func focusFirstTitleOnArrival() {
-        guard takesFocus.wrappedValue, switchFocused, let first = items.first else { return }
+        // Set only while the switch has focus (it's cleared as focus leaves it), so no need to ask whether it has.
+        guard takesFocus.wrappedValue, let first = items.first else { return }
         takesFocus.wrappedValue = false
         focusedItem = first.id
     }

@@ -8,6 +8,8 @@ struct ServerSettingsView: View {
     @State private var error: String?
     @State private var checking = false
     @State private var confirmLeave = false
+    @FocusState private var focusesCheck: Bool
+    @State private var openedAt = Date.now
 
     var body: some View {
         SettingsPage(title: t("Server"), summary: summary) {
@@ -34,8 +36,13 @@ struct ServerSettingsView: View {
                 SettingsFact(t(Words.version), ServerVersion.short(status.version))
                 SettingsFact(t("Running on"), status.osDescription)
                 SettingsFact(t("Up since"), status.startTime.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: Localization.locale)))
+            } else if let error {
+                SettingsFact(t("Status"), error)
             } else {
-                SettingsFact(t("Status"), error ?? t("Checking"))
+                // The three facts' room while they're asked for, so the rows below (and focus) don't jump down when
+                // they come.
+                SettingsFact(t("Status"), t("Checking"))
+                Color.clear.frame(height: 74 * 2 + 10)
             }
             SettingsFact(t(Words.libraries), model.libraries.map(\.name).joined(separator: ", "))
 
@@ -48,11 +55,13 @@ struct ServerSettingsView: View {
                 .padding(.horizontal, 32)
 
             // The only control here, so focus has somewhere to land; it also tells whether the server's still up.
+            // Not disabled while it checks: focus would skip it for the row below as the page opens.
             SettingsRow(title: checking ? t("Checking…") : t("Check again"), symbol: "arrow.clockwise",
                         help: t("Ask the server how it is now.")) {
+                guard !checking else { return }
                 Task { await load() }
             }
-            .disabled(checking)
+            .focused($focusesCheck)
             .padding(.top, 30)
 
             SettingsLinkRow(title: t("Send diagnostics"), symbol: "stethoscope",
@@ -60,7 +69,12 @@ struct ServerSettingsView: View {
                 DiagnosticsSettingsView()
             }
         }
-        .task { await load() }
+        .onAppear { openedAt = .now }
+        .task {
+            await load()
+            // Wherever focus landed as the page opened, it's on "Check again" now, in view, unless it's been moved.
+            if model.credentials?.guest == nil, FocusMove.untouched(since: openedAt) { focusesCheck = true }
+        }
     }
 
     /// As the server says now, or as this Apple TV last heard while it can't be asked.

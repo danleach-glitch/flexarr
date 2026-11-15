@@ -6,6 +6,8 @@ import SwiftUI
 struct WatchlistView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
+    /// Off as the sidebar's Watchlist tab, whose label already names the page (as Live TV's does).
+    var showsTitle = true
     @State private var entries: [WatchlistEntry]?
     @State private var error: String?
     @State private var showing: WatchlistStatus?
@@ -36,9 +38,11 @@ struct WatchlistView: View {
     var body: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 30) {
-                Text(t(Words.watchlist))
-                    .font(.marquee(64, weight: .heavy))
-                    .foregroundStyle(Color.screen)
+                if showsTitle {
+                    Text(t(Words.watchlist))
+                        .font(.marquee(64, weight: .heavy))
+                        .foregroundStyle(Color.screen)
+                }
                 if let entries, entries.isEmpty {
                     StatusView(state: .empty(t("Nothing here yet."))).frame(height: 500)
                 } else if entries != nil {

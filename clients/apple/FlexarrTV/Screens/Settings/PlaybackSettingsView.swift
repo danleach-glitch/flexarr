@@ -12,6 +12,9 @@ struct PlaybackSettingsView: View {
     @State private var losslessAudio = PlaybackController.losslessAudio
     @State private var sound = SoundSettings.current
     @State private var visualiser = AudioSpectrum.isOn
+    /// The first row. The profile's rows come with the server's answer, after focus has taken the first row there was.
+    @FocusState private var focusesFirstRow: Bool
+    @State private var openedAt = Date.now
 
     var body: some View {
         SettingsPage(title: t("Playback"), summary: saveFailed ? t("That change couldn’t be saved on the server, so it’s been put back.") : nil) {
@@ -21,6 +24,7 @@ struct PlaybackSettingsView: View {
                                    help: t(Words.autoPlayNextHelp)) {
                     change(\.autoPlayNext)
                 }
+                .focused($focusesFirstRow)
                 SettingsRow.toggle(t("Skip intros"), isOn: preferences.skipIntros, symbol: "forward",
                                    help: t("Jumps past a show’s opening titles by itself. Off, a Skip intro button shows instead.")) {
                     change(\.skipIntros)
@@ -156,8 +160,16 @@ struct PlaybackSettingsView: View {
         .animation(.easeOut(duration: 0.2), value: playsFilesDirectly)
         // The player's audio menu changes these too: this page follows them.
         .onReceive(NotificationCenter.default.publisher(for: SoundSettings.changed)) { _ in sound = SoundSettings.current }
+        .onAppear { openedAt = .now }
         .task {
-            if let loaded = try? await model.client?.playbackPreferences() { preferences = loaded }
+            if let loaded = try? await model.client?.playbackPreferences() {
+                preferences = loaded
+                // Focus took a row further down (This Apple TV's first) while these loaded: up to the page's first row,
+                // unless it's been moved since the page opened.
+                // (A moment later, once the row is there to take it.)
+                try? await Task.sleep(for: .milliseconds(50))
+                if FocusMove.untouched(since: openedAt) { focusesFirstRow = true }
+            }
         }
     }
 

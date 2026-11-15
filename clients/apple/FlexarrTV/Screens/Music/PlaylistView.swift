@@ -67,17 +67,7 @@ struct PlaylistCard: View {
         ArtworkButton(ambient: .silver, focus: focus, focusID: playlist.id, accessibilityText: "\(playlist.name), \(playlist.trackCountLabel)", action: action) {
             PlaylistArtwork(playlist: playlist, size: width)
         } caption: { focused in
-            VStack(alignment: .leading, spacing: 4) {
-                Text(playlist.name)
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(focused ? Color.screen : Color.screen.opacity(0.8))
-                    .lineLimit(1)
-                Text(playlist.trackCountLabel)
-                    .font(.system(size: 21))
-                    .foregroundStyle(Color.usher)
-                    .lineLimit(1)
-            }
-            .frame(width: width, alignment: .leading)
+            CardCaption(title: playlist.name, subtitle: playlist.trackCountLabel, focused: focused, width: width)
         }
         .contextMenu { MusicMenuContent(target: .playlist(playlist)) }
     }
@@ -103,17 +93,7 @@ struct MixCard: View {
                     if isStarting { ProgressView() }
                 }
         } caption: { focused in
-            VStack(alignment: .leading, spacing: 4) {
-                Text(mix.name)
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(focused ? Color.screen : Color.screen.opacity(0.8))
-                    .lineLimit(1)
-                Text(mix.description)
-                    .font(.system(size: 21))
-                    .foregroundStyle(Color.usher)
-                    .lineLimit(1)
-            }
-            .frame(width: width, alignment: .leading)
+            CardCaption(title: mix.name, subtitle: mix.description, focused: focused, width: width)
         }
         .accessibilityHint(t("Plays the mix"))
     }

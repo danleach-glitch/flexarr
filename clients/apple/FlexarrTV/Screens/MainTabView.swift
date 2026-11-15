@@ -42,6 +42,8 @@ struct MainTabView: View {
     /// As the app opens, Home's Play takes focus from the sidebar, so the sidebar closes and Home is ready to browse.
     /// Not when a link opens a title, or once another tab is chosen.
     @State private var startFocus = true
+    /// The tab whose page takes focus back after the sidebar is built afresh as music stops (see `refocusPage`).
+    @State private var refocusTab: TabID?
     @AppStorage(TabBarEntry.storageKey) private var tabBarOrder = ""
 
     var body: some View {
@@ -55,7 +57,7 @@ struct MainTabView: View {
                 }
             }
             Tab(value: TabID.home) {
-                TabStack(router: homeRouter, opensLinks: linkTab == .home) {
+                TabStack(router: homeRouter, opensLinks: linkTab == .home, refocusesPage: refocusTab == .home) {
                     HomeView()
                         .environment(\.opensTitlesOnLibraryTab, true)
                         .environment(\.focusesContent, $startFocus)
@@ -79,7 +81,8 @@ struct MainTabView: View {
                     Tab(value: entry.tab) {
                         switch entry {
                         case .library(let library):
-                            TabStack(router: routers[entry.tab], opensLinks: linkTab == entry.tab) {
+                            TabStack(router: routers[entry.tab], opensLinks: linkTab == entry.tab,
+                                     refocusesPage: refocusTab == entry.tab) {
                                 if library.type == .music {
                                     MusicLibraryTab(library: library)
                                 } else if library.type == .audiobooks {
@@ -89,7 +92,7 @@ struct MainTabView: View {
                                 }
                             }
                         case .liveTv:
-                            TabStack(router: routers[entry.tab]) { LiveTvView(showsTitle: false) }
+                            TabStack(router: routers[entry.tab], refocusesPage: refocusTab == entry.tab) { LiveTvView(showsTitle: false) }
                         }
                     } label: {
                         Label(entry.title, systemImage: entry.symbol)
@@ -101,27 +104,27 @@ struct MainTabView: View {
             TabSection {
                 if showsDiscover {
                     Tab(value: TabID.discover) {
-                        TabStack(router: routers[.discover]) { DiscoverView() }
+                        TabStack(router: routers[.discover], refocusesPage: refocusTab == .discover) { DiscoverView() }
                     } label: {
                         Label(t(Words.discover), systemImage: Symbol.discover)
                     }
                 }
                 if showsWatchlist {
                     Tab(value: TabID.watchlist) {
-                        TabStack(router: routers[.watchlist]) { WatchlistView() }
+                        TabStack(router: routers[.watchlist], refocusesPage: refocusTab == .watchlist) { WatchlistView(showsTitle: false) }
                     } label: {
                         Label(t(Words.watchlist), systemImage: Symbol.watchlist)
                     }
                 }
                 Tab(value: TabID.search, role: .search) {
-                    TabStack(router: routers[.search]) { SearchView() }
+                    TabStack(router: routers[.search], refocusesPage: refocusTab == .search) { SearchView() }
                 } label: {
                     Label(t(Words.search), systemImage: Symbol.search)
                 }
                 // The kids app has no Settings: a child's choices are a parent's to make.
                 if !model.isKids {
                     Tab(value: TabID.settings) {
-                        TabStack(router: routers[.settings]) { SettingsView() }
+                        TabStack(router: routers[.settings], refocusesPage: refocusTab == .settings) { SettingsView() }
                     } label: {
                         Label(t(Words.settings), systemImage: Symbol.settings)
                     }
@@ -129,7 +132,7 @@ struct MainTabView: View {
             } header: {
                 // A rule between them and the libraries: the sidebar takes a section's heading as plain text, so a
                 // Divider, a shape or a strikethrough here would be dropped; a run of box-drawing lines draws it.
-                Text(verbatim: String(repeating: "\u{2500}", count: 12))
+                Text(verbatim: String(repeating: "\u{2500}", count: 9))
             }
         }
         .tabViewStyle(.sidebarAdaptable)
@@ -212,8 +215,22 @@ struct MainTabView: View {
         if !shown {
             showingNowPlaying = false
             if selection == .nowPlaying { selection = .home }
+            refocusPage()
         }
         restoreScreens(of: selection)
+    }
+
+    /// Building the sidebar afresh as music stops (Stop in Now Playing) leaves focus on the sidebar, open over the
+    /// page, where the next Menu would leave the app: give it back to the page. A title put back on its tab takes it
+    /// on its Play (see `focusesPlay`); Home's hero takes it on Home.
+    private func refocusPage() {
+        let tab = selection
+        if tab == .home, !routers.hasPutAway(.home) { startFocus = true }
+        refocusTab = tab
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            if refocusTab == tab { refocusTab = nil }
+        }
     }
 
     /// Puts back a tab's screens taken off for a rebuild, a moment after the tab shows: a stack first shown with
@@ -394,15 +411,19 @@ struct TabStack<Content: View>: View {
     private let sharedRouter: Router?
     /// This tab is where the pending link opens (see `MainTabView.routeLink`).
     var opensLinks: Bool
+    /// The sidebar has just been built afresh: the screen put back on this stack takes focus (see `MainTabView.refocusPage`).
+    var refocusesPage: Bool
     @ViewBuilder var content: () -> Content
     /// What's open came from a link (the Top Shelf), not from browsing.
     @State private var openedFromLink = false
     /// The title a link just opened should take focus (see `focusesPlay`).
     @State private var linkFocus = false
 
-    init(router: Router? = nil, opensLinks: Bool = false, @ViewBuilder content: @escaping () -> Content) {
+    init(router: Router? = nil, opensLinks: Bool = false, refocusesPage: Bool = false,
+         @ViewBuilder content: @escaping () -> Content) {
         sharedRouter = router
         self.opensLinks = opensLinks
+        self.refocusesPage = refocusesPage
         self.content = content
     }
 
@@ -445,6 +466,14 @@ struct TabStack<Content: View>: View {
             if empty {
                 openedFromLink = false
                 linkFocus = false
+            } else if refocusesPage {
+                // The screens coming back after the sidebar was built afresh: the top one's Play takes focus, as a
+                // link's title does. Not kept for long, so a title opened later doesn't take it instead.
+                linkFocus = true
+                Task {
+                    try? await Task.sleep(for: .seconds(2))
+                    linkFocus = false
+                }
             }
         }
         // A title opened from the Top Shelf is a visit: leaving the app puts the tab back as it was, so coming back

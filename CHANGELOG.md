@@ -11,6 +11,26 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On iPhone, a show's page and a downloaded album fit the screen at the largest text sizes.
 - On Apple TV, playing music with the visualiser on no longer closes the app.
 - On Apple TV, focus goes back to the poster or episode you were on after closing its menu or coming back from a title, and Search's field is no longer covered by the sidebar's label.
+- On Apple TV, Up from any title in a grid's top row reaches the switch and sort buttons above it.
+- On Apple TV, in the player, Right from skip forward no longer jumps back to Play when there's no Next.
+- On Apple TV, opening a library from the sidebar lands on its first title (or the hero's Play), not on the Browse and All switch, however long you stayed on it in the sidebar.
+- On Apple TV, long titles can be read in full: a title's page and the Home hero give the name three lines and more width, and a focused poster, album, artist, playlist or book shows its whole name over two lines.
+- On Apple TV, Settings › Playback opens on its first row, and Settings › Server on Check again, in view.
+- On Apple TV, pressing Stop in Now Playing puts you back on the album (or page) you played from, not on the sidebar where Menu would leave the app.
+- On Apple TV, an episode with no picture yet lights up and gains a ring when focused, so you can see which one you're on.
+- On Apple TV, long profile names on "Who's watching?" wrap onto two lines instead of being cut short.
+- On Apple TV, Down from the server address lands on Connect, not Back.
+- On Apple TV, See all at the end of a row of albums is square, like the covers beside it.
+- On Apple TV, the sidebar's dividing line no longer ends in "…".
+- On Apple TV, home videos go by their names: a video is no longer labelled "Episode 1", and a folder with only one folder inside no longer shows a pill with its own name.
+- On Apple TV, the player darkens the picture while its Audio, Subtitles, Speed or Sleep timer menu is open, so the menu is easy to read over a bright scene.
+- On Apple TV, a part-watched title's menu no longer offers "Mark as watched" and "Mark as unwatched" together: the second is now Remove in Continue watching, and Clear progress elsewhere.
+- On Apple TV, an episode's page shows Go to show as a button of its own instead of a ⋯ menu holding only that.
+- On Apple TV, the name of a focused round button on a title's page (Mark as watched, Watchlist…) sits under that button, not at the start of the row.
+- On Apple TV, Settings › Sidebar says "Between Home and Discover", as the Sidebar row does, and Settings › Libraries lists Books and Music only when the server has such a library.
+- On Apple TV, every Settings page's title starts at the same height, clear of "‹ Settings", and the Watchlist tab no longer repeats its name under the sidebar's label.
+- On Apple TV, Down from an artist's Play lands on their first (newest) album, not the one nearest Play.
+- On Apple TV, Home scrolls back to the top when its hero takes focus from the sidebar or the rows below, so the picture and title aren't left half off the screen.
 - On Android, Download Season fetches that season and one episode ahead, no longer the whole show.
 - On Android, pages no longer scroll up through the clock and status icons, and Settings pages keep their title and Back in view.
 - On Android, a show's season pills are all readable: Download Season sits on its own line under them.

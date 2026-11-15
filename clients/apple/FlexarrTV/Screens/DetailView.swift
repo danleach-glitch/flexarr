@@ -237,14 +237,29 @@ struct DetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .focusSection()
 
-            // The focused round button's name; the line keeps its height so nothing jumps.
-            Text(focusedAction ?? " ")
-                .font(.system(size: 24, weight: .medium))
-                .foregroundStyle(Color.screen.opacity(0.75))
-                .animation(.easeOut(duration: 0.15), value: focusedAction)
+            // The line keeps its height so nothing jumps; the focused round button's name sits on it, under the button.
+            Text(" ")
+                .font(actionNameFont)
                 .accessibilityHidden(true)
         }
+        .overlayPreferenceValue(ActionBoundsKey.self) { bounds in
+            GeometryReader { proxy in
+                if let name = focusedAction, let anchor = bounds[name] {
+                    let frame = proxy[anchor]
+                    Text(name)
+                        .font(actionNameFont)
+                        .foregroundStyle(Color.screen.opacity(0.75))
+                        .fixedSize()
+                        // Centred under the button, on the line kept for it (between the row's spacing and the bottom).
+                        .position(x: frame.midX, y: (frame.maxY + 18 + proxy.size.height) / 2)
+                        .accessibilityHidden(true)
+                }
+            }
+            .animation(.easeOut(duration: 0.15), value: focusedAction)
+        }
     }
+
+    private var actionNameFont: Font { .system(size: 24, weight: .medium) }
 
     @ViewBuilder
     private func actionButton(_ button: DetailActions.Button, item: ItemSummary, playable: ItemSummary?,
@@ -286,36 +301,56 @@ struct DetailView: View {
             if model.hasWatchlist, item.kind == .movie || item.kind == .series, let onList = detail?.onWatchlist {
                 WatchlistActionButton(key: .library(item.id), on: onList, ambient: ambient, iconOnly: true)
                     .focused($focusedAction, equals: t(Words.watchlist))
+                    .anchorPreference(key: ActionBoundsKey.self, value: .bounds) { [t(Words.watchlist): $0] }
             }
         case .download:
             EmptyView()
         case .more:
-            // Things done now and then, out of the way of the row above.
-            roundButton(t("More"), systemImage: Symbol.more) { showingMore = true }
-                .confirmationDialog(item.title, isPresented: $showingMore) {
-                    ForEach(menu, id: \.self) { entry in
-                        switch entry {
-                        case .button:
-                            // Only a phone's row runs out of room.
-                            EmptyView()
-                        case .version:
-                            Button(t(Words.version)) { showingVersions = true }
-                        case .subtitles:
-                            if let file = detail?.subtitleTargetId {
-                                Button(t("Search for subtitles…")) { subtitleSearchFile = SubtitleSearchFile(id: file) }
-                            }
-                        case .goToShow:
-                            if let series {
-                                Button(t(Words.goToShow)) { router.push(.item(series)) }
-                            }
+            let entries = moreEntries(menu)
+            Group {
+                if entries.count == 1, let only = entries.first {
+                    // One thing needs no menu: it's a round button of its own.
+                    roundButton(only.name, systemImage: only.symbol, action: only.run)
+                } else if !entries.isEmpty {
+                    // Things done now and then, out of the way of the row above.
+                    roundButton(t("More"), systemImage: Symbol.more) { showingMore = true }
+                        .confirmationDialog(item.title, isPresented: $showingMore) {
+                            ForEach(entries) { entry in Button(entry.name, action: entry.run) }
                         }
-                    }
                 }
-                .fullScreenCover(isPresented: $showingVersions) {
-                    VersionChoiceView(versions: detail?.versions ?? [], choose: { chooseVersion(item, $0) },
-                                      close: { showingVersions = false })
-                        .presentationBackground(Color.black.opacity(0.45))
+            }
+            .fullScreenCover(isPresented: $showingVersions) {
+                VersionChoiceView(versions: detail?.versions ?? [], choose: { chooseVersion(item, $0) },
+                                  close: { showingVersions = false })
+                    .presentationBackground(Color.black.opacity(0.45))
+            }
+        }
+    }
+
+    /// What ⋯ holds here, as it can be done now: a phone's overflow never reaches a TV's row.
+    private struct MoreEntry: Identifiable {
+        let id: DetailActions.MenuItem
+        let name: String
+        let symbol: String
+        let run: () -> Void
+    }
+
+    private func moreEntries(_ menu: [DetailActions.MenuItem]) -> [MoreEntry] {
+        menu.compactMap { entry in
+            switch entry {
+            case .button:
+                return nil
+            case .version:
+                return MoreEntry(id: entry, name: t(Words.version), symbol: Symbol.version) { showingVersions = true }
+            case .subtitles:
+                guard let file = detail?.subtitleTargetId else { return nil }
+                return MoreEntry(id: entry, name: t("Search for subtitles…"), symbol: Symbol.subtitles) {
+                    subtitleSearchFile = SubtitleSearchFile(id: file)
                 }
+            case .goToShow:
+                guard let series else { return nil }
+                return MoreEntry(id: entry, name: t(Words.goToShow), symbol: Symbol.goToShow) { router.push(.item(series)) }
+            }
         }
     }
 
@@ -330,6 +365,7 @@ struct DetailView: View {
         Button(action: action) { Label(name, systemImage: systemImage) }
             .buttonStyle(ActionButtonStyle(ambient: ambient, iconOnly: true))
             .focused($focusedAction, equals: name)
+            .anchorPreference(key: ActionBoundsKey.self, value: .bounds) { [name: $0] }
     }
 
     private func openTrailer() {
@@ -431,31 +467,9 @@ struct DetailView: View {
 
     private func seasonsSection(_ seasonList: [ItemSummary]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            ScrollView(.horizontal) {
-                HStack(spacing: 18) {
-                    ForEach(seasonList) { season in
-                        // "Season 1" with a quieter "8 of 10" beside it when some of its aired episodes aren't in the library.
-                        Button { selectedSeasonID = season.id } label: {
-                            HStack(spacing: 10) {
-                                Text(season.title)
-                                if let count = gaps.countLabel(season: season.seasonNumber) {
-                                    Text(count).font(.system(size: 22, weight: .medium)).opacity(0.7)
-                                }
-                            }
-                        }
-                            .buttonStyle(PillButtonStyle(selected: season.id == selectedSeasonID, ambient: ambient))
-                            .focused($focusedSeason, equals: season.id)
-                    }
-                }
-                .padding(.horizontal, Layout.edge)
-                .padding(.vertical, 20)
-            }
-            .scrollClipDisabled()
-            .focusSection()
-            .defaultFocus($focusedSeason, selectedSeasonID, priority: .userInitiated)
-            .onChange(of: focusedSeason) { _, id in
-                // Like the TV app: moving across the seasons switches the episode list.
-                if let id { selectedSeasonID = id }
+            // A home video folder holding one folder (often its own name) needs no pill to choose it.
+            if !(seasonList.count == 1 && seasonList.first?.homeVideo == true) {
+                seasonPills(seasonList)
             }
 
             if let season = selectedSeason {
@@ -466,6 +480,35 @@ struct DetailView: View {
         }
         .id("episodes")
         .task(id: selectedSeasonID) { await loadSelectedSeason() }
+    }
+
+    private func seasonPills(_ seasonList: [ItemSummary]) -> some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 18) {
+                ForEach(seasonList) { season in
+                    // "Season 1" with a quieter "8 of 10" beside it when some of its aired episodes aren't in the library.
+                    Button { selectedSeasonID = season.id } label: {
+                        HStack(spacing: 10) {
+                            Text(season.title)
+                            if let count = gaps.countLabel(season: season.seasonNumber) {
+                                Text(count).font(.system(size: 22, weight: .medium)).opacity(0.7)
+                            }
+                        }
+                    }
+                        .buttonStyle(PillButtonStyle(selected: season.id == selectedSeasonID, ambient: ambient))
+                        .focused($focusedSeason, equals: season.id)
+                }
+            }
+            .padding(.horizontal, Layout.edge)
+            .padding(.vertical, 20)
+        }
+        .scrollClipDisabled()
+        .focusSection()
+        .defaultFocus($focusedSeason, selectedSeasonID, priority: .userInitiated)
+        .onChange(of: focusedSeason) { _, id in
+            // Like the TV app: moving across the seasons switches the episode list.
+            if let id { selectedSeasonID = id }
+        }
     }
 
     private func episodesRow(title: String, season: ItemDetail) -> some View {
@@ -666,10 +709,7 @@ struct EpisodeCard: View {
     var body: some View {
         ArtworkButton(ambient: episode.glowColor, focus: focus, focusID: episode.id, action: action) {
             RemoteImage(url: model.client?.imageURL(episode.artwork.thumb ?? episode.artwork.backdrop, width: 640)) {
-                ZStack {
-                    Color.seat
-                    Image(systemName: Symbol.play).font(.system(size: 40)).foregroundStyle(Color.usher)
-                }
+                EpisodePlaceholder()
             }
             .frame(width: width, height: width * 9 / 16)
             .overlay(alignment: .bottom) {
@@ -687,7 +727,10 @@ struct EpisodeCard: View {
         } caption: { focused in
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 14) {
-                    Text(episode.episodeNumber.map { t("Episode {number}", ["number": $0]) } ?? t("Special"))
+                    // Home videos go by their names, not numbers.
+                    if episode.homeVideo != true {
+                        Text(episode.episodeNumber.map { t("Episode {number}", ["number": $0]) } ?? t("Special"))
+                    }
                     if let time = timeText { Text(time) }
                 }
                 .font(.system(size: 20, weight: .semibold))
@@ -717,3 +760,28 @@ struct EpisodeCard: View {
     }
 }
 
+/// An episode with no still yet (new, or before its artwork arrives). Dark on dark, the card style has nothing to light
+/// up, so focused it lightens and gains a ring, as a round card does (`CircleCardStyle`).
+private struct EpisodePlaceholder: View {
+    @Environment(\.isFocused) private var isFocused
+
+    var body: some View {
+        ZStack {
+            isFocused ? Color.aisle : Color.seat
+            Image(systemName: Symbol.play).font(.system(size: 40)).foregroundStyle(isFocused ? Color.screen : Color.usher)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: Radius.art, style: .continuous)
+                .strokeBorder(Color.screen, lineWidth: isFocused ? 5 : 0)
+        }
+        .animation(.easeOut(duration: 0.2), value: isFocused)
+    }
+}
+
+/// Where each round button on a title's page sits, by name, so the focused one's name can sit centred under it.
+private struct ActionBoundsKey: PreferenceKey {
+    static let defaultValue: [String: Anchor<CGRect>] = [:]
+    static func reduce(value: inout [String: Anchor<CGRect>], nextValue: () -> [String: Anchor<CGRect>]) {
+        value.merge(nextValue()) { $1 }
+    }
+}

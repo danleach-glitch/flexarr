@@ -10,6 +10,8 @@ struct HomeView: View {
     @State private var loadedToken: Int?
     @State private var loadedAt: Date?
     @State private var isVisible = false
+    /// Scrolled back to the top as the hero takes focus from outside it (see `HomeHero.onFocusEnter`).
+    @State private var scroll = ScrollPosition(edge: .top)
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -47,7 +49,10 @@ struct HomeView: View {
         ScrollView(.vertical) {
             LazyVStack(alignment: .leading, spacing: 30) {
                 if !home.featured.isEmpty {
-                    HomeHero(items: home.featured, overviews: home.overviews, index: $featuredIndex, resuming: home.resuming)
+                    // Its buttons sit along its foot, so the focus engine scrolls only far enough to show them: coming
+                    // back from the sidebar or up from the rows would leave the hero's top cut off.
+                    HomeHero(items: home.featured, overviews: home.overviews, index: $featuredIndex, resuming: home.resuming,
+                             onFocusEnter: { withAnimation(.easeInOut(duration: 0.35)) { scroll.scrollTo(edge: .top) } })
                 } else if let message = EmptyHomeMessage(libraries: model.libraries, limitedProfile: model.hasAgeLimit ? model.currentProfile?.name : nil) {
                     // Above whatever else Home has (Coming soon, channels).
                     EmptyHome(message: message)
@@ -65,6 +70,7 @@ struct HomeView: View {
             }
             .padding(.bottom, 80)
         }
+        .scrollPosition($scroll)
         .scrollClipDisabled()
         // Under the hero; with none (only Live TV so far), the rows start below the sidebar's label at the top.
         .ignoresSafeArea(edges: home.featured.isEmpty ? [.horizontal] : [.top, .horizontal])
@@ -138,6 +144,9 @@ struct HomeHero: View {
     var resuming: (ItemSummary) -> ItemSummary? = { _ in nil }
     /// Controls at the top-left, under the sidebar's label (a library's Browse and All switch); up from Play reaches them.
     var top: AnyView?
+    /// Focus has come into the hero from outside it (the sidebar, the rows below): the page can bring the whole hero
+    /// into view, since the focus engine scrolls only as far as the buttons along its foot.
+    var onFocusEnter: (() -> Void)? = nil
     @Environment(\.focusesContent) private var takesFocus
     @FocusState private var focusedButton: HeroButton?
     @Namespace private var heroScope
@@ -258,6 +267,7 @@ struct HomeHero: View {
             // The focus engine picks the geometrically nearest button (often More info, nearer
             // the sidebar); entering the hero should always land on Play.
             if old == nil, new != nil, new != .play { focusedButton = .play }
+            if old == nil, new != nil { onFocusEnter?() }
         }
         // Moving on from an artist (by itself, or left and right) while Radio has focus: the next slide may not have
         // Radio, so focus goes to Play rather than wherever the focus engine sends it.
@@ -433,9 +443,11 @@ struct TitleArt: View {
             .font(.marquee(fontSize, weight: .black))
             .kerning(-1)
             .foregroundStyle(Color.screen)
-            .lineLimit(2)
-            .minimumScaleFactor(0.6)
-            .frame(maxWidth: maxWidth * 1.3, alignment: .leading)
+            // A long name gets three lines and more of the screen's width (the right of the hero and the title's page
+            // is otherwise empty), shrinking to fit, rather than being cut at two.
+            .lineLimit(3)
+            .minimumScaleFactor(0.5)
+            .frame(maxWidth: maxWidth * 1.6, alignment: .leading)
             .modifier(TitleScrim(reach: maxWidth * 0.6))
     }
 }
@@ -444,6 +456,10 @@ struct HomeRowView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
     let row: HomeRow
+    /// The top of a library's Browse with no hero: as the tab opens, focus passed on from its switch comes to this
+    /// row's first card (see `focusesContent`).
+    var takesArrivingFocus = false
+    @Environment(\.focusesContent) private var arriving
     @FocusState private var focusedCard: String?
     /// The card focused here last, kept while it leaves the row (finished, say) so focus can go to the one that takes
     /// its place rather than back to the row's start. Cleared when focus moves elsewhere.
@@ -487,9 +503,9 @@ struct HomeRowView: View {
                         }
                     }
                     if let library = linkedLibrary {
-                        SeeAllCard(style: row.style, square: isBooks) { router.push(library) }
+                        SeeAllCard(style: row.style, square: hasSquareCovers) { router.push(library) }
                     } else if row.link == "/watchlist" {
-                        SeeAllCard(style: row.style, square: isBooks) { router.push(.watchlist) }
+                        SeeAllCard(style: row.style, square: hasSquareCovers) { router.push(.watchlist) }
                     }
                 }
                 .padding(.horizontal, Layout.edge)
@@ -500,6 +516,8 @@ struct HomeRowView: View {
             .focusSection()
             .environment(\.leavesRow) { leaving = $0 }
         }
+        .onAppear(perform: takeArrivingFocus)
+        .onChange(of: arriving.wrappedValue, takeArrivingFocus)
         .onChange(of: focusedCard) { old, id in
             // Continue watching: the card focus left lets go what it got ready.
             if row.id == "continue", let old, old != id, let item = row.items.first(where: { $0.id == old }) { model.dropReady(item) }
@@ -532,9 +550,20 @@ struct HomeRowView: View {
         }
     }
 
-    /// A row of books, whose square covers the See all card matches.
-    private var isBooks: Bool {
-        row.style != .wide && row.style != .top10 && !row.items.isEmpty && row.items.allSatisfy { $0.kind == .audiobook }
+    /// To the first card, as the library's tab opens on Browse with no hero. Only rows whose cards focus can be sent
+    /// to (posters, wide cards and books) take it; with any other first row, focus stays on the switch.
+    private func takeArrivingFocus() {
+        guard takesArrivingFocus, arriving.wrappedValue, row.style != .top10, row.style != .tracks,
+              (row.playlists ?? []).isEmpty, (row.mixes ?? []).isEmpty, (row.channels ?? []).isEmpty,
+              let first = row.items.first else { return }
+        arriving.wrappedValue = false
+        focusedCard = first.id
+    }
+
+    /// A row of books or albums (New albums), whose square covers the See all card matches.
+    private var hasSquareCovers: Bool {
+        row.style != .wide && row.style != .top10 && row.style != .tracks && !row.items.isEmpty
+            && row.items.allSatisfy { $0.kind == .audiobook || $0.kind.isMusic }
     }
 
     /// Rows link to "/library/{id}?view=all&sort=added" (or "&genre=Drama"); map that to a library destination.
@@ -556,7 +585,7 @@ struct HomeRowView: View {
 
 struct SeeAllCard: View {
     let style: HomeRowStyle
-    /// Beside square covers (books), square too.
+    /// Beside square covers (books, albums), square too.
     var square = false
     let action: () -> Void
 

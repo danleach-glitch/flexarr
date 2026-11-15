@@ -126,6 +126,10 @@ struct BookGridView: View {
             .focusSection()
         }
         .padding(.top, view == nil ? 20 : LibraryViewSwitch.topInset)
+        // The full width, so up from a book with nothing straight above it (between the heading and the menus) still
+        // reaches the header.
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .focusSection()
     }
 
     /// "42 books", with what they're narrowed to.

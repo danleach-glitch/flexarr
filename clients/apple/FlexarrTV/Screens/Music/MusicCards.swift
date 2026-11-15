@@ -44,19 +44,7 @@ struct AlbumCard: View {
         ArtworkButton(ambient: item.glowColor, focus: focus, focusID: item.id, action: action) {
             SquareArtwork(item: item, size: width)
         } caption: { focused in
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.title)
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(focused ? Color.screen : Color.screen.opacity(0.8))
-                    .lineLimit(1)
-                if let subtitle {
-                    Text(subtitle)
-                        .font(.system(size: 21))
-                        .foregroundStyle(Color.usher)
-                        .lineLimit(1)
-                }
-            }
-            .frame(width: width, alignment: .leading)
+            CardCaption(title: item.title, subtitle: subtitle, focused: focused, width: width)
         }
         .contextMenu { MusicMenuContent(target: .item(item), showsArtist: offersArtist) }
     }
@@ -88,19 +76,7 @@ struct TrackCard: View {
                         .padding(12)
                 }
         } caption: { focused in
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.title)
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(focused ? Color.screen : Color.screen.opacity(0.8))
-                    .lineLimit(1)
-                if let artist = item.artistName {
-                    Text(artist)
-                        .font(.system(size: 21))
-                        .foregroundStyle(Color.usher)
-                        .lineLimit(1)
-                }
-            }
-            .frame(width: width, alignment: .leading)
+            CardCaption(title: item.title, subtitle: item.artistName, focused: focused, width: width)
         }
         .contextMenu { MusicMenuContent(target: .item(item)) }
     }
@@ -113,6 +89,7 @@ struct ArtistCard: View {
     /// Shared focus state, so the row can steer focus to this card (see `RowFocus`).
     var focus: FocusState<String?>.Binding? = nil
     let action: () -> Void
+    @FocusState private var focused: Bool
 
     var body: some View {
         VStack(spacing: 18) {
@@ -120,20 +97,12 @@ struct ArtistCard: View {
                 SquareArtwork(item: item, size: size, circular: true)
             }
             .buttonStyle(CircleCardStyle())
+            .focused($focused)
             .modifier(SharedFocus(binding: focus, id: item.id))
             .contextMenu { MusicMenuContent(target: .item(item)) }
-            VStack(spacing: 2) {
-                Text(item.title)
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(Color.screen)
-                if item.childCount > 0 {
-                    Text(t("{count, plural, one {# album} other {# albums}}", ["count": item.childCount]))
-                        .font(.system(size: 21))
-                        .foregroundStyle(Color.usher)
-                }
-            }
-            .lineLimit(1)
-            .frame(width: size + 30)
+            CardCaption(title: item.title,
+                        subtitle: item.childCount > 0 ? t("{count, plural, one {# album} other {# albums}}", ["count": item.childCount]) : nil,
+                        focused: focused, width: size + 30, restingOpacity: 1, centered: true)
         }
     }
 }

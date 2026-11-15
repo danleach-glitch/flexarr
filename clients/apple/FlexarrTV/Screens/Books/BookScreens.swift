@@ -26,19 +26,8 @@ struct BookCard: View {
                     if item.userData.watched { WatchedBadge().padding(12) }
                 }
         } caption: { focused in
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.title)
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(focused ? Color.screen : Color.screen.opacity(0.8))
-                    .lineLimit(1)
-                if let subtitle = sequence.map({ t("Book {number}", ["number": $0]) }) ?? item.bookAuthors {
-                    Text(subtitle)
-                        .font(.system(size: 21))
-                        .foregroundStyle(Color.usher)
-                        .lineLimit(1)
-                }
-            }
-            .frame(width: width, alignment: .leading)
+            CardCaption(title: item.title, subtitle: sequence.map({ t("Book {number}", ["number": $0]) }) ?? item.bookAuthors,
+                        focused: focused, width: width)
         }
         .contextMenu {
             Button { model.playBook(item) } label: { Label(item.isResumable ? t("Resume") : t(Words.play), systemImage: Symbol.play) }

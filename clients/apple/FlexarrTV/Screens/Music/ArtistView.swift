@@ -17,6 +17,10 @@ struct ArtistView: View {
     @Environment(\.dismiss) private var dismiss
     /// The focused round button, named under the row.
     @FocusState private var focusedAction: MusicActions.Button?
+    /// The focused album, so Down from the buttons lands on the first (newest) album rather than the one nearest
+    /// Play (see `RowFocus`), and coming back up into the albums keeps to the column focus left.
+    @FocusState private var focusedAlbum: String?
+    @State private var albumColumn = 0
 
     private let columns = Array(repeating: GridItem(.fixed(Layout.posterWidth), spacing: Layout.gridSpacing, alignment: .top), count: 6)
 
@@ -43,10 +47,11 @@ struct ArtistView: View {
                                     .foregroundStyle(Color.screen)
                                 LazyVGrid(columns: columns, alignment: .leading, spacing: 56) {
                                     ForEach(page.albums) { album in
-                                        AlbumCard(item: album, offersArtist: false) { router.push(.item(album)) }
+                                        AlbumCard(item: album, offersArtist: false, focus: $focusedAlbum) { router.push(.item(album)) }
                                     }
                                 }
                                 .focusSection()
+                                .modifier(RowFocus(ids: page.albums.map(\.id), column: $albumColumn, focus: $focusedAlbum, columns: columns.count))
                             }
                         } else if page.detail != nil, !hasOutside {
                             StatusView(state: .empty(t("No albums yet.")))
