@@ -145,6 +145,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Home and Coming soon no longer stall while Sonarr or Radarr is asleep or slow: the last answer is shown while a fresh one is fetched, and one that's down is asked again less and less often in the background.
 - Home's **Latest unwatched shows** row and its featured titles are worked out much faster in a big TV library, without checking every episode against what you've watched.
 - Search answers faster as you type in a library with many cast and crew: people are matched by name in memory, and only the best few have their titles counted.
+- In a big library, Collections, a music library's Genres and a long playlist open faster, a new episode arriving no longer makes the server go over the whole library, and scans and forced refreshes use far less memory.
 
 ### Music, audiobooks and podcasts
 
