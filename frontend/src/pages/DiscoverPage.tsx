@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { getExternalDiscover, getGenreItems, getGenres, getMusicRequestStatus, imageUrl, searchEverything } from '../api/client'
 import { ExternalCard } from '../components/ExternalCard'
+import { musicOfflineText } from '../lib/musicOffline'
+import { useIsAdmin } from '../hooks/sessionContext'
 import { Row } from '../components/Row'
 import { PosterCard } from '../components/Cards'
 import { PageError, PageLoading } from '../components/PageStatus'
@@ -16,6 +18,7 @@ export function DiscoverPage() {
   const genre = params.get('genre')
   const kind = params.get('kind') ?? ''
   const musicStatus = useApi(getMusicRequestStatus, [])
+  const admin = useIsAdmin()
   const offersMusic = musicStatus.data?.configured === true
   // Films and shows, unless Music is chosen and offered (an old link to Music, with music requests since turned off, lands here).
   const films = !music || musicStatus.data?.configured === false
@@ -49,7 +52,7 @@ export function DiscoverPage() {
               <Link to="/discover">{t(Words.discover)}</Link>
             </p>
             <h1>{genre}</h1>
-            <p className="muted">{items.data ? t('{count, plural, other {# titles, best rated first}}', { count: items.data.total }) : ' '}</p>
+            <p className="muted">{items.data ? t('{count, plural, one {# title, best rated first} other {# titles, best rated first}}', { count: items.data.total }) : ' '}</p>
           </div>
           <div className="genre-chips" role="group" aria-label={t('Show')}>
             {[
@@ -98,7 +101,7 @@ export function DiscoverPage() {
           {heading}
           {searchBox}
         </header>
-        {musicStatus.data?.reachable === false && <p className="muted discover-note">{t('Lidarr isn’t answering.')}</p>}
+        {musicStatus.data?.reachable === false && <p className="muted discover-note">{musicOfflineText(admin)}</p>}
         {query ? <MusicSearchResults query={query} /> : <MusicDiscover />}
       </div>
     )
@@ -118,7 +121,7 @@ export function DiscoverPage() {
           <>
             <p className="muted discover-search-note">
               {results.data.filter((title) => title.libraryItemId).length > 0
-                ? t('{count, plural, other {# already in your library. Request anything else to add it.}}', { count: results.data.filter((title) => title.libraryItemId).length })
+                ? t('{count, plural, one {# already in your library. Request anything else to add it.} other {# already in your library. Request anything else to add it.}}', { count: results.data.filter((title) => title.libraryItemId).length })
                 : t('Request anything to add it to your library.')}
             </p>
             {(
@@ -155,7 +158,7 @@ export function DiscoverPage() {
         {heading}
         {searchBox}
       </header>
-      {external.error && <p className="muted discover-note">{t('Seerr isn’t answering, so there’s nothing new to request just now.')}</p>}
+      {external.error && <p className="muted discover-note">{admin ? t('Seerr isn’t answering, so there’s nothing new to request just now.') : t('There’s nothing new to request just now.')}</p>}
       {external.data && external.data.length > 0 && (
         <div className="discover-external">
           {external.data.map((row) => (
@@ -177,11 +180,11 @@ export function DiscoverPage() {
             <span className="genre-name">{g.name}</span>
             <span className="genre-count">
               {g.movies && g.shows
-                ? t('{movies, plural, other {# movies}} and {shows, plural, other {# shows}}', { movies: g.movies, shows: g.shows })
+                ? t('{movies, plural, one {# movie} other {# movies}} and {shows, plural, one {# show} other {# shows}}', { movies: g.movies, shows: g.shows })
                 : g.movies
-                  ? t('{count, plural, other {# movies}}', { count: g.movies })
+                  ? t('{count, plural, one {# movie} other {# movies}}', { count: g.movies })
                   : g.shows
-                    ? t('{count, plural, other {# shows}}', { count: g.shows })
+                    ? t('{count, plural, one {# show} other {# shows}}', { count: g.shows })
                     : ''}
             </span>
           </Link>

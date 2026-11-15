@@ -61,6 +61,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - The web player's Subtitles, Audio, Speed, Quality and Sleep menus work from the keyboard or a TV remote: they open on the current choice, the arrows move through them, and closing one goes back to its button. Seasons and Live TV's views move with the left and right arrows.
 - The web player's full screen button uses the iPhone's own full screen, and is left out where the browser can't go full screen.
 - The search button is read out as Search on phones, shows Ctrl K rather than ⌘K off Apple devices, and the seek bar shows where the keyboard is.
+- Live TV's Recordings asks before stopping a recording that's under way or a series, as it does before deleting one.
+- Profiles other than the main one see plain words on **Coming soon** and Discover in place of Sonarr, Radarr, Lidarr and Seerr's names. A season dropping at once reads S1E3–E5, one title reads 1 title, and Watchlist sorts A–Z like the libraries.
 
 ### Playback
 

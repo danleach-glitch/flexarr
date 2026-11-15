@@ -8,7 +8,7 @@ import { Close, RecordDot, Stop } from '../components/icons'
 import { icon } from '../components/icons.generated'
 import { useApi } from '../hooks/useApi'
 import { usePolling } from '../hooks/usePolling'
-import { useConfirm } from '../hooks/useConfirm'
+import { useConfirm, type ConfirmQuestion } from '../hooks/useConfirm'
 import { formatSize } from '../lib/format'
 import { programmeTime } from '../lib/livetv'
 import { locale, t, Words } from '../i18n'
@@ -77,7 +77,12 @@ export default function LiveRecordings() {
                 <IconButton
                   label={r.state === 'recording' ? t('Stop recording') : t('Don’t record')}
                   icon={r.state === 'recording' ? <Stop /> : <Close />}
-                  onClick={() => act(() => removeRecording(r.id))}
+                  onClick={async () =>
+                    // Stopping one that's under way can't be undone, so it asks; a scheduled one just comes off the list.
+                    (r.state !== 'recording' ||
+                      (await ask({ title: t('Stop recording {title}?', { title: r.title }), detail: t('What’s recorded so far is kept.'), confirmLabel: t('Stop recording') }))) &&
+                    act(() => removeRecording(r.id))
+                  }
                 />
               </li>
             ))}
@@ -90,7 +95,7 @@ export default function LiveRecordings() {
           <h2 className="recordings-heading">{t(Words.series)}</h2>
           <ul className="recordings-list">
             {data.series.map((s) => (
-              <SeriesRow key={s.id} series={s} act={act} />
+              <SeriesRow key={s.id} series={s} act={act} ask={ask} />
             ))}
           </ul>
         </section>
@@ -136,7 +141,15 @@ export default function LiveRecordings() {
   )
 }
 
-function SeriesRow({ series, act }: { series: RecordingSeries; act: (action: () => Promise<unknown>) => Promise<void> }) {
+function SeriesRow({
+  series,
+  act,
+  ask,
+}: {
+  series: RecordingSeries
+  act: (action: () => Promise<unknown>) => Promise<void>
+  ask: (question: ConfirmQuestion) => Promise<boolean>
+}) {
   return (
     <li className="recording-row">
       <div>
@@ -165,7 +178,13 @@ function SeriesRow({ series, act }: { series: RecordingSeries; act: (action: () 
           </label>
         </div>
       </div>
-      <AsyncButton className="button quiet small" onClick={() => act(() => removeSeries(series.id))}>
+      <AsyncButton
+        className="button quiet small"
+        onClick={async () =>
+          (await ask({ title: t('Stop recording {title}?', { title: series.title }), detail: t('Its coming episodes come off the list. What’s been recorded is kept.'), confirmLabel: t('Stop the series') })) &&
+          act(() => removeSeries(series.id))
+        }
+      >
         {t('Stop the series')}
       </AsyncButton>
     </li>

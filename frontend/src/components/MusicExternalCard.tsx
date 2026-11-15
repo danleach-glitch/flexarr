@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 import { ApiError, getMusicRequestStatus, imageUrl, requestMusic, unfollowArtist, unrequestAlbum, type MusicExternal, type MusicRequest } from '../api/client'
 import { useApi } from '../hooks/useApi'
+import { useIsAdmin } from '../hooks/sessionContext'
 import { musicLink } from '../lib/musicLinks'
 import { AsyncButton } from './AsyncButton'
 import { ConfirmDialog } from './ConfirmDialog'
 import { icon } from './icons.generated'
 import { undoFailure } from '../lib/musicUndo'
+import { musicOfflineText } from '../lib/musicOffline'
 import { t, Words } from '../i18n'
 
 type State = MusicExternal['availability'] | 'sending' | 'failed' | 'refused'
@@ -48,6 +50,7 @@ export function MusicRequestButton({
   // Lidarr not answering: say so on the page, and don't offer what can't work. (Cached: every card asks.)
   const status = useApi(getMusicRequestStatus, [])
   const offline = status.data?.reachable === false || unanswered
+  const offlineText = musicOfflineText(useIsAdmin())
 
   async function send() {
     setSent('sending')
@@ -105,11 +108,11 @@ export function MusicRequestButton({
           aria-label={named(kind === 'artist' ? 'following' : 'requested')}
           onClick={() => setAsking(true)}
           disabled={offline}
-          title={offline ? t('Lidarr isn’t answering.') : kind === 'artist' ? t(Words.stopFollowing) : t(Words.unrequest)}
+          title={offline ? offlineText : kind === 'artist' ? t(Words.stopFollowing) : t(Words.unrequest)}
         >
           <Icon aria-hidden /> {kind === 'artist' ? t(Words.following) : t(Words.requested)}
         </AsyncButton>
-        {offline && size === 'large' && <span className="external-state">{t('Lidarr isn’t answering.')}</span>}
+        {offline && size === 'large' && <span className="external-state">{offlineText}</span>}
         {asking && (
           <ConfirmDialog
             title={
@@ -155,11 +158,11 @@ export function MusicRequestButton({
         aria-label={named(state === 'failed' ? 'retry' : kind === 'artist' ? 'follow' : 'request')}
         busy={state === 'sending'}
         disabled={offline}
-        title={offline ? t('Lidarr isn’t answering.') : message}
+        title={offline ? offlineText : message}
       >
         <Icon aria-hidden /> {state === 'failed' ? t('Try again') : kind === 'artist' ? t(Words.follow) : t(Words.requestAlbum)}
       </AsyncButton>
-      {offline && size === 'large' && <span className="external-state">{t('Lidarr isn’t answering.')}</span>}
+      {offline && size === 'large' && <span className="external-state">{offlineText}</span>}
       {state === 'failed' && message && (
         <span className="error" role="alert">
           {message}

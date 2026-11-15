@@ -96,7 +96,7 @@ export function WatchlistPage() {
                 <option value="status">{t('Ready first')}</option>
                 <option value="added">{t(Words.recentlyAdded)}</option>
                 <option value="release">{t('Release date')}</option>
-                <option value="title">{t('Title')}</option>
+                <option value="title">{t(Words.sortAToZ)}</option>
               </select>
             </div>
           </>
