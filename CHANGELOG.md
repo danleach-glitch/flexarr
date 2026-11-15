@@ -101,6 +101,11 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On iPhone, one track the server can't offer no longer stops the rest of an album or playlist from downloading.
 - On iPhone, a download deleted just as it finished no longer leaves its file behind, and space taken by such files is freed when the app next opens.
 - On Android, a download that stopped part way only carries on if the server's file is still the same one; otherwise it starts again.
+- A podcast host that stops answering no longer holds up every download on the server: the episode's download gives up after a minute of silence (or an hour in all) and says why, and the films and episodes behind it get ready again.
+- A podcast episode whose download goes wrong on the server now says it failed, with **Try again**, instead of staying at **Getting ready** for good.
+- A download whose file was replaced on the server (Sonarr or Radarr upgraded it, say) now says so, so it can be downloaded again, instead of failing to fetch for a week.
+- Deleting a download while it's being converted now stops the conversion within seconds, even for a file whose length isn't known.
+- A phone and a tablet of one profile downloading the same title (a podcast's newest episodes, say) now both get it: the server keeps its copy until each has it, instead of the second failing with "This download ran out on the server".
 
 ### Trakt
 
@@ -189,14 +194,6 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Settings no longer offers **Lock settings** before an admin PIN has been chosen to lock them with.
 - On a phone, the keyboard's focus ring shows whole around a page in Settings' row of pages.
 - Live TV's title is the same size as every other page's, with the same room under it.
-
-### Downloads
-
-- A podcast host that stops answering no longer holds up every download on the server: the episode's download gives up after a minute of silence (or an hour in all) and says why, and the films and episodes behind it get ready again.
-- A podcast episode whose download goes wrong on the server now says it failed, with **Try again**, instead of staying at **Getting ready** for good.
-- A download whose file was replaced on the server (Sonarr or Radarr upgraded it, say) now says so, so it can be downloaded again, instead of failing to fetch for a week.
-- Deleting a download while it's being converted now stops the conversion within seconds, even for a file whose length isn't known.
-- A phone and a tablet of one profile downloading the same title (a podcast's newest episodes, say) now both get it: the server keeps its copy until each has it, instead of the second failing with "This download ran out on the server".
 
 ### Playback
 
