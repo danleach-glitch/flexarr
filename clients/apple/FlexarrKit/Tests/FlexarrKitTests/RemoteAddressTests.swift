@@ -121,7 +121,8 @@ struct RemoteAddressTests {
         #expect(addresses.needsProof(remote))
         #expect(!(await addresses.prove(remote) { _, _ in false }))
         #expect(addresses.needsProof(remote))
-        #expect(await addresses.prove(remote) { url, id in url == remote && id == "home-id" })
+        // Just missed, so asked again only on purpose (see `remoteMissLasts`).
+        #expect(await addresses.prove(remote, fresh: true) { url, id in url == remote && id == "home-id" })
         #expect(!addresses.needsProof(remote, now: Date() + 3600), "a Tailscale address stays proven")
         #expect(addresses.remoteHasProven)
         // Confirmed, or a server with no id: never asked.

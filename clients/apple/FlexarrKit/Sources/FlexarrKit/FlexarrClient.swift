@@ -214,17 +214,20 @@ public struct FlexarrClient: Sendable {
         if Self.simulatesOffline { return false }
         // Its own connections, as the reachability check's: never in line behind artwork.
         let session = session === URLSession.shared ? Self.probeSession : session
+        // Home may be slow to wake; the away address is only asked while Tailscale may well be off, so it isn't waited
+        // on as long.
+        let limit: TimeInterval = url == addresses.home ? 20 : 10
         return await addresses.prove(url, fresh: fresh) { there, id in
-            await Self.idAnswering(at: there, session: session) == id
+            await Self.idAnswering(at: there, session: session, timeout: limit) == id
         }
     }
 
     /// The id of the server answering at `url` (GET /setup, which anyone may ask), asked without any sign-in and
     /// without following a redirect; nil when nothing answered, or what did gave none. Waits as long as a request
-    /// would, so a server that's slow to wake is still found.
-    private static func idAnswering(at url: URL, session: URLSession) async -> String? {
+    /// would (`timeout`), so a server that's slow to wake is still found.
+    private static func idAnswering(at url: URL, session: URLSession, timeout: TimeInterval) async -> String? {
         var request = GuestTunnelToken.request(url.appending(path: "api/v1/setup"))
-        request.timeoutInterval = 20
+        request.timeoutInterval = timeout
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         guard let (data, response) = try? await session.data(for: request, delegate: NoRedirects.shared),
               (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }

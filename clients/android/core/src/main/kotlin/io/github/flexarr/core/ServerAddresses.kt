@@ -51,6 +51,10 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
     private var remoteVerified = false
     private var remoteCheck: Deferred<Boolean>? = null
 
+    /** When the away address last failed to answer with the server's id (see [REMOTE_MISS_MS]). */
+    @Volatile
+    private var remoteMissedAt: Long? = null
+
     /** Whether the away address may be sent the sign-in now without asking it first. */
     val remoteTrustedNow: Boolean get() = remoteConfirmed || remoteVerified || serverId == null
 
@@ -61,13 +65,21 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
      * Whether the away address may be sent the sign-in, asking it with [verify] (once at a time, however many requests
      * wait) when it isn't confirmed yet.
      */
-    internal suspend fun checkRemote(verify: suspend () -> Boolean): Boolean {
+    internal suspend fun checkRemote(now: Long = System.currentTimeMillis(), verify: suspend () -> Boolean): Boolean {
         if (remoteTrustedNow) return true
+        // Asked lately and it didn't answer: still not there, rather than every request waiting on it afresh.
+        remoteMissedAt?.let { if (now - it < REMOTE_MISS_MS) return false }
         val check = synchronized(this) {
             remoteCheck?.takeIf { it.isActive } ?: checks.async { verify() }.also { remoteCheck = it }
         }
         val ok = runCatching { check.await() }.getOrDefault(false)
-        if (ok) remoteVerified = true
+        if (ok) {
+            val first = synchronized(this) { !remoteVerified.also { remoteVerified = true } }
+            remoteMissedAt = null
+            if (first) onRemoteProven?.invoke(this)
+        } else {
+            remoteMissedAt = System.currentTimeMillis()
+        }
         return ok
     }
 
@@ -96,6 +108,8 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
     /** Another network: whatever answers at home there has to show it's this server again. */
     fun networkChanged() {
         homeVerified = false
+        // Tailscale may have come up with it.
+        remoteMissedAt = null
     }
 
     /** The address requests go to now. */
@@ -142,6 +156,19 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
 
         /** How long home has to answer with the server's id before the sign-in goes elsewhere. */
         const val HOME_PROBE_MS = 2_000L
+
+        /**
+         * How long an away address that didn't answer with the server's id counts as not there before it's asked again
+         * (sooner on a new network), so while Tailscale is off each request isn't held up asking it.
+         */
+        const val REMOTE_MISS_MS = 30_000L
+
+        /**
+         * Called when an away address kept unconfirmed first answers with the server's id, so the app can keep it as
+         * confirmed straight away. Set once at launch.
+         */
+        @Volatile
+        var onRemoteProven: ((ServerAddresses) -> Unit)? = null
 
         private val registry = mutableMapOf<String, ServerAddresses>()
 

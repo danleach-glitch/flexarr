@@ -366,4 +366,35 @@ struct HomeProofTests {
         store.clear()
         #expect(UserDefaults(suiteName: suite)?.string(forKey: "\(suite).address.serverId") == nil)
     }
+
+    @Test func anAwayAddressThatDidNotAnswerIsNotAskedAgainStraightAway() async {
+        let addresses = ServerAddresses(home: URL(string: "http://home.local:8383")!, remote: URL(string: "https://srv.tail.ts.net")!,
+                                        serverId: Self.id, remoteConfirmed: false)
+        let remote = addresses.remote!
+        let asked = Counter()
+        let ask: @Sendable (URL, String) async -> Bool = { _, _ in asked.add(); return false }
+        let start = Date()
+
+        #expect(await addresses.prove(remote, now: start, by: ask) == false)
+        #expect(await addresses.prove(remote, now: start.addingTimeInterval(5), by: ask) == false)
+        #expect(asked.count == 1, "a miss is remembered for a while")
+        // Asked on purpose (is it there now?), and once the while is up, it's asked again.
+        #expect(await addresses.prove(remote, fresh: true, now: start.addingTimeInterval(5), by: ask) == false)
+        #expect(await addresses.prove(remote, now: Date().addingTimeInterval(ServerAddresses.remoteMissLasts + 1), by: ask) == false)
+        #expect(asked.count == 3)
+    }
+
+    @Test func theAwayAddressProvingItselfIsAnnouncedOnce() async {
+        let addresses = ServerAddresses(home: URL(string: "http://home.local:8383")!, remote: URL(string: "https://srv.tail.ts.net")!,
+                                        serverId: Self.id, remoteConfirmed: false)
+        let heard = Counter()
+        let observer = NotificationCenter.default.addObserver(forName: ServerAddresses.remoteProvenNotification,
+                                                              object: addresses, queue: nil) { _ in heard.add() }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        #expect(await addresses.prove(addresses.remote!, by: { _, _ in true }))
+        #expect(await addresses.prove(addresses.remote!, fresh: true, by: { _, _ in true }))
+        #expect(heard.count == 1)
+        #expect(addresses.remoteHasProven)
+    }
 }

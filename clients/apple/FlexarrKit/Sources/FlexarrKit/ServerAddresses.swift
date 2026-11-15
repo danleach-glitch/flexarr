@@ -40,12 +40,18 @@ public final class ServerAddresses: @unchecked Sendable {
     /// How long home stays trusted after it last said who it is or answered a request: a device can't have gone to
     /// another network and found something at the same address in less.
     public static let proofLasts: TimeInterval = 60
+    /// How long an away address that didn't give the server's id counts as not there before it's asked again, so
+    /// while Tailscale is off each request isn't held up asking it afresh.
+    public static let remoteMissLasts: TimeInterval = 30
+    /// Posted (object: the `ServerAddresses`) when the away address first gives the server's id.
+    public static let remoteProvenNotification = Notification.Name("io.github.flexarr.server.remoteProven")
 
     private let lock = NSLock()
     private var _current: URL
     private var homeCheckedAt: Date?
     private var homeProvenAt: Date?
     private var remoteProven = false
+    private var remoteMissedAt: Date?
     /// Who's waiting on each address's answer while one is being asked.
     private var proofWaiters: [URL: [AsyncStream<Bool>.Continuation]] = [:]
     /// Where the address that answered last is kept between launches; nil keeps nothing.
@@ -150,9 +156,13 @@ public final class ServerAddresses: @unchecked Sendable {
                by ask: @escaping @Sendable (_ url: URL, _ id: String) async -> Bool) async -> Bool {
         guard let serverId, asksProof(of: url) else { return true }
         let (answers, waiter) = AsyncStream<Bool>.makeStream()
-        enum Step { case proven, wait, ask }
+        enum Step { case proven, missed, wait, ask }
         let step: Step = lock.withLock {
             if !fresh, isProven(url, now) { return .proven }
+            // Asked lately and it didn't answer: still not there.
+            if !fresh, url != home, let remoteMissedAt, now.timeIntervalSince(remoteMissedAt) < Self.remoteMissLasts {
+                return .missed
+            }
             let underWay = proofWaiters[url] != nil
             proofWaiters[url, default: []].append(waiter)
             return underWay ? .wait : .ask
@@ -160,6 +170,9 @@ public final class ServerAddresses: @unchecked Sendable {
         switch step {
         case .proven:
             return true
+        case .missed:
+            waiter.finish()
+            return false
         case .ask:
             // On its own, so one request being cancelled doesn't take the answer from the rest.
             Task.detached {
@@ -174,14 +187,20 @@ public final class ServerAddresses: @unchecked Sendable {
     }
 
     private func proofEnded(_ url: URL, _ same: Bool) {
-        let waiting = lock.withLock {
+        let (waiting, firstProof) = lock.withLock {
+            var first = false
             if url == home {
                 homeProvenAt = same ? Date() : nil
             } else if same {
+                first = !remoteProven
                 remoteProven = true
+                remoteMissedAt = nil
+            } else {
+                remoteMissedAt = Date()
             }
-            return proofWaiters.removeValue(forKey: url) ?? []
+            return (proofWaiters.removeValue(forKey: url) ?? [], first)
         }
+        if firstProof { NotificationCenter.default.post(name: Self.remoteProvenNotification, object: self) }
         for waiter in waiting {
             waiter.yield(same)
             waiter.finish()
