@@ -196,6 +196,12 @@ struct DetailView: View {
                 LinearGradient(stops: [.init(color: .clear, location: 0.3), .init(color: .room.opacity(0.6), location: 1)],
                                startPoint: .top, endPoint: .bottom)
             }
+            // A short dark fade across the top, so the clock and battery stay readable over pale artwork.
+            .overlay(alignment: .top) {
+                LinearGradient(colors: [.black.opacity(0.45), .clear], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 100)
+                    .allowsHitTesting(false)
+            }
             // Fade out rather than painting the room colour, so there's no seam with the ambient wash behind.
             .mask(LinearGradient(stops: [.init(color: .black, location: 0.55), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
             // Edge to edge on a phone held sideways, not stopping at the safe area's lines; the words stay inside them.
