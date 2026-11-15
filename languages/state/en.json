@@ -2853,6 +2853,7 @@
   "The server took too long to answer.": "w",
   "The server took too long to answer. Is it on the same network as this {device}?": "a",
   "The server’s address couldn’t be read.": "a",
+  "The server’s disk is nearly full, so this can’t be played right now.": "s",
   "The server’s https certificate isn’t trusted. Try its http address on your local network.": "a",
   "The server’s log has it, and a link that fills it in for you.": "w",
   "The settings in this backup can’t be read.": "s",

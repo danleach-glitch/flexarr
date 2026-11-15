@@ -523,7 +523,7 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         }
         catch (IOException)
         {
-            // Files may still be open briefly on some platforms; the cleanup sweep retries.
+            // Files may still be open briefly on some platforms; the cache janitor retries (DeleteOrphans).
         }
     }
 

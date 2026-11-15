@@ -406,6 +406,33 @@ public sealed class TranscodeSessionTests : IDisposable
     }
 
     [Fact]
+    public async Task WithTheDiskNearlyFull_StreamsNobodyIsPlayingFreeTheirs_ThenNewOnesAreRefused()
+    {
+        await using var manager = Manager(limit: 0);
+        long free = TranscodeManager.MinFreeBytes * 2;
+        manager.FreeBytes = _ => free;
+        var idle = await manager.CreateAsync("a", "/in.mkv", 600, Plan);
+        File.WriteAllText(Path.Combine(idle.Directory, "seg0.ts"), "x");
+        idle.LastAccess = DateTime.UtcNow - TimeSpan.FromMinutes(5);
+        var playing = await manager.CreateAsync("b", "/in.mkv", 600, Plan);
+        File.WriteAllText(Path.Combine(playing.Directory, "seg0.ts"), "x");
+
+        // Nearly full: the sweep frees the paused stream's segments (keeping it, to carry on), not the one playing.
+        free = TranscodeManager.MinFreeBytes - 1;
+        await manager.SweepAsync();
+        Assert.Empty(Directory.EnumerateFiles(idle.Directory));
+        Assert.NotNull(manager.Get(idle.Id));
+        Assert.NotEmpty(Directory.EnumerateFiles(playing.Directory));
+
+        // Still full: a new stream is refused, saying why.
+        var refused = await Assert.ThrowsAsync<TranscodeLimitException>(() => manager.CreateAsync("c", "/in.mkv", 600, Plan));
+        Assert.Contains("disk", refused.Message, StringComparison.Ordinal);
+
+        free = TranscodeManager.MinFreeBytes;
+        Assert.NotNull(await manager.CreateAsync("c", "/in.mkv", 600, Plan));
+    }
+
+    [Fact]
     public async Task ConvertingInSoftware_NothingIsGotReadyAheadOfPlay_WhileSomeoneWatchesAConversion()
     {
         await using var software = Manager(limit: 0, hw: HardwareAcceleration.None);
