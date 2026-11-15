@@ -826,6 +826,7 @@ export interface Podcast {
   unplayedCount: number
   latestEpisodeAt: string | null
   iTunesId: number | null
+  /** In full only for a follower or the main profile; anyone else gets just where it's from (servers after 0.66). */
   feedUrl: string
   checkedAt: string | null
   /** Why the feed couldn't be fetched last time. */

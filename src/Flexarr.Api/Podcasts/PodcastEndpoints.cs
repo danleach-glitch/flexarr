@@ -51,6 +51,14 @@ public sealed record PodcastPreferencesDto(bool AutoDownload, int KeepEpisodes, 
 public sealed record PodcastPreferencesRequest(bool? AutoDownload = null, int? KeepEpisodes = null, double? Speed = null, bool? ShowInSidebar = null,
     int? SkipBackSeconds = null, int? SkipForwardSeconds = null, bool? SmartRewind = null);
 
+/// <param name="FeedUrl">
+/// The feed's address in full for a profile that follows the podcast and for the main profile; for anyone else, on
+/// servers after 0.66, only where it's from (<c>https://feeds.example.com/</c>), as a private feed's address carries its key (see
+/// <see cref="PodcastEndpoints.FeedAddress"/>). Before that every profile got it in full. That narrows what the field
+/// means for those profiles, which the API otherwise never does: accepted, because no app reads it (they show the
+/// podcast by its id, title and artwork) and a key shown to profiles that don't follow the feed is the worse harm. An
+/// app that needs the address subscribes first.
+/// </param>
 public sealed record PodcastDto(
     Guid Id,
     string Title,
