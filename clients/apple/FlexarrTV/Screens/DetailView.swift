@@ -431,31 +431,9 @@ struct DetailView: View {
 
     private func seasonsSection(_ seasonList: [ItemSummary]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            ScrollView(.horizontal) {
-                HStack(spacing: 18) {
-                    ForEach(seasonList) { season in
-                        // "Season 1" with a quieter "8 of 10" beside it when some of its aired episodes aren't in the library.
-                        Button { selectedSeasonID = season.id } label: {
-                            HStack(spacing: 10) {
-                                Text(season.title)
-                                if let count = gaps.countLabel(season: season.seasonNumber) {
-                                    Text(count).font(.system(size: 22, weight: .medium)).opacity(0.7)
-                                }
-                            }
-                        }
-                            .buttonStyle(PillButtonStyle(selected: season.id == selectedSeasonID, ambient: ambient))
-                            .focused($focusedSeason, equals: season.id)
-                    }
-                }
-                .padding(.horizontal, Layout.edge)
-                .padding(.vertical, 20)
-            }
-            .scrollClipDisabled()
-            .focusSection()
-            .defaultFocus($focusedSeason, selectedSeasonID, priority: .userInitiated)
-            .onChange(of: focusedSeason) { _, id in
-                // Like the TV app: moving across the seasons switches the episode list.
-                if let id { selectedSeasonID = id }
+            // A home video folder holding one folder (often its own name) needs no pill to choose it.
+            if !(seasonList.count == 1 && seasonList.first?.homeVideo == true) {
+                seasonPills(seasonList)
             }
 
             if let season = selectedSeason {
@@ -466,6 +444,35 @@ struct DetailView: View {
         }
         .id("episodes")
         .task(id: selectedSeasonID) { await loadSelectedSeason() }
+    }
+
+    private func seasonPills(_ seasonList: [ItemSummary]) -> some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 18) {
+                ForEach(seasonList) { season in
+                    // "Season 1" with a quieter "8 of 10" beside it when some of its aired episodes aren't in the library.
+                    Button { selectedSeasonID = season.id } label: {
+                        HStack(spacing: 10) {
+                            Text(season.title)
+                            if let count = gaps.countLabel(season: season.seasonNumber) {
+                                Text(count).font(.system(size: 22, weight: .medium)).opacity(0.7)
+                            }
+                        }
+                    }
+                        .buttonStyle(PillButtonStyle(selected: season.id == selectedSeasonID, ambient: ambient))
+                        .focused($focusedSeason, equals: season.id)
+                }
+            }
+            .padding(.horizontal, Layout.edge)
+            .padding(.vertical, 20)
+        }
+        .scrollClipDisabled()
+        .focusSection()
+        .defaultFocus($focusedSeason, selectedSeasonID, priority: .userInitiated)
+        .onChange(of: focusedSeason) { _, id in
+            // Like the TV app: moving across the seasons switches the episode list.
+            if let id { selectedSeasonID = id }
+        }
     }
 
     private func episodesRow(title: String, season: ItemDetail) -> some View {
@@ -684,7 +691,10 @@ struct EpisodeCard: View {
         } caption: { focused in
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 14) {
-                    Text(episode.episodeNumber.map { t("Episode {number}", ["number": $0]) } ?? t("Special"))
+                    // Home videos go by their names, not numbers.
+                    if episode.homeVideo != true {
+                        Text(episode.episodeNumber.map { t("Episode {number}", ["number": $0]) } ?? t("Special"))
+                    }
                     if let time = timeText { Text(time) }
                 }
                 .font(.system(size: 20, weight: .semibold))
