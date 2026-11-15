@@ -47,6 +47,7 @@ import io.github.flexarr.core.OfflineCheck
 import io.github.flexarr.core.OfflineDownload
 import io.github.flexarr.core.checkOffline
 import io.github.flexarr.core.PlaylistSummary
+import io.github.flexarr.core.ProfileTells
 import io.github.flexarr.core.ServerAnswer
 import io.github.flexarr.core.TransferQueue
 import io.github.flexarr.core.UnsentReport
@@ -182,11 +183,25 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
             prefs.edit { putStringSet(SKIPPED_NEXT, value) }
         }
 
-    /** Downloads deleted here that the server hasn't heard about yet (it was out of reach): told on the next catch-up. */
+    /**
+     * Downloads deleted here that the server hasn't heard about yet ([ProfileTells] entries): out of reach, or another
+     * profile's, told on a catch-up signed in as theirs.
+     */
     private var unsentDeletes: Set<String> = prefs.getStringSet(UNSENT_DELETES, emptySet())!!.toSet()
         set(value) {
             field = value
             prefs.edit { putStringSet(UNSENT_DELETES, value) }
+        }
+
+    /**
+     * Downloads that have come whose server hasn't been told yet ([ProfileTells] entries), once the list saying they're
+     * here is on disk ([saved]): out of reach, or another profile's, told on a catch-up signed in as theirs. Untold, the
+     * server keeps its copy of the file for a week.
+     */
+    private var unsentReceipts: Set<String> = prefs.getStringSet(UNSENT_RECEIPTS, emptySet())!!.toSet()
+        set(value) {
+            field = value
+            prefs.edit { putStringSet(UNSENT_RECEIPTS, value) }
         }
 
     /**
@@ -450,9 +465,23 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
 
     // Connecting
 
+    /**
+     * The profile [client] answers as, once known: null with no client, or while nobody's chosen (Who's watching) or
+     * the profiles haven't been heard yet.
+     */
+    private var attachedProfile: String? = null
+
+    /**
+     * The profile the transfers' sign-in answers as: the one attached; restarted in the background before anything's
+     * attached, the one remembered (the saved sign-in's). The server answers about a download only to its own profile,
+     * so nothing is asked or told for anyone else's (they wait until that profile is chosen again).
+     */
+    internal val signedInProfile: String? get() = if (client != null) attachedProfile else profileId
+
     /** The signed-in server and profile, as they change (a null profile keeps the remembered one: offline, say). */
     fun attach(client: FlexarrClient?, profileId: String?) {
         this.client = client
+        attachedProfile = if (client == null) null else profileId
         if (profileId != null && profileId != this.profileId) {
             this.profileId = profileId
             prefs.edit { putString(PROFILE, profileId) }
@@ -574,16 +603,8 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         removeFinished()
         val client = currentClient ?: return
         if (!isOnline) return
-        for (id in unsentDeletes) {
-            try {
-                client.deleteDownload(id)
-                unsentDeletes = unsentDeletes - id
-            } catch (e: FlexarrException.Http) {
-                if (e.status == 404) unsentDeletes = unsentDeletes - id
-            } catch (_: FlexarrException) {
-                break // still out of reach
-            }
-        }
+        // Only this profile's: another's would be refused (404) and dropped, so they wait for a sign-in as theirs.
+        tellDue(client)
         // Once for all the plays sent, not once each: every screen listening fetches its titles again.
         var sent = false
         try {
@@ -604,9 +625,10 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
             if (remote.item.kind != MediaKind.Unknown) update(download.id) { it.copy(item = remote.item) }
         }
         removeKeptFromProfile(client)
-        // A transfer for everything still to come (one that's running already is left alone), and for those waiting
-        // their turn as places come free.
-        all.filter { it.isPending }.forEach { enqueue(it, replace = false) }
+        // A transfer for everything of this profile's still to come (one that's running already is left alone), and for
+        // those waiting their turn as places come free. Another profile's waits until it's chosen again: the server
+        // answers about a download only to its own profile.
+        downloads.filter { it.isPending }.forEach { enqueue(it, replace = false) }
         startWaiting()
         downloads.forEach { fetchNext(after = it) }
         reconcilePodcasts()
@@ -912,8 +934,35 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         val here = DownloadRules.savedArrivals(unacknowledged, list)
         if (here.isEmpty()) return
         unacknowledged -= here
+        val owners = list.associate { it.id to it.profileId }
+        unsentReceipts = unsentReceipts + here.mapNotNull { id -> owners[id]?.let { ProfileTells.entry(id, it) } }
         val client = currentClient ?: return
-        here.forEach { id -> scope.launch { runCatching { client.markDownloadReceived(id) } } }
+        scope.launch { tellDue(client) }
+    }
+
+    /**
+     * Tells the server what it's still to hear of the signed-in profile's downloads ([signedInProfile]): ones deleted
+     * here, then ones that have come. Out of reach, the rest wait for the next catch-up; one the server hasn't heard of
+     * (404) is let go.
+     */
+    private suspend fun tellDue(client: FlexarrClient) {
+        val profile = signedInProfile ?: return
+        suspend fun tell(entries: () -> Set<String>, forget: (String) -> Unit, send: suspend (String) -> Unit) {
+            for ((entry, id) in ProfileTells.due(entries(), profile)) {
+                // Another profile chosen meanwhile: the client is still the last one's, but what's due has changed.
+                if (signedInProfile != profile) return
+                try {
+                    send(id)
+                    forget(entry)
+                } catch (e: FlexarrException.Http) {
+                    if (e.status == 404) forget(entry)
+                } catch (_: FlexarrException) {
+                    return // still out of reach
+                }
+            }
+        }
+        tell({ unsentDeletes }, { unsentDeletes = unsentDeletes - it }) { client.deleteDownload(it) }
+        tell({ unsentReceipts }, { unsentReceipts = unsentReceipts - it }) { client.markDownloadReceived(it) }
     }
 
     internal fun failed(id: String, message: String) {
@@ -1043,7 +1092,9 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
      * Wi-Fi, it isn't asked for until there's some (coming back to Wi-Fi catches up).
      */
     private fun fetchNext(after: LocalDownload) {
-        if (!downloadsNext) return
+        // Another profile's (it came while someone else was watching): asked for now, it would be theirs. Its own
+        // catch-up fetches it.
+        if (!downloadsNext || after.profileId != signedInProfile) return
         val next = DownloadRules.nextToFetch(after, all, skippedNext) ?: return
         if (currentClient == null || !mayStartAutomatic) return
         scope.launch { runCatching { download(next, after.quality, automatic = true) }.onFailure { flexarrLog.warning("Couldn't fetch the next episode", it) } }
@@ -1179,23 +1230,13 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
             pictures.forEach { fileIn(folder, it)?.delete() }
         }
         if (going.any { it.isPending }) startWaitingSoon()
+        unsentReceipts = unsentReceipts.filterNot { ProfileTells.parse(it).second in goingIds }.toSet()
         if (!tellServer) return
-        // The server drops its copies (and won't offer a podcast episode again); out of reach, it's told later.
-        unsentDeletes = unsentDeletes + goingIds
+        // The server drops its copies (and won't offer a podcast episode again), told as each one's own profile: out of
+        // reach, or someone else's, it's told later.
+        unsentDeletes = unsentDeletes + going.map { ProfileTells.entry(it.id, it.profileId) }
         val client = currentClient ?: return
-        scope.launch {
-            for (id in goingIds) {
-                try {
-                    client.deleteDownload(id)
-                    unsentDeletes = unsentDeletes - id
-                } catch (e: FlexarrException.Http) {
-                    if (e.status == 404) unsentDeletes = unsentDeletes - id
-                } catch (_: FlexarrException.Unreachable) {
-                    break // the rest are told on the next catch-up too
-                } catch (_: FlexarrException) {
-                }
-            }
-        }
+        scope.launch { tellDue(client) }
     }
 
     /**
@@ -1238,7 +1279,9 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         hurry.trySend(Unit)
         saveCollections()
         profileId = null
+        attachedProfile = null
         unsentDeletes = emptySet()
+        unsentReceipts = emptySet()
         prefs.edit { remove(PROFILE).remove(KEPT_FOR) }
         forgetAllStarted()
         this.client = null
@@ -1332,6 +1375,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         private const val SKIPPED_NEXT = "skippedNextEpisodes"
         private const val FRESH_PLACE_MS = 3_000L
         private const val UNSENT_DELETES = "unsentDeletes"
+        private const val UNSENT_RECEIPTS = "unsentReceipts"
         private const val SERVER = "server"
         private const val KEPT_REPORTS = "keptReports"
         private const val STARTED_GROUPS = "startedGroups"

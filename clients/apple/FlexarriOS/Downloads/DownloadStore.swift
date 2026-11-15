@@ -307,10 +307,15 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     @ObservationIgnored var skippedNext: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "downloads.skippedNext") ?? []) {
         didSet { UserDefaults.standard.set(Array(skippedNext), forKey: "downloads.skippedNext") }
     }
-    /// Downloads deleted here that the server hasn't heard about yet (it was out of reach): told on the next catch-up,
-    /// so it doesn't keep a copy, nor offer the episode again.
+    /// Downloads deleted here that the server hasn't heard about yet (`ProfileTells` entries): out of reach, or another
+    /// profile's, told on a catch-up signed in as theirs, so it doesn't keep a copy, nor offer the episode again.
     @ObservationIgnored private var unsentDeletes: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "downloads.unsentDeletes") ?? []) {
         didSet { UserDefaults.standard.set(Array(unsentDeletes), forKey: "downloads.unsentDeletes") }
+    }
+    /// Downloads that have come whose server hasn't been told yet (`ProfileTells` entries): out of reach, or another
+    /// profile's, told on a catch-up signed in as theirs. Untold, the server keeps its copy of the file for a week.
+    @ObservationIgnored private var unsentReceipts: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "downloads.unsentReceipts") ?? []) {
+        didSet { UserDefaults.standard.set(Array(unsentReceipts), forKey: "downloads.unsentReceipts") }
     }
     /// Where transfers paused for want of Wi-Fi, or cut off part-way, had got to, to carry on from there.
     @ObservationIgnored private var resumeData: [String: Resumable] = [:]
@@ -631,16 +636,8 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     private func catchUpNow() async {
         deleteFinished()
         guard let client, isOnline else { return }
-        for id in unsentDeletes {
-            do {
-                try await client.deleteDownload(id)
-                unsentDeletes.remove(id)
-            } catch FlexarrClientError.http(status: 404, _) {
-                unsentDeletes.remove(id)
-            } catch {
-                break // still out of reach
-            }
-        }
+        // Only the attached profile's: another's would be refused (404) and dropped, so they wait for a sign-in as theirs.
+        await tellDue(with: client)
         var sent = false
         for download in all where download.profileId == profileId {
             guard download.unsent != nil else { continue }
@@ -677,6 +674,29 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         poll()
         resumeBooks()
         await reconcilePodcasts()
+    }
+
+    /// Tells the server what it's still to hear of the attached profile's downloads: ones deleted here, then ones that
+    /// have come. Out of reach, the rest wait for the next catch-up; one the server hasn't heard of (404) is let go.
+    private func tellDue(with client: FlexarrClient) async {
+        guard let profile = attachedProfileId else { return }
+        func tell(_ entries: Set<String>, forget: (String) -> Void, _ send: (String) async throws -> Void) async -> Bool {
+            for (entry, id) in ProfileTells.due(entries, profileId: profile) {
+                // Another profile attached meanwhile: what's due has changed.
+                guard attachedProfileId == profile else { return false }
+                do {
+                    try await send(id)
+                    forget(entry)
+                } catch FlexarrClientError.http(status: 404, _) {
+                    forget(entry)
+                } catch {
+                    return false // still out of reach
+                }
+            }
+            return true
+        }
+        guard await tell(unsentDeletes, forget: { unsentDeletes.remove($0) }, { try await client.deleteDownload($0) }) else { return }
+        _ = await tell(unsentReceipts, forget: { unsentReceipts.remove($0) }, { try await client.markDownloadReceived($0) })
     }
 
     /// Downloads this profile may no longer play: a title a parent has since blocked, put above a lowered age limit or
@@ -945,7 +965,12 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
 
     // MARK: Books
 
-    nonisolated private static func bookDownloadId(_ itemId: String) -> String { "book-\(itemId)" }
+    /// A book's download, and its folder: the profile's own, so two profiles can each keep the same book (books kept
+    /// before this have "book-<item>", which still works: everything finds them by the id saved with them).
+    nonisolated private static func bookDownloadId(_ itemId: String, profileId: String) -> String {
+        let safe = { (part: String) in String(part.map { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" ? $0 : "_" }) }
+        return "book-\(safe(profileId))-\(safe(itemId))"
+    }
 
     /// Downloads a whole book: its manifest from the server (the files as they are, or converted where this phone
     /// can't play their sound), then each file into one folder, all under one entry.
@@ -956,7 +981,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             delete(existing.id)
         }
         let manifest = try await client.bookManifest(item.id, codecs: MusicPlayer.bookCodecs)
-        let id = Self.bookDownloadId(item.id)
+        let id = Self.bookDownloadId(item.id, profileId: profileId)
         let folder = id
         try? FileManager.default.createDirectory(at: Self.folder.appending(path: folder, directoryHint: .isDirectory), withIntermediateDirectories: true)
         var local = LocalDownload(id: id, profileId: profileId, quality: .original, item: item, markers: [], durationSeconds: manifest.durationSeconds,
@@ -1243,6 +1268,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             try? FileManager.default.removeItem(at: Self.folder.appending(path: name))
         }
         all.removeAll { $0.id == id }
+        unsentReceipts = unsentReceipts.filter { ProfileTells.parse($0).id != id }
         progressShownAt[id] = nil
         save(rightAway: true) // its file has gone
         removeImageIfUnused(download.imageFileName)
@@ -1253,17 +1279,11 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             for key in resumeData.keys where key.hasPrefix("\(id)#") { resumeData[key] = nil }
             return
         }
-        // The server drops its copy (and, for a podcast episode, won't offer it again); out of reach, it's told later.
-        unsentDeletes.insert(id)
-        if let client {
-            Task {
-                do {
-                    try await client.deleteDownload(id)
-                    unsentDeletes.remove(id)
-                } catch FlexarrClientError.http(status: 404, _) {
-                    unsentDeletes.remove(id)
-                } catch {}
-            }
+        // The server drops its copy (and, for a podcast episode, won't offer it again), told as the download's own
+        // profile: out of reach, or someone else's, it's told later.
+        unsentDeletes.insert(ProfileTells.entry(id, profileId: download.profileId))
+        if let client, attachedProfileId == download.profileId {
+            Task { await tellDue(with: client) }
         }
     }
 
@@ -1385,7 +1405,9 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     /// was itself fetched this way is the episode ahead, and brings the one after only once it's been watched
     /// (otherwise each would bring the next, to the end of the show); and one deleted by hand isn't brought back.
     private func fetchNext(after download: LocalDownload) {
-        guard downloadsNext, isOnWiFi || !autoDownloadsOnWiFiOnly,
+        // Another profile's (it came while someone else was watching): asked for now, it would be theirs. Its own
+        // catch-up fetches it.
+        guard downloadsNext, isOnWiFi || !autoDownloadsOnWiFiOnly, download.profileId == attachedProfileId,
               let nextId = NextEpisodeRule.nextToFetch(kind: download.item.kind, isDownloaded: download.isDownloaded, automatic: download.automatic,
                                                         watched: download.finishedAt != nil, nextId: download.nextId, skipped: skippedNext),
               entry(for: nextId) == nil else { return }
@@ -1719,8 +1741,14 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         }
         save(rightAway: true) // its file is here
         log.info("Downloaded \(id)")
-        if let client { Task { try? await client.markDownloadReceived(id) } }
-        if let download = all.first(where: { $0.id == id }) { fetchNext(after: download) }
+        guard let download = all.first(where: { $0.id == id }) else { return }
+        // The server lets its copy go, told as the download's own profile: another's (it came while someone else was
+        // watching), or out of reach, is told on a catch-up signed in as theirs.
+        unsentReceipts.insert(ProfileTells.entry(id, profileId: download.profileId))
+        if let client, attachedProfileId == download.profileId {
+            Task { await tellDue(with: client) }
+        }
+        fetchNext(after: download)
     }
 
     /// `wifiOnly`: whether the transfer was made Wi-Fi only, kept with where it got to.

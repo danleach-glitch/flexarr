@@ -83,10 +83,38 @@ object BookDownloadRules {
         return next.takeIf { candidate -> books.none { it.profileId == book.profileId && it.itemId == candidate.id } }
     }
 
-    /** The name a book's file [index] is kept under. */
-    fun fileName(itemId: String, index: Int): String = "book-${safe(itemId)}-$index.audio"
+    /**
+     * The name a book's file [index] is kept under: [profileId]'s own, so two profiles keeping the same book don't share
+     * (and delete) each other's files.
+     */
+    fun fileName(itemId: String, profileId: String, index: Int): String = "book-${safe(profileId)}-${safe(itemId)}-$index.audio"
 
-    fun imageName(itemId: String): String = "book-${safe(itemId)}.jpg"
+    fun imageName(itemId: String, profileId: String): String = "book-${safe(profileId)}-${safe(itemId)}.jpg"
+
+    /** The names before they were each profile's: books kept since may still have their files under these. */
+    private fun sharedFileName(itemId: String, index: Int): String = "book-${safe(itemId)}-$index.audio"
+
+    private fun sharedImageName(itemId: String): String = "book-${safe(itemId)}.jpg"
+
+    /**
+     * The files to delete with [book] (its files, picture and any part-come files), leaving any that another of [books]
+     * still holds: a book kept by two profiles before each had its own names shares them.
+     */
+    fun filesToDelete(book: LocalBook, books: List<LocalBook>): List<String> {
+        val others = books.filterNot { it.itemId == book.itemId && it.profileId == book.profileId }
+        val held = HashSet<String>()
+        for (other in others) {
+            other.fileNames.filterNotNull().forEach(held::add)
+            other.imageFileName?.let(held::add)
+            // One still coming under the shared names (from before) is carrying on from those part files.
+            if (other.itemId == book.itemId) {
+                other.manifest.files.indices.forEach { held += sharedFileName(other.itemId, it) + ".part" }
+                held += sharedImageName(other.itemId)
+            }
+        }
+        val parts = book.manifest.files.indices.flatMap { listOf(fileName(book.itemId, book.profileId, it) + ".part", sharedFileName(book.itemId, it) + ".part") }
+        return (book.fileNames.filterNotNull() + listOfNotNull(book.imageFileName) + parts).distinct().filterNot { it in held }
+    }
 
     private fun safe(part: String) = part.replace(Regex("[^A-Za-z0-9_-]"), "_")
 }
