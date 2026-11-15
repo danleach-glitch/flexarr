@@ -82,6 +82,9 @@ struct ServerSettingsView: View {
     }
 
     private func load() async {
+        // Says here whether the away address has been reached, so it's asked again if it hasn't (beside the status,
+        // which needn't wait for it).
+        Task { await model.checkAwayAddress() }
         guard let client = model.client else { return }
         checking = true
         defer { checking = false }

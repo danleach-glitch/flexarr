@@ -499,6 +499,8 @@ fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit) {
     val status = rememberLoader(model.credentials) { client.systemStatus() }
     val libraries = rememberLoader(model.credentials) { client.libraries() }
     var confirmLeave by remember { mutableStateOf(false) }
+    // Says here whether the away address has been reached, so it's asked again if it hasn't.
+    LaunchedEffect(Unit) { model.checkAwayAddress() }
     val guest = model.credentials?.guest
 
     RoomBackground(ambient = null) {

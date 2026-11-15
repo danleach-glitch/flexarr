@@ -235,6 +235,12 @@ final class AppModel {
         }
         // Offline mode follows the network, and any request that can't reach the server has it checked.
         NetworkWatch.shared.onChange { [weak self] offline in self?.networkChanged(offline: offline) }
+        // The away address kept unconfirmed answered a request as this server: kept as confirmed now, not at the next
+        // retry, so Settings › Server stops saying it hasn't been reached.
+        NotificationCenter.default.addObserver(forName: ServerAddresses.remoteProvenNotification, object: nil, queue: nil) { [weak self] note in
+            let addresses = note.object as? ServerAddresses
+            Task { @MainActor in self?.remoteProven(addresses) }
+        }
         FlexarrClient.onCouldNotConnect = { [weak self] _ in
             Task { @MainActor in self?.connectionTrouble() }
         }
@@ -503,8 +509,6 @@ final class AppModel {
     }
 
     func signOut() {
-        remoteRetry?.cancel()
-        remoteRetry = nil
         player.dropReady()
         music.dropReadyBook()
         // Tell the server too, so this device's token stops working; best effort, it's forgotten here either way.
@@ -554,6 +558,9 @@ final class AppModel {
 
     /// `stoppingTunnel`: false only for a guest's sign-out, which stops the tunnel itself once the server has heard.
     private func forget(stoppingTunnel: Bool = true) {
+        // Signed out here or by the server: the next sign-in starts a retry of its own.
+        remoteRetry?.cancel()
+        remoteRetry = nil
         callOffLiveTvRefresh()
         endPlayback()
         music.stop()
@@ -663,6 +670,21 @@ final class AppModel {
         phase = .signedIn(updated)
     }
 
+    /// The away address kept unconfirmed has given the server's id to a request (see `ServerAddresses.remoteProvenNotification`).
+    private func remoteProven(_ addresses: ServerAddresses?) {
+        guard let addresses, let credentials, var away = credentials.away, !away.confirmed,
+              credentials.client.addresses === addresses else { return }
+        away.confirmed = true
+        keep(away, id: credentials.serverId, for: credentials)
+    }
+
+    /// Asks the away address again now if it's still unconfirmed: Settings › Server shows whether it has been reached,
+    /// and Tailscale may have been connected since the last try.
+    func checkAwayAddress() async {
+        guard let credentials, !credentials.isGuest, credentials.remoteAddress != nil, !credentials.remoteConfirmed else { return }
+        await checkRemoteAddress(credentials)
+    }
+
     /// While the away address isn't confirmed (Tailscale wasn't connected here when the server gave it), it's asked
     /// again now and then through this launch, less often as time goes on, so it's confirmed soon after Tailscale is.
     private var remoteRetry: Task<Void, Never>?
@@ -679,6 +701,8 @@ final class AppModel {
                 await self.checkRemoteAddress(credentials)
                 wait = min(wait * 2, .seconds(600))
             }
+            // Cancelled by a sign-out: the handle may be the next sign-in's by now.
+            guard !Task.isCancelled else { return }
             self?.remoteRetry = nil
         }
     }

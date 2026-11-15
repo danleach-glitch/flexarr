@@ -568,6 +568,8 @@ internal fun TvServerSettings(model: AppModel, libraries: Loader<List<Library>>,
     val client = model.client ?: return
     val status = rememberLoader(model.credentials) { client.systemStatus() }
     val checking = status.state is Load.Loading || status.refreshing
+    // Says here whether the away address has been reached, so it's asked again if it hasn't.
+    LaunchedEffect(Unit) { model.checkAwayAddress() }
     val remote = model.credentials?.remoteAddress
     val focus = remember { FocusRequester() }
     val onDiagnosticsRow = returningFrom == TvSettingsPageId.Diagnostics

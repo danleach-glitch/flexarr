@@ -20,6 +20,7 @@ import io.github.flexarr.player.DeviceCapabilities
 import io.github.flexarr.core.PreparedStreams
 import io.github.flexarr.core.LinkSpeed
 import io.github.flexarr.core.ServerVersion
+import io.github.flexarr.core.ServerAddresses
 import io.github.flexarr.core.ServerSupport
 import io.github.flexarr.core.ServerTooOldException
 import io.github.flexarr.core.PlaybackRequest
@@ -1012,6 +1013,9 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         store.save(credentials)
         saved = true
         signedIn(credentials)
+        // The away address was just asked for: one kept unconfirmed is asked again through this launch.
+        remoteChecked = true
+        confirmRemoteLater()
         // On again, if they were on before this phone signed out.
         scope.launch { notifications.resume(credentials) }
     }
@@ -1238,6 +1242,24 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         phase = Phase.SignedIn(now.withAway(remote).copy(serverId = serverId))
     }
 
+    /** The away address kept unconfirmed answered a request as this server ([ServerAddresses.onRemoteProven]). */
+    private fun remoteProven(addresses: ServerAddresses) {
+        val credentials = credentials ?: return
+        val away = credentials.away?.takeIf { !it.confirmed } ?: return
+        if (credentials.client().addresses !== addresses) return
+        keep(away.copy(confirmed = true), credentials.serverId, credentials)
+    }
+
+    /**
+     * Asks the away address again now if it's still unconfirmed: Settings › Server shows whether it has been reached,
+     * and Tailscale may have been connected since the last try.
+     */
+    suspend fun checkAwayAddress() {
+        val credentials = credentials ?: return
+        if (credentials.isGuest || credentials.remoteAddress == null || credentials.remoteConfirmed) return
+        checkRemoteAddress(credentials)
+    }
+
     /**
      * While the away address isn't confirmed (Tailscale wasn't connected here when the server gave it), it's asked
      * again now and then through this launch, less often as time goes on, so it's confirmed soon after Tailscale is.
@@ -1265,8 +1287,6 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
      */
     fun signOut() {
         if (signOutRefusal(kidsLock) != null) return
-        remoteRetry?.cancel()
-        remoteRetry = null
         dropAllReady()
         // The headset's play button has nothing of this sign-in's to pick up again.
         io.github.flexarr.audio.LastHeard.clear(context)
@@ -1293,6 +1313,10 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             }
         }
         commands.stop()
+        // Signed out here or by the server: the next sign-in checks its away address afresh.
+        remoteRetry?.cancel()
+        remoteRetry = null
+        remoteChecked = false
         forgetSignIn()
         tunnelProblem = null
         offlineAsGuest = false
@@ -1930,6 +1954,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         network.onChange(::networkChanged)
         FlexarrClient.onCouldNotConnect = { scope.launch { connectionTrouble() } }
         FlexarrClient.onAnswered = { scope.launch { serverAnswered() } }
+        // Kept as confirmed as soon as a request proves it, so Settings › Server stops saying it hasn't been reached.
+        ServerAddresses.onRemoteProven = { addresses -> scope.launch { remoteProven(addresses) } }
         FlexarrClient.onChooseProfile = { scope.launch { serverRefusedUnchosen() } }
         tunnel.onPort = ::tunnelMoved
         // The host deleted this device from its tailnet: as good as removing it from Flexarr.
