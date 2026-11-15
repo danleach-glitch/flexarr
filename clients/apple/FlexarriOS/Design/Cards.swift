@@ -86,6 +86,8 @@ struct WideCard: View {
     let item: ItemSummary
     let width: CGFloat
     var action: (() -> Void)?
+    /// The play mark over the picture: off where a tap opens the page instead (Search).
+    var showsPlay = true
 
     var body: some View {
         Button { action.map { $0() } ?? model.play(item) } label: {
@@ -102,11 +104,13 @@ struct WideCard: View {
                         }
                     }
                     .overlay {
-                        Image(systemName: Symbol.play)
-                            .font(.title3)
-                            .foregroundStyle(Color.screen)
-                            .frame(width: 44, height: 44)
-                            .background(Circle().fill(.black.opacity(0.45)))
+                        if showsPlay {
+                            Image(systemName: Symbol.play)
+                                .font(.title3)
+                                .foregroundStyle(Color.screen)
+                                .frame(width: 44, height: 44)
+                                .background(Circle().fill(.black.opacity(0.45)))
+                        }
                     }
                     .overlay(alignment: .bottom) {
                         if let progress = item.progress {

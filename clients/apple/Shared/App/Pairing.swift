@@ -78,7 +78,7 @@ final class Pairing {
                 renewedAt = nil
                 return
             } catch {
-                self.error = ConnectionError(error).message
+                self.error = ConnectionError(error, connecting: true).message
                 try? await Task.sleep(for: .seconds(5))
             }
         }
@@ -109,7 +109,7 @@ final class Pairing {
                     abandon(token)
                     throw error
                 }
-                self.error = t("Connecting… ({problem})", ["problem": ConnectionError(error).message])
+                self.error = t("Connecting… ({problem})", ["problem": ConnectionError(error, connecting: true).message])
                 do {
                     try await Task.sleep(for: .seconds(2 * attempt))
                 } catch {

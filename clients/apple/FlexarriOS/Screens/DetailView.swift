@@ -21,6 +21,8 @@ struct DetailView: View {
     @State private var similar: [ItemSummary] = []
     @State private var selectedSeasonID: String?
     @State private var seasons: [String: ItemDetail] = [:]
+    /// Seasons whose episodes couldn't be fetched, with why: said in the episode area with Try again, not a spinner.
+    @State private var failedSeasons: [String: String] = [:]
     @State private var overviewExpanded = false
     /// `model.refreshToken` when `detail` was last fetched.
     @State private var loadedToken: Int?
@@ -478,6 +480,9 @@ struct DetailView: View {
 
             if let season = selectedSeason {
                 episodesList(season)
+            } else if let id = selectedSeasonID, let failed = failedSeasons[id] {
+                StatusView(state: .failed(failed) { Task { await loadSelectedSeason(force: true) } })
+                    .frame(minHeight: 200)
             } else {
                 ProgressView().frame(maxWidth: .infinity).frame(height: 200)
             }
@@ -644,9 +649,13 @@ struct DetailView: View {
     private func loadSelectedSeason(force: Bool = false) async {
         guard let client = model.client, let id = selectedSeasonID else { return }
         if !force, seasons[id] != nil { return }
-        if let season = try? await client.item(id) {
-            seasons[id] = season
-        }
+        do {
+            seasons[id] = try await client.item(id)
+            failedSeasons[id] = nil
+        } catch where !error.isCancellation {
+            // Already shown: kept, as with the page itself. Otherwise said, until Try again or a reload fetches it.
+            if seasons[id] == nil { failedSeasons[id] = ConnectionError(error).message }
+        } catch {}
     }
 }
 

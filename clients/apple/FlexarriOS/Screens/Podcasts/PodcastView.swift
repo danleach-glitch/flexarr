@@ -78,6 +78,12 @@ struct PodcastView: View {
                 Text(t("All {count} episodes of {podcast} will be marked as played.", ["count": podcast.episodeCount, "podcast": podcast.title]))
             }
         }
+        .alert(page.podcast?.isSubscribed == true ? t("Couldn’t stop following this show") : t("Couldn’t follow this show"),
+               isPresented: Binding(get: { page.followError != nil }, set: { if !$0 { page.followError = nil } })) {
+            Button(t("OK"), role: .cancel) {}
+        } message: {
+            Text(page.followError ?? "")
+        }
         .alert(t("Stop following this show?"), isPresented: $unfollowing) {
             Button(t(Words.stopFollowing), role: .destructive) {
                 Task {

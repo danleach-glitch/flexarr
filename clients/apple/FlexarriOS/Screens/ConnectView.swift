@@ -495,7 +495,7 @@ private struct ManualConnect: View {
             do {
                 try await model.connect(address: address, apiKey: apiKey)
             } catch {
-                self.error = ConnectionError(error).message
+                self.error = ConnectionError(error, connecting: true).message
             }
         }
     }

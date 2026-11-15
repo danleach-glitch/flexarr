@@ -39,6 +39,7 @@ final class AppModel {
         didSet {
             guard phase != oldValue else { return }
             GuestMode.isActive = credentials?.isGuest == true
+            ConnectionError.server = serverNaming
             LogHub.shared.signedIn(client)
             // Error reports follow the server signed in to: none signed out, the last answer for a new one.
             if credentials?.address != Self.credentials(in: oldValue)?.address {
@@ -165,7 +166,9 @@ final class AppModel {
     private(set) var errorReports: ErrorReportSetting?
     /// What the server is called, as it last said (kept, so it shows while the server can't be reached); nil before
     /// it has said, and from servers before 0.61.
-    private(set) var serverName: String?
+    private(set) var serverName: String? {
+        didSet { ConnectionError.server = serverNaming }
+    }
     /// Why the connect screen is showing when nobody asked for it: the server stopped accepting this device.
     private(set) var signedOutNotice: String?
     /// The notice is for a guest its host removed: there's no server of its own to show a code for.
@@ -482,7 +485,7 @@ final class AppModel {
         do {
             status = try await credentials.client.systemStatus()
         } catch {
-            throw ConnectionError(error)
+            throw ConnectionError(error, connecting: true)
         }
         // Older than the apps support: not signed in to, and the connect screen says to update it.
         guard !ServerSupport.isTooOld(status.version) else { throw ServerTooOld() }
@@ -961,6 +964,11 @@ final class AppModel {
     var serverTitle: String {
         if let guest = credentials?.guest { return guestServerTitle(guest) }
         return serverName ?? credentials?.address.host() ?? "Flexarr"
+    }
+
+    /// The server signed in to, for sentences that name it: a guest's host as `guestServerNaming` has it.
+    var serverNaming: ServerNaming {
+        credentials?.isGuest == true ? guestServerNaming(credentials?.guest) : ServerNaming(name: serverName, owner: nil)
     }
 
     /// A guest's host server: the name it last gave, or the invite's, or "Dan's Flexarr".
@@ -1474,6 +1482,10 @@ final class AppModel {
     /// Why the last watchlist change (adding or taking off) didn't happen, for an alert; nil when it did.
     var watchlistError: String?
 
+    /// Why the last Mark as watched (or unwatched, played or unplayed) didn't take, for an alert; nil when it did.
+    /// Offline it's left unsaid, as the Offline bar says why.
+    var watchedError: String?
+
     /// Why the last request (Request on a title the library doesn't have) didn't go through, for an alert.
     var requestError: String?
 
@@ -1926,12 +1938,22 @@ final class AppModel {
     }
 
     /// `keepingPlayer`: Now Playing's own Mark as played, which goes on to what's next rather than stopping.
-    func setWatched(_ item: ItemSummary, _ watched: Bool, keepingPlayer: Bool = false) async {
-        guard let client else { return }
+    /// False when the server didn't take it (said with `watchedError`).
+    @discardableResult
+    func setWatched(_ item: ItemSummary, _ watched: Bool, keepingPlayer: Bool = false) async -> Bool {
+        guard let client else { return false }
         if !keepingPlayer { releaseFromPlayer(item.id) }
-        try? await client.setWatched(item.id, watched: watched)
+        do {
+            try await client.setWatched(item.id, watched: watched)
+        } catch where !isOffline && !error.isCancellation {
+            // The tick stays as it was: said, rather than looking as if the press did nothing.
+            log.warning("Marking watched failed", error: error)
+            watchedError = ConnectionError(error).message
+            return false
+        } catch {}
         if watched { player.offlineLibrary?.markedPlayed(itemId: item.id) } else { player.offlineLibrary?.forgetPosition(itemId: item.id) }
         watchStateChanged()
+        return true
     }
 
     /// Remembers which version this profile plays (nil: the automatic pick). What was got ready for the old one goes.
@@ -1951,7 +1973,13 @@ final class AppModel {
     /// Every episode of an episode's show watched.
     func setShowWatched(of episode: ItemSummary) async {
         guard let client, let show = episode.seriesId else { return }
-        try? await client.setWatched(show, watched: true)
+        do {
+            try await client.setWatched(show, watched: true)
+        } catch where !isOffline && !error.isCancellation {
+            log.warning("Marking a show watched failed", error: error)
+            watchedError = ConnectionError(error).message
+            return
+        } catch {}
         // Its downloaded episodes are finished too, so none resumes part way and un-watches it with its next report.
         player.offlineLibrary?.markedPlayed(itemId: show)
         watchStateChanged()
@@ -2259,36 +2287,61 @@ struct ServerTooOld: LocalizedError {
 struct ConnectionError: LocalizedError {
     let message: String
 
-    init(_ error: Error) {
+    /// What to call the server signed in to, for "Can’t reach …" (AppModel keeps it current). Read from anywhere, as
+    /// `ThisDevice.name` is.
+    nonisolated(unsafe) static var server = ServerNaming(name: nil, owner: nil)
+
+    /// `connecting`: for the connect screen, where the address, port and certificate are what to check. Once signed
+    /// in, the same failures just say the server can't be reached: a family member whose Home fails can't do anything
+    /// about a port. Anything not worded here says something went wrong, never the system's own text (which comes in
+    /// the phone's language, not the one chosen for Flexarr).
+    init(_ error: Error, connecting: Bool = false) {
+        let cantReach = t("{kind, select, named {Can’t reach {server}. Try again in a moment.} owner {Can’t reach {owner}’s Flexarr. Try again in a moment.} other {Can’t reach this Flexarr. Try again in a moment.}}", Self.server.values)
         if let error = error as? ConnectionError {
             message = error.message
         } else if let error = error as? FlexarrClientError {
-            message = error.errorDescription ?? t("Something went wrong.")
+            switch error {
+            case .unreachable where !connecting, .unexpectedResponse where !connecting: message = cantReach
+            default: message = error.errorDescription ?? t("Something went wrong.")
+            }
         } else if let error = error as? URLError {
             switch error.code {
+            case .notConnectedToInternet:
+                message = t("This {device} isn’t connected to a network.", ["device": ThisDevice.name])
+            case .cancelled:
+                message = t("The request was cancelled.")
+            case _ where !connecting:
+                message = cantReach
             case .cannotFindHost, .dnsLookupFailed:
                 message = t("Couldn’t find that server. Check the address, or use its IP address instead of the name.")
             case .cannotConnectToHost, .networkConnectionLost:
                 message = t("The server isn’t answering at that address. Make sure Flexarr is running and the port is right (usually 8383).")
             case .timedOut:
                 message = t("The server took too long to answer. Is it on the same network as this {device}?", ["device": ThisDevice.name])
-            case .notConnectedToInternet:
-                message = t("This {device} isn’t connected to a network.", ["device": ThisDevice.name])
             case .appTransportSecurityRequiresSecureConnection:
                 message = t("Plain http only works for local addresses (.local names or IP addresses). Use https for anything else.")
             case .secureConnectionFailed, .serverCertificateUntrusted, .serverCertificateHasBadDate, .serverCertificateNotYetValid:
                 message = t("The server’s https certificate isn’t trusted. Try its http address on your local network.")
-            case .cancelled:
-                message = t("The request was cancelled.")
             default:
-                message = error.localizedDescription
+                message = t("Couldn’t connect to that server.")
             }
+        } else if let described = (error as? LocalizedError)?.errorDescription {
+            // The app's own errors (a server too old, say), worded already.
+            message = described
         } else {
-            message = error.localizedDescription
+            message = t("Something went wrong.")
         }
     }
 
     var errorDescription: String? { message }
+}
+
+extension Error {
+    /// The task was cancelled (the viewer moved on, or typed again), which is no failure to show. A cancelled request
+    /// can also surface as a URL error.
+    var isCancellation: Bool {
+        self is CancellationError || (self as? URLError)?.code == .cancelled
+    }
 }
 
 /// What this device is called in messages: "Apple TV", "iPhone", "iPad" or "Mac".

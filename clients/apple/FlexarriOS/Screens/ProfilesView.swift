@@ -384,6 +384,31 @@ struct PinEntry: View {
     @FocusState private var focused: Bool
 
     var body: some View {
+        // Scrolls when it doesn't fit (a phone held sideways with the keyboard up, or the largest text sizes), so
+        // Continue can always be reached; centred, as before, when it does.
+        GeometryReader { space in
+            ScrollView(.vertical) {
+                form
+                    .frame(maxWidth: .infinity, minHeight: space.size.height)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .scrollDismissesKeyboard(.never)
+        }
+        .onAppear { focused = true }
+        #if os(iOS)
+        // The number pad has no return key: Continue sits over it too, for when the screen's own is hidden under it.
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button(t("Continue"), action: submit)
+                    .fontWeight(.semibold)
+                    .disabled(pin.count < 4 || checking)
+            }
+        }
+        #endif
+    }
+
+    private var form: some View {
         VStack(spacing: 22) {
             if let profile {
                 ProfileAvatar(profile: profile, size: 84)
@@ -412,6 +437,8 @@ struct PinEntry: View {
                 .frame(maxWidth: 220)
                 .background(RoundedRectangle(cornerRadius: Radius.control).fill(Color.seat))
                 .focused($focused)
+                // A hardware keyboard's Return.
+                .onSubmit(submit)
                 .onChange(of: pin) { _, new in
                     let digits = String(new.filter(\.isNumber).prefix(8))
                     if digits != new { pin = digits }
@@ -436,7 +463,6 @@ struct PinEntry: View {
             }
         }
         .padding(32)
-        .onAppear { focused = true }
     }
 
     private func submit() {

@@ -179,6 +179,9 @@ fun DetailScreen(model: AppModel, id: String) {
     var similar by remember(id) { mutableStateOf(emptyList<ItemSummary>()) }
     var selectedSeasonId by rememberSaveable(id) { mutableStateOf<String?>(null) }
     val seasons = remember(id) { mutableStateMapOf<String, ItemDetail>() }
+    // Seasons whose episodes couldn't be fetched, with why: said in the episode area with Try again, not a spinner.
+    val failedSeasons = remember(id) { mutableStateMapOf<String, String>() }
+    var seasonAttempt by remember(id) { mutableStateOf(0) }
     // A show's gaps (seasons and episodes it lacks, what's coming), and the seasons asked for here since.
     var missing by remember(id) { mutableStateOf(ShowMissing.None) }
     var asked by remember(id) { mutableStateOf(emptySet<Int>()) }
@@ -232,7 +235,7 @@ fun DetailScreen(model: AppModel, id: String) {
                     MediaKind.Episode -> item.parentId?.let { selectedSeasonId = it }
                     else -> Unit
                 }
-                selectedSeasonId?.let { season -> runCatching { client.item(season) }.onSuccess { seasons[season] = it } }
+                selectedSeasonId?.let { season -> loadSeason(client, season, seasons, failedSeasons) }
                 alike?.await()?.let { similar = it }
             }
         } catch (e: CancellationException) {
@@ -243,9 +246,9 @@ fun DetailScreen(model: AppModel, id: String) {
             refreshing = false
         }
     }
-    LaunchedEffect(selectedSeasonId) {
+    LaunchedEffect(selectedSeasonId, seasonAttempt) {
         val season = selectedSeasonId ?: return@LaunchedEffect
-        if (season !in seasons) runCatching { client.item(season) }.onSuccess { seasons[season] = it }
+        if (season !in seasons) loadSeason(client, season, seasons, failedSeasons)
     }
 
     val loaded = detail
@@ -282,7 +285,8 @@ fun DetailScreen(model: AppModel, id: String) {
                 val episodeColumns = if (isWide) 2 else 1
                 LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
                     item(key = "header") { Header(item, series, loaded, ambient, nextUp, seasons[selectedSeasonId], allEpisodes) }
-                    sections(item, loaded, seasons[selectedSeasonId], selectedSeasonId, { selectedSeasonId = it }, similar, ambient, columns = episodeColumns, missing = missing) {
+                    sections(item, loaded, seasons[selectedSeasonId], selectedSeasonId, { selectedSeasonId = it }, similar, ambient, columns = episodeColumns, missing = missing,
+                        seasonFailed = selectedSeasonId?.let { failedSeasons[it] }, retrySeason = { selectedSeasonId?.let { failedSeasons.remove(it) }; seasonAttempt++ }) {
                         if (item.kind == MediaKind.Series) {
                             showMissingSections(
                                 missing,
@@ -567,6 +571,21 @@ private fun playLabel(target: ItemSummary, container: ItemSummary): String {
     return if (resume) t(Words.resumeFrom, "time" to Format.timestamp(target.userData.positionSeconds)) else t(Words.play)
 }
 
+/**
+ * Fetches a season's episodes into [seasons]. A failure is kept in [failed] (unless the season is already shown), so
+ * the page says so with Try again rather than spinning until the season is changed.
+ */
+private suspend fun loadSeason(client: io.github.flexarr.core.FlexarrClient, season: String, seasons: MutableMap<String, ItemDetail>, failed: MutableMap<String, String>) {
+    try {
+        seasons[season] = client.item(season)
+        failed.remove(season)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        if (season !in seasons) failed[season] = e.message ?: t("Something went wrong.")
+    }
+}
+
 private fun androidx.compose.foundation.lazy.LazyListScope.sections(
     item: ItemSummary,
     detail: ItemDetail,
@@ -579,12 +598,17 @@ private fun androidx.compose.foundation.lazy.LazyListScope.sections(
     columns: Int,
     /** A show's gaps: "8 of 10" on its seasons. */
     missing: ShowMissing = ShowMissing.None,
+    /** Why the chosen season's episodes couldn't be had (nil while loading), with Try again. */
+    seasonFailed: String? = null,
+    retrySeason: () -> Unit = {},
     /** After the episodes, before the cast: what the library lacks of a show. */
     gaps: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {},
 ) {
     if (item.kind == MediaKind.Series && detail.children.isNotEmpty()) {
         item(key = "seasons") { SeasonPicker(detail.children, selectedSeasonId, onSeason, ambient, season) { missing.countLabel(it.seasonNumber) } }
-        if (season == null) {
+        if (season == null && seasonFailed != null) {
+            item(key = "season-failed") { StatusView(seasonFailed, retry = retrySeason, modifier = Modifier.fillMaxWidth().height(240.dp)) }
+        } else if (season == null) {
             item(key = "season-loading") { Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Flexarr.screen) } }
         } else {
             items(season.children.chunked(columns), key = { "episode-${it.first().id}" }) { row ->

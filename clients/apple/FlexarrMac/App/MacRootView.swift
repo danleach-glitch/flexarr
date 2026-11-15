@@ -214,6 +214,14 @@ struct MacRootView: View {
         } message: {
             Text(model.watchlistError ?? "")
         }
+        .alert(t("Couldn’t mark this"), isPresented: Binding(
+            get: { model.watchedError != nil },
+            set: { if !$0 { model.watchedError = nil } }
+        )) {
+            Button(t("OK"), role: .cancel) {}
+        } message: {
+            Text(model.watchedError ?? "")
+        }
         .alert(t("Couldn’t play this channel"), isPresented: Binding(
             get: { model.liveTv.errorMessage != nil },
             set: { if !$0 { model.liveTv.errorMessage = nil } }

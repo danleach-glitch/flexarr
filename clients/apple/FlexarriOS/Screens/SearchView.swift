@@ -100,10 +100,11 @@ struct SearchView: View {
                     if !results.episodes.isEmpty {
                         section(t("Episodes")) {
                             ForEach(results.episodes) { item in
-                                WideCard(item: item, width: Layout.wideWidth(sizeClass)) {
+                                // Its page, as every other result opens (and as on Apple TV); Play is a tap away there.
+                                WideCard(item: item, width: Layout.wideWidth(sizeClass), action: {
                                     model.recordSearch(query: query, item: item)
-                                    model.play(item)
-                                }
+                                    router.push(.item(item))
+                                }, showsPlay: false)
                             }
                         }
                     }
@@ -258,12 +259,8 @@ struct SearchView: View {
             await loadRecents()
             return
         }
-        if looksOutside == nil {
-            // Asked once, before the first search that needs it.
-            looksOutside = (try? await client.requestStatus())?.configured == true
-        }
         do {
-            async let beyond: [ExternalTitle] = looksOutside == true ? (try? await client.searchEverything(text)) ?? [] : []
+            async let beyond = searchOutside(client, text)
             async let music = searchMusic(client, text)
             let found = try await client.search(text)
             // The library's results show straight away; what's found beyond it joins them as it comes.
@@ -283,9 +280,23 @@ struct SearchView: View {
             outsideMusic = (moreMusic.artists + moreMusic.albums).filter { $0.libraryItemId == nil && $0.availability != .available }
             lookingFurther = false
         } catch {
+            // Typing on cancels the search before: no failure, the next one is on its way.
+            guard !error.isCancellation, !Task.isCancelled, text == query.trimmingCharacters(in: .whitespaces) else { return }
+            // A real failure: said in place of the last words' results, never under them.
+            results = nil
+            outside = []
+            outsideMusic = []
             self.error = ConnectionError(error).message
             lookingFurther = false
         }
+    }
+
+    /// Films and shows beyond the library, through Seerr when it's set up. Whether it is is asked once, beside the
+    /// library search so it never holds that up, and kept only once answered: a blip doesn't turn it off for the visit.
+    private func searchOutside(_ client: FlexarrClient, _ text: String) async -> [ExternalTitle] {
+        if looksOutside == nil, let status = try? await client.requestStatus() { looksOutside = status.configured }
+        guard looksOutside == true else { return [] }
+        return (try? await client.searchEverything(text)) ?? []
     }
 
     /// Whether music can be asked for, then the music found when it can, beside the library search so a slow Lidarr

@@ -36,6 +36,15 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Android, pages no longer scroll up through the clock and status icons, and Settings pages keep their title and Back in view.
 - On Android, a show's season pills are all readable: Download Season sits on its own line under them.
 - An iPhone, iPad, Apple TV or Android device that signed in at home with Tailscale off now reaches your server away from home once Tailscale is on. Settings › Server says when it hasn't yet.
+- On iPhone, a full swipe no longer deletes a recording or stops a series by itself: tap the button the swipe shows. One that can't be taken off or deleted now says why.
+- On iPhone, iPad, Apple TV and Android, a season whose episodes fail to load says so with Try again, instead of a spinner that never ends.
+- On iPhone, when your server can't be reached Home says so (rather than "You're offline") and has Try again.
+- On iPhone and Apple TV, Search no longer flashes "The request was cancelled" while you type, and a search that fails says so instead of showing the last results. On Apple TV, what's in your library shows without waiting for Seerr.
+- Once signed in, the iPhone, iPad, Apple TV and Mac apps say "Can't reach" your server when it doesn't answer, rather than advice about ports, and never show the system's own error text.
+- On iPhone, a PIN can be entered with the phone held sideways or at large text sizes: the screen scrolls, and Continue sits above the number pad.
+- Mark as watched, following a podcast, and Download from Now Playing or a podcast episode's swipe now say when they didn't work.
+- On Apple TV and Android, "Update your Flexarr server" stays until you dismiss it.
+- On iPhone, tapping an episode in Search opens its page, as on Apple TV.
 
 ### Downloads
 

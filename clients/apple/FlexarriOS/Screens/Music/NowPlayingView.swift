@@ -27,6 +27,8 @@ struct NowPlayingView: View {
     @State private var artworkGlow: Color?
     /// A book's speed is chosen on a sheet of its own (0.5× to 3.5× in 0.05 steps).
     @State private var showingSpeed = false
+    /// Why Download from the episode menu didn't start, for its alert.
+    @State private var downloadError: String?
     /// A book's scrubber covers the chapter playing (the default, as in book apps) or the whole book; the Apple TV
     /// keeps the same choice under the same name.
     @AppStorage("books.timelineIsBook") private var wholeBook = false
@@ -65,6 +67,17 @@ struct NowPlayingView: View {
             }
         }
         .task(id: music.current?.id) { await lyrics.load(music.isPodcast || music.isBook ? nil : music.current, client: model.client) }
+        .alert(t("Couldn’t download this"), isPresented: Binding(get: { downloadError != nil }, set: { if !$0 { downloadError = nil } })) {
+            Button(t("OK"), role: .cancel) {}
+        } message: {
+            Text(downloadError ?? "")
+        }
+        // Over the app's own, which can't show while Now Playing covers it.
+        .alert(t("Couldn’t mark this"), isPresented: Binding(get: { model.watchedError != nil }, set: { if !$0 { model.watchedError = nil } })) {
+            Button(t("OK"), role: .cancel) {}
+        } message: {
+            Text(model.watchedError ?? "")
+        }
         .sheet(isPresented: $showingSpeed) {
             BookSpeedSheet()
                 .presentationDetents([.height(300)])
@@ -537,9 +550,10 @@ struct NowPlayingView: View {
                 Button { goToPodcast() } label: { Label(t("Go to podcast"), systemImage: "square.stack") }
                 Button {
                     Task {
-                        await model.setWatched(track, true, keepingPlayer: true)
-                        // Played: on to what comes next, as if it had finished.
-                        music.seek(to: max(0, music.duration - 0.5))
+                        // Played: on to what comes next, as if it had finished (not when it didn't take, which is said).
+                        if await model.setWatched(track, true, keepingPlayer: true) {
+                            music.seek(to: max(0, music.duration - 0.5))
+                        }
                     }
                 } label: { Label(t(Words.markAsPlayed), systemImage: Symbol.watched) }
                 if let download = downloads.entry(for: track.id) {
@@ -547,7 +561,15 @@ struct NowPlayingView: View {
                         Label(download.isDownloaded ? t("Remove download") : t("Stop download"), systemImage: Symbol.delete)
                     }
                 } else if !music.isPlayingOffline {
-                    Button { Task { try? await downloads.download(itemId: track.id, quality: .original) } } label: {
+                    Button {
+                        Task {
+                            do {
+                                try await downloads.download(itemId: track.id, quality: .original)
+                            } catch {
+                                downloadError = ConnectionError(error).message
+                            }
+                        }
+                    } label: {
                         Label(t(Words.download), systemImage: Symbol.download)
                     }
                 }

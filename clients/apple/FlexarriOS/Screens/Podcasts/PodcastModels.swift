@@ -47,6 +47,9 @@ final class PodcastPageModel {
     private(set) var isLoadingMore = false
     /// Following or unfollowing, or saving a setting.
     private(set) var isSaving = false
+    /// Why the last Follow or Stop following didn't take, for an alert over the page (`error` is only for a page that
+    /// never loaded).
+    var followError: String?
     var unplayedOnly = true
     /// Oldest first: from a followed show's subscription, else what was chosen on this screen.
     private(set) var oldestFirst = false
@@ -113,9 +116,9 @@ final class PodcastPageModel {
                 try await client.unsubscribe(from: id)
                 podcast = try await client.podcast(id)
             }
-            error = nil
+            followError = nil
         } catch {
-            self.error = ConnectionError(error).message
+            followError = ConnectionError(error).message
         }
     }
 

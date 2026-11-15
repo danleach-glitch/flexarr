@@ -19,6 +19,8 @@ struct DetailView: View {
     @State private var similar: [ItemSummary] = []
     @State private var selectedSeasonID: String?
     @State private var seasons: [String: ItemDetail] = [:]
+    /// Seasons whose episodes couldn't be fetched, with why: said in the episode area with Try again, not a spinner.
+    @State private var failedSeasons: [String: String] = [:]
     /// A show's seasons and episodes the library lacks, and what's coming.
     @State private var gaps: ShowGaps = .none
     /// Fetching `gaps`, on its own so a slow Sonarr or Seerr never holds up the page or a pull to refresh.
@@ -474,6 +476,9 @@ struct DetailView: View {
 
             if let season = selectedSeason {
                 episodesList(season)
+            } else if let id = selectedSeasonID, let failed = failedSeasons[id] {
+                StatusView(state: .failed(failed) { Task { await loadSelectedSeason(force: true) } })
+                    .frame(height: 420)
             } else {
                 ProgressView().padding(.leading, Layout.edge).frame(height: 420)
             }
@@ -689,9 +694,13 @@ struct DetailView: View {
     private func loadSelectedSeason(force: Bool = false) async {
         guard let client = model.client, let id = selectedSeasonID else { return }
         if !force, seasons[id] != nil { return }
-        if let season = try? await client.item(id) {
-            seasons[id] = season
-        }
+        do {
+            seasons[id] = try await client.item(id)
+            failedSeasons[id] = nil
+        } catch where !error.isCancellation {
+            // Already shown: kept, as with the page itself. Otherwise said, until Try again or a reload fetches it.
+            if seasons[id] == nil { failedSeasons[id] = ConnectionError(error).message }
+        } catch {}
     }
 }
 

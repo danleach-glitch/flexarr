@@ -106,24 +106,16 @@ struct RootView: View {
                 }
             }
         }
-        // "Update your Flexarr server": signed in to a server older than the app supports. Goes by itself.
-        .overlay(alignment: .top) {
-            if let notice = model.serverUpdateNotice {
-                Label(notice, systemImage: "exclamationmark.triangle.fill")
-                    .font(.system(size: 28, weight: .semibold))
-                    .foregroundStyle(Color.screen)
-                    .padding(.horizontal, 32)
-                    .padding(.vertical, 18)
-                    .background(Capsule().fill(Color.seat))
-                    .padding(.top, 40)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .task(id: notice) {
-                        try? await Task.sleep(for: .seconds(6))
-                        if model.serverUpdateNotice == notice { model.serverUpdateNotice = nil }
-                    }
-            }
+        // "Update your Flexarr server": signed in to a server older than the app supports. An alert that stays until
+        // it's dismissed, so someone who looked away still learns why newer features are missing.
+        .alert(model.serverUpdateNotice ?? "", isPresented: Binding(
+            get: { model.serverUpdateNotice != nil },
+            set: { if !$0 { model.serverUpdateNotice = nil } }
+        )) {
+            Button(t("OK"), role: .cancel) {}
+        } message: {
+            Text(t("This server is older than this app supports, so some things won’t work until it’s updated."))
         }
-        .animation(.easeInOut(duration: 0.3), value: model.serverUpdateNotice)
         .animation(.easeInOut(duration: 0.35), value: model.phase)
         .animation(.easeInOut(duration: 0.35), value: model.needsProfileChoice)
         .animation(.easeInOut(duration: 0.35), value: model.isOffline)
@@ -183,6 +175,14 @@ struct RootView: View {
             Button(t("OK"), role: .cancel) {}
         } message: {
             Text(model.watchlistError ?? "")
+        }
+        .alert(t("Couldn’t mark this"), isPresented: Binding(
+            get: { model.watchedError != nil },
+            set: { if !$0 { model.watchedError = nil } }
+        )) {
+            Button(t("OK"), role: .cancel) {}
+        } message: {
+            Text(model.watchedError ?? "")
         }
         .alert(t("Couldn’t play this channel"), isPresented: Binding(
             get: { model.liveTv.errorMessage != nil },

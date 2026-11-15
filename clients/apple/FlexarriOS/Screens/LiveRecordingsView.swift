@@ -2,11 +2,14 @@ import FlexarrKit
 import SwiftUI
 
 /// The DVR on iPhone and iPad: what's coming up, the series being recorded, and what's been recorded. Swipe to take
-/// one off (or stop it, or delete a recording); tap a recording to play it. Programmes are set to record from the guide.
+/// one off (or stop it, or delete a recording) and tap the button that shows; a full swipe does nothing, so a recording
+/// is never lost to a slip. Tap a recording to play it. Programmes are set to record from the guide.
 struct LiveRecordingsView: View {
     @Environment(AppModel.self) private var model
     @State private var recordings: Recordings?
     @State private var failed: String?
+    /// Why the last take-off, stop or delete didn't work.
+    @State private var notice: String?
 
     /// Made each time, so it follows a change of language.
     private static var day: DateFormatter {
@@ -27,7 +30,7 @@ struct LiveRecordingsView: View {
                         }
                         ForEach(recordings.upcoming) { recording in
                             row(recording)
-                                .swipeActions {
+                                .swipeActions(allowsFullSwipe: false) {
                                     Button(recording.isRecordingNow ? t("Stop") : t("Don’t record"), role: .destructive) {
                                         act { try await $0.removeRecording(recording.id) }
                                     }
@@ -42,7 +45,7 @@ struct LiveRecordingsView: View {
                                     Text(seriesLine(series))
                                         .font(.caption).foregroundStyle(Color.usher)
                                 }
-                                .swipeActions {
+                                .swipeActions(allowsFullSwipe: false) {
                                     Button(t("Stop series"), role: .destructive) { act { try await $0.removeSeries(series.id) } }
                                 }
                             }
@@ -55,7 +58,7 @@ struct LiveRecordingsView: View {
                                     if let item = recording.itemId { Task { await model.playFromIntent(itemId: item) } }
                                 } label: { row(recording) }
                                     .disabled(recording.itemId == nil)
-                                    .swipeActions {
+                                    .swipeActions(allowsFullSwipe: false) {
                                         Button(recording.state == "completed" ? t(Words.delete) : t("Clear"), role: .destructive) {
                                             act { try await $0.removeRecording(recording.id) }
                                         }
@@ -74,6 +77,7 @@ struct LiveRecordingsView: View {
         }
         .background(RoomBackground(ambient: nil))
         .navigationTitle(t("Recordings"))
+        .banner($notice, systemImage: "record.circle")
         .refreshable { await load() }
         // Only while it's on screen and the app is in front: with music keeping it alive in the background, or a screen
         // pushed over it, it would go on asking.
@@ -134,7 +138,11 @@ struct LiveRecordingsView: View {
     private func act(_ action: @escaping (FlexarrClient) async throws -> Void) {
         guard let client = model.client else { return }
         Task {
-            try? await action(client)
+            do {
+                try await action(client)
+            } catch {
+                notice = ConnectionError(error).message
+            }
             await load()
         }
     }
