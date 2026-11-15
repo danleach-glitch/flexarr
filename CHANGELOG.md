@@ -142,6 +142,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Server
 
 - Home opens faster while someone else in the household is watching: their progress no longer makes every other profile's Home be worked out again.
+- Home and Coming soon no longer stall while Sonarr or Radarr is asleep or slow: the last answer is shown while a fresh one is fetched, and one that's down is asked again less and less often in the background.
 
 ### Music, audiobooks and podcasts
 

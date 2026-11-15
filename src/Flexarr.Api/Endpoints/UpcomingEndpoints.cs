@@ -49,6 +49,7 @@ public static class UpcomingEndpoints
     // Calendars barely change; queues move, but a minute-old progress bar is fine and spares the *arrs on every Home load.
     private static readonly TimeSpan CalendarTtl = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan QueueTtl = TimeSpan.FromMinutes(1);
+    /// <summary>How long an *arr that failed once is left before it's asked again (doubling while it keeps failing).</summary>
     private static readonly TimeSpan FailureTtl = TimeSpan.FromSeconds(15);
 
     public static RouteGroupBuilder MapUpcomingEndpoints(this RouteGroupBuilder api)
@@ -358,62 +359,136 @@ public static class UpcomingEndpoints
 
     private static string Key(ArrInstance instance, string what) => $"arr:{instance.Kind}:{instance.Name}:{instance.BaseUrl}:{what}";
 
-    /// <summary>Cancelled (and replaced) to drop every cached *arr call at once.</summary>
-    private static CancellationTokenSource _arrCalls = new();
+    /// <summary>Moved on to drop every cached *arr answer at once.</summary>
+    private static long _generation;
 
     /// <summary>
     /// Forgets the cached calendars and queues, so the next page load asks Sonarr and Radarr again: a webhook means
     /// something just downloaded or was added, and it shouldn't show as still on its way for another minute or two.
     /// </summary>
-    public static void ForgetArrCalls()
+    public static void ForgetArrCalls() => Interlocked.Increment(ref _generation);
+
+    /// <summary>How long an answer may be shown while a fresh one is fetched, once its own time is up.</summary>
+    private static readonly TimeSpan StaleFor = TimeSpan.FromMinutes(30);
+
+    /// <summary>The longest an *arr that keeps failing is left before it's asked again.</summary>
+    private static readonly TimeSpan MaxBackoff = TimeSpan.FromMinutes(5);
+
+    /// <summary>One *arr call's last good answer, the call under way if any, and how it's been failing.</summary>
+    private sealed class ArrCall<T>
     {
-        // Not disposed: a page load may be reading its token right now, and one with no timer holds nothing to free.
-        Interlocked.Exchange(ref _arrCalls, new CancellationTokenSource()).Cancel();
+        public readonly Lock Gate = new();
+        public long Generation = -1;
+        public int Run;
+        public IReadOnlyList<T>? Value;
+        public DateTime FetchedAt;
+        public Task<IReadOnlyList<T>?>? Running;
+        public int Failures;
+        public DateTime RetryAt;
     }
 
-    /// <param name="ttl">How long to keep it.</param>
-    /// <param name="asked">The token current when the call was made: forgetting since then drops this answer too.</param>
-    private static MemoryCacheEntryOptions Expiring(TimeSpan ttl, CancellationToken asked) => new MemoryCacheEntryOptions
-    {
-        AbsoluteExpirationRelativeToNow = ttl,
-        ExpirationTokens = { new Microsoft.Extensions.Primitives.CancellationChangeToken(asked) },
-    };
+    /// <summary>How long to leave an *arr that has failed <paramref name="failures"/> times in a row: 15 seconds, doubling, at most 5 minutes.</summary>
+    internal static TimeSpan Backoff(int failures) =>
+        TimeSpan.FromTicks(Math.Min(MaxBackoff.Ticks, FailureTtl.Ticks * (1L << Math.Clamp(failures - 1, 0, 10))));
 
     /// <summary>
-    /// One *arr call, shared for a little while by everyone loading the page. An *arr being down or too slow
-    /// shouldn't break the page: it contributes nothing, and isn't asked again for a few seconds.
+    /// One *arr call, shared by everyone loading the page. One call per key is under way at a time. Once its answer is
+    /// older than <paramref name="ttl"/>, it's still shown while a fresh one is fetched in the background, so a slow
+    /// Sonarr doesn't hold up Home. Only the very first ask waits for the answer; an *arr that's down or too slow
+    /// contributes nothing and is asked again in the background, less often the longer it stays down.
     /// </summary>
-    private static async Task<IReadOnlyList<T>> CachedAsync<T>(IMemoryCache? cache, string key, TimeSpan ttl, Func<CancellationToken, Task<IReadOnlyList<T>>> call, CancellationToken ct)
+    internal static async Task<IReadOnlyList<T>> CachedAsync<T>(IMemoryCache? cache, string key, TimeSpan ttl, Func<CancellationToken, Task<IReadOnlyList<T>>> call, CancellationToken ct,
+        TimeProvider? clock = null)
     {
-        if (cache is not null && cache.TryGetValue(key, out IReadOnlyList<T>? hit) && hit is not null)
+        clock ??= TimeProvider.System;
+        if (cache is null)
         {
-            return hit;
+            return await CallAsync(call, ct) ?? [];
         }
 
-        // Taken before asking: an answer that was under way when a webhook said things changed may predate the change,
-        // so it's used for this page but not kept.
-        var asked = _arrCalls.Token;
+        var slot = cache.GetOrCreate(key, e =>
+        {
+            e.SlidingExpiration = StaleFor; // dates move on, and an instance removed is never asked again
+            return new ArrCall<T>();
+        })!;
+        Task<IReadOnlyList<T>?> waitFor;
+        lock (slot.Gate)
+        {
+            var now = clock.GetUtcNow().UtcDateTime;
+            var generation = Interlocked.Read(ref _generation);
+            if (slot.Generation != generation)
+            {
+                // Forgotten since (a webhook): nothing kept is used, and an *arr that just sent one is up.
+                (slot.Generation, slot.Value, slot.Running, slot.Failures, slot.RetryAt) = (generation, null, null, 0, DateTime.MinValue);
+                slot.Run++;
+            }
+
+            var kept = slot.Value is not null && now - slot.FetchedAt < StaleFor ? slot.Value : null;
+            if (kept is not null && now - slot.FetchedAt < ttl)
+            {
+                return kept;
+            }
+
+            if (slot.Running is null && now >= slot.RetryAt)
+            {
+                var run = ++slot.Run;
+                slot.Running = Task.Run(() => RefreshAsync(slot, run, generation, call, clock), CancellationToken.None);
+            }
+
+            // Out of date, or the *arr is failing: what there is now, while it's asked again in the background.
+            if (kept is not null || slot.Failures > 0 || slot.Running is null)
+            {
+                return kept ?? [];
+            }
+
+            waitFor = slot.Running;
+        }
+
+        return await waitFor.WaitAsync(ct) ?? [];
+    }
+
+    private static async Task<IReadOnlyList<T>?> RefreshAsync<T>(ArrCall<T> slot, int run, long generation, Func<CancellationToken, Task<IReadOnlyList<T>>> call,
+        TimeProvider clock)
+    {
+        var result = await CallAsync(call, CancellationToken.None);
+        lock (slot.Gate)
+        {
+            if (slot.Run == run)
+            {
+                slot.Running = null;
+                // An answer that was under way when a webhook said things changed may predate the change: it's given to
+                // whoever was waiting for it, but not kept.
+                if (Interlocked.Read(ref _generation) == generation)
+                {
+                    if (result is not null)
+                    {
+                        (slot.Value, slot.FetchedAt, slot.Failures, slot.RetryAt) = (result, clock.GetUtcNow().UtcDateTime, 0, DateTime.MinValue);
+                    }
+                    else
+                    {
+                        slot.Failures++;
+                        slot.RetryAt = clock.GetUtcNow().UtcDateTime + Backoff(slot.Failures);
+                    }
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>The call, given <see cref="CallTimeout"/>; null if the *arr is down, too slow or answers nonsense.</summary>
+    private static async Task<IReadOnlyList<T>?> CallAsync<T>(Func<CancellationToken, Task<IReadOnlyList<T>>> call, CancellationToken ct)
+    {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(CallTimeout);
         try
         {
-            var result = await call(timeout.Token);
-            if (!asked.IsCancellationRequested)
-            {
-                cache?.Set(key, result, Expiring(ttl, asked));
-            }
-
-            return result;
+            return await call(timeout.Token);
         }
-        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException
-            || (ex is OperationCanceledException && !ct.IsCancellationRequested))
+        catch (Exception) when (!ct.IsCancellationRequested)
         {
-            if (!asked.IsCancellationRequested)
-            {
-                cache?.Set(key, (IReadOnlyList<T>)[], Expiring(FailureTtl, asked));
-            }
-
-            return [];
+            // Anything at all: run in the background, a call that threw would otherwise never be retried.
+            return null;
         }
     }
 
