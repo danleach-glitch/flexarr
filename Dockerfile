@@ -30,7 +30,7 @@ RUN arch=$([ "$TARGETARCH" = "amd64" ] && echo x64 || echo "$TARGETARCH") \
     && dotnet publish src/Flexarr.Api -c Release -a "$arch" --no-self-contained -o /app ${VERSION:+-p:Version=$VERSION}
 
 # ---- Runtime ----
-FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:1a48394b6f29d3a32c79d9edecd4abda0ecbe8776d567dbfc4590ed6979c740c
+FROM mcr.microsoft.com/dotnet/aspnet:11.0@sha256:bc0d6653979efba491ab3d6f589d691f96c309c3c3ef81325efa6978e7b7f242
 ARG TARGETARCH
 # The VA-API drivers, so graphics passed in with --device /dev/dri can convert video: Mesa's for AMD everywhere, and
 # Intel's (VA-API and Quick Sync, old chips and new) on amd64, the only place Intel ships them.
