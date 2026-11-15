@@ -159,10 +159,13 @@ public sealed class ApiKeyAuthenticationHandler(
         return AuthenticateResult.NoResult();
     }
 
-    /// <summary>"Only away from home" is chosen and this request is from home, addressed to one of the server's own names.</summary>
+    /// <summary>
+    /// "Only away from home" is chosen and this request is from home, addressed to one of the server's own names, and
+    /// not handed over by a container's gateway (which can't tell home from the internet).
+    /// </summary>
     private bool HomeNetworkSignsIn(FlexarrOptions options) =>
         options.AuthenticationRequired == AuthenticationRequired.DisabledForLocalAddresses && NetworkZones.Of(Context) == NetworkZone.Local
-        && NetworkZones.AddressedToKnownHost(Context, options.KnownHosts);
+        && NetworkZones.AddressedToKnownHost(Context, options.KnownHosts) && !NetworkZones.FromContainerGateway(Context);
 
     /// <summary>The cookie earlier versions gave every browser: derived from the API key, and the same for all of them.</summary>
     public static string LegacySessionValue(string apiKey) =>

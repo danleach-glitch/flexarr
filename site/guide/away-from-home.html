@@ -178,7 +178,7 @@
 }
 </code></pre>
 <p>Then a request from the same computer that doesn&#39;t say who it&#39;s for counts as the internet, so a badly set up proxy can&#39;t let anyone in. A browser on the server itself then needs the API key too.</p>
-<blockquote class="callout important"><p><strong>Important</strong> In <strong>Settings › Security</strong>, <strong>Ask for it</strong> set to <strong>Only away from home</strong> lets devices on your home network in as the main profile without a key. With a reverse proxy, that makes the settings above matter. If in doubt, leave it on <strong>Always</strong>.</p>
+<blockquote class="callout important"><p><strong>Important</strong> In <strong>Settings › Security</strong>, <strong>Ask for it</strong> set to <strong>Only away from home</strong> lets devices on your home network in as the main profile without a key. With a reverse proxy, that makes the settings above matter. If in doubt, leave it on <strong>Always</strong>. In Docker, a request handed over by the container&#39;s own gateway (as Docker Desktop does with everyone&#39;s) still needs a key, since it could come from anywhere.</p>
 </blockquote>
 <h2 id="why-not-forward-a-port"><a class="anchor" href="#why-not-forward-a-port" aria-hidden="true" tabindex="-1">#</a>Why not forward a port?</h2>
 <p>It&#39;s tempting to open port 8383 on your router and connect to <code>http://your-home-address:8383</code>. Please don&#39;t. Plain <code>http://</code> isn&#39;t encrypted, so your API key, your sign-ins and what you watch cross the internet readable by anyone along the way. It also puts your server in front of every scanner on the internet.</p>
