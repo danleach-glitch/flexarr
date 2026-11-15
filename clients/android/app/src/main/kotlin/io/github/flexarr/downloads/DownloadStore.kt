@@ -194,6 +194,17 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         }
 
     /**
+     * Those of [unsentDeletes] the app took off by itself (keeping only the newest few, once played, trying again), not
+     * someone by hand: the server is told so, and doesn't leave such a podcast episode out from then on. Any not here
+     * (made before this was kept) count as by hand, as they always did.
+     */
+    private var unsentAutomaticDeletes: Set<String> = prefs.getStringSet(UNSENT_AUTOMATIC_DELETES, emptySet())!!.toSet()
+        set(value) {
+            field = value
+            prefs.edit { putStringSet(UNSENT_AUTOMATIC_DELETES, value) }
+        }
+
+    /**
      * Downloads that have come whose server hasn't been told yet ([ProfileTells] entries), once the list saying they're
      * here is on disk ([saved]): out of reach, or another profile's, told on a catch-up signed in as theirs. Untold, the
      * server keeps its copy of the file for a week.
@@ -780,9 +791,15 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         val profileId = profileId ?: model.currentProfile?.id ?: throw FlexarrException.Unauthorized()
         entry(itemId)?.let { existing ->
             if (existing.phase != LocalPhase.Failed) return
-            delete(existing.id)
+            dropFailed(existing.id)
         }
         val remote = client.requestDownload(itemId, quality)
+        // Handed back by the server, it's alive there: a delete of it still to send (one that didn't get through
+        // before trying again) would take away the download just asked for.
+        ProfileTells.entry(remote.id, profileId).let { entry ->
+            if (entry in unsentDeletes) unsentDeletes = unsentDeletes - entry
+            if (entry in unsentAutomaticDeletes) unsentAutomaticDeletes = unsentAutomaticDeletes - entry
+        }
         // Asked for by hand again: it may come as the next episode once more.
         if (!automatic && itemId in skippedNext) skippedNext = skippedNext - itemId
         if (!automatic) offerNotifications()
@@ -947,12 +964,12 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
      */
     private suspend fun tellDue(client: FlexarrClient) {
         val profile = signedInProfile ?: return
-        suspend fun tell(entries: () -> Set<String>, forget: (String) -> Unit, send: suspend (String) -> Unit) {
+        suspend fun tell(entries: () -> Set<String>, forget: (String) -> Unit, send: suspend (entry: String, id: String) -> Unit) {
             for ((entry, id) in ProfileTells.due(entries(), profile)) {
                 // Another profile chosen meanwhile: the client is still the last one's, but what's due has changed.
                 if (signedInProfile != profile) return
                 try {
-                    send(id)
+                    send(entry, id)
                     forget(entry)
                 } catch (e: FlexarrException.Http) {
                     if (e.status == 404) forget(entry)
@@ -961,8 +978,33 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
                 }
             }
         }
-        tell({ unsentDeletes }, { unsentDeletes = unsentDeletes - it }) { client.deleteDownload(it) }
-        tell({ unsentReceipts }, { unsentReceipts = unsentReceipts - it }) { client.markDownloadReceived(it) }
+        tell({ unsentDeletes }, ::forgetDelete) { entry, id -> client.deleteDownload(id, byHand = entry !in unsentAutomaticDeletes) }
+        tell({ unsentReceipts }, { unsentReceipts = unsentReceipts - it }) { _, id -> client.markDownloadReceived(id) }
+    }
+
+    private fun forgetDelete(entry: String) {
+        unsentDeletes = unsentDeletes - entry
+        if (entry in unsentAutomaticDeletes) unsentAutomaticDeletes = unsentAutomaticDeletes - entry
+    }
+
+    /**
+     * A failed download goes to be asked for again ("Try again"): taken off by the app, not by hand, and the server
+     * told before it's asked again, so asking doesn't find the old one there, about to go. Out of reach, it's told later.
+     */
+    suspend fun dropFailed(id: String) {
+        val download = byId(id)?.takeIf { it.phase == LocalPhase.Failed } ?: return
+        remove(listOf(id), tellServer = true, inBackground = false, byHand = false, tellNow = false)
+        val client = currentClient ?: return
+        if (download.profileId != signedInProfile) return
+        val entry = ProfileTells.entry(id, download.profileId)
+        try {
+            client.deleteDownload(id, byHand = false)
+            forgetDelete(entry)
+        } catch (e: FlexarrException.Http) {
+            if (e.status == 404) forgetDelete(entry)
+        } catch (_: FlexarrException) {
+            // out of reach: the next catch-up tells it
+        }
     }
 
     internal fun failed(id: String, message: String) {
@@ -1073,7 +1115,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     /** Deletes an album or playlist and its tracks, except tracks another of the profile's collections still holds. */
     fun removeCollection(id: String) {
         val collection = collection(id) ?: return
-        CollectionRules.tracksToDelete(collection, collections).forEach { trackId -> entry(trackId)?.let { remove(it.id, tellServer = true) } }
+        CollectionRules.tracksToDelete(collection, collections).forEach { trackId -> entry(trackId)?.let { remove(listOf(it.id), tellServer = true, inBackground = false, byHand = true) } }
         collections = collections.filterNot { it.id == collection.id && it.profileId == collection.profileId }
         saveCollections()
         removeImageIfUnused(collection.imageFileName)
@@ -1177,7 +1219,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
     fun delete(id: String) {
         byId(id)?.takeIf { it.isPodcastEpisode }?.let { declined = declined + it.item.id }
         byId(id)?.takeIf { it.item.kind == MediaKind.Episode }?.let { skippedNext = skippedNext + it.item.id }
-        remove(id, tellServer = true)
+        remove(listOf(id), tellServer = true, inBackground = false, byHand = true)
     }
 
     /**
@@ -1189,17 +1231,19 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         if (podcasts.isNotEmpty()) declined = declined + podcasts
         val episodes = ids.mapNotNull(::byId).filter { it.item.kind == MediaKind.Episode }.map { it.item.id }
         if (episodes.isNotEmpty()) skippedNext = skippedNext + episodes
-        remove(ids, tellServer = true, inBackground = true)
+        remove(ids, tellServer = true, inBackground = true, byHand = true)
     }
 
+    /** Taken off by the app itself, not by hand ([unsentAutomaticDeletes]). */
     private fun remove(id: String, tellServer: Boolean) = remove(listOf(id), tellServer, inBackground = false)
 
     /**
      * Takes [ids] off the list in one change. Their transfers are cancelled and their files deleted at once, or with
      * [inBackground] on the IO threads (a long show's are dozens of calls into the system and gigabytes of files), where
-     * one asked for again meanwhile is left alone.
+     * one asked for again meanwhile is left alone. [byHand]: someone chose to, rather than the app by itself. [tellNow]:
+     * false when the caller tells the server itself.
      */
-    private fun remove(ids: Collection<String>, tellServer: Boolean, inBackground: Boolean) {
+    private fun remove(ids: Collection<String>, tellServer: Boolean, inBackground: Boolean, byHand: Boolean = false, tellNow: Boolean = true) {
         val going = ids.distinct().mapNotNull(::byId)
         if (going.isEmpty()) return
         val goingIds = going.map { it.id }.toSet()
@@ -1234,7 +1278,10 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         if (!tellServer) return
         // The server drops its copies (and won't offer a podcast episode again), told as each one's own profile: out of
         // reach, or someone else's, it's told later.
-        unsentDeletes = unsentDeletes + going.map { ProfileTells.entry(it.id, it.profileId) }
+        val entries = going.map { ProfileTells.entry(it.id, it.profileId) }
+        unsentDeletes = unsentDeletes + entries
+        unsentAutomaticDeletes = if (byHand) unsentAutomaticDeletes - entries.toSet() else unsentAutomaticDeletes + entries
+        if (!tellNow) return
         val client = currentClient ?: return
         scope.launch { tellDue(client) }
     }
@@ -1248,7 +1295,8 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         forgetAllStarted()
         if (!loaded) clearedBeforeLoad = true
         keepUnsentReports()
-        remove(all.map { it.id }, tellServer = true, inBackground = true)
+        // Room made, not a choice about each one: a podcast episode may come by itself again.
+        remove(all.map { it.id }, tellServer = true, inBackground = true, byHand = false)
         val pictures = collections.mapNotNull { it.imageFileName }
         collections = emptyList()
         saveCollections()
@@ -1281,6 +1329,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         profileId = null
         attachedProfile = null
         unsentDeletes = emptySet()
+        unsentAutomaticDeletes = emptySet()
         unsentReceipts = emptySet()
         prefs.edit { remove(PROFILE).remove(KEPT_FOR) }
         forgetAllStarted()
@@ -1288,7 +1337,8 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         return scope.launch {
             if (client == null) return@launch
             sendKeptReports(client, signedOutOf, owner)
-            ids.forEach { runCatching { client.deleteDownload(it) } }
+            // Signing out is no choice about any one of them: a podcast episode may be wanted again on signing back in.
+            ids.forEach { runCatching { client.deleteDownload(it, byHand = false) } }
         }
     }
 
@@ -1375,6 +1425,7 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         private const val SKIPPED_NEXT = "skippedNextEpisodes"
         private const val FRESH_PLACE_MS = 3_000L
         private const val UNSENT_DELETES = "unsentDeletes"
+        private const val UNSENT_AUTOMATIC_DELETES = "unsentAutomaticDeletes"
         private const val UNSENT_RECEIPTS = "unsentReceipts"
         private const val SERVER = "server"
         private const val KEPT_REPORTS = "keptReports"

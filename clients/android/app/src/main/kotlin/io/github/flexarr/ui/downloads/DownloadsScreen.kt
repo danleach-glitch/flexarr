@@ -437,8 +437,12 @@ fun DownloadAction(model: AppModel, item: ItemSummary, modifier: Modifier = Modi
             confirmButton = {
                 TextButton(onClick = {
                     problem = null
-                    download?.let { store.delete(it.id) }
-                    start()
+                    // Taken off as the app's own doing (not declined), and the server told before it's asked again.
+                    val failed = download?.id
+                    model.scope.launch {
+                        failed?.let { store.dropFailed(it) }
+                        start()
+                    }
                 }) { Text(t("Try again"), color = Flexarr.screen) }
             },
             dismissButton = { TextButton(onClick = { problem = null }) { Text(t(Words.cancel), color = Flexarr.screen) } },
@@ -531,8 +535,12 @@ private fun DownloadIconButton(model: AppModel, itemId: String, title: String, r
             confirmButton = {
                 TextButton(onClick = {
                     problem = null
-                    download?.let { store.delete(it.id) }
-                    begin()
+                    // Taken off as the app's own doing (not declined), and the server told before it's asked again.
+                    val failed = download?.id
+                    model.scope.launch {
+                        failed?.let { store.dropFailed(it) }
+                        begin()
+                    }
                 }) { Text(t("Try again"), color = Flexarr.screen) }
             },
             dismissButton = { TextButton(onClick = { problem = null }) { Text(t(Words.cancel), color = Flexarr.screen) } },

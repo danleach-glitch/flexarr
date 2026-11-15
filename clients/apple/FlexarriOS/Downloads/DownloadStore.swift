@@ -312,6 +312,12 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     @ObservationIgnored private var unsentDeletes: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "downloads.unsentDeletes") ?? []) {
         didSet { UserDefaults.standard.set(Array(unsentDeletes), forKey: "downloads.unsentDeletes") }
     }
+    /// Those of `unsentDeletes` the app took off by itself (keeping only the newest few, once played, signing out, trying
+    /// again), not someone by hand: the server is told so, and doesn't leave such a podcast episode out from then on.
+    /// Any not here (made before this was kept) count as by hand, as they always did.
+    @ObservationIgnored private var unsentAutomaticDeletes: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "downloads.unsentAutomaticDeletes") ?? []) {
+        didSet { UserDefaults.standard.set(Array(unsentAutomaticDeletes), forKey: "downloads.unsentAutomaticDeletes") }
+    }
     /// Downloads that have come whose server hasn't been told yet (`ProfileTells` entries): out of reach, or another
     /// profile's, told on a catch-up signed in as theirs. Untold, the server keeps its copy of the file for a week.
     @ObservationIgnored private var unsentReceipts: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "downloads.unsentReceipts") ?? []) {
@@ -680,12 +686,12 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     /// have come. Out of reach, the rest wait for the next catch-up; one the server hasn't heard of (404) is let go.
     private func tellDue(with client: FlexarrClient) async {
         guard let profile = attachedProfileId else { return }
-        func tell(_ entries: Set<String>, forget: (String) -> Void, _ send: (String) async throws -> Void) async -> Bool {
+        func tell(_ entries: Set<String>, forget: (String) -> Void, _ send: (_ entry: String, _ id: String) async throws -> Void) async -> Bool {
             for (entry, id) in ProfileTells.due(entries, profileId: profile) {
                 // Another profile attached meanwhile: what's due has changed.
                 guard attachedProfileId == profile else { return false }
                 do {
-                    try await send(id)
+                    try await send(entry, id)
                     forget(entry)
                 } catch FlexarrClientError.http(status: 404, _) {
                     forget(entry)
@@ -695,8 +701,34 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             }
             return true
         }
-        guard await tell(unsentDeletes, forget: { unsentDeletes.remove($0) }, { try await client.deleteDownload($0) }) else { return }
-        _ = await tell(unsentReceipts, forget: { unsentReceipts.remove($0) }, { try await client.markDownloadReceived($0) })
+        guard await tell(unsentDeletes, forget: forgetDelete, { entry, id in
+            try await client.deleteDownload(id, byHand: !unsentAutomaticDeletes.contains(entry))
+        }) else { return }
+        _ = await tell(unsentReceipts, forget: { unsentReceipts.remove($0) }, { try await client.markDownloadReceived($1) })
+    }
+
+    private func forgetDelete(_ entry: String) {
+        unsentDeletes.remove(entry)
+        unsentAutomaticDeletes.remove(entry)
+    }
+
+    /// A failed download goes to be asked for again ("Try again"): taken off by the app, not by hand, and the server
+    /// told before it's asked again, so asking doesn't find the old one there, about to go. Out of reach, it's told
+    /// later. `client`: the sign-in it's asked again with (a batch's own).
+    func dropFailed(_ id: String, with client: FlexarrClient? = nil) async {
+        guard let download = all.first(where: { $0.id == id }), case .failed = download.state else { return }
+        delete(id, tellNow: false)
+        // A book's download is the phone's alone: nothing to tell.
+        guard download.book == nil, let client = client ?? self.client, attachedProfileId == download.profileId else { return }
+        let entry = ProfileTells.entry(id, profileId: download.profileId)
+        do {
+            try await client.deleteDownload(id, byHand: false)
+            forgetDelete(entry)
+        } catch FlexarrClientError.http(status: 404, _) {
+            forgetDelete(entry)
+        } catch {
+            // out of reach: the next catch-up tells it
+        }
     }
 
     /// Downloads this profile may no longer play: a title a parent has since blocked, put above a lowered age limit or
@@ -888,7 +920,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         if let download = all.first(where: { $0.id == id }), download.item.kind == .episode {
             skippedNext.insert(download.item.id)
         }
-        delete(id)
+        delete(id, byHand: true)
     }
 
     // MARK: Downloading
@@ -928,9 +960,12 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         // Already here or on its way: nothing to do. Failed: start again.
         if let existing = entry(for: itemId) {
             guard case .failed = existing.state else { return }
-            delete(existing.id)
+            await dropFailed(existing.id, with: client)
         }
         let remote = try await client.requestDownload(itemId, quality: quality)
+        // Handed back by the server, it's alive there: a delete of it still to send (one that didn't get through before
+        // trying again) would take away the download just asked for.
+        forgetDelete(ProfileTells.entry(remote.id, profileId: profileId))
         if !automatic { skippedNext.remove(itemId) }
         // Already asked for, through a linked copy (or by another press meanwhile): the one here is kept as it is (a
         // transfer under way carries on rather than starting again from nothing), and found under this id too.
@@ -1129,7 +1164,7 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         guard let collection = collection(for: collectionId) else { return }
         let kept = Set(collections.filter { $0.id != collection.id && $0.profileId == collection.profileId }.flatMap(\.trackIds))
         for trackId in collection.trackIds where !kept.contains(trackId) {
-            if let track = entry(for: trackId) { delete(track.id) }
+            if let track = entry(for: trackId) { delete(track.id, byHand: true) }
         }
         collections.removeAll { $0.id == collection.id && $0.profileId == collection.profileId }
         saveCollections()
@@ -1258,7 +1293,9 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
 
     // MARK: Deleting
 
-    func delete(_ id: String) {
+    /// Takes a download off the phone. `byHand`: someone chose to, rather than the app by itself (keeping only the newest
+    /// few, once played, signing out, trying again). `tellNow`: false when the caller tells the server itself.
+    func delete(_ id: String, byHand: Bool = false, tellNow: Bool = true) {
         guard let download = all.first(where: { $0.id == id }) else { return }
         allTasks { tasks in
             // A book's files are its id with "#" and the file's number.
@@ -1281,8 +1318,10 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         }
         // The server drops its copy (and, for a podcast episode, won't offer it again), told as the download's own
         // profile: out of reach, or someone else's, it's told later.
-        unsentDeletes.insert(ProfileTells.entry(id, profileId: download.profileId))
-        if let client, attachedProfileId == download.profileId {
+        let entry = ProfileTells.entry(id, profileId: download.profileId)
+        unsentDeletes.insert(entry)
+        if byHand { unsentAutomaticDeletes.remove(entry) } else { unsentAutomaticDeletes.insert(entry) }
+        if tellNow, let client, attachedProfileId == download.profileId {
             Task { await tellDue(with: client) }
         }
     }

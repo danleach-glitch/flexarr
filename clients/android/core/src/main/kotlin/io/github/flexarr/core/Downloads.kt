@@ -87,9 +87,14 @@ suspend fun FlexarrClient.markDownloadReceived(id: String) {
     sendRaw("POST", "offline/$id/received")
 }
 
-/** Taken off the phone (a podcast episode's is remembered, so it isn't offered to download by itself again). */
-suspend fun FlexarrClient.deleteDownload(id: String) {
-    sendRaw("DELETE", "offline/$id")
+/**
+ * Taken off the phone. [byHand]: someone chose to (a podcast episode's is then remembered, so it isn't offered to
+ * download by itself again). False when the app took it off itself (keeping only the newest few, once it's played,
+ * signing out, trying again), so the episode may be wanted again; servers before 0.67 ignore it and count every one
+ * as by hand.
+ */
+suspend fun FlexarrClient.deleteDownload(id: String, byHand: Boolean = true) {
+    send("DELETE", "offline/$id", if (byHand) emptyMap() else mapOf("byHand" to "false"))
 }
 
 /** Watched with no connection: recorded now, unless something newer was since. */

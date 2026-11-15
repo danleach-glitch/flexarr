@@ -42,6 +42,18 @@ struct OfflineCheckTests {
         #expect(sent?["itemIds"] == [film, book])
     }
 
+    /// Issue #404: a download the app takes off by itself says so, so the server doesn't leave the episode out for good.
+    @Test func aDeleteSaysWhetherItWasByHand() async throws {
+        let (client, host) = stubbedClient(.init(status: 204, body: Data()))
+        try await client.deleteDownload(film)
+        let byHand = try #require(StubProtocol.recorded(host: host).last)
+        #expect(byHand.httpMethod == "DELETE")
+        #expect(byHand.url?.path == "/api/v1/offline/\(film)")
+        #expect(byHand.url?.query == nil) // as apps before it sent it
+        try await client.deleteDownload(film, byHand: false)
+        #expect(StubProtocol.recorded(host: host).last?.url?.query == "byHand=false")
+    }
+
     @Test func aServerBeforeTheCheckThrows() async {
         let (older, _) = stubbedClient(.init(status: 404, body: Data()))
         await #expect(throws: (any Error).self) { try await older.offlineCheck(itemIds: [film]) }

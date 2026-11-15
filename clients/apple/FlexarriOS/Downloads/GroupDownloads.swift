@@ -117,7 +117,7 @@ extension DownloadStore {
             guard let download = entry(for: episode.id) else { continue }
             if unfinishedOnly && download.isDownloaded { continue }
             skippedNext.insert(download.item.id) // deleted by hand: not brought back as the next episode
-            delete(download.id)
+            delete(download.id, byHand: true)
         }
     }
 
