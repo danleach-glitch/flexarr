@@ -20,7 +20,8 @@ Flexarr server ──(encrypted payload)──▶ relay (push.flexarr.io) ──
   256-bit key and gives it to its own server. The server encrypts each notification with it (AES-256-GCM). The relay
   forwards only the encrypted payload, under a generic alert ("Something new is ready"), and the extension on the
   phone decrypts it and fills in the real title, text, artwork and buttons. To Android it goes as a data message
-  with no alert at all: the app decrypts it and shows the notification itself.
+  with no alert at all: the app decrypts it and shows the notification itself, and shows nothing for one it can't
+  decrypt (sealed with a key it doesn't have, by a server it has left or anyone else holding its token).
 - A server can use a different relay (`Flexarr:Notifications:RelayUrl`) or none
   (`Flexarr:Notifications:Enabled=false`).
 

@@ -47,7 +47,8 @@ private val log = FlexarrLog("notifications")
 /**
  * Where Firebase delivers: a new token for this phone, and sealed notifications. The relay sends a data message with no
  * alert (`{e: <sealed>}`), so the app opens it with this phone's key and shows the real title, text, artwork and
- * buttons itself; one it can't open (the key was reset) says only "Something new is ready", as on iPhone.
+ * buttons itself. One it can't open isn't shown: it wasn't sealed with this phone's key, so it's from a server this
+ * phone has left (or from someone else who has its token), and saying only "Something new is ready" helps nobody.
  */
 class FlexarrMessagingService : FirebaseMessagingService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -60,7 +61,8 @@ class FlexarrMessagingService : FirebaseMessagingService() {
         val sealed = message.data["e"] ?: return
         val key = applicationContext.appModel.notifications.savedKey()
         val payload = key?.let { runCatching { PushPayload.open(sealed, it) }.onFailure { e -> log.warning("Couldn't open a notification", e) }.getOrNull() }
-        show(this, payload ?: PushPayload(title = t("Flexarr"), body = t("Something new is ready.")))
+            ?: return
+        show(this, payload)
     }
 
     companion object {
