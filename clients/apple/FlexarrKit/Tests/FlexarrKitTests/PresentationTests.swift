@@ -353,3 +353,21 @@ struct HeroPlayLabelTests {
         #expect(started.heroPlayLabel(resuming: started) == "Resume")
     }
 }
+
+struct ResolutionLabelTests {
+    private static func file(_ width: Int?, _ height: Int?) -> MediaFile {
+        MediaFile(id: "f", path: "/f.mkv", size: 0, container: nil, durationSeconds: nil, bitrate: nil, videoCodec: "h264",
+                  width: width, height: height, videoRange: .sdr, audioCodec: nil, audioChannels: nil, probeError: nil, streams: [])
+    }
+
+    @Test func aWideFilmCroppedShortIsStillItsWidthsResolution() {
+        #expect(Self.file(1920, 818).resolutionLabel == "1080p")
+        #expect(Self.file(3840, 1600).resolutionLabel == "4K")
+        #expect(Self.file(1280, 534).resolutionLabel == "720p")
+    }
+
+    @Test func smallAndUnprobedFiles() {
+        #expect(Self.file(720, 576).resolutionLabel == "SD")
+        #expect(Self.file(nil, nil).resolutionLabel == nil)
+    }
+}

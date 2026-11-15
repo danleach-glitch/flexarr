@@ -568,7 +568,7 @@ struct DetailView: View {
         // With versions, the one that plays or is chosen, which may be in another copy than the one opened.
         let version = detail?.shownVersion
         let video = version.map { [$0.label, $0.videoCodec?.uppercased()].compactMap { $0 }.joined(separator: " ") }
-            ?? [file.height.map { "\($0)p" }, file.videoCodec?.uppercased(), file.pictureLabel].compactMap { $0 }.joined(separator: " ")
+            ?? [file.resolutionLabel, file.videoCodec?.uppercased(), file.pictureLabel].compactMap { $0 }.joined(separator: " ")
         let audioCodec = version == nil ? file.audioCodec : version?.audioCodec
         let channels = version == nil ? file.audioChannels : version?.audioChannels
         let audio = [audioCodec?.uppercased(), channels.map(AudioChannels.label)].compactMap { $0 }.joined(separator: " ")

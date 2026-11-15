@@ -558,3 +558,16 @@ extension RottenTomatoesState {
         }
     }
 }
+
+extension MediaFile {
+    /// "4K", "1080p", "720p" or "SD", by the server's rule (VersionRules.ResolutionLabel), so a wide film cropped to
+    /// 1920×818 is 1080p here as in the title's facts, not "818p". Nil when the file wasn't probed.
+    public var resolutionLabel: String? {
+        guard width != nil || height != nil else { return nil }
+        let w = width ?? 0, h = height ?? 0
+        if w >= 3200 || h >= 1800 { return "4K" }
+        if w >= 1800 || h >= 1000 { return "1080p" }
+        if w >= 1200 || h >= 700 { return "720p" }
+        return "SD"
+    }
+}
