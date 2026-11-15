@@ -657,6 +657,11 @@
     mask-image: linear-gradient(to right, transparent, var(--black) var(--edge), var(--black) calc(100% - 32px), transparent);
   }
 
+  /* The row scrolls, so it clips what's outside it: the focus ring is drawn inside each page's link instead, whole. */
+  .settings-nav nav a:focus-visible {
+    outline-offset: -3px;
+  }
+
   .settings-nav-group {
     flex-direction: row;
   }

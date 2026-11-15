@@ -78,6 +78,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On a tablet held upright, the player's time and the stream's note at the top each stay on one line.
 - An episode's **⋯** now offers **Go to show**, as in the apps, so it's no longer a menu of just **Delete…**.
 - Settings no longer offers **Lock settings** before an admin PIN has been chosen to lock them with.
+- On a phone, the keyboard's focus ring shows whole around a page in Settings' row of pages.
 
 ### Playback
 
