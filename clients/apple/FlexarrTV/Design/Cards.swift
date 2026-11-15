@@ -327,24 +327,28 @@ struct CardCaption: View {
     /// How bright the name is without focus.
     var restingOpacity: Double = 0.8
     var centered = false
+    /// The name's width on one line, uncut: whether it's cut is the name's alone, so a long line under a short name
+    /// (an episode's name and time left in Continue watching) stays put on focus.
+    @State private var nameWidth: CGFloat = 0
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            // The whole name fits on its line.
-            lines.fixedSize(horizontal: true, vertical: false)
-            lines
-                .opacity(focused ? 0 : 1)
-                .overlay(alignment: centered ? .top : .topLeading) {
-                    if focused {
-                        name
-                            .lineLimit(2)
-                            .multilineTextAlignment(centered ? .center : .leading)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .accessibilityHidden(true)
-                    }
+        let whole = focused && nameWidth > width + 0.5
+        lines
+            .opacity(whole ? 0 : 1)
+            .overlay(alignment: centered ? .top : .topLeading) {
+                if whole {
+                    name
+                        .lineLimit(2)
+                        .multilineTextAlignment(centered ? .center : .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityHidden(true)
                 }
-        }
-        .frame(width: width, alignment: centered ? .center : .leading)
+            }
+            .frame(width: width, alignment: centered ? .center : .leading)
+            .background(alignment: .topLeading) {
+                name.lineLimit(1).fixedSize().hidden()
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { nameWidth = $0 }
+            }
     }
 
     private var lines: some View {
