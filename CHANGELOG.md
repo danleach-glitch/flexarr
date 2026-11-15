@@ -153,6 +153,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Deleting an artist through Lidarr is refused when their folder there also holds music filed under another artist, which Lidarr would delete too.
 - Deleting a file that holds two episodes stops Sonarr wanting both, so the second isn't downloaded again.
 - Taking back a show request with two Sonarrs stops the right seasons in each.
+- Changing a library's folders no longer throws away what was in them. A folder swapped for one holding the same files keeps every title as it was, with its plays, playlists, progress, bookmarks and hand edits; titles in a folder taken out are hidden for a day before they go, so putting it back in time brings them back.
+- Removing a library keeps its films' and shows' watch history for a while, so adding its folders again brings it back.
 
 ### Music, audiobooks and podcasts
 

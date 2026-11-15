@@ -370,7 +370,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
 
         var within = touched is null ? null : await WithParentsAsync(touched, cancellationToken).ConfigureAwait(false);
         await PruneEmptyItemsAsync(db, library.Id, cancellationToken, within).ConfigureAwait(false);
-        await MarkMissingItemsAsync(library.Id, cancellationToken, within).ConfigureAwait(false);
+        await MarkMissingItemsAsync(db, library.Id, cancellationToken, within).ConfigureAwait(false);
         if (library.Type == LibraryType.HomeVideos)
         {
             await NumberHomeVideosAsync(library.Id, cancellationToken).ConfigureAwait(false);
@@ -762,8 +762,9 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
     /// to show; and brings back any whose files have reappeared.
     /// </summary>
     /// <param name="within">Only these items (what a scan of part of the library touched); null for the whole library.</param>
-    private async Task MarkMissingItemsAsync(Guid libraryId, CancellationToken ct, IReadOnlyCollection<Guid>? within = null)
+    public static async Task MarkMissingItemsAsync(FlexarrDbContext db, Guid libraryId, CancellationToken ct, IReadOnlyCollection<Guid>? within = null)
     {
+        ArgumentNullException.ThrowIfNull(db);
         var now = DateTime.UtcNow;
         var items = db.MediaItems.IgnoreQueryFilters().Where(i => i.LibraryId == libraryId);
         if (within is not null)

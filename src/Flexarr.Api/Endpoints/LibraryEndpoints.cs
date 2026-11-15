@@ -101,22 +101,15 @@ public static class LibraryEndpoints
             library.Folders.RemoveAll(removed.Contains);
             library.Folders.AddRange(added);
 
-            // Items from a folder that's no longer part of the library go with it: its files (missing ones too), then
-            // whatever that leaves empty, artists and videos straight in the folder included.
-            foreach (var folder in removed)
-            {
-                var prefix = folder.Path.TrimEnd('/') + "/";
-                await db.MediaFiles.IgnoreQueryFilters()
-                    .Where(f => f.MediaItem!.LibraryId == id && (f.Path == folder.Path || f.Path.StartsWith(prefix)))
-                    .ExecuteDeleteAsync(ct);
-            }
+            await db.SaveChangesAsync(ct);
 
+            // A folder taken out deletes nothing now: one swapped for another holding the same files has them moved
+            // across with everything they keep, and the rest are missing, gone after the grace period unless they
+            // come back.
             if (removed.Count > 0)
             {
-                await LibraryScanner.PruneEmptyItemsAsync(db, id, ct);
+                await LibraryFolderChanges.ApplyAsync(db, id, [.. removed.Select(f => f.Path)], [.. added.Select(f => f.Path)], folders, ct);
             }
-
-            await db.SaveChangesAsync(ct);
             if (kidsChanged)
             {
                 LibraryVisibility.KidsSettingsChanged(); // After saving, or a stream reading now keeps the old answer.
@@ -137,7 +130,7 @@ public static class LibraryEndpoints
             {
                 null => Results.NotFound(),
                 LibraryType.Podcasts => Problems.Field("Podcasts can’t be removed.", field: "type"),
-                _ => await db.Libraries.IgnoreQueryFilters().Where(l => l.Id == id).ExecuteDeleteAsync(ct) > 0 ? Results.NoContent() : Results.NotFound(),
+                _ => await RemoveAsync(db, id, ct) ? Results.NoContent() : Results.NotFound(),
             })
             .RequireAuthorization(FlexarrClaims.AdminPolicy);
 
@@ -155,6 +148,16 @@ public static class LibraryEndpoints
         }).RequireAuthorization(FlexarrClaims.MainProfilePolicy);
 
         return api;
+    }
+
+    /// <summary>
+    /// Removes a library and everything in it. Its films' and shows' watch history, collections and Allow or Block are
+    /// kept a while, by id (<see cref="WatchHistoryCarryOver"/>), so adding their folders again brings them back.
+    /// </summary>
+    private static async Task<bool> RemoveAsync(FlexarrDbContext db, Guid id, CancellationToken ct)
+    {
+        await WatchHistoryCarryOver.BuryAsync(db, db.MediaItems.IgnoreQueryFilters().Where(i => i.LibraryId == id), ct);
+        return await db.Libraries.IgnoreQueryFilters().Where(l => l.Id == id).ExecuteDeleteAsync(ct) > 0;
     }
 
     /// <summary>
