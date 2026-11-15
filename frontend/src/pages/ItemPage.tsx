@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { PageError } from '../components/PageStatus'
+import { PageError, PageLoading } from '../components/PageStatus'
 import { openAddToCollection } from '../components/AddToCollection'
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import {
@@ -396,6 +396,8 @@ function Seasons({ series, counts, onChange }: { series: ItemDetail; counts?: Sh
     (signal) => (embedded ? Promise.resolve(embedded) : selected ? getItem(selected.id, signal) : Promise.resolve(undefined)),
     [selected?.id, embedded],
   )
+  // useApi keeps the last answer while the next one loads, so another season's episodes never show under this one's tab.
+  const shown = season.data && selected && season.data.item.id === selected.id ? season.data : undefined
 
   if (!selected) return null
 
@@ -425,7 +427,7 @@ function Seasons({ series, counts, onChange }: { series: ItemDetail; counts?: Sh
         ))}
       </div>
       <div className="season-toolbar">
-        <span className="muted">{season.data ? t('{count, plural, one {# episode} other {# episodes}}', { count: season.data.children.length }) : ''}</span>
+        <span className="muted">{shown ? t('{count, plural, one {# episode} other {# episodes}}', { count: shown.children.length }) : ''}</span>
         <AsyncButton
           className="text-button"
           onClick={async () => {
@@ -437,16 +439,17 @@ function Seasons({ series, counts, onChange }: { series: ItemDetail; counts?: Sh
           {selected.userData.watched ? t('Mark season as unwatched') : t(Words.markSeasonAsWatched)}
         </AsyncButton>
       </div>
-      <ol className="episode-list">
-        {season.data?.children.map((episode) => (
-          <Episode
-            key={episode.id}
-            episode={episode}
-            overview={season.data?.childOverviews[episode.id] ?? null}
-            onChange={onChange}
-          />
-        ))}
-      </ol>
+      {shown ? (
+        <ol className="episode-list">
+          {shown.children.map((episode) => (
+            <Episode key={episode.id} episode={episode} overview={shown.childOverviews[episode.id] ?? null} onChange={onChange} />
+          ))}
+        </ol>
+      ) : season.error ? (
+        <PageError error={season.error} onRetry={season.reload} retrying={season.loading} />
+      ) : (
+        <PageLoading />
+      )}
     </section>
   )
 }

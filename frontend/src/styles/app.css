@@ -429,6 +429,17 @@ kbd {
   background: none;
 }
 
+/* The server didn't answer: what happened, then Try again. */
+.connect-error {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+}
+
+.connect-error p {
+  margin: 0;
+}
+
 .connect-tv-code {
   font-family: var(--display);
   font-size: var(--step-3);
@@ -2834,6 +2845,13 @@ a.download-attention {
 @media (hover: none) {
   .watched-toggle {
     opacity: 1;
+  }
+
+  /* A finger's worth to aim at (44px), so a tap meant for the tick doesn't open the poster underneath. */
+  .watched-toggle::before {
+    content: '';
+    position: absolute;
+    inset: -9px;
   }
 }
 

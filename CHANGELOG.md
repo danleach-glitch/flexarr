@@ -51,6 +51,12 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - In a big music or audiobooks library, jumping to a letter in Albums or All books is now quick: only the albums or books at that letter load, with **Show earlier** above them.
 - Live TV's **On now** stays quick with thousands of channels: starring one or the minute's update redraws only the channels that changed.
 - Back on Home or a library's Browse, after watching something, the rows you left show at once and catch up a moment later, instead of a blank page while they load.
+- Picking another season on a show's page shows that it's loading, or **Try again**, instead of the last season's episodes under the new season's tab.
+- Discover shows that it's loading, says so with **Try again** when it can't load, and notes when Seerr isn't answering, instead of an empty page.
+- Watchlist, Playlists, Collections, Podcasts and Settings › Layout say what went wrong in plain words, with **Try again**, when they can't load.
+- When the server can't be reached, the web app now has a **Try again** button.
+- The watched tick and a channel's star say so when the change didn't go through, and the tick is easier to tap on a touch screen.
+- With no libraries yet, a profile that can't add one is told who can, and an empty Watchlist says how to add a title.
 
 ### Playback
 

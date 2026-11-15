@@ -226,7 +226,7 @@ function NameStep({ nav }: { nav: StepNav }) {
   const [error, setError] = useState<string>()
   const [busy, setBusy] = useState(false)
 
-  if (!main) return <p className="onboard-wait">{profiles.error?.message ?? t('Loading…')}</p>
+  if (!main) return <p className="onboard-wait">{(profiles.error && errorText(profiles.error)) ?? t('Loading…')}</p>
   // The name it was given when the server was made isn't anyone's: start with an empty box.
   const shown = name ?? (main.name === 'Main profile' ? '' : main.name)
   const chosen = color ?? main.color
@@ -323,7 +323,7 @@ function AppsStep({ nav }: { nav: StepNav }) {
   const found = useApi(discoverArrs, [])
   const [open, setOpen] = useState<ArrKind>()
 
-  if (!settings.data) return <p className="onboard-wait">{settings.error ? settings.error.message : t('Loading…')}</p>
+  if (!settings.data) return <p className="onboard-wait">{settings.error ? errorText(settings.error) : t('Loading…')}</p>
   const connected = settings.data.arr.length > 0
   return (
     <>
@@ -511,7 +511,7 @@ function LibrariesStep({ nav }: { nav: StepNav }) {
   if (libraries.error)
     return (
       <p className="onboard-wait">
-        {libraries.error.message}{' '}
+        {errorText(libraries.error)}{' '}
         <button type="button" className="onboard-back" onClick={libraries.reload}>
           {t('Try again')}
         </button>

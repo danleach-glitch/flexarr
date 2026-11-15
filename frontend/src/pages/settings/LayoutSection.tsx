@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type DragEvent, type ReactNode } fr
 import { getLayout, getPlaybackPreferences, saveLayout, type Layout, type RowChoice } from '../../api/client'
 import { ChevronDown, ChevronUp, Grip } from '../../components/icons'
 import { useApi } from '../../hooks/useApi'
+import { PageError } from '../../components/PageStatus'
 import { SaveStatus, SettingsHeader, ToggleRow } from './shared'
 import { errorText } from './useSettings'
 import { ContinueWatchingRow } from './ContinueWatchingRow'
@@ -9,7 +10,7 @@ import { t, Words } from '../../i18n'
 
 /** The profile's own: which rows Home and each library's Browse show, in every app. */
 export function LayoutSection() {
-  const { data, error } = useApi(getLayout, [])
+  const { data, error, loading, reload } = useApi(getLayout, [])
   // Books and podcasts in Continue watching, with the rest of Home.
   const playback = useApi(getPlaybackPreferences, [])
   const [draft, setDraft] = useState<Layout>()
@@ -19,7 +20,7 @@ export function LayoutSection() {
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(() => () => clearTimeout(timer.current), [])
 
-  if (error) return <p className="error">{error.message}</p>
+  if (error && !data) return <PageError error={error} onRetry={reload} retrying={loading} />
   if (!layout) return null
 
   const save = (next: Layout) =>

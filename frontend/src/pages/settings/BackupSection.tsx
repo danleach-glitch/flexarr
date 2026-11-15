@@ -132,7 +132,7 @@ export function BackupSection() {
         {backups.loading && !backups.data && <p className="muted">{t('Loading…')}</p>}
         {backups.error && (
           <p className="error" role="alert">
-            {t('Couldn’t list the backups: {message}', { message: backups.error.message })}
+            {t('Couldn’t list the backups: {message}', { message: errorText(backups.error) })}
           </p>
         )}
         {backups.data?.backups.length === 0 && <p className="muted">{t('No backups yet.')}</p>}

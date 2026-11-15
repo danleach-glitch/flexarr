@@ -41,7 +41,7 @@ export function RemoteAccessGroups() {
     }
   }
 
-  if (!remote.data) return <p className="muted">{remote.error ? remote.error.message : t('Checking Tailscale…')}</p>
+  if (!remote.data) return <p className="muted">{remote.error ? errorText(remote.error) : t('Checking Tailscale…')}</p>
   const { tailscale: ts } = remote.data
   const inDocker = !ts.installed && remote.data.inContainer
   const inMacApp = remote.data.inMacApp === true

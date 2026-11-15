@@ -98,7 +98,7 @@ export function CollectionsPage() {
         </section>
       )}
 
-      {!suggested && collections.error && <p className="error">{collections.error.message}</p>}
+      {!suggested && collections.error && <PageError error={collections.error} onRetry={collections.reload} retrying={collections.loading} />}
       {!suggested && sections.map(
         (section) =>
           section.items.length > 0 && (

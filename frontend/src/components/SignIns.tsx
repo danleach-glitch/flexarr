@@ -119,7 +119,7 @@ export function SignIns() {
     }
   }
 
-  if (!list.data) return <p className="muted">{list.error ? list.error.message : t('Loading…')}</p>
+  if (!list.data) return <p className="muted">{list.error ? errorText(list.error) : t('Loading…')}</p>
 
   const thisOne = list.data.find((s) => s.isThisOne)
   const others = list.data.filter((s) => !s.isThisOne)

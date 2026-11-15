@@ -37,6 +37,8 @@ export function HomePage() {
   // Settings locked or not: the list is the main profile's either way.
   const main = me?.isAdmin === true || me?.canUnlock === true
   const admin = me?.isAdmin === true
+  // Who can add a library (or the main profile, locked): anyone else is told who can. Not knowing yet, as before.
+  const managesLibraries = !me || main
   // Kept as long as Home's own answer: Home waits for it, and back from a title neither is asked for again.
   const guide = useApi((signal) => (main ? getSetupGuideForHome(signal).catch(() => null) : Promise.resolve(null)), [main], `home-guide ${main}`)
 
@@ -54,16 +56,21 @@ export function HomePage() {
       <section className="welcome">
         <h1>{t('Nothing to watch yet')}</h1>
         <p>{t('Point Flexarr at the folders where your movies and shows live, and they’ll appear here with artwork.')}</p>
-        <div className="welcome-actions">
-          {admin && (
-            <Link className="button" to="/setup">
-              {t('Set up Flexarr')}
+        {/* Only the main profile can add a library: anyone else's button would land on their own Playback settings. */}
+        {managesLibraries ? (
+          <div className="welcome-actions">
+            {admin && (
+              <Link className="button" to="/setup">
+                {t('Set up Flexarr')}
+              </Link>
+            )}
+            <Link className={admin ? 'button quiet' : 'button'} to="/settings/libraries">
+              {t('Add a library')}
             </Link>
-          )}
-          <Link className={admin ? 'button quiet' : 'button'} to="/settings/libraries">
-            {t('Add a library')}
-          </Link>
-        </div>
+          </div>
+        ) : (
+          <p className="muted">{t('Ask whoever runs this Flexarr to add a library.')}</p>
+        )}
       </section>
     )
   }
@@ -86,7 +93,7 @@ export function HomePage() {
 
   return (
     <>
-      {empty ? limited ? nothingFor : <EmptyLibraries libraries={media} /> : <Hero items={data.featured} overviews={data.overviews} resume={data.resume ?? undefined} resumes={data.resumes} />}
+      {empty ? limited ? nothingFor : <EmptyLibraries libraries={media} admin={managesLibraries} /> : <Hero items={data.featured} overviews={data.overviews} resume={data.resume ?? undefined} resumes={data.resumes} />}
       {/* No hero (only Live TV so far): the rows start below the top bar. */}
       <div className={data.featured.length > 0 ? 'rows' : empty ? 'rows rows-after-welcome' : 'rows rows-unheaded'}>
         {checklist}
@@ -132,7 +139,7 @@ function NothingFor({ name }: { name: string | undefined }) {
   )
 }
 
-function EmptyLibraries({ libraries }: { libraries: Library[] }) {
+function EmptyLibraries({ libraries, admin }: { libraries: Library[]; admin: boolean }) {
   const names = list(libraries.map((l) => l.name))
   const wanted = list([...new Set(libraries.map((l) => t(kinds[l.type])))])
   const folders = libraries.flatMap((l) => l.folders)
@@ -164,14 +171,16 @@ function EmptyLibraries({ libraries }: { libraries: Library[] }) {
           ))}
         </ul>
       )}
-      <div className="welcome-actions">
-        <Link className="button" to="/settings/libraries">
-          {t('Check libraries')}
-        </Link>
-        <Link className="button quiet" to="/settings/connections">
-          {t('Connect Sonarr or Radarr')}
-        </Link>
-      </div>
+      {admin && (
+        <div className="welcome-actions">
+          <Link className="button" to="/settings/libraries">
+            {t('Check libraries')}
+          </Link>
+          <Link className="button quiet" to="/settings/connections">
+            {t('Connect Sonarr or Radarr')}
+          </Link>
+        </div>
+      )}
     </section>
   )
 }

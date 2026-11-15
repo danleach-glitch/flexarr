@@ -180,7 +180,7 @@ function PodcastsHome() {
           {importing}
         </p>
       )}
-      {podcasts.error && <p className="error">{podcasts.error.message}</p>}
+      {podcasts.error && <PageError error={podcasts.error} onRetry={podcasts.reload} retrying={podcasts.loading} />}
 
       {empty && limited && (
         <section className="podcast-empty panel">
@@ -491,8 +491,8 @@ function PodcastBrowse() {
         <AddFeed url={query} />
       ) : query ? (
         <>
-          {results.error && <p className="error">{results.error.message}</p>}
-          {results.loading && !results.data && <p className="muted">{t('Searching…')}</p>}
+          {results.error && <PageError error={results.error} onRetry={results.reload} retrying={results.loading} />}
+          {results.loading && !results.data && !results.error && <p className="muted">{t('Searching…')}</p>}
           {results.data?.length === 0 && <p className="muted">{t('Nothing found for “{query}”. If you have the show’s feed address, paste it here instead.', { query })}</p>}
           <DirectoryGrid podcasts={results.data ?? []} />
         </>
@@ -509,8 +509,8 @@ function PodcastBrowse() {
             ))}
           </nav>
           <h2 className="podcast-chart-title">{genre ? t('Top podcasts in {genre}', { genre: genres.data?.find((g) => g.id === genre)?.name ?? '' }) : t('Top podcasts')}</h2>
-          {top.error && <p className="error">{top.error.message}</p>}
-          {top.loading && !top.data && <p className="muted">{t('Loading the charts…')}</p>}
+          {top.error && <PageError error={top.error} onRetry={top.reload} retrying={top.loading} />}
+          {top.loading && !top.data && !top.error && <p className="muted">{t('Loading the charts…')}</p>}
           <DirectoryGrid podcasts={top.data ?? []} ranked />
         </>
       )}

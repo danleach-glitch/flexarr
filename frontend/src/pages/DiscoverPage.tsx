@@ -4,6 +4,7 @@ import { getExternalDiscover, getGenreItems, getGenres, getMusicRequestStatus, i
 import { ExternalCard } from '../components/ExternalCard'
 import { Row } from '../components/Row'
 import { PosterCard } from '../components/Cards'
+import { PageError, PageLoading } from '../components/PageStatus'
 import { useApi } from '../hooks/useApi'
 import { DiscoverSwitch, MusicDiscover, MusicGenrePage, MusicSearchResults } from './DiscoverMusic'
 import { t, Words } from '../i18n'
@@ -62,11 +63,17 @@ export function DiscoverPage() {
             ))}
           </div>
         </header>
-        <div className="poster-grid">
-          {items.data?.items.map((item) => (
-            <PosterCard key={item.id} item={item} />
-          ))}
-        </div>
+        {items.error ? (
+          <PageError error={items.error} onRetry={items.reload} retrying={items.loading} />
+        ) : !items.data ? (
+          <PageLoading />
+        ) : (
+          <div className="poster-grid">
+            {items.data.items.map((item) => (
+              <PosterCard key={item.id} item={item} />
+            ))}
+          </div>
+        )}
       </div>
     )
   }
@@ -104,8 +111,8 @@ export function DiscoverPage() {
           {heading}
           {searchBox}
         </header>
-        {results.error && <p className="error">{results.error.message}</p>}
-        {results.loading && !results.data && <p className="muted">{t('Searching…')}</p>}
+        {results.error && <PageError error={results.error} onRetry={results.reload} retrying={results.loading} />}
+        {results.loading && !results.data && !results.error && <p className="muted">{t('Searching…')}</p>}
         {results.data && results.data.length === 0 && <p className="muted">{t('Nothing found for “{query}”. Try a different spelling, or the original title.', { query })}</p>}
         {results.data && results.data.length > 0 && (
           <>
@@ -148,6 +155,7 @@ export function DiscoverPage() {
         {heading}
         {searchBox}
       </header>
+      {external.error && <p className="muted discover-note">{t('Seerr isn’t answering, so there’s nothing new to request just now.')}</p>}
       {external.data && external.data.length > 0 && (
         <div className="discover-external">
           {external.data.map((row) => (
@@ -160,6 +168,8 @@ export function DiscoverPage() {
           <h2 className="section-title">{t('Your library by genre')}</h2>
         </div>
       )}
+      {genres.error && <PageError error={genres.error} onRetry={genres.reload} retrying={genres.loading} />}
+      {!genres.data && !genres.error && <PageLoading />}
       <div className="genre-grid">
         {genres.data?.map((g) => (
           <Link key={g.name} to={`/discover?genre=${encodeURIComponent(g.name)}`} className="genre-tile">

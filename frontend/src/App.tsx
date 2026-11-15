@@ -381,7 +381,23 @@ export default function App() {
       {codePage && <p className="connect-tagline">{t('Your entertainment, on every screen.')}</p>}
       <section className="panel" aria-label={t('Server status')}>
         {state.kind === 'loading' && <p className="muted">{t('Connecting…')}</p>}
-        {state.kind === 'error' && <p className="error" role="alert">{t('Can’t reach the server ({message}). Check that Flexarr is running, then reload.', { message: state.message })}</p>}
+        {state.kind === 'error' && (
+          <div className="connect-error" role="alert">
+            <p className="error">{t('Can’t reach the server. Check that Flexarr is running.')}</p>
+            {/* What went wrong, when it says more than that nothing answered. */}
+            {state.message !== t(Words.serverDidntAnswer) && <p className="muted small-print">{state.message}</p>}
+            <button
+              type="button"
+              className="button"
+              onClick={() => {
+                setState({ kind: 'loading' })
+                setAttempt((n) => n + 1)
+              }}
+            >
+              {t('Try again')}
+            </button>
+          </div>
+        )}
         {state.kind === 'unauthorized' && state.setupOpen && (
           <form className="setup-welcome api-key-form" onSubmit={setUp}>
             <h1>{t('Welcome to your Flexarr server')}</h1>

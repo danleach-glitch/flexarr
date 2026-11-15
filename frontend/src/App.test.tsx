@@ -181,6 +181,21 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Coming soon' })).toBeInTheDocument()
   })
 
+  it('tells a profile that can’t add a library who can, instead of a button into its own settings', async () => {
+    mockApi({
+      '/system/status': status,
+      '/libraries': [],
+      '/me': { profileId: 'g1', method: 'session', zone: 'Local', isAdmin: false, canUnlock: false, tailscaleLogin: null },
+      '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+    })
+
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Nothing to watch yet' })).toBeInTheDocument()
+    expect(screen.getByText('Ask whoever runs this Flexarr to add a library.')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Add a library' })).not.toBeInTheDocument()
+  })
+
   it('shows what Home found rather than an empty library when the library list is behind a scan', async () => {
     const film = summary({ id: 'm9', kind: 'Movie', title: 'Big Buck Bunny', poster: null, backdrop: null })
     mockApi({
@@ -677,7 +692,25 @@ describe('App', () => {
 
     render(<App />)
 
-    expect(await screen.findByText(/Can’t reach the server/)).toBeInTheDocument()
+    expect(await screen.findByText('Can’t reach the server. Check that Flexarr is running.')).toBeInTheDocument()
+  })
+
+  it('tries the server again from the unreachable screen', async () => {
+    let up = false
+    mockApi({
+      '/system/status': () => (up ? status : Promise.reject(new TypeError('Failed to fetch'))),
+      '/libraries': [movies],
+      '/home': { featured: [], overviews: {}, rows: [], upcoming: [], downloading: 0 },
+    })
+
+    render(<App />)
+
+    expect(await screen.findByText('Can’t reach the server. Check that Flexarr is running.')).toBeInTheDocument()
+    // Nothing answered, so the browser's own words aren't added below it.
+    expect(screen.queryByText(/Failed to fetch|didn’t answer/)).not.toBeInTheDocument()
+    up = true
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    await waitFor(() => expect(screen.queryByText(/Can’t reach the server/)).not.toBeInTheDocument())
   })
 })
 
@@ -793,6 +826,52 @@ describe('Series page', () => {
       '/api/v1/items/s/similar',
       '/api/v1/items/s/missing',
     ])
+  })
+
+  it('never shows one season’s episodes under another’s tab, while it loads or when it fails', async () => {
+    const series = summary({ id: 's', kind: 'Series', title: '30 Rock', childCount: 2 })
+    const one = summary({ id: 'season-1', kind: 'Season', parentId: 's', title: 'Season 1', seasonNumber: 1, childCount: 1 })
+    const two = summary({ id: 'season-2', kind: 'Season', parentId: 's', title: 'Season 2', seasonNumber: 2, childCount: 1 })
+    const pilot = summary({ id: 'e1', kind: 'Episode', parentId: 'season-1', title: 'Pilot', seasonNumber: 1, episodeNumber: 1 })
+    const seasonOne = detail(one, { children: [pilot], ancestors: [series] })
+    let answer: (r: Response) => void = () => {}
+    mockApi({
+      '/libraries': [],
+      '/items/s': detail(series, { children: [one, two], season: seasonOne }),
+      '/items/s/similar': [],
+      '/items/season-2': () => new Promise<Response>((resolve) => (answer = resolve)),
+    })
+
+    renderAt('/item/s')
+    expect(await screen.findByRole('link', { name: 'Pilot' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Season 2' }))
+    expect(await screen.findByRole('status', { name: 'Loading' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Pilot' })).not.toBeInTheDocument()
+
+    await act(async () => answer(new Response('', { status: 500 })))
+    expect(await screen.findByRole('button', { name: 'Try again' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Pilot' })).not.toBeInTheDocument()
+  })
+})
+
+describe('Discover', () => {
+  it('says when the library or Seerr couldn’t be reached, rather than showing an empty page', async () => {
+    let up = false
+    mockApi({
+      '/libraries': [],
+      '/requests/music/status': { configured: false, reachable: false },
+      '/genres': () => (up ? [{ name: 'Drama', movies: 2, shows: 0, backdrop: null }] : new Response('', { status: 502 })),
+      '/requests/discover': new Response('', { status: 502 }),
+    })
+
+    renderAt('/discover')
+
+    expect(await screen.findByText('Flexarr didn’t answer. Try again.')).toBeInTheDocument()
+    expect(screen.getByText('Seerr isn’t answering, so there’s nothing new to request just now.')).toBeInTheDocument()
+    up = true
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByRole('link', { name: /Drama/ })).toBeInTheDocument()
   })
 })
 

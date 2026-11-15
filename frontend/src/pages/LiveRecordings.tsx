@@ -40,7 +40,7 @@ export default function LiveRecordings() {
   const [ask, confirmDialog] = useConfirm()
 
   const data = recordings.data
-  if (recordings.error && !data) return <p className="error">{t('Couldn’t load the recordings: {error}', { error: recordings.error.message })}</p>
+  if (recordings.error && !data) return <p className="error">{t('Couldn’t load the recordings: {error}', { error: errorText(recordings.error) })}</p>
   if (!data) return <PageLoading />
 
   return (
