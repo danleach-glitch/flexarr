@@ -14,6 +14,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Apple TV, Up from any title in a grid's top row reaches the switch and sort buttons above it.
 - On Apple TV, in the player, Right from skip forward no longer jumps back to Play when there's no Next.
 - On Apple TV, opening a library from the sidebar lands on its first title (or the hero's Play), not on the Browse and All switch, however long you stayed on it in the sidebar.
+- On Apple TV, long titles can be read in full: a title's page and the Home hero give the name three lines and more width, and a focused poster, album, artist, playlist or book shows its whole name over two lines.
 - On Android, Download Season fetches that season and one episode ahead, no longer the whole show.
 - On Android, pages no longer scroll up through the clock and status icons, and Settings pages keep their title and Back in view.
 - On Android, a show's season pills are all readable: Download Season sits on its own line under them.

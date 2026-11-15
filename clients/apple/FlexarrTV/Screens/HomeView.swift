@@ -433,9 +433,11 @@ struct TitleArt: View {
             .font(.marquee(fontSize, weight: .black))
             .kerning(-1)
             .foregroundStyle(Color.screen)
-            .lineLimit(2)
-            .minimumScaleFactor(0.6)
-            .frame(maxWidth: maxWidth * 1.3, alignment: .leading)
+            // A long name gets three lines and more of the screen's width (the right of the hero and the title's page
+            // is otherwise empty), shrinking to fit, rather than being cut at two.
+            .lineLimit(3)
+            .minimumScaleFactor(0.5)
+            .frame(maxWidth: maxWidth * 1.6, alignment: .leading)
             .modifier(TitleScrim(reach: maxWidth * 0.6))
     }
 }

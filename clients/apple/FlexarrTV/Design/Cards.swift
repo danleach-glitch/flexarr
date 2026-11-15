@@ -14,19 +14,7 @@ struct PosterCard: View {
         ArtworkButton(ambient: item.glowColor, focus: focus, focusID: item.id, action: action) {
             PosterArtwork(item: item, width: width)
         } caption: { focused in
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.title)
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(focused ? Color.screen : Color.screen.opacity(0.8))
-                    .lineLimit(1)
-                if let subtitle {
-                    Text(subtitle)
-                        .font(.system(size: 21))
-                        .foregroundStyle(Color.usher)
-                        .lineLimit(1)
-                }
-            }
-            .frame(width: width, alignment: .leading)
+            CardCaption(title: item.title, subtitle: subtitle, focused: focused, width: width)
         }
         .contextMenu { ItemContextMenu(item: item) }
     }
@@ -106,17 +94,8 @@ struct WideCard: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
         } caption: { focused in
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.isListening ? item.title : item.displayTitle)
-                    .font(.system(size: 25, weight: .semibold))
-                    .foregroundStyle(focused ? Color.screen : Color.screen.opacity(0.85))
-                    .lineLimit(1)
-                Text(secondLine)
-                    .font(.system(size: 21))
-                    .foregroundStyle(Color.usher)
-                    .lineLimit(1)
-            }
-            .frame(width: width, alignment: .leading)
+            CardCaption(title: item.isListening ? item.title : item.displayTitle, subtitle: secondLine, focused: focused,
+                        width: width, titleSize: 25, restingOpacity: 0.85)
         }
         .contextMenu { ItemContextMenu(item: item, showsDetails: true) }
     }
@@ -333,5 +312,55 @@ struct ItemContextMenu: View {
         } else {
             router.push(.item(item))
         }
+    }
+}
+
+/// A card's name with the line under it (a year, an artist, a count). A name too long for one line is cut, and shown
+/// whole, over two lines, while the card has focus: in the space of the line under it, so nothing around it moves.
+struct CardCaption: View {
+    let title: String
+    var subtitle: String?
+    let focused: Bool
+    let width: CGFloat
+    var titleSize: CGFloat = 24
+    /// How bright the name is without focus.
+    var restingOpacity: Double = 0.8
+    var centered = false
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            // The whole name fits on its line.
+            lines.fixedSize(horizontal: true, vertical: false)
+            lines
+                .opacity(focused ? 0 : 1)
+                .overlay(alignment: centered ? .top : .topLeading) {
+                    if focused {
+                        name
+                            .lineLimit(2)
+                            .multilineTextAlignment(centered ? .center : .leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityHidden(true)
+                    }
+                }
+        }
+        .frame(width: width, alignment: centered ? .center : .leading)
+    }
+
+    private var lines: some View {
+        VStack(alignment: centered ? .center : .leading, spacing: centered ? 2 : 4) {
+            name.lineLimit(1)
+            if let subtitle {
+                Text(subtitle)
+                    .font(.system(size: 21))
+                    .foregroundStyle(Color.usher)
+                    .lineLimit(1)
+            }
+        }
+    }
+
+    private var name: some View {
+        Text(title)
+            .font(.system(size: titleSize, weight: .semibold))
+            .foregroundStyle(focused ? Color.screen : Color.screen.opacity(restingOpacity))
     }
 }
