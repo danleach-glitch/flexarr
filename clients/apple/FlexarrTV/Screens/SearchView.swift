@@ -11,11 +11,12 @@ struct SearchView: View {
     /// Films, shows, artists and albums beyond the library (Seerr's and Lidarr's), after the library's own.
     @State private var outside: [ExternalTitle] = []
     @State private var outsideMusic: [MusicExternal] = []
-    /// Whether Seerr and music requests are set up: asked once, before the first search.
+    /// Whether Seerr is set up: asked once, alongside the first search (and again after one that got no answer).
     @State private var looksOutside: Bool?
     @State private var musicStatus: MusicRequestStatus?
+    /// The library's results are in, but Seerr's or the music search's aren't yet.
+    @State private var lookingFurther = false
 
-    private var looksForMusic: Bool { musicStatus?.configured == true }
     private var musicPaused: Bool { musicStatus?.configured == true && musicStatus?.reachable == false }
 
     var body: some View {
@@ -23,7 +24,8 @@ struct SearchView: View {
             VStack(alignment: .leading, spacing: 30) {
                 if let results {
                     if results.isEmpty && outside.isEmpty && outsideMusic.isEmpty {
-                        StatusView(state: .empty(t("Nothing matches \u{201C}{query}\u{201D}.", ["query": query])))
+                        // Nothing in the library: said only once the searches beyond it have answered too.
+                        StatusView(state: lookingFurther ? .loading : .empty(t("Nothing matches \u{201C}{query}\u{201D}.", ["query": query])))
                             .frame(height: 300)
                     }
                     if !results.films.isEmpty {
@@ -95,7 +97,7 @@ struct SearchView: View {
         .scrollClipDisabled()
         .ignoresSafeArea(edges: .horizontal)
         .background(RoomBackground(ambient: nil))
-        .searchable(text: $query, prompt: t("Movies, shows, episodes and people"))
+        .searchable(text: $query, prompt: t("Movies, shows, music and people"))
         // The field and its keyboard start under the collapsed sidebar's label ("‹ Search"), about where a library's
         // switch is (`LibraryViewSwitch.topInset`): at the top of the screen the label sat on the field's first letters.
         .padding(.top, 20)
@@ -175,28 +177,54 @@ struct SearchView: View {
             await loadRecents()
             return
         }
-        if looksOutside == nil {
-            looksOutside = (try? await client.requestStatus())?.configured == true
-        }
-        if musicStatus == nil {
-            musicStatus = (try? await client.musicRequestStatus()) ?? .off
-        }
         do {
             // Seerr and Lidarr alongside the library; either failing just leaves its part out.
-            async let beyond: [ExternalTitle] = looksOutside == true ? (try? await client.searchEverything(text)) ?? [] : []
-            async let music: MusicSearchResults = looksForMusic && text.count >= 2 ? (try? await client.searchMusic(text)) ?? .empty : .empty
+            async let beyond = searchOutside(client, text)
+            async let music = searchMusic(client, text)
             let found = try await client.search(text)
-            let more = await beyond
-            let moreMusic = await music
+            // The library's results show straight away, as on iPhone; what's found beyond it joins them as it comes,
+            // so a slow Seerr never holds up what's already here.
             guard text == query.trimmingCharacters(in: .whitespaces) else { return }
             results = found
+            outside = []
+            outsideMusic = []
+            error = nil
+            lookingFurther = true
+            let more = await beyond
+            guard text == query.trimmingCharacters(in: .whitespaces) else { return }
             // What the library has is already above.
             outside = more.filter { $0.libraryItemId == nil && $0.availability != .available }
+            let (status, moreMusic) = await music
+            guard text == query.trimmingCharacters(in: .whitespaces) else { return }
+            musicStatus = status
             outsideMusic = (moreMusic.artists + moreMusic.albums).filter { $0.libraryItemId == nil && $0.availability != .available }
-            error = nil
+            lookingFurther = false
         } catch {
+            // Typing on cancels the search before: no failure, the next one is on its way.
+            guard !error.isCancellation, !Task.isCancelled, text == query.trimmingCharacters(in: .whitespaces) else { return }
+            // A real failure: said in place of the last words' results, never under them.
+            results = nil
+            outside = []
+            outsideMusic = []
             self.error = ConnectionError(error).message
+            lookingFurther = false
         }
+    }
+
+    /// Films and shows beyond the library, through Seerr when it's set up. Whether it is is asked once, and kept only
+    /// once answered: a blip doesn't turn it off until the app restarts.
+    private func searchOutside(_ client: FlexarrClient, _ text: String) async -> [ExternalTitle] {
+        if looksOutside == nil, let status = try? await client.requestStatus() { looksOutside = status.configured }
+        guard looksOutside == true else { return [] }
+        return (try? await client.searchEverything(text)) ?? []
+    }
+
+    /// Whether music can be asked for, then the music found when it can. The model keeps an answer for a minute, and
+    /// not one that never came.
+    private func searchMusic(_ client: FlexarrClient, _ text: String) async -> (MusicRequestStatus, MusicSearchResults) {
+        let status = await model.musicRequestStatus()
+        guard status.configured, text.count >= 2 else { return (status, .empty) }
+        return (status, (try? await client.searchMusic(text)) ?? .empty)
     }
 
     /// A title picked from the results: noted with the words searched for, then opened.

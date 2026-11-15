@@ -7,6 +7,7 @@ import SwiftUI
 struct LiveTvView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var channels: [LiveChannel]?
     @State private var error: String?
     /// Something to say about a recording just set.
@@ -94,8 +95,9 @@ struct LiveTvView: View {
         }
         .background(RoomBackground(ambient: nil))
         .navigationTitle(t(Words.liveTv))
-        // The guide wants the height: the title small at the top.
-        .navigationBarTitleDisplayMode(showsGuide ? .inline : .automatic)
+        // The guide wants the height: the title small at the top. The channel list's is large on iPhone however it was
+        // reached (left automatic it took the page before's), and small on iPad like every pushed page there.
+        .navigationBarTitleDisplayMode(showsGuide || sizeClass == .regular ? .inline : .large)
         #if os(macOS)
         .pageSwitch(tab, tabs)
         .pageActions { refreshButton }

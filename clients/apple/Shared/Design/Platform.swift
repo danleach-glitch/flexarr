@@ -71,7 +71,7 @@ extension NSImage {
 extension View {
     /// A list page on the Mac (Settings, Downloads, Coming soon's list): one centred column of readable width with
     /// the page margin either side, rows tall enough to breathe, icons spaced from their words. The phones' lists
-    /// already have all of that.
+    /// already have all of that; an iPad at regular width takes the same column width.
     /// `title` heads the column, and `parent` before it ("Settings › Server"): the Mac's window shows no title.
     @ViewBuilder
     func macReadable(title: String? = nil, parent: String? = nil) -> some View {
@@ -99,11 +99,36 @@ extension View {
         .frame(maxWidth: .infinity)
         // No band for the toolbar over a list page: back floats over the page.
         .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+        #elseif os(iOS)
+        modifier(ReadableColumn())
         #else
         self
         #endif
     }
 }
+
+#if os(iOS)
+/// An iPad's list page at regular width (landscape, the sidebar closed): rows no wider than the Mac's 760-point column,
+/// centred, rather than a label at the far left and its value at the far right. The margins are the scroll view's, so
+/// the page still scrolls from anywhere across it. An iPhone, or an iPad's narrow split, is as it was.
+private struct ReadableColumn: ViewModifier {
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    @State private var width: CGFloat = 0
+
+    static let maxWidth: CGFloat = 760
+
+    func body(content: Content) -> some View {
+        content
+            .contentMargins(.horizontal, sizeClass == .regular ? Self.margin(for: width) : 0, for: .scrollContent)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+    }
+
+    /// Either side of the column: whatever's left over once it's 760 wide.
+    static func margin(for width: CGFloat) -> CGFloat {
+        max(0, (width - maxWidth) / 2)
+    }
+}
+#endif
 
 #if os(macOS)
 /// An icon then its words, with room between them.

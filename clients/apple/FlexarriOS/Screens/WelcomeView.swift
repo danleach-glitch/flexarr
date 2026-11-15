@@ -78,8 +78,7 @@ struct WelcomeView: View {
         message: () -> String,
         @ViewBuilder extra: () -> some View = { EmptyView() }
     ) -> some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Spacer()
+        let words = VStack(alignment: .leading, spacing: 18) {
             art()
             Text(title())
                 .font(.marquee(40, weight: .black))
@@ -90,10 +89,25 @@ struct WelcomeView: View {
                 .fixedSize(horizontal: false, vertical: true)
             extra()
                 .padding(.top, 6)
-            Spacer()
-            Spacer()
+        }
+        // Raised a little above the middle when there's room; when there isn't (a phone held sideways, large text) it
+        // scrolls rather than running down into the page dots.
+        return ViewThatFits(in: .vertical) {
+            VStack(alignment: .leading, spacing: 0) {
+                Spacer(minLength: 0)
+                words
+                Spacer(minLength: 0)
+                Spacer(minLength: 0)
+            }
+            ScrollView(.vertical) {
+                words.padding(.vertical, 8)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .scrollIndicators(.hidden)
         }
         .padding(.horizontal, 24)
+        // The page dots are drawn over the bottom of the page: this strip is theirs, not the card's last line.
+        .padding(.bottom, 36)
         .frame(maxWidth: 520, alignment: .leading)
         .frame(maxWidth: .infinity)
         .tag(tag)

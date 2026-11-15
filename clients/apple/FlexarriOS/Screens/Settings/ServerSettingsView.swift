@@ -84,12 +84,22 @@ struct ServerSettingsView: View {
         status.map { $0.errorReports?.enabled == true } ?? ErrorReports.isOn
     }
 
+    /// The value beside its name when it fits on one line there; when it doesn't (a long list of libraries), under
+    /// the name and from the same edge, rather than a second line pushed against the right.
     private func row(_ label: String, _ value: String) -> some View {
-        LabeledContent(label) {
-            Text(value)
-                .foregroundStyle(Color.screen)
-                .multilineTextAlignment(.trailing)
-                .lineLimit(2)
+        ViewThatFits(in: .horizontal) {
+            LabeledContent(label) {
+                Text(value)
+                    .foregroundStyle(Color.screen)
+                    .lineLimit(1)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                Text(value)
+                    .foregroundStyle(Color.screen)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .listRowBackground(Color.seat)
     }

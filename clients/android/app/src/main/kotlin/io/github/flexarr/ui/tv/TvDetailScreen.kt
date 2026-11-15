@@ -133,6 +133,9 @@ fun TvDetailScreen(model: AppModel, id: String) {
     var similar by remember(id) { mutableStateOf(emptyList<ItemSummary>()) }
     var selectedSeasonId by remember(id) { mutableStateOf<String?>(null) }
     val seasons = remember(id) { mutableStateMapOf<String, ItemDetail>() }
+    // Seasons whose episodes couldn't be fetched, with why: said where the episodes go, with Try again.
+    val failedSeasons = remember(id) { mutableStateMapOf<String, String>() }
+    var seasonAttempt by remember(id) { mutableStateOf(0) }
     // A show's gaps (seasons and episodes it lacks, what's coming), and the seasons asked for here since.
     var missing by remember(id) { mutableStateOf(ShowMissing.None) }
     var asked by remember(id) { mutableStateOf(emptySet<Int>()) }
@@ -184,7 +187,7 @@ fun TvDetailScreen(model: AppModel, id: String) {
                     MediaKind.Episode -> item.parentId?.let { selectedSeasonId = it }
                     else -> Unit
                 }
-                selectedSeasonId?.let { season -> runCatching { client.item(season) }.onSuccess { seasons[season] = it } }
+                selectedSeasonId?.let { season -> loadTvSeason(client, season, seasons, failedSeasons) }
                 alike?.await()?.let { similar = it }
             }
         } catch (e: CancellationException) {
@@ -193,9 +196,9 @@ fun TvDetailScreen(model: AppModel, id: String) {
             if (detail == null) error = e.message
         }
     }
-    LaunchedEffect(selectedSeasonId) {
+    LaunchedEffect(selectedSeasonId, seasonAttempt) {
         val season = selectedSeasonId ?: return@LaunchedEffect
-        if (season !in seasons) runCatching { client.item(season) }.onSuccess { seasons[season] = it }
+        if (season !in seasons) loadTvSeason(client, season, seasons, failedSeasons)
     }
 
     val loaded = detail
@@ -220,7 +223,8 @@ fun TvDetailScreen(model: AppModel, id: String) {
                         Header(item, series, loaded, ambient, nextUp, seasons[selectedSeasonId], onActionsFocused = { scope.launch { scroll.animateScrollTo(0) } })
                     }
                     val navigator = LocalNavigator.current
-                    Sections(item, loaded, nextUp, seasons, selectedSeasonId, onSeason = { selectedSeasonId = it }, similar = similar, ambient = ambient, missing = missing) {
+                    Sections(item, loaded, nextUp, seasons, selectedSeasonId, onSeason = { selectedSeasonId = it }, similar = similar, ambient = ambient, missing = missing,
+                        seasonFailed = selectedSeasonId?.let { failedSeasons[it] }, retrySeason = { selectedSeasonId?.let { failedSeasons.remove(it) }; seasonAttempt++ }) {
                         if (item.kind == MediaKind.Series) {
                             TvShowMissing(
                                 missing,
@@ -481,6 +485,21 @@ private fun playLabel(target: ItemSummary, container: ItemSummary): String {
     return if (resume) t(Words.resumeFrom, "time" to Format.timestamp(target.userData.positionSeconds)) else t(Words.play)
 }
 
+/**
+ * Fetches a season's episodes into [seasons]. A failure is kept in [failed] (unless the season is already shown), so
+ * the page says so with Try again rather than leaving no episode row until the season is changed.
+ */
+private suspend fun loadTvSeason(client: io.github.flexarr.core.FlexarrClient, season: String, seasons: MutableMap<String, ItemDetail>, failed: MutableMap<String, String>) {
+    try {
+        seasons[season] = client.item(season)
+        failed.remove(season)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        if (season !in seasons) failed[season] = e.message ?: t("Something went wrong.")
+    }
+}
+
 @Composable
 private fun Sections(
     item: ItemSummary,
@@ -493,6 +512,9 @@ private fun Sections(
     ambient: Color,
     /** A show's gaps: "8 of 10" on its seasons. */
     missing: ShowMissing = ShowMissing.None,
+    /** Why the chosen season's episodes couldn't be had (nil while loading), with Try again. */
+    seasonFailed: String? = null,
+    retrySeason: () -> Unit = {},
     /** After the episodes, before the cast: what the library lacks of a show. */
     gaps: @Composable () -> Unit = {},
 ) {
@@ -509,7 +531,12 @@ private fun Sections(
                     TvPill(child.title, selected = chosen, detail = missing.countLabel(child.seasonNumber), onClick = { onSeason(child.id) }, ambient = ambient, modifier = Modifier.onFocusChanged { if (it.isFocused) onSeason(child.id) }.then(if (chosen) Modifier.focusRequester(selectedPill) else Modifier))
                 }
             }
-            if (season != null) Episodes(item, season, nextUp) else Box(Modifier.heightIn(min = 210.dp))
+            when {
+                season != null -> Episodes(item, season, nextUp)
+                // Focus stays where it is (on the pills, which switch season as it moves): Try again is a press away.
+                seasonFailed != null -> TvStatusView(seasonFailed, retry = retrySeason, takesFocus = false, modifier = Modifier.heightIn(min = 210.dp))
+                else -> Box(Modifier.heightIn(min = 210.dp))
+            }
         }
     } else if (item.kind == MediaKind.Episode && season != null && season.children.size > 1) {
         Column {

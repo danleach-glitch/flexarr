@@ -33,8 +33,11 @@ enum LibraryGridContent {
         }
     }
 
-    func count(_ total: Int) -> String {
+    /// "12 titles" under the grid; a home videos library's titles are its folders (its All is All folders), so
+    /// `folders` says "2 folders".
+    func count(_ total: Int, folders: Bool = false) -> String {
         switch self {
+        case .titles where folders: t("{count, plural, one {# folder} other {# folders}}", ["count": total])
         case .titles: t("{count, plural, one {# title} other {# titles}}", ["count": total])
         case .artists: t("{count, plural, one {# artist} other {# artists}}", ["count": total])
         case .albums: t("{count, plural, one {# album} other {# albums}}", ["count": total])

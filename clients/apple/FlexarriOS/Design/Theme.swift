@@ -82,21 +82,60 @@ struct SectionHeading: View {
     var action: (() -> Void)?
     /// What VoiceOver says for the action, when "See all" alone wouldn't say what of.
     var actionLabel: String?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
+        // At the accessibility text sizes See all goes under the heading, so the heading has the width and doesn't
+        // break mid-word ("unwatche d").
+        let stacked = dynamicTypeSize.isAccessibilitySize
+        let layout = stacked ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4)) : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
+        layout {
             Text(title)
                 .font(.marquee(26, weight: .bold))
                 .foregroundStyle(Color.screen)
-            Spacer()
+            if !stacked { Spacer() }
             if let action {
+                #if os(iOS)
+                Button(action: action) {
+                    // A full-size target, 44 points high, overlapping the space around it so the heading keeps its
+                    // height.
+                    Text(actionTitle)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.usher)
+                .padding(.vertical, -13)
+                .accessibilityLabel(actionLabel ?? actionTitle)
+                #else
                 Button(actionTitle, action: action)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.usher)
                     .accessibilityLabel(actionLabel ?? actionTitle)
+                #endif
             }
         }
         .padding(.horizontal, Layout.edge)
+    }
+}
+
+extension View {
+    /// A switch between a page's views (Browse, All movies, Genres): segmented, or at the accessibility text sizes,
+    /// which a segmented control doesn't grow with, a menu in the size of the rest of the page.
+    func switchPickerStyle() -> some View {
+        modifier(SwitchPickerStyle())
+    }
+}
+
+private struct SwitchPickerStyle: ViewModifier {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    func body(content: Content) -> some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            content.pickerStyle(.menu)
+        } else {
+            content.pickerStyle(.segmented)
+        }
     }
 }
 
@@ -115,6 +154,7 @@ struct ActionButtonStyle: ButtonStyle {
             .font(.body.weight(.semibold))
             .labelStyle(ActionLabelStyle(singleLine: singleLine))
             .padding(.horizontal, 20)
+            .modifier(ScaledVerticalPadding())
             .frame(minHeight: 48)
             .foregroundStyle(prominent ? Color.room : Color.screen)
             .background {
@@ -124,6 +164,16 @@ struct ActionButtonStyle: ButtonStyle {
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .opacity(configuration.isPressed ? 0.85 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+
+    /// Room above and below the words that grows with them, so at the accessibility text sizes they don't fill the
+    /// button top to bottom. At the usual sizes 48 points is taller anyway.
+    private struct ScaledVerticalPadding: ViewModifier {
+        @ScaledMetric(relativeTo: .body) private var padding: CGFloat = 8
+
+        func body(content: Content) -> some View {
+            content.padding(.vertical, padding)
+        }
     }
 
     private struct ActionLabelStyle: LabelStyle {
@@ -162,7 +212,8 @@ struct RoundActionStyle: ButtonStyle {
         @Environment(\.isEnabled) private var isEnabled
         @ScaledMetric(relativeTo: .body) private var scaledSize: CGFloat = 48
 
-        private var size: CGFloat { scales ? scaledSize : 48 }
+        /// Grows with the text up to 64 points, so the largest sizes don't make each one a third of the screen.
+        private var size: CGFloat { scales ? min(scaledSize, 64) : 48 }
 
         var body: some View {
             Group {
@@ -263,6 +314,16 @@ struct LabeledActionStyle: ButtonStyle {
         var packed = false
 
         func makeBody(configuration: Configuration) -> some View {
+            StackedBody(configuration: configuration, packed: packed)
+        }
+    }
+
+    private struct StackedBody: View {
+        let configuration: LabelStyleConfiguration
+        let packed: Bool
+        @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+        var body: some View {
             VStack(spacing: 6) {
                 configuration.icon
                     .font(.body.weight(.semibold))
@@ -275,8 +336,13 @@ struct LabeledActionStyle: ButtonStyle {
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
+                    // The name shrinks a little rather than breaking mid-word at the largest sizes.
+                    .minimumScaleFactor(0.7)
             }
-            .frame(width: packed ? 76 : nil)
+            // Wider at the accessibility sizes, so "Shuffle" or "Watched" fits on a line.
+            .frame(width: packed ? (dynamicTypeSize.isAccessibilitySize ? 120 : 76) : nil)
+            // The circle and its name stop growing at the first accessibility size.
+            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
             .frame(maxWidth: packed ? nil : .infinity)
             .contentShape(Rectangle())
         }

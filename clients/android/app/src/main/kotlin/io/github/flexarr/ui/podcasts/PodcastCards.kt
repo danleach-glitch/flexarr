@@ -169,7 +169,7 @@ fun PodcastEpisodeRow(
     val actions = buildList {
         add(MenuAction(if (episode.progress != null) t("Resume") else t(Words.play)) { model.podcasts.play(episode) })
         add(MenuAction(t(Words.playNext)) { model.addToUpNext(episode.id, next = true) })
-        add(MenuAction(t("Add to Up next")) { model.addToUpNext(episode.id, next = false) })
+        add(MenuAction(t(Words.addToQueue)) { model.addToUpNext(episode.id, next = false) })
         removeFromUpNext?.let { add(MenuAction(t("Remove from Up next"), run = it)) }
         add(MenuAction(if (episode.isPlayed) t("Mark as unplayed") else t(Words.markAsPlayed)) { setPlayed(!episode.isPlayed) })
         if (download == null) {
@@ -192,7 +192,7 @@ fun PodcastEpisodeRow(
         if (removeFromUpNext != null) {
             add(SwipeAction(t("Remove from Up next"), FlexarrIcons.removeFromRow, Flexarr.danger, Flexarr.room, removeFromUpNext))
         } else {
-            add(SwipeAction(t("Add to Up next"), Icons.AutoMirrored.Filled.PlaylistAdd, Flexarr.silver, Flexarr.room) { model.addToUpNext(episode.id, next = false) })
+            add(SwipeAction(t(Words.addToQueue), Icons.AutoMirrored.Filled.PlaylistAdd, Flexarr.silver, Flexarr.room) { model.addToUpNext(episode.id, next = false) })
             if (download == null) {
                 add(SwipeAction(t(Words.download), FlexarrIcons.download, Flexarr.aisle) { model.scope.launch { runCatching { model.downloads.downloadEpisode(episode.id) } } })
             } else {

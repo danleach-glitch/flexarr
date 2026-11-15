@@ -8,6 +8,7 @@ struct DetailView: View {
     @Environment(Router.self) private var router
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let id: String
     let preview: ItemSummary?
 
@@ -17,10 +18,16 @@ struct DetailView: View {
     /// Given to the player with Play, so this page knows the sitting was started here (`takeEnding`).
     @State private var pageToken = UUID().uuidString
     @State private var error: String?
+    /// The server says this title isn't there (deleted since the link or widget named it): no Try again.
+    @State private var isGone = false
     @State private var nextUp: ItemSummary?
     @State private var similar: [ItemSummary] = []
     @State private var selectedSeasonID: String?
     @State private var seasons: [String: ItemDetail] = [:]
+    /// Seasons being fetched, so the load and the effect keyed on the selected season don't both ask for one.
+    @State private var seasonFetches = SeasonFetches()
+    /// Seasons whose episodes couldn't be fetched, with why: said in the episode area with Try again, not a spinner.
+    @State private var failedSeasons: [String: String] = [:]
     @State private var overviewExpanded = false
     /// `model.refreshToken` when `detail` was last fetched.
     @State private var loadedToken: Int?
@@ -41,6 +48,8 @@ struct DetailView: View {
     /// Fetching `gaps`, on its own so a slow Sonarr or Seerr never holds up the page or a pull to refresh.
     @State private var gapsTask: Task<Void, Never>?
     @Environment(\.scenePhase) private var scenePhase
+    /// The fade under the status bar and back button, once the backdrop has scrolled away.
+    @State private var topFade = 0.0
 
     private var item: ItemSummary? { detail?.item ?? (preview?.kind == .season ? nil : preview) }
     /// What Play would start here, got ready after a moment on the page.
@@ -71,7 +80,11 @@ struct DetailView: View {
                     .padding(.bottom, 40)
                 }
                 .ignoresSafeArea(edges: .top)
+                .trackingTopFade(heroHeight: heroHeight, into: $topFade)
                 .refreshable { await load() }
+                TopBarFade(strength: topFade)
+            } else if isGone {
+                StatusView(state: .empty(ConnectionError.gone))
             } else if let error {
                 StatusView(state: .failed(error) { Task { await load() } })
             } else {
@@ -132,12 +145,12 @@ struct DetailView: View {
                 backdrop(for: item)
                 VStack(alignment: .leading, spacing: 8) {
                     if item.kind == .episode, let series {
-                        TitleArt(item: series, maxWidth: 240, maxHeight: 80, fontSize: 40)
+                        TitleArt(item: series, maxWidth: 240, maxHeight: 80, fontSize: 40, lines: 3, textWidth: sizeClass == .regular ? 560 : nil)
                         Text(item.episodeSubtitle ?? item.title)
                             .font(.marquee(28, weight: .bold))
                             .foregroundStyle(Color.screen)
                     } else {
-                        TitleArt(item: item, maxWidth: 300, maxHeight: 120, fontSize: 52)
+                        TitleArt(item: item, maxWidth: 300, maxHeight: 120, fontSize: 52, lines: 4, textWidth: sizeClass == .regular ? 640 : nil)
                     }
                     FactsLine(facts: item.facts(scores: !model.isKids, versions: detail?.versions), scores: model.isKids ? nil : item.scores)
                     if let genres = detail?.genres, !genres.isEmpty {
@@ -183,8 +196,16 @@ struct DetailView: View {
                 LinearGradient(stops: [.init(color: .clear, location: 0.3), .init(color: .room.opacity(0.6), location: 1)],
                                startPoint: .top, endPoint: .bottom)
             }
+            // A short dark fade across the top, so the clock and battery stay readable over pale artwork.
+            .overlay(alignment: .top) {
+                LinearGradient(colors: [.black.opacity(0.45), .clear], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 100)
+                    .allowsHitTesting(false)
+            }
             // Fade out rather than painting the room colour, so there's no seam with the ambient wash behind.
             .mask(LinearGradient(stops: [.init(color: .black, location: 0.55), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
+            // Edge to edge on a phone held sideways, not stopping at the safe area's lines; the words stay inside them.
+            .ignoresSafeArea(.container, edges: .horizontal)
     }
 
     /// The buttons in the order every client shares (`DetailActions`).
@@ -232,9 +253,22 @@ struct DetailView: View {
             .buttonStyle(ActionButtonStyle(ambient: item.ambientColor ?? series?.ambientColor, prominent: true, singleLine: wide))
             .monospacedDigit()
         }
-        let others = HStack(alignment: .top, spacing: wide ? 4 : 8) {
-            ForEach(actions.buttons.filter { $0 != .play }, id: \.self) { button in
-                secondaryButton(button, item: item, playable: playable, watched: watched, menu: actions.menu)
+        let secondary = actions.buttons.filter { $0 != .play }
+        // At the accessibility text sizes on a phone, two a line: four in one broke their names mid-word.
+        let others = Group {
+            if !wide, dynamicTypeSize.isAccessibilitySize {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 8, alignment: .top), GridItem(.flexible(), spacing: 8, alignment: .top)],
+                          spacing: 16) {
+                    ForEach(secondary, id: \.self) { button in
+                        secondaryButton(button, item: item, playable: playable, watched: watched, menu: actions.menu)
+                    }
+                }
+            } else {
+                HStack(alignment: .top, spacing: wide ? 4 : 8) {
+                    ForEach(secondary, id: \.self) { button in
+                        secondaryButton(button, item: item, playable: playable, watched: watched, menu: actions.menu)
+                    }
+                }
             }
         }
         .buttonStyle(LabeledActionStyle(packed: wide))
@@ -289,9 +323,24 @@ struct DetailView: View {
         case .download:
             if item.kind == .series {
                 // Every episode of every season.
-                ShowDownloadButton(show: item, seasons: detail.map { $0.children.filter { $0.kind == .season } })
+                ShowDownloadButton(show: item, seasons: detail.map { $0.children.filter { $0.kind == .season } },
+                                   fetched: seasons)
             } else {
                 DownloadButton(item: item, copies: detail?.copyIds ?? [])
+            }
+        case .chooseVersion:
+            // What ⋯ would have held alone, on the row in its place.
+            versionMenu(item)
+        case .findSubtitles:
+            if let file = detail?.subtitleTargetId {
+                Button { subtitleSearchFile = SubtitleSearchFile(id: file) } label: {
+                    Label(t(Words.subtitles), systemImage: Symbol.subtitles)
+                }
+                .accessibilityLabel(t("Search for subtitles"))
+            }
+        case .openShow:
+            if let series {
+                Button { router.push(.item(series)) } label: { Label(t(Words.goToShow), systemImage: Symbol.goToShow) }
             }
         case .more:
             Menu {
@@ -478,6 +527,9 @@ struct DetailView: View {
 
             if let season = selectedSeason {
                 episodesList(season)
+            } else if let id = selectedSeasonID, let failed = failedSeasons[id] {
+                StatusView(state: .failed(failed) { Task { await loadSelectedSeason(force: true) } })
+                    .frame(minHeight: 200)
             } else {
                 ProgressView().frame(maxWidth: .infinity).frame(height: 200)
             }
@@ -530,7 +582,7 @@ struct DetailView: View {
         // With versions, the one that plays or is chosen, which may be in another copy than the one opened.
         let version = detail?.shownVersion
         let video = version.map { [$0.label, $0.videoCodec?.uppercased()].compactMap { $0 }.joined(separator: " ") }
-            ?? [file.height.map { "\($0)p" }, file.videoCodec?.uppercased(), file.pictureLabel].compactMap { $0 }.joined(separator: " ")
+            ?? [file.resolutionLabel, file.videoCodec?.uppercased(), file.pictureLabel].compactMap { $0 }.joined(separator: " ")
         let audioCodec = version == nil ? file.audioCodec : version?.audioCodec
         let channels = version == nil ? file.audioChannels : version?.audioChannels
         let audio = [audioCodec?.uppercased(), channels.map(AudioChannels.label)].compactMap { $0 }.joined(separator: " ")
@@ -585,8 +637,11 @@ struct DetailView: View {
                 AccessibilityNotification.Announcement(t("Now showing {title}", ["title": [loaded.item.episodeCode, loaded.item.title].compactMap { $0 }.joined(separator: ", ")])).post()
             }
             // A season opens as its series, with that season selected.
+            // A season this load already has fresh: not fetched again below.
+            var freshSeasonID: String?
             if loaded.item.kind == .season, let parent = loaded.item.parentId {
                 seasons[loaded.item.id] = loaded
+                freshSeasonID = loaded.item.id
                 if selectedSeasonID == nil { selectedSeasonID = loaded.item.id }
                 loaded = try await client.item(parent)
             }
@@ -594,6 +649,7 @@ struct DetailView: View {
             loadedToken = token
             loadedAt = Date()
             error = nil
+            isGone = false
 
             let item = loaded.item
             // After the page, on their own: Sonarr or Seerr being slow never holds up the season, More like this
@@ -611,9 +667,17 @@ struct DetailView: View {
             async let shownSimilar = Self.fetchSimilar(similarClient, item.id)
             switch item.kind {
             case .series:
-                nextUp = try? await client.nextUp(item.id)
-                if selectedSeasonID == nil {
-                    selectedSeasonID = nextUp?.parentId ?? loaded.children.first?.id
+                if let chosen = selectedSeasonID, chosen != freshSeasonID {
+                    // A season already chosen (back on the page, or a reload): fetched beside Up next, not after it.
+                    let season = Task { await loadSelectedSeason(force: true) }
+                    freshSeasonID = chosen
+                    nextUp = try? await client.nextUp(item.id)
+                    await season.value
+                } else {
+                    nextUp = try? await client.nextUp(item.id)
+                    if selectedSeasonID == nil {
+                        selectedSeasonID = nextUp?.parentId ?? loaded.children.first?.id
+                    }
                 }
             case .episode:
                 if let seasonID = item.parentId {
@@ -622,10 +686,13 @@ struct DetailView: View {
             default:
                 break
             }
-            await loadSelectedSeason(force: true)
+            if selectedSeasonID != freshSeasonID { await loadSelectedSeason(force: true) }
             if let shown = await shownSimilar { similar = shown }
         } catch {
-            if detail == nil { self.error = ConnectionError(error).message }
+            if detail == nil {
+                isGone = error.isGone
+                self.error = ConnectionError(error).message
+            }
         }
     }
 
@@ -642,11 +709,16 @@ struct DetailView: View {
     }
 
     private func loadSelectedSeason(force: Bool = false) async {
-        guard let client = model.client, let id = selectedSeasonID else { return }
-        if !force, seasons[id] != nil { return }
-        if let season = try? await client.item(id) {
-            seasons[id] = season
-        }
+        guard let client = model.client, let id = selectedSeasonID,
+              seasonFetches.start(id, have: seasons[id] != nil, force: force) else { return }
+        defer { seasonFetches.finish(id) }
+        do {
+            seasons[id] = try await client.item(id)
+            failedSeasons[id] = nil
+        } catch where !error.isCancellation {
+            // Already shown: kept, as with the page itself. Otherwise said, until Try again or a reload fetches it.
+            if seasons[id] == nil { failedSeasons[id] = ConnectionError(error).message }
+        } catch {}
     }
 }
 

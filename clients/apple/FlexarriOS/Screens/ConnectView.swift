@@ -303,7 +303,9 @@ private struct PairWithServer: View {
                             .foregroundStyle(Color.screen)
                             .fixedSize(horizontal: false, vertical: true)
                         code(start, renewed: pairing.renewedAt != nil)
-                        markdown(t("Or on a computer, open **{address}** and type in the code.", ["address": server.address.appending(path: "settings/tv").absoluteString]))
+                        // /link, the page a TV's QR code opens: the same code box as Settings › Connect a device,
+                        // without an address that says TV to a phone.
+                        markdown(t("Or on a computer, open **{address}** and type in the code.", ["address": server.address.appending(path: "link").absoluteString]))
                             .font(.subheadline)
                             .foregroundStyle(Color.usher)
                             .fixedSize(horizontal: false, vertical: true)
@@ -427,6 +429,17 @@ private struct ManualConnect: View {
                     .foregroundStyle(Color.usher)
             }
 
+            // Above the buttons, so it isn't left under the keyboard; connecting also puts the keyboard away when it fails.
+            if let error {
+                Label(error, systemImage: "exclamationmark.triangle.fill")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Color.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: Radius.panel).fill(Color.seat))
+            }
+
             HStack(spacing: 12) {
                 Button(action: connect) {
                     if isConnecting {
@@ -438,19 +451,11 @@ private struct ManualConnect: View {
                         Label(t("Connect"), systemImage: "arrow.right.circle.fill")
                     }
                 }
-                .buttonStyle(ActionButtonStyle(prominent: true))
+                // Green, as docs/design.md gives Connect buttons (the go token, lifted as every main button is).
+                .buttonStyle(ActionButtonStyle(ambient: .go, prominent: true))
                 .disabled(isConnecting || address.trimmingCharacters(in: .whitespaces).isEmpty)
                 Button(t("Back"), action: onBack)
                     .buttonStyle(ActionButtonStyle())
-            }
-
-            if let error {
-                Label(error, systemImage: "exclamationmark.triangle.fill")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(Color.danger)
-                    .padding(14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: Radius.panel).fill(Color.seat))
             }
 
             if !usesKey {
@@ -483,6 +488,7 @@ private struct ManualConnect: View {
         if !usesKey {
             guard let server = FlexarrClient.normalizeAddress(address) else {
                 error = t("That doesn’t look like a server address. Try one like http://192.168.1.20:8383.")
+                focus = nil
                 return
             }
             onPair(DiscoveredServer(name: server.host() ?? "Flexarr", address: server))
@@ -495,7 +501,8 @@ private struct ManualConnect: View {
             do {
                 try await model.connect(address: address, apiKey: apiKey)
             } catch {
-                self.error = ConnectionError(error).message
+                self.error = ConnectionError(error, connecting: true).message
+                focus = nil
             }
         }
     }

@@ -153,3 +153,12 @@ struct KeptPackTests {
         #expect(!Localization.keep(pack("../Widgets/podcasts"), askedFor: "../Widgets/podcasts"))
     }
 }
+
+struct ByteCountTests {
+    /// Downloads' footer before anything has arrived: "0 KB used", never "Zero kB".
+    @Test func zeroIsWrittenAsANumber() {
+        let zero = formatBytes(0)
+        #expect(zero.first?.isNumber == true, "\(zero)")
+        #expect(!zero.localizedCaseInsensitiveContains("zero"))
+    }
+}

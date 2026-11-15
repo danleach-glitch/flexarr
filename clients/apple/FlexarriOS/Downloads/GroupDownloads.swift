@@ -116,6 +116,7 @@ extension DownloadStore {
             for group in [episode.seriesId, episode.parentId].compactMap({ $0 }) { forgetStarted(group) }
             guard let download = entry(for: episode.id) else { continue }
             if unfinishedOnly && download.isDownloaded { continue }
+            skippedNext.insert(download.item.id) // deleted by hand: not brought back as the next episode
             delete(download.id)
         }
     }
@@ -295,6 +296,8 @@ struct ShowDownloadButton: View {
     /// The show's seasons, once its page has loaded (nil until then: the button waits, rather than finding no
     /// episodes in a page that's only a preview).
     let seasons: [ItemSummary]?
+    /// Seasons the page has already fetched, by id: their episodes are taken from here rather than asked for again.
+    var fetched: [String: ItemDetail] = [:]
     @State private var episodes: [ItemSummary]?
     @State private var loading = false
     @State private var pressing = false
@@ -336,10 +339,14 @@ struct ShowDownloadButton: View {
         loading = true
         defer { loading = false }
         do {
-            var all: [ItemSummary] = []
-            for season in seasons {
-                all += try await client.item(season.id).children.filter { $0.kind == .episode }
+            // Four at a time, as on Android, and none for a season the page already has.
+            let fetched = fetched
+            let perSeason = try await seasons.map(\.id).concurrentMap(limit: 4) { id in
+                let season: ItemDetail
+                if let had = fetched[id] { season = had } else { season = try await client.item(id) }
+                return season.children.filter { $0.kind == .episode }
             }
+            let all = perSeason.flatMap { $0 }
             // None found isn't kept: the next press looks again.
             episodes = all.isEmpty ? nil : all
         } catch {

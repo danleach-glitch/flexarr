@@ -171,8 +171,29 @@ final class PlayerViewController: UIViewController {
         view.addGestureRecognizer(doubleTap)
         controls.setPictureInPictureAvailable(AVPictureInPictureController.isPictureInPictureSupported())
         #endif
+        // VoiceOver turned on while playing: the controls come back and stay; turned off, they go by themselves again.
+        NotificationCenter.default.addObserver(self, selector: #selector(voiceOverChanged), name: UIAccessibility.voiceOverStatusDidChangeNotification, object: nil)
         scheduleHide()
     }
+
+    @objc private func voiceOverChanged() {
+        if UIAccessibility.isVoiceOverRunning { showControls() } else { scheduleHide() }
+    }
+
+    /// VoiceOver's two-finger double tap: play or pause, wherever focus is.
+    override func accessibilityPerformMagicTap() -> Bool {
+        guard transport != nil else { return false }
+        togglePlayPause()
+        return true
+    }
+
+    #if os(iOS)
+    /// VoiceOver's two-finger scrub: closes the player, as the close button does (Picture in Picture or not).
+    override func accessibilityPerformEscape() -> Bool {
+        close()
+        return true
+    }
+    #endif
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
@@ -570,6 +591,9 @@ final class PlayerViewController: UIViewController {
         // `-FlexarrKeepControls YES` keeps the controls up, for screenshots.
         if UserDefaults.standard.bool(forKey: "FlexarrKeepControls") { return }
         #endif
+        // VoiceOver: the controls stay up, or there'd be nothing to move to once they'd gone (a tap that shows them is
+        // a double tap, which skips).
+        if UIAccessibility.isVoiceOverRunning { hideTask = nil; return }
         hideTask = Task { [weak self] in
             #if os(tvOS)
             try? await Task.sleep(for: .seconds(4))

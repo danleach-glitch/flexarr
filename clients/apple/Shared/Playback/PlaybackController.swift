@@ -1252,10 +1252,11 @@ final class PlaybackController: NSObject {
         return request
     }
 
-    /// Into the credits, or nearly at the end: as good as watched.
+    /// Into the credits, or nearly at the end, whichever comes first: as good as watched, by the server's own rule
+    /// (`PlaybackEnding.isWatched`), so a download watched offline counts as the same film streamed would.
     private func isPastCredits(_ info: PlaybackInfo) -> Bool {
-        let credits = info.markers.first(where: { $0.type == .credits })?.start
-        return position >= (credits ?? info.durationSeconds * 0.92) && position > 0
+        PlaybackEnding.isWatched(position: position, duration: info.durationSeconds,
+                                 creditsStart: info.markers.first(where: { $0.type == .credits })?.start)
     }
 
     /// Starts the next episode's session now, during the credits, so it opens at once when its turn comes. A busy

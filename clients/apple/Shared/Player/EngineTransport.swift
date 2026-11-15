@@ -320,8 +320,21 @@ final class EngineTransport: PlayerTransport {
             } else {
                 key = "e\(track.id)"
             }
-            return TransportTrack(id: String(track.id), label: Self.label(track), key: key, isPicture: Self.isPicture(track.codec))
+            return TransportTrack(id: String(track.id), label: Self.subtitleLabel(track, server: info.subtitles.first { $0.key == key }), key: key,
+                                  isPicture: Self.isPicture(track.codec))
         }
+    }
+
+    /// A subtitle the file gives its own title ("GER (srt)", "DUT (srt)") takes the server's name for it instead
+    /// ("German", "English (SDH)"), which turns titles and codes into a language. One with no title of its own keeps the
+    /// player's name, in the language shown; so does one the server doesn't list. A picture track keeps its format.
+    static func subtitleLabel(_ track: TrackInfo, server: SubtitleTrack?) -> String {
+        let titled = !track.name.isEmpty && track.name.caseInsensitiveCompare(track.language ?? "") != .orderedSame
+        guard titled, let server, !server.label.trimmingCharacters(in: .whitespaces).isEmpty else { return label(track) }
+        guard isPicture(track.codec) else { return server.label }
+        let codec = track.codec.uppercased()
+            .replacingOccurrences(of: "HDMV_PGS_SUBTITLE", with: "PGS").replacingOccurrences(of: "DVB_SUBTITLE", with: "DVB")
+        return server.label.localizedCaseInsensitiveContains(codec) ? server.label : "\(server.label) (\(codec))"
     }
 
     var activeSubtitleTrack: String? { engine.activeSubtitleTrackIndex.map(String.init) }
@@ -396,7 +409,7 @@ final class EngineTransport: PlayerTransport {
     /// "English · E-AC-3 5.1", "Commentary · AAC stereo", "English (PGS)".
     static func label(_ track: TrackInfo) -> String {
         let language = Localization.locale.localizedString(forLanguageCode: track.language ?? "") ?? track.language ?? ""
-        let name = track.name.isEmpty || track.name == track.language ? language : track.name
+        let name = track.name.isEmpty || track.name.caseInsensitiveCompare(track.language ?? "") == .orderedSame ? language : track.name
         let channels = switch track.channels {
         case 8: "7.1"
         case 6: "5.1"

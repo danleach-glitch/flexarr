@@ -77,16 +77,24 @@ struct DownloadThumbnail: View {
 struct DownloadedShowRow: View {
     @Environment(DownloadStore.self) private var store
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let show: DownloadedShow
     @State private var removing = false
 
+    private var rowLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(spacing: DownloadRowArt.spacing(sizeClass)))
+    }
+
     var body: some View {
         NavigationLink {
-            DownloadedShowView(showId: show.id).roomForBottomBars()
+            DownloadedShowView(showId: show.id).roomForBottomBars().pushedPageTitle()
         } label: {
-            HStack(spacing: sizeClass == .regular ? 16 : 12) {
-                Color.seat
-                    .frame(width: sizeClass == .regular ? 192 : 112, height: sizeClass == .regular ? 108 : 63)
+            // At the accessibility text sizes the words go under the picture, not down a narrow column beside it.
+            rowLayout {
+                // The well colour, so a show without episode pictures shows a box on the row, not a floating icon.
+                Color.well
+                    .frame(width: DownloadRowArt.width(sizeClass), height: DownloadRowArt.height(sizeClass))
                     .overlay { DownloadThumbnail(names: show.episodes.compactMap(\.imageFileName), symbol: Symbol.shows) }
                     .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
                 VStack(alignment: .leading, spacing: 3) {
@@ -102,6 +110,7 @@ struct DownloadedShowRow: View {
         .listRowBackground(Color.seat)
         .swipeActions {
             Button(role: .destructive) { removing = true } label: { Label(t(Words.delete), systemImage: Symbol.delete) }
+                .tint(Color.danger)
         }
         .alert(t("Remove these downloads?"), isPresented: $removing) {
             Button(t("Remove downloads"), role: .destructive) {
@@ -152,6 +161,17 @@ struct DownloadedShowView: View {
         Group {
             if let show {
                 List {
+                    #if !os(macOS)
+                    // The whole name, wrapping: the bar's title is one short line, and a long name ("The
+                    // Extraordinarily Lon…") would be all that showed of it.
+                    Text(show.title)
+                        .font(.marquee(28, weight: .bold))
+                        .foregroundStyle(Color.screen)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityAddTraits(.isHeader)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
+                    #endif
                     ForEach(show.seasons, id: \.number) { season in
                         Section(season.number.map { t("Season {number}", ["number": $0]) } ?? t("Special")) {
                             ForEach(season.episodes) { DownloadRow(download: $0) }
@@ -170,5 +190,8 @@ struct DownloadedShowView: View {
         }
         .background(RoomBackground(ambient: nil))
         .navigationTitle(show?.title ?? "")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 }

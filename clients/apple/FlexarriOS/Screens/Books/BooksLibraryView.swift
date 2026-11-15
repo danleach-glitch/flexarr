@@ -228,7 +228,7 @@ struct BooksLibraryView: View {
                 Text(tab.label).tag(tab)
             }
         }
-        .pickerStyle(.segmented)
+        .switchPickerStyle()
         .labelsHidden()
     }
 

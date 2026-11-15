@@ -40,6 +40,7 @@ import androidx.compose.foundation.layout.Spacer
 import io.github.flexarr.ui.components.isWide
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -276,11 +277,12 @@ fun MainScreen(model: AppModel) {
                 is AppLink.Join -> Unit
             } } }
         }
-        // "Update your Flexarr server": signed in to a server older than the app supports. Said once, then cleared.
+        // "Update your Flexarr server": signed in to a server older than the app supports. Said once, and it stays until
+        // it's dismissed, so someone who looked away still learns why newer features are missing. Then cleared.
         LaunchedEffect(model.serverUpdateNotice) {
             val notice = model.serverUpdateNotice ?: return@LaunchedEffect
             // Cleared once it's gone: clearing it first would restart this effect and cancel the snackbar.
-            navigator.notices.showSnackbar(notice, withDismissAction = true)
+            navigator.notices.showSnackbar(notice, withDismissAction = true, duration = SnackbarDuration.Indefinite)
             model.serverUpdateNotice = null
         }
         // Opened offline: straight to what can be watched, if there's anything. Going offline later leaves you where you are.

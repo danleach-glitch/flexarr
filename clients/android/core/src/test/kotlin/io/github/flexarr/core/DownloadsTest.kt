@@ -1,5 +1,6 @@
 package io.github.flexarr.core
 
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.serializer
@@ -208,6 +209,48 @@ class DownloadsTest {
         assertNull(DownloadRules.nextToFetch(ahead, listOf(ahead)))
         val watched = local(automatic = true, finishedAt = 5, nextId = "ep2")
         assertEquals("ep2", DownloadRules.nextToFetch(watched, listOf(watched)))
+    }
+
+    @Test
+    fun `a download takes the server's place, unless it has its own still to send`() {
+        val there = UserData(positionSeconds = 3_600.0, watched = false, playCount = 0)
+        // Watched an hour on the TV: the download carries on from there, a place heard elsewhere.
+        val taken = local(kind = MediaKind.Movie).withServerPlace(there, now = 5)
+        assertEquals(3_600.0, taken.startPosition, 0.0)
+        assertEquals(false, taken.placeHeardHere)
+        // A place from here still to send wins: it's sent first, and the server keeps the newer.
+        val mine = local(kind = MediaKind.Movie).recorded(120.0, finished = false, now = 1)
+        assertEquals(mine, mine.withServerPlace(there, now = 5))
+        // Finished elsewhere: finished here too, from the start.
+        val finished = local().withServerPlace(there.copy(positionSeconds = 0.0, watched = true), now = 7)
+        assertEquals(7L, finished.finishedAtMillis)
+        assertEquals(0.0, finished.startPosition, 0.0)
+        assertEquals(finished, finished.withServerPlace(there.copy(positionSeconds = 0.0, watched = true), now = 9))
+        // Marked unwatched elsewhere: not finished, from the start. Tracks keep no place.
+        assertEquals(null, finished.withServerPlace(there.copy(positionSeconds = 0.0), now = 9).finishedAtMillis)
+        val track = local(kind = MediaKind.Track)
+        assertEquals(track, track.withServerPlace(there, now = 5))
+    }
+
+    @Test
+    fun `carrying on a transfer only carries on the same file`() {
+        assertEquals("\"abc\"", rangeValidator("\"abc\"", "Sat, 14 Nov 2026 10:00:00 GMT"))
+        assertEquals("Sat, 14 Nov 2026 10:00:00 GMT", rangeValidator("W/\"abc\"", "Sat, 14 Nov 2026 10:00:00 GMT"))
+        assertNull(rangeValidator(null, null))
+        val client = FlexarrClient(server.url("/"), apiKey = "key")
+        val resumed = runBlocking { client.downloadFileRequest("d1", 500, "\"abc\"") }
+        assertEquals("bytes=500-", resumed.header("Range"))
+        assertEquals("\"abc\"", resumed.header("If-Range"))
+        val fresh = runBlocking { client.downloadFileRequest("d1", 0, "\"abc\"") }
+        assertNull(fresh.header("Range"))
+        assertNull(fresh.header("If-Range"))
+    }
+
+    @Test
+    fun `a next episode deleted by hand isn't fetched again`() {
+        val watched = local(finishedAt = 5, nextId = "ep2")
+        assertEquals("ep2", DownloadRules.nextToFetch(watched, listOf(watched)))
+        assertNull(DownloadRules.nextToFetch(watched, listOf(watched), skipped = setOf("ep2")))
     }
 
     @Test

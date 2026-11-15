@@ -138,6 +138,8 @@ struct PodcastEpisodeRow: View {
     /// In Up Next: swiping left takes it off, rather than downloading.
     var removeFromUpNext: (() -> Void)?
     @State private var showingNotes = false
+    /// Why the download swipe didn't start one, for its alert.
+    @State private var downloadError: String?
 
     private var isCurrent: Bool { model.music.current?.id == episode.id }
 
@@ -167,7 +169,7 @@ struct PodcastEpisodeRow: View {
                 Button(role: .destructive, action: removeFromUpNext) { Label(t("Remove from Up next"), systemImage: Symbol.removeFromRow) }
             } else {
                 Button { Task { await model.addToUpNext(episode.id, next: false) } } label: {
-                    Label(t("Add to Up next"), systemImage: "text.line.last.and.arrowtriangle.forward")
+                    Label(t(Words.addToQueue), systemImage: Symbol.addToQueue)
                 }
                 .tint(Color.upNext)
                 downloadSwipe
@@ -179,7 +181,7 @@ struct PodcastEpisodeRow: View {
                 Label(t(Words.playNext), systemImage: "text.line.first.and.arrowtriangle.forward")
             }
             Button { Task { await model.addToUpNext(episode.id, next: false) } } label: {
-                Label(t("Add to Up next"), systemImage: "text.line.last.and.arrowtriangle.forward")
+                Label(t(Words.addToQueue), systemImage: Symbol.addToQueue)
             }
             if let removeFromUpNext {
                 Button(role: .destructive, action: removeFromUpNext) { Label(t("Remove from Up next"), systemImage: Symbol.removeFromRow) }
@@ -191,6 +193,11 @@ struct PodcastEpisodeRow: View {
             if model.hasPlace(episode) {
                 Button { markUnplayed() } label: { Label(t("Mark as unplayed"), systemImage: "circle") }
             }
+        }
+        .alert(t("Couldn’t download this"), isPresented: Binding(get: { downloadError != nil }, set: { if !$0 { downloadError = nil } })) {
+            Button(t("OK"), role: .cancel) {}
+        } message: {
+            Text(downloadError ?? "")
         }
         .sheet(isPresented: $showingNotes) {
             EpisodeSheet(episode: episode, setPlayed: setPlayed)
@@ -206,7 +213,15 @@ struct PodcastEpisodeRow: View {
                     Label(download.isDownloaded ? t("Remove download") : t("Stop download"), systemImage: Symbol.delete)
                 }
             } else {
-                Button { Task { try? await downloads.download(itemId: episode.id, quality: .original) } } label: {
+                Button {
+                    Task {
+                        do {
+                            try await downloads.download(itemId: episode.id, quality: .original)
+                        } catch {
+                            downloadError = ConnectionError(error).message
+                        }
+                    }
+                } label: {
                     Label(t(Words.download), systemImage: Symbol.download)
                 }
                 .tint(Color.aisle)

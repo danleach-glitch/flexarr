@@ -61,6 +61,16 @@ extension ItemSummary {
         return t("E{episode}", ["episode": episode])
     }
 
+    /// A Home hero's Play button, given what Home says this featured title picks up from: a show's episode the way
+    /// its page says it ("Resume S1E2" once started, "Play S1E2" when it's next up but not begun), "Resume" for a
+    /// film or album that's been started, else "Play".
+    public func heroPlayLabel(resuming resume: ItemSummary?) -> String {
+        if let resume, resume.kind == .episode, let code = resume.episodeCode {
+            return resume.isResumable ? t(Words.resumeEpisode, ["episode": code]) : t("Play {episode}", ["episode": code])
+        }
+        return resume != nil || isResumable ? t("Resume") : t(Words.play)
+    }
+
     /// The headline for cards and the player: the series name for episodes, else the title.
     public var displayTitle: String {
         kind == .episode ? (seriesTitle ?? title) : title
@@ -546,5 +556,18 @@ extension RottenTomatoesState {
         case .rotten: t("Rotten")
         case .unknown: "Rotten Tomatoes"
         }
+    }
+}
+
+extension MediaFile {
+    /// "4K", "1080p", "720p" or "SD", by the server's rule (VersionRules.ResolutionLabel), so a wide film cropped to
+    /// 1920×818 is 1080p here as in the title's facts, not "818p". Nil when the file wasn't probed.
+    public var resolutionLabel: String? {
+        guard width != nil || height != nil else { return nil }
+        let w = width ?? 0, h = height ?? 0
+        if w >= 3200 || h >= 1800 { return "4K" }
+        if w >= 1800 || h >= 1000 { return "1080p" }
+        if w >= 1200 || h >= 700 { return "720p" }
+        return "SD"
     }
 }

@@ -7,6 +7,8 @@ struct SearchView: View {
     @Environment(Router.self) private var router
     @State private var query = ""
     @FocusState private var typing: Bool
+    /// The search is active: on iPad that takes the tab bar away until it ends.
+    @State private var searching = false
     @State private var results: SearchResults?
     @State private var error: String?
     @State private var recents = RecentSearches()
@@ -39,8 +41,10 @@ struct SearchView: View {
                 if let results {
                     if results.isEmpty && outside.isEmpty && outsideMusic.isEmpty {
                         // Nothing in the library yet: say so only once the searches beyond it have answered too.
+                        // At the top of the page, not the middle of a tall box: held sideways with the keyboard up,
+                        // only a strip shows above the floating search field.
                         StatusView(state: lookingFurther ? .loading : .empty(t("Nothing matches “{search}”.", ["search": query])))
-                            .frame(height: 240)
+                            .frame(maxWidth: .infinity, alignment: .top)
                     }
                     if !results.films.isEmpty {
                         section(t(Words.moviesAndShows)) {
@@ -100,10 +104,11 @@ struct SearchView: View {
                     if !results.episodes.isEmpty {
                         section(t("Episodes")) {
                             ForEach(results.episodes) { item in
-                                WideCard(item: item, width: Layout.wideWidth(sizeClass)) {
+                                // Its page, as every other result opens (and as on Apple TV); Play is a tap away there.
+                                WideCard(item: item, width: Layout.wideWidth(sizeClass), action: {
                                     model.recordSearch(query: query, item: item)
-                                    model.play(item)
-                                }
+                                    router.push(.item(item))
+                                }, showsPlay: false)
                             }
                         }
                     }
@@ -137,12 +142,12 @@ struct SearchView: View {
                     }
                 } else if let error {
                     StatusView(state: .failed(error) { Task { await search() } })
-                        .frame(height: 240)
+                        .frame(maxWidth: .infinity, alignment: .top)
                 } else if query.isEmpty && !recents.isEmpty {
                     recentSections
                 } else {
-                    StatusView(state: .empty(t("Find movies, shows, episodes and people in your libraries.")))
-                        .frame(height: 240)
+                    StatusView(state: .empty(t("Find movies, shows, music and people in your libraries.")))
+                        .frame(maxWidth: .infinity, alignment: .top)
                 }
             }
             .padding(.vertical, 12)
@@ -154,11 +159,26 @@ struct SearchView: View {
         #if os(macOS)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                PageSearchField(text: $query, prompt: t("Movies, shows, episodes and people"), width: 440, focus: $typing, onSubmit: keepSearch)
+                PageSearchField(text: $query, prompt: t("Movies, shows, music and people"), width: 440, focus: $typing, onSubmit: keepSearch)
             }
         }
         #else
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: t("Movies, shows, episodes and people"))
+        .searchable(text: $query, isPresented: $searching, placement: .navigationBarDrawer(displayMode: .always),
+                    prompt: t("Movies, shows, music and people"))
+        // On iPad an active search hid the navigation bar, and the tab bar with it (it's along the top there), and the
+        // field has no Cancel of its own: the bar stays, with a Cancel that ends the search.
+        .searchPresentationToolbarBehavior(sizeClass == .regular ? .avoidHidingContent : .automatic)
+        .toolbar {
+            if sizeClass == .regular, searching || !query.isEmpty {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(t(Words.cancel)) {
+                        query = ""
+                        typing = false
+                        searching = false
+                    }
+                }
+            }
+        }
         // Opening Search is for typing: the field's ready with the keyboard up.
         .searchFocused($typing)
         .onSubmit(of: .search, keepSearch)
@@ -258,12 +278,8 @@ struct SearchView: View {
             await loadRecents()
             return
         }
-        if looksOutside == nil {
-            // Asked once, before the first search that needs it.
-            looksOutside = (try? await client.requestStatus())?.configured == true
-        }
         do {
-            async let beyond: [ExternalTitle] = looksOutside == true ? (try? await client.searchEverything(text)) ?? [] : []
+            async let beyond = searchOutside(client, text)
             async let music = searchMusic(client, text)
             let found = try await client.search(text)
             // The library's results show straight away; what's found beyond it joins them as it comes.
@@ -283,9 +299,23 @@ struct SearchView: View {
             outsideMusic = (moreMusic.artists + moreMusic.albums).filter { $0.libraryItemId == nil && $0.availability != .available }
             lookingFurther = false
         } catch {
+            // Typing on cancels the search before: no failure, the next one is on its way.
+            guard !error.isCancellation, !Task.isCancelled, text == query.trimmingCharacters(in: .whitespaces) else { return }
+            // A real failure: said in place of the last words' results, never under them.
+            results = nil
+            outside = []
+            outsideMusic = []
             self.error = ConnectionError(error).message
             lookingFurther = false
         }
+    }
+
+    /// Films and shows beyond the library, through Seerr when it's set up. Whether it is is asked once, beside the
+    /// library search so it never holds that up, and kept only once answered: a blip doesn't turn it off for the visit.
+    private func searchOutside(_ client: FlexarrClient, _ text: String) async -> [ExternalTitle] {
+        if looksOutside == nil, let status = try? await client.requestStatus() { looksOutside = status.configured }
+        guard looksOutside == true else { return [] }
+        return (try? await client.searchEverything(text)) ?? []
     }
 
     /// Whether music can be asked for, then the music found when it can, beside the library search so a slow Lidarr

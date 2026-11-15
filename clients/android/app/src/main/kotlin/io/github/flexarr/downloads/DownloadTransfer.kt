@@ -21,6 +21,7 @@ import io.github.flexarr.core.LocalDownload
 import io.github.flexarr.core.LocalPhase
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.core.downloadFileRequest
+import io.github.flexarr.core.rangeValidator
 import io.github.flexarr.core.offlineDownload
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +29,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 
@@ -126,20 +128,29 @@ internal class DownloadTransfer(
         val folder = DownloadStore.folder(context)
         // Named from the server's id and extension, kept to plain characters so neither can reach outside the folder.
         val part = DownloadStore.fileIn(folder, "${DownloadStore.safeName(download.id)}.part") ?: throw IOException("Not a download's name")
+        // What says the part is of this same file (kept beside it from the answer that started it): carried on only then.
+        val kept = File(part.path + ".validator")
         val already = if (part.exists()) part.length() else 0L
-        val response = client.downloadFileRequest(download.id, already).let { FlexarrClient.sharedHttp.newCall(it).execute() }
+        val validator = if (already > 0) runCatching { kept.readText() }.getOrNull()?.takeIf { it.isNotBlank() } else null
+        val response = client.downloadFileRequest(download.id, already, validator).let { FlexarrClient.sharedHttp.newCall(it).execute() }
         response.use {
             if (it.code == 401) throw FlexarrException.Unauthorized()
             if (it.code == 416) {
                 // Asked to carry on from the end: the whole file came last time, and the app stopped before naming it.
                 if (isComplete(already, it.header("Content-Range"), download.sizeBytes)) return@use
                 part.delete()
+                kept.delete()
                 throw IOException("The server couldn't carry on from byte $already; starting again")
             }
             if (it.code != 200 && it.code != 206) throw IOException("The server answered ${it.code} for the file")
             // 206 carries on from where it got to; 200 is the whole file again.
             val resuming = it.code == 206
             val start = if (resuming) already else 0L
+            if (!resuming) {
+                // A new start: this file's own validator, for carrying on later.
+                val fresh = rangeValidator(it.header("ETag"), it.header("Last-Modified"))
+                if (fresh != null) runCatching { kept.writeText(fresh) } else kept.delete()
+            }
             val total = it.body.contentLength().takeIf { length -> length > 0 }?.let { length -> length + start }
             if (total != null && folder.usableSpace < total - start + RESERVE_BYTES) throw NoRoom()
             var written = start
@@ -171,6 +182,7 @@ internal class DownloadTransfer(
         val destination = DownloadStore.fileIn(folder, name) ?: throw IOException("Not a download's name")
         destination.delete()
         if (!part.renameTo(destination)) throw IOException("Couldn't keep the downloaded file")
+        kept.delete()
         onMain { store.arrived(download.id, name, destination.length()) }
     }
 

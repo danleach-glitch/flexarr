@@ -13,6 +13,9 @@ struct NowPlayingView: View {
     @Environment(DownloadStore.self) private var downloads
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) private var sizeClass
+    /// A phone held sideways: the cover goes beside the controls, as the book hero on Home does, so the title,
+    /// scrubber and Pause aren't below the fold.
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     /// Where the thumb is while the viewer drags it; nil when the track's own position shows.
     @State private var scrubbing: Double?
     @State private var lyrics = LyricsLoader()
@@ -27,6 +30,8 @@ struct NowPlayingView: View {
     @State private var artworkGlow: Color?
     /// A book's speed is chosen on a sheet of its own (0.5× to 3.5× in 0.05 steps).
     @State private var showingSpeed = false
+    /// Why Download from the episode menu didn't start, for its alert.
+    @State private var downloadError: String?
     /// A book's scrubber covers the chapter playing (the default, as in book apps) or the whole book; the Apple TV
     /// keeps the same choice under the same name.
     @AppStorage("books.timelineIsBook") private var wholeBook = false
@@ -43,28 +48,24 @@ struct NowPlayingView: View {
                     // A book's page is an episode's, with its chapters, bookmarks and offers.
                     podcastPage(track)
                 } else {
-                    ScrollView(.vertical) {
-                        VStack(spacing: 24) {
-                            grabber
-                            cover(track)
-                                .padding(.top, 8)
-                            titles(track)
-                            scrubber
-                            controls
-                            extras
-                            upNext
-                        }
-                        .padding(.horizontal, 28)
-                        .padding(.bottom, 32)
-                        .frame(maxWidth: 560)
-                        .frame(maxWidth: .infinity)
-                    }
+                    musicPage(track)
                 }
             } else {
                 StatusView(state: .empty(t("Nothing is playing.")))
             }
         }
         .task(id: music.current?.id) { await lyrics.load(music.isPodcast || music.isBook ? nil : music.current, client: model.client) }
+        .alert(t("Couldn’t download this"), isPresented: Binding(get: { downloadError != nil }, set: { if !$0 { downloadError = nil } })) {
+            Button(t("OK"), role: .cancel) {}
+        } message: {
+            Text(downloadError ?? "")
+        }
+        // Over the app's own, which can't show while Now Playing covers it.
+        .alert(t("Couldn’t mark this"), isPresented: Binding(get: { model.watchedError != nil }, set: { if !$0 { model.watchedError = nil } })) {
+            Button(t("OK"), role: .cancel) {}
+        } message: {
+            Text(model.watchedError ?? "")
+        }
         .sheet(isPresented: $showingSpeed) {
             BookSpeedSheet()
                 .presentationDetents([.height(300)])
@@ -80,6 +81,87 @@ struct NowPlayingView: View {
         .animation(.easeInOut(duration: 0.25), value: music.bookmarkNotice)
         .task(id: music.artwork) { artworkGlow = music.artwork?.averageColor.map { Color(rgb: $0.glow) } }
         .onChange(of: music.current == nil) { _, empty in if empty { dismiss() } }
+        // An iPad's sheet can't be swiped away as readily as a phone's: a way out that can be seen.
+        .overlay(alignment: .topLeading) {
+            if sizeClass == .regular {
+                Button { dismiss() } label: { Label(t("Close"), systemImage: "xmark") }
+                    .buttonStyle(RoundActionStyle(scales: false))
+                    .accessibilityLabel(t("Close Now Playing"))
+                    .frame(width: 48, height: 48)
+                    .padding(16)
+            }
+        }
+    }
+
+    /// A track's page: on a phone (or a narrow iPad sheet) one column that scrolls; on a wide iPad sheet the cover and
+    /// controls on the left and what comes next beside them, so neither is cut off below the edge.
+    private func musicPage(_ track: ItemSummary) -> some View {
+        GeometryReader { proxy in
+            if sizeClass == .regular, proxy.size.width >= 900, !music.upNext.isEmpty {
+                HStack(alignment: .top, spacing: 32) {
+                    ScrollView(.vertical) {
+                        VStack(spacing: 24) {
+                            // Small enough that the controls and AirPlay fit under it in a landscape sheet.
+                            cover(track)
+                                .frame(maxWidth: proxy.size.height * 0.42)
+                            titles(track)
+                            scrubber
+                            controls
+                            extras
+                        }
+                        .padding(.top, 40)
+                        .padding(.bottom, 32)
+                        .frame(minHeight: proxy.size.height)
+                    }
+                    .scrollBounceBehavior(.basedOnSize)
+                    .frame(maxWidth: 520)
+                    ScrollView(.vertical) {
+                        upNext
+                            .padding(.top, 40)
+                            .padding(.bottom, 32)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .padding(.horizontal, 40)
+            } else if verticalSizeClass == .compact {
+                HStack(spacing: 32) {
+                    cover(track)
+                        .frame(maxWidth: proxy.size.height * 0.8)
+                    ScrollView(.vertical) {
+                        VStack(spacing: 18) {
+                            titles(track)
+                            scrubber
+                            controls
+                            extras
+                            upNext
+                        }
+                        .padding(.vertical, 24)
+                        .frame(minHeight: proxy.size.height)
+                    }
+                    .scrollBounceBehavior(.basedOnSize)
+                    .frame(maxWidth: 480)
+                }
+                .padding(.horizontal, 28)
+                .frame(maxWidth: .infinity)
+            } else {
+                ScrollView(.vertical) {
+                    VStack(spacing: 24) {
+                        grabber
+                        cover(track)
+                            .padding(.top, 8)
+                        titles(track)
+                        scrubber
+                        controls
+                        extras
+                        upNext
+                    }
+                    .padding(.horizontal, 28)
+                    .padding(.bottom, 32)
+                    .frame(maxWidth: 560)
+                    .frame(maxWidth: .infinity)
+                }
+            }
+        }
     }
 
     /// The track's own colour, else its cover's.
@@ -99,7 +181,45 @@ struct NowPlayingView: View {
 
     /// An episode's page, fixed in place: the cover (or, with Notes, the episode's details in its place), then the title,
     /// the chapter, the scrubber and the controls.
+    @ViewBuilder
     private func podcastPage(_ track: ItemSummary) -> some View {
+        if verticalSizeClass == .compact {
+            // Sideways on a phone: the cover (or the details) on the left, the controls beside it.
+            HStack(spacing: 32) {
+                Group {
+                    if showingDetails {
+                        VStack(spacing: 12) {
+                            smallHeader(track) { withAnimation(.easeInOut(duration: 0.3)) { showingDetails = false } }
+                            details
+                        }
+                    } else {
+                        cover(track)
+                    }
+                }
+                .frame(maxWidth: 420, maxHeight: .infinity)
+                ScrollView(.vertical) {
+                    VStack(spacing: 16) {
+                        if !showingDetails { titles(track) }
+                        bookOffers
+                        if !chapters.isEmpty { chapterStrip }
+                        scrubber
+                        controls
+                        extras
+                    }
+                    .padding(.vertical, 20)
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                .frame(maxWidth: 480)
+            }
+            .padding(.horizontal, 28)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity)
+        } else {
+            podcastColumn(track)
+        }
+    }
+
+    private func podcastColumn(_ track: ItemSummary) -> some View {
         VStack(spacing: 20) {
             grabber
             if showingDetails {
@@ -537,9 +657,10 @@ struct NowPlayingView: View {
                 Button { goToPodcast() } label: { Label(t("Go to podcast"), systemImage: "square.stack") }
                 Button {
                     Task {
-                        await model.setWatched(track, true, keepingPlayer: true)
-                        // Played: on to what comes next, as if it had finished.
-                        music.seek(to: max(0, music.duration - 0.5))
+                        // Played: on to what comes next, as if it had finished (not when it didn't take, which is said).
+                        if await model.setWatched(track, true, keepingPlayer: true) {
+                            music.seek(to: max(0, music.duration - 0.5))
+                        }
                     }
                 } label: { Label(t(Words.markAsPlayed), systemImage: Symbol.watched) }
                 if let download = downloads.entry(for: track.id) {
@@ -547,7 +668,15 @@ struct NowPlayingView: View {
                         Label(download.isDownloaded ? t("Remove download") : t("Stop download"), systemImage: Symbol.delete)
                     }
                 } else if !music.isPlayingOffline {
-                    Button { Task { try? await downloads.download(itemId: track.id, quality: .original) } } label: {
+                    Button {
+                        Task {
+                            do {
+                                try await downloads.download(itemId: track.id, quality: .original)
+                            } catch {
+                                downloadError = ConnectionError(error).message
+                            }
+                        }
+                    } label: {
                         Label(t(Words.download), systemImage: Symbol.download)
                     }
                 }
@@ -853,6 +982,8 @@ struct TransportStyle: ButtonStyle {
             .font(.system(size: size * (filled ? 0.42 : 0.5), weight: .semibold))
             .foregroundStyle(filled ? Color.room : (active ? Color.silver : Color.screen))
             .frame(width: size, height: size)
+            // The whole frame takes a tap, not only the glyph's few points (Shuffle and Repeat are about 25 wide).
+            .contentShape(Rectangle())
             .background {
                 if filled { Circle().fill(Color.screen) }
             }

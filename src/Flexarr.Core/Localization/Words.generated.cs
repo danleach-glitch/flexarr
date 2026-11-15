@@ -7,7 +7,7 @@ namespace Flexarr.Core.Localization;
 public static class Words
 {
     public const string AddToPlaylist = "Add to playlist";
-    public const string AddToQueue = "Add to queue";
+    public const string AddToQueue = "Add to Up next";
     public const string AddToWatchlist = "Add to watchlist";
     public const string Albums = "Albums";
     public const string Artists = "Artists";

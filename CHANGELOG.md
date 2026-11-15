@@ -36,6 +36,76 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Android, pages no longer scroll up through the clock and status icons, and Settings pages keep their title and Back in view.
 - On Android, a show's season pills are all readable: Download Season sits on its own line under them.
 - An iPhone, iPad, Apple TV or Android device that signed in at home with Tailscale off now reaches your server away from home once Tailscale is on. Settings › Server says when it hasn't yet.
+- On iPhone, a full swipe no longer deletes a recording or stops a series by itself: tap the button the swipe shows. One that can't be taken off or deleted now says why.
+- On iPhone, iPad, Apple TV and Android, a season whose episodes fail to load says so with Try again, instead of a spinner that never ends.
+- On iPhone, when your server can't be reached Home says so (rather than "You're offline") and has Try again.
+- On iPhone and Apple TV, Search no longer flashes "The request was cancelled" while you type, and a search that fails says so instead of showing the last results. On Apple TV, what's in your library shows without waiting for Seerr.
+- Once signed in, the iPhone, iPad, Apple TV and Mac apps say "Can't reach" your server when it doesn't answer, rather than advice about ports, and never show the system's own error text.
+- On iPhone, a PIN can be entered with the phone held sideways or at large text sizes: the screen scrolls, and Continue sits above the number pad.
+- Mark as watched, following a podcast, and Download from Now Playing or a podcast episode's swipe now say when they didn't work.
+- On Apple TV and Android, "Update your Flexarr server" stays until you dismiss it.
+- On iPhone, tapping an episode in Search opens its page, as on Apple TV.
+- The video player on iPhone, iPad and Apple TV works with VoiceOver: the timeline reads "32:10 of 1:56:00" and moves with a swipe up or down, the controls stay up, every button says what it does, and a two-finger double tap plays or pauses. On iPhone and iPad the two-finger scrub closes the player.
+- On Apple TV, the guide's programme times are larger and brighter, and VoiceOver reads each programme's times and whether it's recording.
+- On iPad, Search keeps the tab bar while you search, and has a Cancel that clears it.
+- On iPad, Now Playing opens full size with a close button, nothing cut off: in landscape the queue sits beside the cover and controls, and the mini player steps aside while it's open.
+- On iPad, a page you open from a tab (Films, Watchlist, Settings › Playback, a downloaded show) keeps a small title at the top instead of jumping to a large one when you touch it.
+- On iPhone, tab names in longer languages are drawn a little smaller so they no longer run into each other.
+- On iPhone, iPad and Apple TV, a show's page asks for its season once, and sooner. On iPhone, Download show on a show with many seasons asks its question sooner, coming back to the app after Control Centre no longer sends a burst of requests, and Downloads › Music scrolls smoothly while its covers load.
+- On iPhone, iPad and Apple TV, subtitle choices name their language (German, Dutch) instead of the file's own codes like "GER (srt)".
+- On iPhone and Apple TV, an episode's long-press menu says "Mark show as watched", so a long show name no longer cuts off what it does.
+- On iPhone and iPad, a long title without a logo gets up to four lines on its own page and three on Home (wider on iPad), and a downloaded show's page shows its whole name.
+- On iPhone, a Home with no featured titles starts its rows below the profile picture, so the first See all can be tapped.
+- On iPhone and iPad, a title's page and Home fade in a band under the clock and the back button once you scroll, so headings and buttons no longer show through them.
+- On iPad held sideways, Home's and a library's featured titles take a little over half the screen, so the first row shows beneath them.
+- On iPhone and iPad, a sign-in that fails on the connect form says why above Connect and puts the keyboard away, so the message is never hidden behind it.
+- On iPhone and iPad, a link, widget or notification for a title that's gone from your server says "This isn't in your library any more." instead of an HTTP error with a Try again that can't work.
+- On iPhone, the mini player steps aside while the keyboard is up, so it no longer shows through Search's field.
+- On iPhone held sideways, a title's backdrop and Home's featured titles reach both edges of the screen, with no dark bands beside them.
+- On a large iPhone held sideways, grids, Downloads and Now Playing keep the phone's sizes instead of the iPad's, so posters and rows fit, and Now Playing puts the cover beside its controls.
+- On iPhone and iPad at the largest text sizes, words no longer break in the middle: Home's featured buttons go one a line, a title's actions two a line, Downloads puts the words under the picture, Settings puts each setting under its name, and icons and round buttons grow with the text only so far.
+- On iPhone and iPad, See all on a row of a library's Browse switches that page to All movies (or All shows) in the row's order, instead of opening a second copy of the library.
+- On iPhone and iPad, a long profile name takes two lines instead of being cut short, and the switch sheet on iPad keeps its profiles in the middle.
+- On iPad held sideways, Settings, Downloads and Libraries keep their rows to a readable width in the middle of the screen, rather than a setting's name at one edge and its value at the other.
+- On iPhone and iPad, Podcasts with nothing followed yet puts its message and Browse podcasts in the middle of the page, as other empty pages do.
+- On iPhone and iPad at the accessibility text sizes, a library's grid has fewer, wider posters with two-line titles, its Browse / All / Genres switch becomes a menu as large as the rest of the page, long track names take two lines, and Play and Shuffle get room above and below their words.
+- On iPhone and iPad, Music's Browse / Artists / Albums / Genres switch sits at the same height as Films' and TV Shows', so it no longer hops between libraries.
+- On iPhone, swiping to delete a download or a recording shows Delete in the delete colour, not the app's silver-blue.
+- On iPhone and iPad, the clock and battery stay readable over a pale backdrop on a title's page.
+- On iPhone, Now Playing's Shuffle, Previous, Next and Repeat, and each row's See all, are easier to tap: the whole button takes the tap, not just its icon or word.
+- On iPhone and iPad, Home's featured show says Play S1E2 when its next episode hasn't been started, and Resume S1E2 once it has, as the show's page does.
+- On iPhone and iPad, a title's Video line says 1080p for a wide-screen film, as its facts do, not the file's cropped height (818p).
+- On iPhone and iPad, a genre card's name and count stay readable on pale artwork: the shade behind them is deeper and the count is in white.
+- On iPhone, iPad, Apple TV and the Mac, an empty size reads "0 bytes" (Downloads' "0 bytes used on this iPhone"), not "Zero kB".
+- On iPhone and iPad, Downloads lines up every name at one edge (films, shows, music, books and podcasts), and a picture that hasn't come shows as a dark box rather than an icon floating on the row.
+- On iPhone and iPad, a title's page no longer has a More button with just one thing in it: Shuffle, Go to show, Version or Subtitles sits on the row instead.
+- On iPhone, page titles keep one size: a library, Watchlist, Coming soon and Settings › Library order have a large title however you reach them, and a tab's first page keeps its large title after the phone is turned sideways and back.
+- On iPhone and iPad, Search's "Nothing matches" line sits at the top of the page, so it shows above the search field when the phone is held sideways, and the search field's hint now mentions music.
+- On iPhone and iPad, a downloaded album or playlist shows the same filled green arrow as a downloaded film, instead of a tick that looked like Watched.
+- On iPhone and iPad, the Connect button on the page for entering a server's address is green.
+- Everywhere, a track's, album's or artist's menu says Add to Up next rather than Add to queue, matching the Up next list it adds to and the same choice on podcast episodes.
+- On iPhone and iPad, a home videos library counts its folders ("2 folders") rather than calling them titles.
+- On iPhone and iPad, connecting with a code from a computer points to the server's /link page instead of an address ending in settings/tv.
+- On iPhone held sideways, the welcome cards' words stay clear of the page dots (scrolling if they need more room), and the Offline pill floats above the bottom bars instead of pressing against the page title.
+- On iPhone and iPad, Settings › Server puts a value that's too long for one line (a long list of libraries) under its name, rather than a second line pushed to the right edge.
+
+### Downloads
+
+- A film or episode watched from a download now counts as watched by the same rule as streaming (past the credits or most of the way), so it no longer stays in Continue Watching at 93%.
+- A podcast episode heard offline keeps its place however short, and a phone whose clock runs fast no longer holds back what other devices watched offline.
+- On iPhone and Android, a downloaded film or episode now starts from where you got to on another device (an hour watched on the TV, say), rather than from the beginning or an old place, and no longer puts the old place back afterwards. One finished elsewhere starts from the beginning.
+- On iPhone and Android, marking a whole show or season watched also finishes its downloaded episodes, so none resumes part way.
+- A podcast episode fetched by itself that you'd only part-heard on another device now makes way for newer ones, as it should.
+- On iPhone, a download the server no longer has now says so, instead of showing "Getting ready" for ever.
+- On iPhone and Android, Download the next episode keeps one episode ahead: it no longer works its way through the whole show, and an episode you delete by hand isn't fetched again (download it yourself and it can come again).
+- On iPhone, one track the server can't offer no longer stops the rest of an album or playlist from downloading.
+- On iPhone, a download deleted just as it finished no longer leaves its file behind, and space taken by such files is freed when the app next opens.
+- On Android, a download that stopped part way only carries on if the server's file is still the same one; otherwise it starts again.
+- A podcast host that stops answering no longer holds up every download on the server: the episode's download gives up after a minute of silence (or an hour in all) and says why, and the films and episodes behind it get ready again.
+- A podcast episode whose download goes wrong on the server now says it failed, with **Try again**, instead of staying at **Getting ready** for good.
+- A download whose file was replaced on the server (Sonarr or Radarr upgraded it, say) now says so, so it can be downloaded again, instead of failing to fetch for a week.
+- Deleting a download while it's being converted now stops the conversion within seconds, even for a file whose length isn't known.
+- A phone and a tablet of one profile downloading the same title (a podcast's newest episodes, say) now both get it: the server keeps its copy until each has it, instead of the second failing with "This download ran out on the server".
 
 ### Trakt
 
@@ -124,14 +194,6 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Settings no longer offers **Lock settings** before an admin PIN has been chosen to lock them with.
 - On a phone, the keyboard's focus ring shows whole around a page in Settings' row of pages.
 - Live TV's title is the same size as every other page's, with the same room under it.
-
-### Downloads
-
-- A podcast host that stops answering no longer holds up every download on the server: the episode's download gives up after a minute of silence (or an hour in all) and says why, and the films and episodes behind it get ready again.
-- A podcast episode whose download goes wrong on the server now says it failed, with **Try again**, instead of staying at **Getting ready** for good.
-- A download whose file was replaced on the server (Sonarr or Radarr upgraded it, say) now says so, so it can be downloaded again, instead of failing to fetch for a week.
-- Deleting a download while it's being converted now stops the conversion within seconds, even for a file whose length isn't known.
-- A phone and a tablet of one profile downloading the same title (a podcast's newest episodes, say) now both get it: the server keeps its copy until each has it, instead of the second failing with "This download ran out on the server".
 
 ### Playback
 

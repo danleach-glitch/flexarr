@@ -212,7 +212,7 @@ struct LiveGuideGrid: View {
                         // Too narrow for its title (a five-minute filler): a plain block, named when focused.
                         cell(programme).opacity(cellWidth < 90 ? 0 : 1)
                     }
-                    .accessibilityLabel(programme.displayTitle)
+                    .accessibilityLabel(spoken(programme))
                     .buttonStyle(GuideCellStyle(onNow: programme.start <= now && programme.end > now, past: programme.end <= now,
                                                 recording: programme.isSetToRecord))
                     .focused($focused, equals: .programme(programme.id))
@@ -277,13 +277,23 @@ struct LiveGuideGrid: View {
                     .font(.system(size: 23, weight: .semibold))
                     .lineLimit(1)
             }
+            // Read from the sofa: the times at full strength, a size under the title.
             Text("\(Self.clock.string(from: programme.start)) – \(Self.clock.string(from: programme.end))")
-                .font(.system(size: 18).monospacedDigit())
-                .opacity(0.7)
+                .font(.system(size: 21).monospacedDigit())
                 .lineLimit(1)
         }
         .padding(.horizontal, 14)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+
+    /// What VoiceOver says for a programme: the label replaces the cell's own, so its times and recording state are
+    /// in it too. "Newsnight, 22:30 to 23:15, Recording now".
+    private func spoken(_ programme: LiveProgramme) -> String {
+        let times = t("{start} to {end}", ["start": Self.clock.string(from: programme.start), "end": Self.clock.string(from: programme.end)])
+        let state: String? = programme.isSetToRecord
+            ? (programme.isRecordingNow ? t("Recording now") : t("Set to record"))
+            : programme.series == true ? t(Words.series) : nil
+        return [programme.displayTitle, times, state].compactMap { $0 }.joined(separator: ", ")
     }
 
     @ViewBuilder

@@ -65,7 +65,7 @@ struct DownloadsView: View {
     }
 
     private func remove(_ list: [LocalDownload], at offsets: IndexSet) {
-        for index in offsets { store.delete(list[index].id) }
+        for index in offsets { store.remove(list[index].id) }
     }
 }
 
@@ -73,15 +73,23 @@ struct DownloadsView: View {
 struct DownloadRow: View {
     @Environment(AppModel.self) private var model
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(DownloadStore.self) private var store
     let download: LocalDownload
 
+    private var rowLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(spacing: DownloadRowArt.spacing(sizeClass)))
+    }
+
     var body: some View {
         Button(action: play) {
-            HStack(spacing: sizeClass == .regular ? 16 : 12) {
-                Color.seat
+            // At the accessibility text sizes the words go under the picture, not down a narrow column beside it.
+            rowLayout {
+                // The well colour, so a picture that hasn't come shows as a box on the row, not empty space.
+                Color.well
                     // Bigger on an iPad or a Mac, where the row has the room.
-                    .frame(width: sizeClass == .regular ? 192 : 112, height: sizeClass == .regular ? 108 : 63)
+                    .frame(width: DownloadRowArt.width(sizeClass), height: DownloadRowArt.height(sizeClass))
                     .overlay { DownloadThumbnail(names: download.imageFileName.map { [$0] } ?? [], symbol: "film") }
                     .overlay(alignment: .bottom) {
                         if download.isDownloaded, download.finishedAt == nil, download.durationSeconds > 0, download.position > 30 {
@@ -104,7 +112,8 @@ struct DownloadRow: View {
         .disabled(!download.isDownloaded)
         .listRowBackground(Color.seat)
         .swipeActions {
-            Button(role: .destructive) { store.delete(download.id) } label: { Label(t(Words.delete), systemImage: Symbol.delete) }
+            Button(role: .destructive) { store.remove(download.id) } label: { Label(t(Words.delete), systemImage: Symbol.delete) }
+                .tint(Color.danger)
         }
         .accessibilityHint(download.isDownloaded ? t("Plays") : "")
     }
@@ -136,9 +145,19 @@ struct DownloadRow: View {
     }
 
     private func play() {
-        guard let info = store.playbackInfo(for: download, preferences: nil) else { return }
-        model.player.playOffline(info)
+        Task {
+            guard let info = await store.freshPlaybackInfo(for: download, preferences: nil) else { return }
+            model.player.playOffline(info)
+        }
     }
+}
+
+/// The picture column every Downloads row shares, so the names down the list start at one edge: a film's or episode's
+/// 16:9 picture fills it, and a square cover (an album, a book, a podcast) sits at its leading edge.
+enum DownloadRowArt {
+    static func width(_ sizeClass: UserInterfaceSizeClass?) -> CGFloat { sizeClass == .regular ? 192 : 112 }
+    static func height(_ sizeClass: UserInterfaceSizeClass?) -> CGFloat { sizeClass == .regular ? 108 : 63 }
+    static func spacing(_ sizeClass: UserInterfaceSizeClass?) -> CGFloat { sizeClass == .regular ? 16 : 12 }
 }
 
 /// A podcast episode or book on the phone: its artwork, title and show (or author), and what it's doing (tap to play
@@ -153,8 +172,8 @@ private struct PodcastDownloadRow: View {
 
     var body: some View {
         Button { if isBook { model.playBook(download.item) } else { model.playEpisode(download.item) } } label: {
-            HStack(spacing: sizeClass == .regular ? 16 : 12) {
-                Color.seat
+            HStack(spacing: DownloadRowArt.spacing(sizeClass)) {
+                Color.well
                     .frame(width: sizeClass == .regular ? 96 : 63, height: sizeClass == .regular ? 96 : 63)
                     .overlay { DownloadThumbnail(names: download.imageFileName.map { [$0] } ?? [], symbol: isBook ? "book.fill" : "mic.fill") }
                     .overlay(alignment: .bottom) {
@@ -163,6 +182,7 @@ private struct PodcastDownloadRow: View {
                         }
                     }
                     .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
+                    .frame(width: DownloadRowArt.width(sizeClass), alignment: .leading)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(download.item.title)
                         .font(.subheadline.weight(.semibold))
@@ -182,6 +202,7 @@ private struct PodcastDownloadRow: View {
         .listRowBackground(Color.seat)
         .swipeActions {
             Button(role: .destructive) { store.remove(download.id) } label: { Label(t(Words.delete), systemImage: Symbol.delete) }
+                .tint(Color.danger)
         }
     }
 
@@ -258,7 +279,7 @@ struct DownloadButton: View {
                     // After the alert has gone, so it closes on the first press.
                     Task { @MainActor in
                         await Task.yield()
-                        if let download = store.entry(for: item.id, orCopies: copies) { store.delete(download.id) }
+                        if let download = store.entry(for: item.id, orCopies: copies) { store.remove(download.id) }
                     }
                 }
                 Button(t(Words.cancel), role: .cancel) {}

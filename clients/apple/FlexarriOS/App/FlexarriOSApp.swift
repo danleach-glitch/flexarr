@@ -302,6 +302,9 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.requestReview) private var requestReview
     @State private var reviews = ReviewPrompt()
+    /// Coming to the front again is every Control Centre pull or Face ID sheet too: what that brings up to date is asked
+    /// for at most once a minute (per server and profile), not each time.
+    @State private var frontRefresh = RefreshPacing(every: 60)
     /// The welcome cards have been seen or skipped. `-FlexarrWelcomed NO` shows them again.
     @AppStorage("FlexarrWelcomed") private var welcomed = false
     /// A family guest who can't reach its host opened the downloads.
@@ -395,13 +398,17 @@ struct RootView: View {
                 Task { await model.ensureGuestTunnel() }
                 // Offline mode ends (or starts) as soon as it's known whether the server answers now.
                 Task { await model.checkConnection() }
+                // A Watchlist widget placed since the watchlist last changed has nothing yet: what's ready now.
+                WidgetBridge.publishWatchlist(model)
+                // The rest ran a moment ago, if the app was only behind Control Centre or a sheet: nothing to catch
+                // up on yet.
+                let key = "\(model.credentials?.address.absoluteString ?? "")#\(model.credentials?.profileToken ?? "")"
+                guard frontRefresh.isDue(for: key) else { return }
                 model.warmConnection()
                 Task { await downloads.catchUp() }
                 Task { await model.loadUpNext() }
                 notifications.refresh()
                 Task { await model.refreshErrorReports() }
-                // A Watchlist widget placed since the watchlist last changed has nothing yet: what's ready now.
-                WidgetBridge.publishWatchlist(model)
             }
             if phase == .background, model.credentials != nil {
                 AppDelegate.schedulePodcastRefresh()
@@ -453,6 +460,14 @@ struct RootView: View {
             Button(t("OK"), role: .cancel) {}
         } message: {
             Text(model.watchlistError ?? "")
+        }
+        .alert(t("Couldn’t mark this"), isPresented: Binding(
+            get: { model.watchedError != nil },
+            set: { if !$0 { model.watchedError = nil } }
+        )) {
+            Button(t("OK"), role: .cancel) {}
+        } message: {
+            Text(model.watchedError ?? "")
         }
         .alert(t("Couldn’t play this channel"), isPresented: Binding(
             get: { model.liveTv.errorMessage != nil },

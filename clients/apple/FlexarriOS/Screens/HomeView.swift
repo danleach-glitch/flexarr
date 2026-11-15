@@ -18,6 +18,10 @@ struct HomeView: View {
     @State private var loadedAt: Date?
     @State private var isVisible = false
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    /// The fade under the status bar, once the hero (or, with none, the first row) has scrolled up under it.
+    @State private var topFade = 0.0
 
     var body: some View {
         ZStack {
@@ -91,6 +95,8 @@ struct HomeView: View {
                         ForEach(rows.dropFirst(continuing)) { rowView($0, in: home) }
                     }
                 }
+                // With no hero the profile picture would sit on the first row's See all: the rows start below it.
+                .padding(.top, home.featured.isEmpty && showsProfileButton ? 52 : 0)
                 .padding(.bottom, 32)
                 // Part of the page, so it scrolls away with the hero rather than floating over the rows.
                 .overlay(alignment: .topTrailing) {
@@ -100,8 +106,16 @@ struct HomeView: View {
             // The hero runs up under the status bar; without one (a server of only podcasts, say) the rows start below it.
             .ignoresSafeArea(edges: home.featured.isEmpty ? [] : .top)
             .withoutTopEdgeEffect()
+            .trackingTopFade(heroHeight: heroHeight(home, window: proxy.size.height + proxy.safeAreaInsets.top), into: $topFade)
             .refreshable { await load() }
         }
+        .overlay { TopBarFade(strength: topFade) }
+    }
+
+    /// As tall as `HomeHero` makes itself in a page `window` tall; none without one.
+    private func heroHeight(_ home: Home, window: CGFloat) -> CGFloat {
+        guard !home.featured.isEmpty else { return 0 }
+        return CGFloat(HeroLayout.featuredHeight(regularWidth: sizeClass == .regular, compactHeight: verticalSizeClass == .compact, window: Double(window)))
     }
 
     private func shows(_ row: HomeRow, in home: Home) -> Bool { HomeRowSlot.shows(row, in: home) }
@@ -112,6 +126,14 @@ struct HomeView: View {
     private func showsNewEpisodes(_ home: Home) -> Bool {
         guard !newEpisodes.isEmpty else { return false }
         return home.placesPodcasts != true || home.rows.contains { $0.id == HomeRow.podcastsRowId }
+    }
+
+    private var showsProfileButton: Bool {
+        #if os(macOS)
+        false
+        #else
+        model.offersProfilePicker && model.currentProfile != nil
+        #endif
     }
 
     /// The profile watching, to switch from. The Mac's is in its sidebar instead.
@@ -214,18 +236,21 @@ struct HomeHero: View {
     @Environment(Router.self) private var router
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let items: [ItemSummary]
     let overviews: [String: String?]
     @Binding var index: Int
     /// What a title's Play picks up from, when it's been started.
     var resuming: (ItemSummary) -> ItemSummary? = { _ in nil }
 
-    /// Shorter on a phone held sideways, so the title and Play stay on screen.
-    private var height: CGFloat { verticalSizeClass == .compact ? 340 : sizeClass == .regular ? 620 : 560 }
-
     var body: some View {
+        // Shorter on a phone held sideways, so the title and Play stay on screen; on an iPad held sideways (or a short
+        // Mac window) little over half the page, so the first row's heading shows beneath it.
+        let regular = sizeClass == .regular, compact = verticalSizeClass == .compact
         pages
-        .frame(height: height)
+        .containerRelativeFrame(.vertical) { window, _ in
+            CGFloat(HeroLayout.featuredHeight(regularWidth: regular, compactHeight: compact, window: Double(window)))
+        }
         .task(id: "\(index)#\(holdsStill)") {
             // Moves on by itself after a while; a swipe restarts the clock. Not while the pointer's over it.
             guard items.count > 1, !holdsStill, (try? await Task.sleep(for: .seconds(10))) != nil else { return }
@@ -293,6 +318,8 @@ struct HomeHero: View {
             }
         }
         .tabViewStyle(.page(indexDisplayMode: items.count > 1 ? .always : .never))
+        // Edge to edge on a phone held sideways; each slide keeps its words inside the safe area.
+        .ignoresSafeArea(.container, edges: .horizontal)
     }
     #endif
 
@@ -319,6 +346,7 @@ struct HomeHero: View {
                 }
                 // Fade out rather than painting the room colour, so there's no seam with the rows below.
                 .mask(LinearGradient(stops: [.init(color: .black, location: 0.5), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
+                .ignoresSafeArea(.container, edges: .horizontal)
 
             VStack(alignment: .leading, spacing: 12) {
                 if item.kind == .album {
@@ -336,7 +364,7 @@ struct HomeHero: View {
                             .minimumScaleFactor(0.6)
                     }
                 } else {
-                    TitleArt(item: item, maxWidth: 280, maxHeight: 110, fontSize: 52)
+                    TitleArt(item: item, maxWidth: 280, maxHeight: 110, fontSize: 52, lines: 3, textWidth: sizeClass == .regular ? 560 : nil)
                 }
                 FactsLine(facts: item.facts(scores: !model.isKids && !item.kind.isMusic), scores: model.isKids || item.kind.isMusic ? nil : item.scores)
                 if let overview = overviews[item.id] ?? nil {
@@ -346,7 +374,10 @@ struct HomeHero: View {
                         .lineLimit(2)
                         .frame(maxWidth: 520, alignment: .leading)
                 }
-                HStack(spacing: 10) {
+                // One a line at the accessibility text sizes, so "Resume" and "More info" don't break mid-word.
+                let buttons = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10))
+                    : AnyLayout(HStackLayout(spacing: 10))
+                buttons {
                     let resume = resuming(item)
                     Button {
                         switch item.kind {
@@ -356,7 +387,7 @@ struct HomeHero: View {
                         default: if let resume { model.play(resume) } else { Task { await model.playBest(item, router: router) } }
                         }
                     } label: {
-                        Label(resume != nil || item.isResumable ? t("Resume") : t(Words.play), systemImage: Symbol.play)
+                        Label(item.heroPlayLabel(resuming: resume), systemImage: Symbol.play)
                     }
                     .buttonStyle(ActionButtonStyle(ambient: item.ambientColor, prominent: true))
                     if item.kind == .artist {
@@ -372,6 +403,8 @@ struct HomeHero: View {
                 }
                 .padding(.top, 4)
             }
+            // The hero is a fixed height: past the first accessibility size its words would run up under the clock.
+            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
             .padding(.horizontal, Layout.edge)
             .padding(.bottom, 44)
         }
@@ -403,6 +436,7 @@ struct HomeHero: View {
                                    startPoint: .top, endPoint: .bottom)
                 }
                 .mask(LinearGradient(stops: [.init(color: .black, location: 0.5), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
+                .ignoresSafeArea(.container, edges: .horizontal)
 
             layout {
                 SquareArtwork(item: item, imageWidth: 800)
@@ -488,17 +522,25 @@ struct HomeRowSlot: View {
     }
 }
 
+extension EnvironmentValues {
+    /// Set by a library's page under its Browse: a row's See all into that same library switches the page already open
+    /// to its titles in the row's order (true), rather than opening a second copy of the library on top. Given the
+    /// library and the row's sort.
+    @Entry var showsLibraryTitles: ((Library, LibrarySort) -> Bool)?
+}
+
 struct HomeRowView: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.showsLibraryTitles) private var showsLibraryTitles
     let row: HomeRow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             SectionHeading(title: row.title, action: row.style == .live ? { router.push(.liveTv) }
                 : row.link == "/watchlist" ? { router.push(.watchlist) }
-                : linkedLibrary.map { route in { router.push(route) } })
+                : linkedLibrary.map { route in { open(route) } })
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: row.style == .top10 ? 6 : Layout.rowSpacing) {
                     // A playlists row carries playlists rather than items.
@@ -532,6 +574,12 @@ struct HomeRowView: View {
             }
             .scrollIndicators(.hidden)
         }
+    }
+
+    /// A library's own titles, from its Browse, on the page already open; anything else pushed.
+    private func open(_ route: Route) {
+        if case .library(let library, let sort, genre: nil) = route, showsLibraryTitles?(library, sort) == true { return }
+        router.push(route)
     }
 
     /// Rows link to "/library/{id}?sort=added" (a library's Browse rows to "?view=all&sort=added" or "&genre=Drama");

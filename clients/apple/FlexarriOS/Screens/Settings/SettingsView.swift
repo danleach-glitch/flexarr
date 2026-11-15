@@ -23,15 +23,21 @@ struct SettingsView: View {
     @State private var notificationProblem: String?
     /// Nil until known, and from servers without Trakt (before 0.57) or on kids profiles.
     @State private var trakt: TraktStatus?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         List {
             if let current = model.currentProfile {
                 Section {
-                    HStack(spacing: 14) {
-                        ProfileAvatar(profile: current, size: 44)
-                        Text(current.name).font(.body.weight(.semibold))
-                        Spacer()
+                    // At the accessibility text sizes Switch goes under the name, rather than breaking ("Switc h").
+                    let stacked = dynamicTypeSize.isAccessibilitySize
+                    let layout = stacked ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10)) : AnyLayout(HStackLayout(spacing: 14))
+                    layout {
+                        HStack(spacing: 14) {
+                            ProfileAvatar(profile: current, size: 44)
+                            Text(current.name).font(.body.weight(.semibold))
+                        }
+                        if !stacked { Spacer() }
                         // Choosing someone else takes the server.
                         if model.offersProfilePicker, !model.isOffline {
                             Button(t("Switch")) { choosingProfile = true }
@@ -213,6 +219,7 @@ struct SettingsView: View {
 
 /// A row on the Settings list: an icon in a tile, the page's name and, on the right, how it's set now.
 struct SettingsLink<Destination: View>: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var title: String
     var icon: String
     var value: String?
@@ -226,14 +233,26 @@ struct SettingsLink<Destination: View>: View {
     }
 
     var body: some View {
-        NavigationLink(destination: { destination().roomForBottomBars() }) {
-            LabeledContent {
-                if let value { Text(value).lineLimit(1) }
-            } label: {
+        NavigationLink(destination: { destination().roomForBottomBars().pushedPageTitle(large: true) }) {
+            if dynamicTypeSize.isAccessibilitySize {
+                // No room beside the name at the largest sizes: the setting goes under it, so neither breaks mid-word.
                 Label {
-                    Text(title)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title)
+                        if let value { Text(value).font(.subheadline).foregroundStyle(.secondary) }
+                    }
                 } icon: {
                     SettingsIcon(icon)
+                }
+            } else {
+                LabeledContent {
+                    if let value { Text(value).lineLimit(1) }
+                } label: {
+                    Label {
+                        Text(title)
+                    } icon: {
+                        SettingsIcon(icon)
+                    }
                 }
             }
         }
@@ -244,16 +263,19 @@ struct SettingsLink<Destination: View>: View {
 /// A Settings row's symbol, in its tile.
 struct SettingsIcon: View {
     var name: String
+    /// Grows with the text, up to a point, so it isn't left tiny beside the largest sizes.
+    @ScaledMetric(relativeTo: .body) private var tile: CGFloat = 29
 
     init(_ name: String) {
         self.name = name
     }
 
     var body: some View {
+        let side = min(tile, 48)
         Image(systemName: name)
-            .font(.system(size: 14, weight: .semibold))
+            .font(.system(size: side * 0.48, weight: .semibold))
             .foregroundStyle(Color.screen)
-            .frame(width: 29, height: 29)
+            .frame(width: side, height: side)
             .background(Color.aisle, in: .rect(cornerRadius: Radius.control))
     }
 }

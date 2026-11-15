@@ -62,7 +62,7 @@ describe('MixPage', () => {
     await screen.findByRole('heading', { level: 1, name: 'Rock Mix' })
 
     fireEvent.click(screen.getByRole('button', { name: 'More for Rock Mix' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Add to queue' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Add to Up next' }))
     await vi.waitFor(() => expect(player.enqueue).toHaveBeenCalledWith(tracks))
   })
 

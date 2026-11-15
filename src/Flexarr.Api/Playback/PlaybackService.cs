@@ -545,10 +545,13 @@ public sealed class PlaybackService(
 
     /// <summary>
     /// Records watching done offline, if it's newer than what's recorded (watching elsewhere since wins). False if
-    /// there's no such title.
+    /// there's no such title. It counts as watched by the rule streaming uses (past the credits or most of the way,
+    /// whichever comes first; a podcast episode only at the very end), whatever the device decided, and a podcast
+    /// keeps any place, as it would streaming.
     /// </summary>
     public async Task<bool> ReportOfflineAsync(Guid itemId, OfflineProgressRequest progress, CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(progress);
         var item = await db.MediaItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == itemId, ct);
         if (item is null)
         {
@@ -556,6 +559,13 @@ public sealed class PlaybackService(
         }
 
         var playedAt = progress.PlayedAt.ToUniversalTime();
+        if (playedAt > DateTime.UtcNow.AddMinutes(5))
+        {
+            playedAt = DateTime.UtcNow; // A device whose clock runs fast mustn't win against everything that follows.
+        }
+
+        var isPodcast = item.Kind == MediaKind.PodcastEpisode;
+        var finished = progress.Finished || (progress.PositionSeconds > 0 && await PastTheEndAsync(item, progress.PositionSeconds, isPodcast, ct));
         var state = await db.PlaybackStates.FirstOrDefaultAsync(p => p.UserId == profile.Id && p.MediaItemId == itemId, ct);
         if (state is not null && state.LastPlayedAt >= playedAt)
         {
@@ -569,7 +579,7 @@ public sealed class PlaybackService(
         }
 
         state.LastPlayedAt = playedAt;
-        if (progress.Finished)
+        if (finished)
         {
             // A film finished again isn't another play, but a track heard through is, as it would be streaming.
             if (!state.Watched || item.Kind is MediaKind.Track or MediaKind.PodcastEpisode)
@@ -585,7 +595,7 @@ public sealed class PlaybackService(
                 await Trakt.TraktOutbox.QueueHistoryAsync(db, profile.Id, [(itemId, playedAt)], ct);
             }
         }
-        else if (progress.PositionSeconds > MinResumeSeconds)
+        else if (progress.PositionSeconds > MinResumeSeconds || (isPodcast && progress.PositionSeconds > 0))
         {
             state.PositionSeconds = progress.PositionSeconds;
             state.Watched = false;
@@ -623,6 +633,28 @@ public sealed class PlaybackService(
 
     /// <summary>How far back from the end a report must be, after an ended one, to count as watching again.</summary>
     private const double EndedRewindSeconds = 30;
+
+    /// <summary>
+    /// Whether a place reached offline is past where streaming would call the title watched: its credits, or most of
+    /// its length (a podcast episode's very end), whichever comes first.
+    /// </summary>
+    private async Task<bool> PastTheEndAsync(MediaItem item, double position, bool isPodcast, CancellationToken ct)
+    {
+        var file = await db.MediaFiles.AsNoTracking().Include(f => f.Markers)
+            .Where(f => f.MediaItemId == item.Id && f.ProbeError == null)
+            .OrderByDescending(f => f.Height).ThenByDescending(f => f.Bitrate)
+            .FirstOrDefaultAsync(ct);
+        var duration = file?.DurationSeconds
+            ?? (isPodcast ? await db.MediaItems.Where(i => i.Id == item.Id).Select(i => i.Enclosure!.DurationSeconds).FirstOrDefaultAsync(ct) : null)
+            ?? (item.RuntimeMinutes ?? 0) * 60;
+        if (duration > 0 && position >= duration * (isPodcast ? 0.98 : WatchedThreshold))
+        {
+            return true;
+        }
+
+        var credits = isPodcast ? null : file?.Markers.Where(m => m.Type == MarkerType.Credits).Select(m => (double?)m.StartSeconds).FirstOrDefault();
+        return credits is { } start && position >= start;
+    }
 
     /// <summary>Applies a progress report to the state; true when it counted a new play.</summary>
     private static bool ApplyProgress(PlaybackState state, PlaybackSession session, ProgressRequest progress)

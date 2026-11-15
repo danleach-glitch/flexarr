@@ -179,7 +179,7 @@ export function QueuePanel({ onClose, style }: { onClose: () => void; style?: CS
         )}
         <h3 className="queue-heading">{t('Next up')}</h3>
         {upcoming.length === 0 ? (
-          <p className="queue-empty muted">{t('Nothing next. “Play next” or “Add to queue” on a track puts it here.')}</p>
+          <p className="queue-empty muted">{t('Nothing next. “Play next” or “Add to Up next” on a track puts it here.')}</p>
         ) : (
           <ol className="queue-list">
             {upcoming.map(({ track, key }, k) => (

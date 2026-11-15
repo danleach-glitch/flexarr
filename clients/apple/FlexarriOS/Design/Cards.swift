@@ -8,6 +8,7 @@ struct PosterCard: View {
     var width: CGFloat?
     /// Called as the card opens its title (search notes the pick).
     var onOpen: (() -> Void)?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         Button {
@@ -26,7 +27,8 @@ struct PosterCard: View {
                             .foregroundStyle(Color.usher)
                     }
                 }
-                .lineLimit(1)
+                // Two lines at the accessibility text sizes, where one holds only "Big Buc…".
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
             }
             .frame(width: width)
             .contentShape(Rectangle())
@@ -86,6 +88,8 @@ struct WideCard: View {
     let item: ItemSummary
     let width: CGFloat
     var action: (() -> Void)?
+    /// The play mark over the picture: off where a tap opens the page instead (Search).
+    var showsPlay = true
 
     var body: some View {
         Button { action.map { $0() } ?? model.play(item) } label: {
@@ -102,11 +106,13 @@ struct WideCard: View {
                         }
                     }
                     .overlay {
-                        Image(systemName: Symbol.play)
-                            .font(.title3)
-                            .foregroundStyle(Color.screen)
-                            .frame(width: 44, height: 44)
-                            .background(Circle().fill(.black.opacity(0.45)))
+                        if showsPlay {
+                            Image(systemName: Symbol.play)
+                                .font(.title3)
+                                .foregroundStyle(Color.screen)
+                                .frame(width: 44, height: 44)
+                                .background(Circle().fill(.black.opacity(0.45)))
+                        }
                     }
                     .overlay(alignment: .bottom) {
                         if let progress = item.progress {
@@ -331,9 +337,9 @@ struct ItemContextMenu: View {
                 Label(t("Remove"), systemImage: Symbol.removeFromRow)
             }
         }
-        if marks, item.kind == .episode, item.seriesId != nil, let show = item.seriesTitle {
+        if marks, item.kind == .episode, item.seriesId != nil, item.seriesTitle != nil {
             Button { Task { await model.setShowWatched(of: item) } } label: {
-                Label(t("Mark {show} as watched", ["show": show]), systemImage: Symbol.watched)
+                Label(t("Mark show as watched"), systemImage: Symbol.watched)
             }
         }
     }
@@ -346,6 +352,10 @@ struct TitleArt: View {
     var maxWidth: CGFloat
     var maxHeight: CGFloat
     var fontSize: CGFloat
+    /// How many lines a title with no logo may take: more on the title's own page, where it can't be read anywhere else.
+    var lines = 2
+    /// How wide that title may run, when wider than the logo may be (an iPad has the room).
+    var textWidth: CGFloat? = nil
 
     var body: some View {
         if let logo = model.client?.imageURL(item.artwork.logo, width: 600) {
@@ -364,9 +374,9 @@ struct TitleArt: View {
         Text(item.displayTitle)
             .font(.marquee(fontSize, weight: .black))
             .foregroundStyle(Color.screen)
-            .lineLimit(2)
+            .lineLimit(lines)
             .minimumScaleFactor(0.6)
-            .frame(maxWidth: maxWidth * 1.2, alignment: .leading)
+            .frame(maxWidth: textWidth ?? maxWidth * 1.2, alignment: .leading)
             .modifier(TitleScrim(reach: maxWidth * 0.6))
     }
 }

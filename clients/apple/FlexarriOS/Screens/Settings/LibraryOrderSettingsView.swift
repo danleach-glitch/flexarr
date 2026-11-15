@@ -80,6 +80,5 @@ struct LibraryOrderSettingsView: View {
         .environment(\.editMode, .constant(.active))
         #endif
         .settingsPage(t("Library order"))
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

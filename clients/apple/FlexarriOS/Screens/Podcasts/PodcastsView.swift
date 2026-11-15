@@ -45,23 +45,12 @@ struct PodcastsView: View {
     /// A List, for the episodes' swipe actions; it draws nothing of its own.
     private var content: some View {
         List {
-            if home.isEmpty {
-                VStack(spacing: 16) {
-                    Text(model.hasAgeLimit ? t("No podcasts yet.") : t("Follow a show and its new episodes come here, and to this {device} on Wi-Fi.", ["device": ThisDevice.name]))
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(Color.usher)
-                        .multilineTextAlignment(.center)
-                    if !model.hasAgeLimit {
-                        Button { router.push(.podcastBrowse) } label: {
-                            Label(t("Browse podcasts"), systemImage: "magnifyingglass")
-                        }
-                        .buttonStyle(ActionButtonStyle(prominent: true))
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, Layout.edge)
-                .padding(.top, 60)
-                .bareListRow()
+            // Above Up Next when that's all there is; with nothing at all, in the middle of the page (below), as every
+            // other empty page has it.
+            if home.isEmpty && !model.upNext.isEmpty {
+                emptyMessage
+                    .padding(.top, 60)
+                    .bareListRow()
             }
             if !home.podcasts.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
@@ -97,6 +86,26 @@ struct PodcastsView: View {
         .environment(\.editMode, .constant(editingUpNext ? .active : .inactive))
         #endif
         .refreshable { await load() }
+        // Over the list rather than in it, so it sits in the middle and the page still pulls to refresh around it.
+        .overlay { if home.isEmpty && model.upNext.isEmpty { emptyMessage } }
+    }
+
+    /// What to do when nothing's followed or part-heard yet.
+    private var emptyMessage: some View {
+        VStack(spacing: 16) {
+            Text(model.hasAgeLimit ? t("No podcasts yet.") : t("Follow a show and its new episodes come here, and to this {device} on Wi-Fi.", ["device": ThisDevice.name]))
+                .font(.body.weight(.medium))
+                .foregroundStyle(Color.usher)
+                .multilineTextAlignment(.center)
+            if !model.hasAgeLimit {
+                Button { router.push(.podcastBrowse) } label: {
+                    Label(t("Browse podcasts"), systemImage: "magnifyingglass")
+                }
+                .buttonStyle(ActionButtonStyle(prominent: true))
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, Layout.edge)
     }
 
     /// Up Next, the same on every device: drag into a new order (Edit), swipe one off.

@@ -2,6 +2,17 @@ import FlexarrKit
 import SwiftUI
 
 /// The screen for each place a stack can go: shared by the iPhone's tabs and the Mac's sidebar.
+extension Route {
+    /// A list or grid under a heading of its own (a library, Watchlist, Coming soon, Podcasts): a large title on
+    /// iPhone wherever it was opened from. A title's own page (a film, album, book, person) keeps its small one.
+    var takesLargeTitle: Bool {
+        switch self {
+        case .library, .albums, .artists, .podcasts, .podcastBrowse, .watchlist, .comingSoon: true
+        default: false
+        }
+    }
+}
+
 struct RouteDestination: View {
     let route: Route
 

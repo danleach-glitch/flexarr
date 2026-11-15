@@ -41,16 +41,14 @@ struct MusicDownloadButton: View {
         } label: {
             ZStack {
                 switch status {
-                case .downloading(let fraction):
-                    DownloadRing(fraction: fraction, lineWidth: 3)
-                case .preparing:
-                    Image(systemName: "hourglass").foregroundStyle(Color.usher)
-                case .downloaded:
-                    Image(systemName: "checkmark").foregroundStyle(Color.go)
-                case .failed:
-                    Image(systemName: "exclamationmark.circle").foregroundStyle(Color.danger)
                 case nil:
                     Image(systemName: "arrow.down")
+                case .downloading(let fraction):
+                    DownloadRing(fraction: fraction, lineWidth: 3)
+                case let status?:
+                    // The same marks as a film's or an episode's Download (the filled green arrow once here), not a
+                    // tick that reads as Watched.
+                    DownloadStateIcon(state: status.iconState)
                 }
             }
             .frame(width: 22, height: 22)
@@ -101,6 +99,18 @@ struct MusicDownloadButton: View {
     }
 }
 
+extension LocalCollection.Status {
+    /// The single download's state whose icon stands for this.
+    var iconState: LocalDownload.State {
+        switch self {
+        case .preparing: .preparing(0)
+        case .downloading(let fraction): .downloading(fraction)
+        case .downloaded: .downloaded
+        case .failed(let reason): .failed(reason)
+        }
+    }
+}
+
 /// A small filled green arrow that marks something downloaded (a track, an album, a film, an episode).
 struct DownloadedMark: View {
     var body: some View {
@@ -129,18 +139,23 @@ extension View {
 }
 
 /// An album's or playlist's saved picture: its cover, or for a playlist without one a mosaic of its tracks' covers.
+/// Pictures are read and decoded off the main thread the first time (as the shows list does), and drawn at once from
+/// then on.
 struct CollectionArtwork: View {
     @Environment(DownloadStore.self) private var store
     let collection: LocalCollection
+    /// The cover, or the mosaic's tiles, once read.
+    @State private var loaded: (cover: PlatformImage?, tiles: [PlatformImage])?
 
     var body: some View {
-        Color.seat
+        let shown = loaded ?? kept
+        Color.well
             .aspectRatio(1, contentMode: .fit)
             .overlay {
-                if let image = store.image(named: collection.imageFileName) {
+                if let image = shown.cover {
                     Image(platformImage: image).resizable().scaledToFill()
                 } else {
-                    let covers = mosaicCovers
+                    let covers = shown.tiles
                     if covers.count >= 4 {
                         VStack(spacing: 0) {
                             HStack(spacing: 0) { tile(covers[0]); tile(covers[1]) }
@@ -156,17 +171,31 @@ struct CollectionArtwork: View {
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: Radius.art, style: .continuous))
+            .task(id: [collection.imageFileName ?? ""] + trackCoverNames) {
+                if let cover = await store.preparedImage(named: collection.imageFileName) {
+                    loaded = (cover, [])
+                    return
+                }
+                var tiles: [PlatformImage] = []
+                for name in trackCoverNames {
+                    guard let cover = await store.preparedImage(named: name) else { continue }
+                    tiles.append(cover)
+                    if tiles.count == 4 { break }
+                }
+                loaded = (nil, tiles)
+            }
     }
 
-    /// The first four different covers of the tracks (or as many as there are), read no further than that.
-    private var mosaicCovers: [PlatformImage] {
-        var names = Set<String>(), covers: [PlatformImage] = []
-        for track in store.tracks(in: collection) {
-            guard let name = track.imageFileName, names.insert(name).inserted, let cover = store.image(named: name) else { continue }
-            covers.append(cover)
-            if covers.count == 4 { break }
-        }
-        return covers
+    /// The tracks' different cover names, in order.
+    private var trackCoverNames: [String] {
+        var seen = Set<String>()
+        return store.tracks(in: collection).compactMap(\.imageFileName).filter { seen.insert($0).inserted }
+    }
+
+    /// What's already been read, without touching the disk: drawn straight away while the rest loads.
+    private var kept: (cover: PlatformImage?, tiles: [PlatformImage]) {
+        if let cover = store.keptImage(named: collection.imageFileName) { return (cover, []) }
+        return (nil, Array(trackCoverNames.lazy.compactMap { store.keptImage(named: $0) }.prefix(4)))
     }
 
     private func tile(_ image: PlatformImage) -> some View {
@@ -177,14 +206,17 @@ struct CollectionArtwork: View {
 /// An album or playlist in the Downloads list: its picture, name and what it's doing; tapping opens it.
 struct CollectionRow: View {
     @Environment(DownloadStore.self) private var store
+    @Environment(\.horizontalSizeClass) private var sizeClass
     let collection: LocalCollection
 
     var body: some View {
         NavigationLink {
-            OfflineCollectionView(collectionId: collection.id).roomForBottomBars()
+            OfflineCollectionView(collectionId: collection.id).roomForBottomBars().pushedPageTitle()
         } label: {
-            HStack(spacing: 12) {
+            HStack(spacing: DownloadRowArt.spacing(sizeClass)) {
+                // In the column films and shows use, so album names start where theirs do.
                 CollectionArtwork(collection: collection).frame(width: 63, height: 63)
+                    .frame(width: DownloadRowArt.width(sizeClass), alignment: .leading)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(collection.title)
                         .font(.subheadline.weight(.semibold))
@@ -201,6 +233,7 @@ struct CollectionRow: View {
         .listRowBackground(Color.seat)
         .swipeActions {
             Button(role: .destructive) { store.remove(collectionId: collection.id) } label: { Label(t(Words.delete), systemImage: Symbol.delete) }
+                .tint(Color.danger)
         }
     }
 

@@ -19,6 +19,10 @@ struct DetailView: View {
     @State private var similar: [ItemSummary] = []
     @State private var selectedSeasonID: String?
     @State private var seasons: [String: ItemDetail] = [:]
+    /// Seasons being fetched, so the load and the effect keyed on the selected season don't both ask for one.
+    @State private var seasonFetches = SeasonFetches()
+    /// Seasons whose episodes couldn't be fetched, with why: said in the episode area with Try again, not a spinner.
+    @State private var failedSeasons: [String: String] = [:]
     /// A show's seasons and episodes the library lacks, and what's coming.
     @State private var gaps: ShowGaps = .none
     /// Fetching `gaps`, on its own so a slow Sonarr or Seerr never holds up the page or a pull to refresh.
@@ -303,7 +307,8 @@ struct DetailView: View {
                     .focused($focusedAction, equals: t(Words.watchlist))
                     .anchorPreference(key: ActionBoundsKey.self, value: .bounds) { [t(Words.watchlist): $0] }
             }
-        case .download:
+        case .download, .chooseVersion, .findSubtitles, .openShow:
+            // Phones only: the TV keeps Version, subtitles and Go to show in ⋯.
             EmptyView()
         case .more:
             let entries = moreEntries(menu)
@@ -474,6 +479,9 @@ struct DetailView: View {
 
             if let season = selectedSeason {
                 episodesList(season)
+            } else if let id = selectedSeasonID, let failed = failedSeasons[id] {
+                StatusView(state: .failed(failed) { Task { await loadSelectedSeason(force: true) } })
+                    .frame(height: 420)
             } else {
                 ProgressView().padding(.leading, Layout.edge).frame(height: 420)
             }
@@ -627,8 +635,11 @@ struct DetailView: View {
                 AccessibilityNotification.Announcement(t("Now showing {title}", ["title": shown])).post()
             }
             // A season opens as its series, with that season selected.
+            // A season this load already has fresh: not fetched again below.
+            var freshSeasonID: String?
             if loaded.item.kind == .season, let parent = loaded.item.parentId {
                 seasons[loaded.item.id] = loaded
+                freshSeasonID = loaded.item.id
                 if selectedSeasonID == nil { selectedSeasonID = loaded.item.id }
                 loaded = try await client.item(parent)
             }
@@ -653,9 +664,17 @@ struct DetailView: View {
             async let shownSimilar = Self.fetchSimilar(similarClient, item.id)
             switch item.kind {
             case .series:
-                nextUp = try? await client.nextUp(item.id)
-                if selectedSeasonID == nil {
-                    selectedSeasonID = nextUp?.parentId ?? loaded.children.first?.id
+                if let chosen = selectedSeasonID, chosen != freshSeasonID {
+                    // A season already chosen (back on the page, or a reload): fetched beside Up next, not after it.
+                    let season = Task { await loadSelectedSeason(force: true) }
+                    freshSeasonID = chosen
+                    nextUp = try? await client.nextUp(item.id)
+                    await season.value
+                } else {
+                    nextUp = try? await client.nextUp(item.id)
+                    if selectedSeasonID == nil {
+                        selectedSeasonID = nextUp?.parentId ?? loaded.children.first?.id
+                    }
                 }
             case .episode:
                 if let seasonID = item.parentId {
@@ -664,7 +683,7 @@ struct DetailView: View {
             default:
                 break
             }
-            await loadSelectedSeason(force: true)
+            if selectedSeasonID != freshSeasonID { await loadSelectedSeason(force: true) }
             playSettled = true
             if let shown = await shownSimilar { similar = shown }
         } catch {
@@ -687,11 +706,16 @@ struct DetailView: View {
     }
 
     private func loadSelectedSeason(force: Bool = false) async {
-        guard let client = model.client, let id = selectedSeasonID else { return }
-        if !force, seasons[id] != nil { return }
-        if let season = try? await client.item(id) {
-            seasons[id] = season
-        }
+        guard let client = model.client, let id = selectedSeasonID,
+              seasonFetches.start(id, have: seasons[id] != nil, force: force) else { return }
+        defer { seasonFetches.finish(id) }
+        do {
+            seasons[id] = try await client.item(id)
+            failedSeasons[id] = nil
+        } catch where !error.isCancellation {
+            // Already shown: kept, as with the page itself. Otherwise said, until Try again or a reload fetches it.
+            if seasons[id] == nil { failedSeasons[id] = ConnectionError(error).message }
+        } catch {}
     }
 }
 
