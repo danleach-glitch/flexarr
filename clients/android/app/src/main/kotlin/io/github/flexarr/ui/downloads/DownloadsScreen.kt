@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.downloads
 
+import io.github.flexarr.onTablet
 import io.github.flexarr.ui.components.ReadableWidth
 import androidx.compose.foundation.layout.widthIn
 import io.github.flexarr.core.i18n.t
@@ -137,7 +138,7 @@ fun DownloadsScreen(model: AppModel) {
                     section(t(Words.podcasts), store.podcastEpisodes) { PodcastDownloadRow(model, it) }
                     item {
                         Text(
-                            t("{size} used on this phone.", "size" to Format.bytes(store.bytesUsed + model.bookDownloads.bytesUsed)),
+                            if (onTablet) t("{size} used on this tablet.", "size" to Format.bytes(store.bytesUsed + model.bookDownloads.bytesUsed)) else t("{size} used on this phone.", "size" to Format.bytes(store.bytesUsed + model.bookDownloads.bytesUsed)),
                             fontSize = 13.sp,
                             color = Flexarr.usher,
                             modifier = Modifier.padding(horizontal = Edge),

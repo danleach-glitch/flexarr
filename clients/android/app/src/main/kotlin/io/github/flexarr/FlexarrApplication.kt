@@ -35,6 +35,7 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
         io.github.flexarr.core.i18n.Localization.cacheDir = filesDir
         io.github.flexarr.core.i18n.Localization.deviceLanguages = android.os.LocaleList.getDefault().toLanguageTags().split(',')
         io.github.flexarr.core.i18n.Localization.startWithLastShown()
+        DeviceKind.current = DeviceKind.of(this)
         FlexarrClient.deviceType = deviceType()
         // Which servers have shown they hold this device's key, kept so an address that can't is never believed again.
         val proofs = getSharedPreferences("server-proofs", Context.MODE_PRIVATE)
@@ -73,6 +74,11 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
         })
     }
 
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        DeviceKind.current = DeviceKind.of(isTelevision, newConfig.smallestScreenWidthDp)
+    }
+
     /**
      * Android wants memory back, or the app has left the screen: the guide the TV keeps between Live TV and the guide
      * over the picture goes (it's fetched again if it's wanted).
@@ -83,10 +89,10 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
     }
 
     /** A TV by its UI mode, a tablet by its narrowest side (600 dp and over, as Android's own layouts count it). */
-    private fun deviceType(): String = when {
-        isTelevision -> "AndroidTv"
-        resources.configuration.smallestScreenWidthDp >= 600 -> "AndroidTablet"
-        else -> "AndroidPhone"
+    private fun deviceType(): String = when (DeviceKind.current) {
+        DeviceKind.Tv -> "AndroidTv"
+        DeviceKind.Tablet -> "AndroidTablet"
+        DeviceKind.Phone -> "AndroidPhone"
     }
 
     /**

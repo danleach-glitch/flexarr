@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.podcasts
 
+import io.github.flexarr.onTablet
 import io.github.flexarr.core.i18n.t
 import io.github.flexarr.core.i18n.Words
 
@@ -290,7 +291,7 @@ fun PodcastScreen(model: AppModel, id: String) {
         AlertDialog(
             onDismissRequest = { unfollowing = false },
             title = { Text(t("Stop following this show?")) },
-            text = { Text(t("Its new episodes stop coming to this phone. Episodes already downloaded stay until you delete them.")) },
+            text = { Text(if (onTablet) t("Its new episodes stop coming to this tablet. Episodes already downloaded stay until you delete them.") else t("Its new episodes stop coming to this phone. Episodes already downloaded stay until you delete them.")) },
             confirmButton = { TextButton(onClick = { unfollowing = false; follow(false) }) { Text(t(Words.stopFollowing), color = Flexarr.danger) } },
             dismissButton = { TextButton(onClick = { unfollowing = false }) { Text(t(Words.cancel)) } },
             containerColor = Flexarr.seat,

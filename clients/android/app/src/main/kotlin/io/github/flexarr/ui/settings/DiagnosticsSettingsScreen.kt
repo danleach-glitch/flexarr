@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.settings
 
+import io.github.flexarr.onTablet
 import io.github.flexarr.ui.components.ReadableWidth
 import androidx.compose.foundation.layout.widthIn
 import io.github.flexarr.core.i18n.t
@@ -86,7 +87,7 @@ fun DiagnosticsSettingsScreen(model: AppModel) {
             stickyHeader { PinnedPageTitle(t("Send diagnostics"), onBack = { navigator.back() }) }
             item {
                 Notes(
-                    footer = t("Sends what this phone has logged lately to your server, and only there, so a problem can be looked into. Sign-ins and stream addresses are taken out first. (Error reports, when your server has them on, are separate: see Server.)"),
+                    footer = if (onTablet) t("Sends what this tablet has logged lately to your server, and only there, so a problem can be looked into. Sign-ins and stream addresses are taken out first. (Error reports, when your server has them on, are separate: see Server.)") else t("Sends what this phone has logged lately to your server, and only there, so a problem can be looked into. Sign-ins and stream addresses are taken out first. (Error reports, when your server has them on, are separate: see Server.)"),
                 ) {
                     BasicTextField(
                         value = note,

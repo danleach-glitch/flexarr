@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.settings
 
+import io.github.flexarr.onTablet
 import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import android.Manifest
@@ -125,7 +126,7 @@ fun NotificationSettingsScreen(model: AppModel) {
                 Group(
                     footer = when {
                         device?.relay == false -> t("Your server has notifications turned off, so none will arrive. They can be turned on in its configuration.")
-                        !notifications.isOn -> t("Hear when something new is ready. This phone gets them for one profile.")
+                        !notifications.isOn -> if (onTablet) t("Hear when something new is ready. This tablet gets them for one profile.") else t("Hear when something new is ready. This phone gets them for one profile.")
                         else -> null
                     },
                 ) {

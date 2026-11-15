@@ -1,5 +1,6 @@
 package io.github.flexarr.player
 
+import io.github.flexarr.DeviceKind
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
 import android.content.Context
@@ -454,7 +455,10 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         val download = model.downloads.byId(downloadId)
         val file = download?.let(model.downloads::file)
         if (download == null || file == null) {
-            error = t("This download isn’t on the phone any more.")
+            error = when (DeviceKind.current) {
+                DeviceKind.Tablet -> t("This download isn’t on the tablet any more.")
+                else -> t("This download isn’t on the phone any more.")
+            }
             return
         }
         newTitle(subtitlesOff = false)
@@ -1625,16 +1629,31 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
         /**
          * Why the player stopped, in words: ExoPlayer's own ("io network connection failed") say little. [subject] is
-         * what was playing ("This", "This channel"): [channel] for a live channel.
+         * what was playing ("This", "This channel"): [channel] for a live channel. [device] names this phone, tablet or TV.
          */
-        fun playerErrorMessage(e: PlaybackException, channel: Boolean = false): String = when (e.errorCode) {
-            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED, PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT, PlaybackException.ERROR_CODE_TIMEOUT ->
-                t("Lost the connection to the server. Make sure this phone is online and Flexarr is running, then try again.")
+        fun playerErrorMessage(e: PlaybackException, channel: Boolean = false, device: DeviceKind = DeviceKind.current): String = when (e.errorCode) {
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED, PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT, PlaybackException.ERROR_CODE_TIMEOUT -> when (device) {
+                DeviceKind.Tablet -> t("Lost the connection to the server. Make sure this tablet is online and Flexarr is running, then try again.")
+                DeviceKind.Tv -> t("Lost the connection to the server. Make sure this TV is online and Flexarr is running, then try again.")
+                DeviceKind.Phone -> t("Lost the connection to the server. Make sure this phone is online and Flexarr is running, then try again.")
+            }
             PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS, PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND, PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE ->
                 t("The server stopped sending this. It may have restarted: try again in a moment.")
-            in PARSING_ERRORS -> if (channel) t("This channel came in a form the phone couldn’t read.") else t("This came in a form the phone couldn’t read.")
-            in DECODER_ERRORS -> t("This phone couldn’t decode the picture or the sound.")
-            in AUDIO_ERRORS -> t("The sound couldn’t be played on this phone.")
+            in PARSING_ERRORS -> when (device) {
+                DeviceKind.Tablet -> if (channel) t("This channel came in a form the tablet couldn’t read.") else t("This came in a form the tablet couldn’t read.")
+                DeviceKind.Tv -> if (channel) t("This channel came in a form the TV couldn’t read.") else t("This came in a form the TV couldn’t read.")
+                DeviceKind.Phone -> if (channel) t("This channel came in a form the phone couldn’t read.") else t("This came in a form the phone couldn’t read.")
+            }
+            in DECODER_ERRORS -> when (device) {
+                DeviceKind.Tablet -> t("This tablet couldn’t decode the picture or the sound.")
+                DeviceKind.Tv -> t("This TV couldn’t decode the picture or the sound.")
+                DeviceKind.Phone -> t("This phone couldn’t decode the picture or the sound.")
+            }
+            in AUDIO_ERRORS -> when (device) {
+                DeviceKind.Tablet -> t("The sound couldn’t be played on this tablet.")
+                DeviceKind.Tv -> t("The sound couldn’t be played on this TV.")
+                DeviceKind.Phone -> t("The sound couldn’t be played on this phone.")
+            }
             else -> if (channel) t("This channel couldn’t be played.") else t("This couldn’t be played.")
         }
 

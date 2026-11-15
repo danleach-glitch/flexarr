@@ -134,6 +134,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Android phones, at large text sizes a Settings row puts its value under its name when both don’t fit, instead of breaking a word, sizes such as “276 MB” stay on one line, and Home’s row names (“Latest unwatched home videos”) can take two lines.
 - On Android phones and tablets, a long page title (Settings › Podcasts and audiobooks, a downloaded show’s name) is set a little smaller and, if it must, on two lines, instead of being cut short.
 - On Android tablets, Settings, Libraries, Downloads and a library’s Browse | All switch keep to a comfortable width instead of stretching across the whole screen.
+- On Android tablets, Downloads, Settings and the player say “this tablet” instead of “this phone”, and on Android TV the player’s errors say “this TV”.
 
 ### Trakt
 

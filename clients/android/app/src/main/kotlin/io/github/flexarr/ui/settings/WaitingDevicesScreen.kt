@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.settings
 
+import io.github.flexarr.onTablet
 import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -164,7 +165,7 @@ fun WaitingDevicesSection(model: AppModel, header: String? = t("Devices waiting 
                     CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Flexarr.usher)
                 }
                 waiting.isEmpty() -> Text(
-                    t("No devices are waiting. When one asks to connect, it shows here and your phone asks you."),
+                    if (onTablet) t("No devices are waiting. When one asks to connect, it shows here and your tablet asks you.") else t("No devices are waiting. When one asks to connect, it shows here and your phone asks you."),
                     fontSize = 15.sp,
                     color = Flexarr.usher,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),

@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.connect
 
+import io.github.flexarr.onTablet
 import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import androidx.activity.compose.BackHandler
@@ -326,7 +327,7 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(t("Not allowed"), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen)
                 Text(
-                    t("The main profile turned this phone away. If that was a mistake, try again and allow it this time."),
+                    if (onTablet) t("The main profile turned this tablet away. If that was a mistake, try again and allow it this time.") else t("The main profile turned this phone away. If that was a mistake, try again and allow it this time."),
                     fontSize = 17.sp,
                     color = Flexarr.usher,
                 )

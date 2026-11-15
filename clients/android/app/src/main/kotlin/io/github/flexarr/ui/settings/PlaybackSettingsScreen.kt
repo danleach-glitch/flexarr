@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.settings
 
+import io.github.flexarr.onTablet
 import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.layout.Box
@@ -114,7 +115,7 @@ fun PlaybackSettingsScreen(model: AppModel) {
                 }
             }
             item {
-                Group(header = t("This phone")) {
+                Group(header = if (onTablet) t("This tablet") else t("This phone")) {
                     Picker(t("Skip back and forward"), PlayerSettings.skipChoices, skipSeconds, { t("{seconds} seconds", "seconds" to it) }) {
                         skipSeconds = it
                         PlayerSettings.setSkipSeconds(context, it)

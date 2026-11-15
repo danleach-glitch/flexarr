@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.connect
 
+import io.github.flexarr.onTablet
 import io.github.flexarr.core.i18n.t
 import android.content.Context
 import androidx.compose.foundation.background
@@ -98,7 +99,7 @@ fun WelcomeScreen(onDone: () -> Unit) {
                     0 -> WelcomePage(
                         art = { BrandMark(96.dp) },
                         title = t("Your entertainment, on every screen."),
-                        message = t("Flexarr plays the movies, shows and music you keep at home, on this phone, wherever you are."),
+                        message = if (onTablet) t("Flexarr plays the movies, shows and music you keep at home, on this tablet, wherever you are.") else t("Flexarr plays the movies, shows and music you keep at home, on this phone, wherever you are."),
                     )
                     1 -> WelcomePage(
                         art = { Symbol(Icons.Filled.Dns) },
@@ -110,7 +111,7 @@ fun WelcomeScreen(onDone: () -> Unit) {
                     else -> WelcomePage(
                         art = { Symbol(Icons.Filled.Wifi) },
                         title = t("Then connect"),
-                        message = t("On the same Wi-Fi, this phone finds your server by itself. Then approve the code it shows and you’re in."),
+                        message = if (onTablet) t("On the same Wi-Fi, this tablet finds your server by itself. Then approve the code it shows and you’re in.") else t("On the same Wi-Fi, this phone finds your server by itself. Then approve the code it shows and you’re in."),
                     )
                 }
             }

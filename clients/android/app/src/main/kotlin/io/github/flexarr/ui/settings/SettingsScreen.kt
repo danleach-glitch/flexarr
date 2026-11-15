@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.settings
 
+import io.github.flexarr.onTablet
 import io.github.flexarr.ui.components.ReadableWidth
 import androidx.compose.foundation.layout.widthIn
 import io.github.flexarr.core.i18n.Words
@@ -216,7 +217,7 @@ fun SettingsScreen(
             }
             if (notifications.isAvailable && notificationsAllowed && !notifications.isOn && !notifications.turnedOff) {
                 item {
-                    Group(footer = t("This phone isn’t getting notifications from this server, so you won’t hear when something new is ready.")) {
+                    Group(footer = if (onTablet) t("This tablet isn’t getting notifications from this server, so you won’t hear when something new is ready.") else t("This phone isn’t getting notifications from this server, so you won’t hear when something new is ready.")) {
                         Row(
                             Modifier.fillMaxWidth().pressable(::turnOnNotifications, enabled = !turningOnNotifications).padding(horizontal = 16.dp, vertical = 14.dp),
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -392,9 +393,9 @@ fun DownloadSettingsScreen(model: AppModel) {
                 Group(
                     header = t(Words.automatic),
                     footer = if (downloads.automaticOnWiFiOnly) {
-                        t("Downloads this phone starts by itself, like the next episode or new podcast episodes, wait for Wi-Fi and never come while Data Saver is on. Ones you start yourself use mobile data too.")
+                        if (onTablet) t("Downloads this tablet starts by itself, like the next episode or new podcast episodes, wait for Wi-Fi and never come while Data Saver is on. Ones you start yourself use mobile data too.") else t("Downloads this phone starts by itself, like the next episode or new podcast episodes, wait for Wi-Fi and never come while Data Saver is on. Ones you start yourself use mobile data too.")
                     } else {
-                        t("Downloads this phone starts by itself, like the next episode or new podcast episodes, use mobile data too, but never while Data Saver is on.")
+                        if (onTablet) t("Downloads this tablet starts by itself, like the next episode or new podcast episodes, use mobile data too, but never while Data Saver is on.") else t("Downloads this phone starts by itself, like the next episode or new podcast episodes, use mobile data too, but never while Data Saver is on.")
                     },
                 ) {
                     Toggle(t("Download the next episode"), downloads.downloadsNext, downloads::changeDownloadsNext)
@@ -433,7 +434,7 @@ fun DownloadSettingsScreen(model: AppModel) {
         AlertDialog(
             onDismissRequest = { confirmDeleteAll = false },
             title = { Text(t("Delete all downloads?")) },
-            text = { Text(t("Everything downloaded to this phone goes. What you watched offline is sent to the server first.")) },
+            text = { Text(if (onTablet) t("Everything downloaded to this tablet goes. What you watched offline is sent to the server first.") else t("Everything downloaded to this phone goes. What you watched offline is sent to the server first.")) },
             confirmButton = { TextButton(onClick = { confirmDeleteAll = false; downloads.deleteAll() }) { Text(t("Delete all"), color = Flexarr.danger) } },
             dismissButton = { TextButton(onClick = { confirmDeleteAll = false }) { Text(t(Words.cancel), color = Flexarr.screen) } },
             containerColor = Flexarr.seat,
@@ -525,11 +526,11 @@ fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit) {
                 val remote = model.credentials?.remoteAddress
                 Group(
                     footer = if (remote == null) {
-                        t("To use Flexarr away from home, turn on remote access with Tailscale in Settings › Remote access on the web; this phone picks the address up by itself.")
+                        if (onTablet) t("To use Flexarr away from home, turn on remote access with Tailscale in Settings › Remote access on the web; this tablet picks the address up by itself.") else t("To use Flexarr away from home, turn on remote access with Tailscale in Settings › Remote access on the web; this phone picks the address up by itself.")
                     } else if (model.credentials?.remoteConfirmed == false) {
-                        t("This phone hasn’t reached the server over Tailscale yet.")
+                        if (onTablet) t("This tablet hasn’t reached the server over Tailscale yet.") else t("This phone hasn’t reached the server over Tailscale yet.")
                     } else {
-                        t("Away from home, this phone reaches the server over Tailscale, which needs to be connected on it.")
+                        if (onTablet) t("Away from home, this tablet reaches the server over Tailscale, which needs to be connected on it.") else t("Away from home, this phone reaches the server over Tailscale, which needs to be connected on it.")
                     },
                 ) {
                     model.serverName?.let {
@@ -572,7 +573,7 @@ fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit) {
                 }
             }
             item {
-                Group(footer = t("Send this phone’s recent log to your server, to look into a problem.")) {
+                Group(footer = if (onTablet) t("Send this tablet’s recent log to your server, to look into a problem.") else t("Send this phone’s recent log to your server, to look into a problem.")) {
                     SettingsLink(t("Send diagnostics"), Icons.Filled.MedicalServices, value = null, onClick = onDiagnostics)
                 }
             }
