@@ -128,6 +128,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Android phones and tablets, a long film or show name without a logo is shown in full on its page and on Home, set smaller and across the width instead of cut short. On Android TV, long names are set a little smaller too.
 - On Android phones and tablets, scrolling a film or show page fades in a bar with Back and the title, so the title no longer slides under the Back button.
 - On Android phones and tablets, a Settings choice (subtitle size, speakers, a notification’s time and the like) opens its menu under the value, not at the far side of the screen.
+- On Android phones and TVs, opening a title that’s no longer on the server (from an old link, notification or widget) says “This isn’t in your library any more.” instead of an HTTP error and Try again, and a page that fails for a reason other than the network no longer shows the Wi-Fi-off mark.
 
 ### Trakt
 

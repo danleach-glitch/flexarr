@@ -359,7 +359,7 @@ internal fun titleArtFontSize(title: String, base: Int): Int = when {
 
 /** Loading, error and empty states in plain words. */
 @Composable
-fun StatusView(message: String? = null, retry: (() -> Unit)? = null, empty: Boolean = false, modifier: Modifier = Modifier) {
+fun StatusView(message: String? = null, retry: (() -> Unit)? = null, empty: Boolean = false, modifier: Modifier = Modifier, icon: ImageVector = Icons.Filled.WifiOff) {
     Column(
         modifier.fillMaxSize().padding(32.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
@@ -374,7 +374,7 @@ fun StatusView(message: String? = null, retry: (() -> Unit)? = null, empty: Bool
                 Text(t("You’re offline"), fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Flexarr.screen)
             }
             else -> {
-                Icon(Icons.Filled.WifiOff, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(40.dp))
+                Icon(icon, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(40.dp))
                 Text(message, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Flexarr.screen, textAlign = TextAlign.Center, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                 if (retry != null) ActionButton(t("Try again"), onClick = retry, prominent = true)
             }

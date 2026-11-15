@@ -88,6 +88,7 @@ import io.github.flexarr.ui.components.PosterWidth
 import io.github.flexarr.ui.components.RowSpacing
 import io.github.flexarr.ui.components.SectionHeading
 import io.github.flexarr.ui.components.StatusView
+import io.github.flexarr.ui.components.FailedView
 import io.github.flexarr.ui.components.pressable
 import io.github.flexarr.ui.components.rememberLoader
 import io.github.flexarr.ui.downloads.MusicDownloadButton
@@ -335,7 +336,7 @@ fun ArtistScreen(model: AppModel, id: String) {
                     }
                 } }
             }
-            is Load.Failed -> StatusView(state.message, page.retry)
+            is Load.Failed -> FailedView(state, page.retry, isItem = true)
             Load.Loading -> StatusView()
         }
         StatusBarShade(grid)
@@ -422,7 +423,7 @@ fun AlbumScreen(model: AppModel, id: String) {
                     }
                 }
             }
-            is Load.Failed -> StatusView(state.message, page.retry)
+            is Load.Failed -> FailedView(state, page.retry, isItem = true)
             Load.Loading -> StatusView()
         }
         StatusBarShade(list)
@@ -496,7 +497,7 @@ fun PlaylistScreen(model: AppModel, id: String) {
                     }
                 }
             }
-            is Load.Failed -> StatusView(state.message, loader.retry)
+            is Load.Failed -> FailedView(state, loader.retry)
             Load.Loading -> StatusView()
         }
         StatusBarShade(list)

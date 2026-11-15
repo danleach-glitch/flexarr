@@ -151,6 +151,8 @@ import io.github.flexarr.ui.components.RemoteImage
 import io.github.flexarr.ui.components.RowSpacing
 import io.github.flexarr.ui.components.SectionHeading
 import io.github.flexarr.ui.components.StatusView
+import io.github.flexarr.ui.components.FailedView
+import io.github.flexarr.ui.components.Load
 import io.github.flexarr.ui.components.TitleArt
 import io.github.flexarr.ui.components.WatchedBadge
 import io.github.flexarr.ui.components.pressable
@@ -180,7 +182,7 @@ fun DetailScreen(model: AppModel, id: String) {
     var shownId by rememberSaveable(id) { mutableStateOf<String?>(null) }
     // Given to the player with Play, so this page knows the sitting was started here (AppModel.takeEnding).
     val pageToken = rememberSaveable(id) { UUID.randomUUID().toString() }
-    var error by remember(id) { mutableStateOf<String?>(null) }
+    var error by remember(id) { mutableStateOf<Load.Failed?>(null) }
     var nextUp by remember(id) { mutableStateOf<ItemSummary?>(null) }
     var similar by remember(id) { mutableStateOf(emptyList<ItemSummary>()) }
     var selectedSeasonId by rememberSaveable(id) { mutableStateOf<String?>(null) }
@@ -254,7 +256,7 @@ fun DetailScreen(model: AppModel, id: String) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            if (detail == null) error = e.message
+            if (detail == null) error = Load.Failed(e)
         } finally {
             refreshing = false
         }
@@ -337,7 +339,7 @@ fun DetailScreen(model: AppModel, id: String) {
                     }
                 }
             }
-            error != null -> StatusView(error, retry = { attempt++ })
+            error != null -> FailedView(error!!, retry = { attempt++ }, isItem = true)
             else -> StatusView()
         }
         StatusBarShade(list)

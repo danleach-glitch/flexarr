@@ -22,6 +22,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.WifiOff
+import androidx.compose.material.icons.outlined.ErrorOutline
+import io.github.flexarr.ui.components.Load
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PlayArrow
@@ -128,7 +131,7 @@ fun TvDetailScreen(model: AppModel, id: String) {
     var shownId by rememberSaveable(id) { mutableStateOf<String?>(null) }
     // Given to the player with Play, so this page knows the sitting was started here (AppModel.takeEnding).
     val pageToken = rememberSaveable(id) { UUID.randomUUID().toString() }
-    var error by remember(id) { mutableStateOf<String?>(null) }
+    var error by remember(id) { mutableStateOf<Load.Failed?>(null) }
     var nextUp by remember(id) { mutableStateOf<ItemSummary?>(null) }
     var similar by remember(id) { mutableStateOf(emptyList<ItemSummary>()) }
     var selectedSeasonId by remember(id) { mutableStateOf<String?>(null) }
@@ -200,7 +203,7 @@ fun TvDetailScreen(model: AppModel, id: String) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            if (detail == null) error = e.message
+            if (detail == null) error = Load.Failed(e)
         }
     }
     LaunchedEffect(selectedSeasonId, seasonAttempt) {
@@ -268,7 +271,9 @@ fun TvDetailScreen(model: AppModel, id: String) {
                     }
                 }
             }
-            error != null -> TvStatusView(error, retry = { attempt++ })
+            // A title the server no longer has (an old link or Watch Next card): said so, with nothing to try again.
+            error?.notFound == true -> TvStatusView(t("This isn’t in your library any more."), empty = true)
+            error != null -> error?.let { TvStatusView(it.message, retry = { attempt++ }, icon = if (it.network) Icons.Filled.WifiOff else Icons.Outlined.ErrorOutline) }
             else -> TvStatusView()
         }
     }

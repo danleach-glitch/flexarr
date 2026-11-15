@@ -305,7 +305,7 @@ fun TvFactsLine(facts: List<String>, modifier: Modifier = Modifier, scores: Scor
 
 /** Loading, a failure with Try again, or nothing to show, in plain words. */
 @Composable
-fun TvStatusView(message: String? = null, retry: (() -> Unit)? = null, empty: Boolean = false, modifier: Modifier = Modifier, takesFocus: Boolean = true) {
+fun TvStatusView(message: String? = null, retry: (() -> Unit)? = null, empty: Boolean = false, modifier: Modifier = Modifier, takesFocus: Boolean = true, icon: ImageVector = Icons.Filled.WifiOff) {
     Column(
         modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
@@ -315,7 +315,7 @@ fun TvStatusView(message: String? = null, retry: (() -> Unit)? = null, empty: Bo
             message == null -> CircularProgressIndicator(color = Flexarr.screen)
             empty -> Text(message, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher)
             else -> {
-                Icon(Icons.Filled.WifiOff, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(32.dp))
+                Icon(icon, contentDescription = null, tint = Flexarr.usher, modifier = Modifier.size(32.dp))
                 Text(message, fontSize = 15.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 500.dp))
                 if (retry != null) {
                     // Nothing else on the screen to focus: Try again takes it, so OK tries.

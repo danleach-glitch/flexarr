@@ -23,6 +23,11 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
+import io.github.flexarr.core.isNetworkFailure
+import io.github.flexarr.core.isNotFound
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.WifiOff
+import androidx.compose.material.icons.outlined.ErrorOutline
 import kotlin.coroutines.cancellation.CancellationException
 
 private val flexarrLog = FlexarrLog("screens")
@@ -31,7 +36,11 @@ private val flexarrLog = FlexarrLog("screens")
 sealed interface Load<out T> {
     data object Loading : Load<Nothing>
     data class Loaded<T>(val value: T) : Load<T>
-    data class Failed(val message: String) : Load<Nothing>
+
+    /** [network]: the server couldn't be reached (the Wi-Fi mark). [notFound]: the server said it isn't there. */
+    data class Failed(val message: String, val network: Boolean = true, val notFound: Boolean = false) : Load<Nothing> {
+        constructor(e: Throwable) : this(e.message ?: t("Something went wrong."), network = e.isNetworkFailure, notFound = e.isNotFound)
+    }
 }
 
 /** [refreshing]: fetching again with the last answer still on screen (pull to refresh shows it). */
@@ -152,7 +161,7 @@ fun <T> rememberLoader(vararg keys: Any?, onRefreshFailed: ((Exception) -> Unit)
         } catch (e: Exception) {
             // The server out of reach is expected now and then (a home server, away from home): not worth a warning.
             if (e is FlexarrException.Unreachable) flexarrLog.info("Couldn't load", e) else flexarrLog.warning("Couldn't load", e)
-            if (!shown) state = Load.Failed(e.message ?: t("Something went wrong.")) else refreshFailed?.invoke(e)
+            if (!shown) state = Load.Failed(e) else refreshFailed?.invoke(e)
         } finally {
             refreshing = false
         }
@@ -168,6 +177,19 @@ fun <T> Loaded(loader: Loader<T>, modifier: Modifier = Modifier, content: @Compo
     when (val state = loader.state) {
         is Load.Loaded -> content(state.value)
         Load.Loading -> StatusView(modifier = modifier)
-        is Load.Failed -> StatusView(state.message, loader.retry, modifier = modifier)
+        is Load.Failed -> FailedView(state, loader.retry, modifier = modifier)
+    }
+}
+
+/**
+ * A load that failed: the Wi-Fi mark only when the server couldn't be reached. On a title's own page ([isItem]), one
+ * the server no longer has says so, with nothing to try again.
+ */
+@Composable
+fun FailedView(failed: Load.Failed, retry: (() -> Unit)?, modifier: Modifier = Modifier, isItem: Boolean = false) {
+    if (isItem && failed.notFound) {
+        StatusView(t("This isn’t in your library any more."), empty = true, modifier = modifier)
+    } else {
+        StatusView(failed.message, retry, modifier = modifier, icon = if (failed.network) Icons.Filled.WifiOff else Icons.Outlined.ErrorOutline)
     }
 }
