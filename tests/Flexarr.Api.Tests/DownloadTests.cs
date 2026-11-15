@@ -415,13 +415,38 @@ public sealed class DownloadTests : IDisposable
     }
 
     [Fact]
+    public async Task WithAHardwareEncoder_DownloadsCarryOnBesideAConversion_UntilTheServerIsFull()
+    {
+        using var hardware = _factory.WithWebHostBuilder(b => b
+            .UseSetting("Flexarr:Transcoding:HardwareAcceleration", "VideoToolbox")
+            .UseSetting("Flexarr:Transcoding:MaxConcurrentTranscodes", "2"));
+        var transcodes = hardware.Services.GetRequiredService<Flexarr.Streaming.TranscodeManager>();
+        var preparer = hardware.Services.GetRequiredService<Downloads.DownloadPreparer>();
+        var settings = Flexarr.Api.Playback.PlaybackEndpoints.TranscodeSettingsFor(
+            hardware.Services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Flexarr.Api.Configuration.FlexarrOptions>>().CurrentValue);
+        var plan = new Flexarr.Streaming.TranscodePlan(0, 1, 1920, 1080, 10_000_000, ToneMap: false, CopyAudio: false, AudioChannels: 2, BurnSubtitle: null);
+
+        Assert.False(preparer.MakesWay(settings));
+        var one = await transcodes.CreateAsync("tv", "/in.mkv", 600, plan);
+        Assert.False(preparer.MakesWay(settings)); // a slot to spare
+        Assert.True(preparer.MakesWay(settings with { HardwareAcceleration = Flexarr.Streaming.HardwareAcceleration.None })); // in software, never beside
+        var two = await transcodes.CreateAsync("phone", "/in.mkv", 600, plan);
+        Assert.True(preparer.MakesWay(settings)); // full
+        await transcodes.StopAsync(one.Id);
+        await transcodes.StopAsync(two.Id);
+    }
+
+    [Fact]
     public async Task ARepackagedStream_DoesntHoldDownloadsBack_AConvertedOneDoes()
     {
-        var transcodes = _factory.Services.GetRequiredService<Flexarr.Streaming.TranscodeManager>();
-        var preparer = _factory.Services.GetRequiredService<Downloads.DownloadPreparer>();
+        // Converting in software: anyone watching a conversion comes first.
+        using var software = _factory.WithWebHostBuilder(b => b.UseSetting("Flexarr:Transcoding:HardwareAcceleration", "None"));
+        var transcodes = software.Services.GetRequiredService<Flexarr.Streaming.TranscodeManager>();
+        var preparer = software.Services.GetRequiredService<Downloads.DownloadPreparer>();
         var plan = new Flexarr.Streaming.TranscodePlan(0, 1, 1920, 1080, 10_000_000, ToneMap: false, CopyAudio: false, AudioChannels: 2, BurnSubtitle: null);
         var (_, tracks) = await AddAlbumAsync(("mp3", "mp3", ".mp3", 3_000_000), ("mp3", "mp3", ".mp3", 3_000_000));
-        var client = Client();
+        var client = software.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
         async Task<string> AskAsync(Guid item) =>
             (await (await client.PostAsJsonAsync(new Uri("/api/v1/offline", UriKind.Relative), new { itemId = item, quality = "Original" })).Content.ReadFromJsonAsync<JsonElement>())
                 .GetProperty("id").GetString()!;

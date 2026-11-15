@@ -164,9 +164,9 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
     internal async Task<bool> RunOnceAsync(CancellationToken ct)
     {
         await ExpireAsync(ct);
-        // Someone's watching something whose picture is being converted: they come first. A repackaged stream (the
-        // picture copied as it is) or a song costs next to nothing, and a conversion needn't stop for it.
-        if (transcodes.EncodingCount == 0)
+        // Someone's watching something whose picture is being converted: they come first (see MakesWay). A repackaged
+        // stream (the picture copied as it is) or a song costs next to nothing, and a conversion needn't stop for it.
+        if (!MakesWay(PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue)))
         {
             return await PrepareNextAsync(ct);
         }
@@ -335,7 +335,7 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
             : FfmpegCommand.Mp4(file.Path, plan.Convert, plan.VideoIndex, plan.AudioIndex, plan.VideoCodec, plan.Subtitles, partial, current);
 
         // Someone starting to watch something converted takes precedence: the conversion stops and goes back in the queue.
-        var error = await RunAsync(settings.FfmpegPath, Args(settings), file.DurationSeconds ?? 0, download.Id, ct, yieldTo: () => transcodes.EncodingCount > 0);
+        var error = await RunAsync(settings.FfmpegPath, Args(settings), file.DurationSeconds ?? 0, download.Id, ct, yieldTo: () => MakesWay(settings));
 
         // The hardware encoder failed (busy, out of sessions, a codec it won't take): once more in software, as streams do.
         if (error is not null && !ReferenceEquals(error, Yielded) && !plan.IsAudioOnly && plan.Convert is { VideoStreamIndex: >= 0 }
@@ -345,7 +345,7 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
             LogSoftwareFallback(download.Id, settings.Resolved.ToString());
             TryDelete(partial);
             settings = settings with { HardwareAcceleration = HardwareAcceleration.None };
-            error = await RunAsync(settings.FfmpegPath, Args(settings), file.DurationSeconds ?? 0, download.Id, ct, yieldTo: () => transcodes.EncodingCount > 0);
+            error = await RunAsync(settings.FfmpegPath, Args(settings), file.DurationSeconds ?? 0, download.Id, ct, yieldTo: () => MakesWay(settings));
         }
 
         if (ReferenceEquals(error, Yielded))
@@ -577,6 +577,23 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
     /// what's left of it (at low priority) costs the stream less than starting again later would cost the queue.
     /// </summary>
     internal const double NearlyDone = 0.9;
+
+    /// <summary>
+    /// Whether a download's conversion waits (or stops, going back in the queue) for people watching converted streams.
+    /// Converting in software, it does for anyone: the processor is theirs. With a hardware encoder it carries on, below
+    /// them, while the server has a conversion slot to spare (<see cref="TranscodeSettings.MaxConcurrentTranscodes"/>),
+    /// so a household that streams most evenings doesn't restart a long film's conversion every time.
+    /// </summary>
+    internal bool MakesWay(TranscodeSettings settings)
+    {
+        var encoding = transcodes.EncodingCount;
+        if (encoding == 0)
+        {
+            return false;
+        }
+
+        return settings.Resolved == HardwareAcceleration.None || (settings.MaxConcurrentTranscodes > 0 && encoding >= settings.MaxConcurrentTranscodes);
+    }
 
     /// <summary>What <see cref="RunAsync"/> gives back when it stopped to make way for someone watching.</summary>
     private static readonly string Yielded = new("yielded".ToCharArray());
