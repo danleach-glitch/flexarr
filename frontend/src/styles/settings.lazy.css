@@ -156,6 +156,8 @@
 /* A label, a panel of rows, and a short note under it. */
 .settings-group {
   display: grid;
+  /* The page's width, not the widest row's: a row that would like more (an input and its buttons) gives way on a phone. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   min-width: 0;
   margin: 0;
@@ -1665,6 +1667,8 @@
   display: flex;
   gap: 8px;
   flex: 1 1 280px;
+  /* Narrower than the input and its buttons would like on a phone: the input gives way, not the page. */
+  min-width: 0;
   max-width: 460px;
 }
 
