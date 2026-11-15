@@ -213,20 +213,24 @@ public sealed partial class MetadataRefresher(
 
     // ------------------------------------------------------------------ Movies
 
+    /// <summary>Films loaded a page at a time in a refresh of many: see <see cref="RefreshMoviesAsync"/>.</summary>
+    private const int MoviesPerPage = 100;
+
     private async Task<MetadataRefreshResult> RefreshMoviesAsync(Guid libraryId, bool force, IReadOnlyCollection<string> within, int? tmdbId, CancellationToken ct)
     {
         // Nothing due: don't download Radarr's whole library to find out.
         var also = await WithinAsync(libraryId, MediaKind.Movie, within, ct).ConfigureAwait(false);
-        var items = await Stale(libraryId, MediaKind.Movie, force, also).Include(i => i.Genres).Include(i => i.Credits).AsSplitQuery().ToListAsync(ct).ConfigureAwait(false);
-        if (items.Count == 0)
+        var ids = await Stale(libraryId, MediaKind.Movie, force, also).Select(i => i.Id).ToListAsync(ct).ConfigureAwait(false);
+        if (ids.Count == 0)
         {
             return new MetadataRefreshResult(0, 0, 0);
         }
 
         var radarrs = settings.ArrInstances.Where(a => a.Kind == ArrKind.Radarr).ToList();
-        // Just the webhook's, or a timed refresh's few: ask for just those.
-        var onlyWithin = (!force || _forcedWithin) && (_dueAtMost is not null || items.All(i => also.Contains(i.Id)));
-        var (fetched, allAnswered) = await KnownAsync(radarrs, onlyWithin ? items : null, Hinted(also, tmdbId, i => i.TmdbId),
+        // Just the webhook's, or a timed refresh's few: ask for just those, loaded all at once.
+        var onlyWithin = (!force || _forcedWithin) && (_dueAtMost is not null || ids.All(also.Contains));
+        var few = onlyWithin ? await LoadMoviesAsync(ids, ct).ConfigureAwait(false) : null;
+        var (fetched, allAnswered) = await KnownAsync(radarrs, few, Hinted(also, tmdbId, i => i.TmdbId),
             arr.GetMoviesAsync, arr.GetMovieAsync, arr.GetMoviesByTmdbIdAsync, ct).ConfigureAwait(false);
         var known = fetched.Select(k => (k.Instance, Movie: k.Entry)).ToList();
 
@@ -235,39 +239,62 @@ public sealed partial class MetadataRefresher(
         var byTmdb = Index(known, k => k.Movie.TmdbId > 0 ? k.Movie.TmdbId.ToString(CultureInfo.InvariantCulture) : null);
         int fromArr = 0, fromLookup = 0, unmatched = 0, fromLocal = 0;
 
-        foreach (var item in items)
+        // Otherwise a page at a time, each saved and let go before the next, as books are: a forced refresh of 5,000
+        // films would track every one's credits (over 100,000) for the whole run, and look over them all at each save.
+        for (var from = 0; from < ids.Count; from += MoviesPerPage)
         {
-            // A Radarr that didn't answer (down, restarting, a timeout) isn't a film gone from it: leave its films as they
-            // are, still linked and still due, rather than re-sourcing them from TMDB unlinked for a week.
-            if (!allAnswered && Unconfirmed(item, known.Select(k => (k.Instance, k.Movie.Id))))
+            var items = few ?? await LoadMoviesAsync([.. ids.Skip(from).Take(MoviesPerPage)], ct).ConfigureAwait(false);
+            foreach (var item in items)
             {
-                LeftDue.Add(item.Id);
-                continue;
-            }
-
-            try
-            {
-                switch (await RefreshMovieAsync(item, byPath, byImdb, byTmdb, radarrs, force, ct).ConfigureAwait(false))
+                // A Radarr that didn't answer (down, restarting, a timeout) isn't a film gone from it: leave its films as they
+                // are, still linked and still due, rather than re-sourcing them from TMDB unlinked for a week.
+                if (!allAnswered && Unconfirmed(item, known.Select(k => (k.Instance, k.Movie.Id))))
                 {
-                    case true: fromArr++; break;
-                    case false: fromLookup++; break;
-                    default:
-                        if (item.MetadataSource == Local) { fromLocal++; } else { unmatched++; }
-                        break;
+                    LeftDue.Add(item.Id);
+                    continue;
                 }
-            }
-            catch (Exception ex) when (ex is InvalidOperationException or System.Text.Json.JsonException || IsNetworkFailure(ex, ct))
-            {
-                LogItemFailed(ex, item.Title);
-                unmatched++;
+
+                try
+                {
+                    switch (await RefreshMovieAsync(item, byPath, byImdb, byTmdb, radarrs, force, ct).ConfigureAwait(false))
+                    {
+                        case true: fromArr++; break;
+                        case false: fromLookup++; break;
+                        default:
+                            if (item.MetadataSource == Local) { fromLocal++; } else { unmatched++; }
+                            break;
+                    }
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or System.Text.Json.JsonException || IsNetworkFailure(ex, ct))
+                {
+                    LogItemFailed(ex, item.Title);
+                    unmatched++;
+                }
+
+                item.MetadataUpdatedAt = DateTime.UtcNow;
+                await SaveEveryAsync(fromArr + fromLookup + unmatched + fromLocal, ct).ConfigureAwait(false);
             }
 
-            item.MetadataUpdatedAt = DateTime.UtcNow;
-            await SaveEveryAsync(fromArr + fromLookup + unmatched + fromLocal, ct).ConfigureAwait(false);
+            await db.SaveChangesAsync(ct).ConfigureAwait(false);
+            if (few is not null)
+            {
+                break;
+            }
+
+            // Done with these films; the people and genres kept for them go too, so the next page tracks its own afresh.
+            db.ChangeTracker.Clear();
+            (_genres, _peopleByTmdb, _peopleByTvMaze) = (null, null, null);
         }
 
-        await db.SaveChangesAsync(ct).ConfigureAwait(false);
         return new MetadataRefreshResult(fromArr, fromLookup, unmatched, fromLocal);
+    }
+
+    /// <summary>These films, tracked, with their genres and credits, in the order given.</summary>
+    private async Task<List<MediaItem>> LoadMoviesAsync(List<Guid> ids, CancellationToken ct)
+    {
+        var loaded = (await db.MediaItems.Where(i => ids.Contains(i.Id)).Include(i => i.Genres).Include(i => i.Credits).AsSplitQuery()
+            .ToListAsync(ct).ConfigureAwait(false)).ToDictionary(i => i.Id);
+        return [.. ids.Where(loaded.ContainsKey).Select(id => loaded[id])];
     }
 
     /// <returns>true when matched in Radarr, false when found by lookup, null when unmatched.</returns>
