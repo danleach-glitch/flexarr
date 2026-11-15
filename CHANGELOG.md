@@ -18,6 +18,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Apple TV, Settings › Playback opens on its first row, and Settings › Server on Check again, in view.
 - On Apple TV, pressing Stop in Now Playing puts you back on the album (or page) you played from, not on the sidebar where Menu would leave the app.
 - On Apple TV, an episode with no picture yet lights up and gains a ring when focused, so you can see which one you're on.
+- On Apple TV, long profile names on "Who's watching?" wrap onto two lines instead of being cut short.
 - On Android, Download Season fetches that season and one episode ahead, no longer the whole show.
 - On Android, pages no longer scroll up through the clock and status icons, and Settings pages keep their title and Back in view.
 - On Android, a show's season pills are all readable: Download Season sits on its own line under them.

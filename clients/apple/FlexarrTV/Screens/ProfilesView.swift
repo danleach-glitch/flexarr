@@ -114,7 +114,8 @@ struct ProfilePickerView: View {
                 .font(.marquee(76, weight: .heavy))
                 .foregroundStyle(Color.screen)
 
-            HStack(spacing: 80) {
+            // Lined up by their tops, so a name over two lines doesn't lift its avatar above the others.
+            HStack(alignment: .top, spacing: 80) {
                 ForEach(model.profiles) { profile in
                     Button {
                         Task { await press(profile) }
@@ -338,14 +339,18 @@ private struct ProfileChoice: View {
                     }
                 }
             VStack(spacing: 8) {
+                // Two lines for a long name, so it's read in full rather than cut at the tile's width.
                 Text(profile.name)
                     .font(.system(size: 34, weight: .semibold))
                     .foregroundStyle(isFocused ? Color.screen : Color.usher)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .minimumScaleFactor(0.75)
                 Text(caption ?? " ")
                     .font(.system(size: 24, weight: .medium))
                     .foregroundStyle(Color.usher)
+                    .lineLimit(1)
             }
-            .lineLimit(1)
         }
         .frame(width: 280)
     }
