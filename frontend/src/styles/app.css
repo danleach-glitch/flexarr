@@ -1633,6 +1633,9 @@ kbd {
   inset: 0;
   z-index: 80;
   display: grid;
+  /* One column the backdrop's width, not its content's: a dialog's width: min(…, 100%) is then the screen less the
+     gutters, and a long path or a row of buttons inside can't widen it past the edge on a phone. */
+  grid-template-columns: minmax(0, 1fr);
   place-items: start center;
   padding: 12vh 16px 16px;
   background: rgb(10 8 12 / 0.7);

@@ -63,6 +63,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - The search button is read out as Search on phones, shows Ctrl K rather than ⌘K off Apple devices, and the seek bar shows where the keyboard is.
 - Live TV's Recordings asks before stopping a recording that's under way or a series, as it does before deleting one.
 - Profiles other than the main one see plain words on **Coming soon** and Discover in place of Sonarr, Radarr, Lidarr and Seerr's names. A season dropping at once reads S1E3–E5, one title reads 1 title, and Watchlist sorts A–Z like the libraries.
+- On a phone, **Fix match** fits the screen: a long file path no longer pushes it, and its Search and Choose one buttons, past the right edge.
 
 ### Playback
 
