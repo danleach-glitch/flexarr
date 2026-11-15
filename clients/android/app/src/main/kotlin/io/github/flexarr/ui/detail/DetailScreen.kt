@@ -357,11 +357,11 @@ private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, 
             // Clear of Back above it, however tall large text makes it.
             Column(Modifier.align(Alignment.BottomStart).statusBarsPadding().padding(top = 64.dp).padding(horizontal = Edge), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (item.kind == MediaKind.Episode && series != null) {
-                    TitleArt(series, maxWidth = 240.dp, maxHeight = 80.dp, fontSize = 40)
+                    TitleArt(series, maxWidth = 240.dp, maxHeight = 80.dp, fontSize = 40, maxLines = 3, textMaxWidth = 720.dp)
                     // Said by TalkBack when the page moves on to the next episode.
                     Text(item.episodeSubtitle ?: item.title, style = marquee(28).copy(fontWeight = FontWeight.Bold), modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                 } else {
-                    TitleArt(item, maxWidth = 300.dp, maxHeight = 120.dp, fontSize = 52)
+                    TitleArt(item, maxWidth = 300.dp, maxHeight = 120.dp, fontSize = 52, maxLines = 4, textMaxWidth = 720.dp)
                 }
                 // No scores for a child.
                 val isKids = LocalContext.current.appModel.isKids

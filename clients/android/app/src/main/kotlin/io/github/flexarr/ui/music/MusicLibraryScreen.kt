@@ -242,7 +242,7 @@ private fun MusicHeroSlide(home: Home, item: ItemSummary, height: Dp) {
                     Text(item.title, style = marquee(40).copy(fontWeight = FontWeight.Black), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 520.dp))
                 }
             } else {
-                TitleArt(item, maxWidth = 280.dp, maxHeight = 110.dp, fontSize = 52)
+                TitleArt(item, maxWidth = 280.dp, maxHeight = 110.dp, fontSize = 52, maxLines = 3, textMaxWidth = 600.dp)
             }
             FactsLine(item.facts(scores = false))
             home.overviews[item.id]?.let {

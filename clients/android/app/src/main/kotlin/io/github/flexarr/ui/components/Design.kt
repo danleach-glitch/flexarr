@@ -315,17 +315,20 @@ fun WatchedBadge(modifier: Modifier = Modifier) {
     }
 }
 
-/** Clear logo when the title has one, otherwise the title set in marquee type. */
+/**
+ * Clear logo when the title has one, otherwise the title set in marquee type: up to [maxLines] lines, as wide as
+ * [textMaxWidth] (a logo's width, give or take, when not given), and smaller the longer the title runs.
+ */
 @Composable
-fun TitleArt(item: ItemSummary, maxWidth: Dp, maxHeight: Dp, fontSize: Int) {
+fun TitleArt(item: ItemSummary, maxWidth: Dp, maxHeight: Dp, fontSize: Int, maxLines: Int = 2, textMaxWidth: Dp? = null) {
     val client = LocalClient.current
     val title = @Composable {
         Text(
             item.displayTitle,
-            style = marquee(fontSize).copy(shadow = Shadow(Color.Black.copy(alpha = 0.35f), blurRadius = 20f)),
-            maxLines = 2,
+            style = marquee(titleArtFontSize(item.displayTitle, fontSize)).copy(shadow = Shadow(Color.Black.copy(alpha = 0.35f), blurRadius = 20f)),
+            maxLines = maxLines,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.widthIn(max = maxWidth * 1.2f),
+            modifier = Modifier.widthIn(max = textMaxWidth ?: (maxWidth * 1.2f)),
         )
     }
     val logo = client.imageUrl(item.artwork.logo, 600)
@@ -345,6 +348,13 @@ fun TitleArt(item: ItemSummary, maxWidth: Dp, maxHeight: Dp, fontSize: Int) {
             onError = { failed = true },
         )
     }
+}
+
+/** A title set in place of a logo steps down from [base] as it runs longer, so a long one isn't a word a line. */
+internal fun titleArtFontSize(title: String, base: Int): Int = when {
+    title.length <= 20 -> base
+    title.length <= 32 -> (base * 0.8f).toInt()
+    else -> (base * 0.65f).toInt()
 }
 
 /** Loading, error and empty states in plain words. */

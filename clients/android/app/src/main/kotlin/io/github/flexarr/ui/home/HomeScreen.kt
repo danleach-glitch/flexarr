@@ -333,7 +333,7 @@ private fun HeroSlide(home: Home, item: ItemSummary, height: Dp) {
         Box(Modifier.matchParentSize().background(Brush.verticalGradient(0.25f to Color.Transparent, 1f to Flexarr.room.copy(alpha = 0.7f))))
         // Room above for the backdrop and the status bar when large text makes the slide grow.
         Column(Modifier.align(Alignment.BottomStart).padding(start = Edge, end = Edge, bottom = 44.dp, top = 160.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            TitleArt(item, maxWidth = 280.dp, maxHeight = 110.dp, fontSize = 52)
+            TitleArt(item, maxWidth = 280.dp, maxHeight = 110.dp, fontSize = 52, maxLines = 3, textMaxWidth = 600.dp)
             // No scores for a child.
             val isKids = LocalContext.current.appModel.isKids
             FactsLine(item.facts(scores = !isKids), scores = if (isKids) null else item.scores)
