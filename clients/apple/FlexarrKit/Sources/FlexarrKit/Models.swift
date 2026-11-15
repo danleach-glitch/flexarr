@@ -357,7 +357,7 @@ public struct TitleVersion: Codable, Sendable, Hashable, Identifiable {
         // The server's rule for one cut (VersionRules): within 5% or a minute, whichever is more.
         let differ = lengths.contains { a in lengths.contains { b in abs(a - b) > max(60, 0.05 * max(a, b)) } }
         let parts = [label, edition, differ ? durationSeconds.flatMap(Format.runtime(seconds:)) : nil].compactMap { $0 }.filter { !$0.isEmpty }
-        return parts.isEmpty ? size.formatted(.byteCount(style: .file)) : parts.joined(separator: ", ")
+        return parts.isEmpty ? formatBytes(size) : parts.joined(separator: ", ")
     }
 }
 
