@@ -47,6 +47,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -193,7 +194,7 @@ fun MusicNowPlayingSheet(model: AppModel, onDismiss: () -> Unit) {
                             track.artistName?.let { Text(it, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Flexarr.usher, maxLines = 1) }
                         }
                     }
-                    LyricsView(found, music.position, onSeek = music::seek, modifier = Modifier.weight(1f))
+                    LyricsView(found, { music.position }, onSeek = music::seek, modifier = Modifier.weight(1f))
                     ScrubberAndControls(music)
                     Extras(hasLyrics = true, showingLyrics = true) { showingLyrics = false }
                 }
@@ -351,8 +352,9 @@ private fun UpNext(music: MusicPlayer) {
  * tapping a line jumps the track to it. Plain ones just read. The Apple apps' LyricsView.
  */
 @Composable
-private fun LyricsView(lyrics: Lyrics, position: Double, onSeek: (Double) -> Unit, modifier: Modifier = Modifier) {
-    val active = lyrics.activeLine(position)
+private fun LyricsView(lyrics: Lyrics, position: () -> Double, onSeek: (Double) -> Unit, modifier: Modifier = Modifier) {
+    // Read here, not by the sheet, and only a new line recomposes: the position moves four times a second.
+    val active by remember(lyrics) { derivedStateOf { lyrics.activeLine(position()) } }
     val list = rememberLazyListState()
     LaunchedEffect(active) {
         val line = active ?: return@LaunchedEffect
