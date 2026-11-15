@@ -1,3 +1,4 @@
+#if os(iOS)
 import FlexarrKit
 import UIKit
 
@@ -64,3 +65,4 @@ private extension UIView {
         }
     }
 }
+#endif
