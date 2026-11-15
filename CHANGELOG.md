@@ -43,6 +43,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Web
 
+- On a phone, naming a new playlist (or renaming one) puts the name on its own row, with Create and Cancel together under it.
 - In the web player, a long show or episode title keeps to two lines, with Back beside its first line.
 - Settings › About shows file names in the changelog as code, without backticks, and on a phone its folder paths sit on their own line under the label.
 - Removing a library in Settings asks with a short heading, with the note that the files stay underneath.

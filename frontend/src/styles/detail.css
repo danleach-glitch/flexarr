@@ -1833,6 +1833,14 @@ button.queue-track:focus-visible {
   align-items: center;
 }
 
+/* On a phone the name takes the first row and both buttons share the second, rather than Cancel dropping alone. */
+@media (max-width: 600px) {
+  .playlist-new label.grow,
+  .playlist-rename label.grow {
+    flex: 1 1 100%;
+  }
+}
+
 .playlist-rename {
   max-width: 560px;
   margin-bottom: 8px;
