@@ -406,6 +406,9 @@ using (var scope = app.Services.CreateScope())
         backups.LogRestored();
     }
 
+    // A database a newer Flexarr has migrated isn't this build's to run on: stop before anything reads or writes it.
+    await Flexarr.Core.Data.SchemaCheck.EnsureNotNewerAsync(db, CancellationToken.None);
+
     // An upgrade is about to change the database: keep a copy of it as it was, to go back to.
     var migrating = (await db.Database.GetPendingMigrationsAsync()).Any();
     if (migrating && (await db.Database.GetAppliedMigrationsAsync()).Any())
