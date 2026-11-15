@@ -302,7 +302,9 @@ fun ProfilePicker(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
+                            // Every tile's picture box is the current one's ring wide, so the ring doesn't make that
+                            // tile taller and its picture and name sit level with the others'.
+                            Box(Modifier.size(108.dp), contentAlignment = Alignment.Center) {
                                 ProfileAvatar(model, profile, size = 96)
                                 if (switching == profile.id) {
                                     Box(Modifier.size(96.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f)))

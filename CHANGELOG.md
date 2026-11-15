@@ -136,6 +136,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Android tablets, Settings, Libraries, Downloads and a library’s Browse | All switch keep to a comfortable width instead of stretching across the whole screen.
 - On Android tablets, Downloads, Settings and the player say “this tablet” instead of “this phone”, and on Android TV the player’s errors say “this TV”.
 - On Android phones and tablets, a profile name too long for its tile in “Who’s watching?” ends in “…” instead of stopping mid-word.
+- On Android, the profiles in Settings › Switch line up: the current one’s ring no longer sets its picture and name lower than the others.
 
 ### Trakt
 
