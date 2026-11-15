@@ -31,7 +31,6 @@ struct LibraryView: View {
     @State private var total = 0
     @State private var isLoading = false
     @State private var error: String?
-    @State private var didApplyInitialSort = false
     /// `model.refreshToken` when `items` was last fetched.
     @State private var loadedToken: Int?
     @State private var loadedAt: Date?
@@ -57,6 +56,10 @@ struct LibraryView: View {
         self.library = library
         self.initialSort = initialSort
         self.initialGenre = initialGenre
+        // The sort and genre a link asked for (a row's See all), from the start: set once the page was up, they
+        // started a second load of the grid racing the first.
+        _sort = State(initialValue: initialSort)
+        _genre = State(initialValue: initialGenre)
         let first: Showing = opening ?? (library.type == .music && initialGenre != nil ? .albums
             : Self.hasBrowse(library, genre: initialGenre) && initialSort == .title && initialGenre == nil ? .browse : .all)
         _showing = State(initialValue: first)
@@ -225,12 +228,6 @@ struct LibraryView: View {
         .background(RoomBackground(ambient: items.first?.glowColor, intensity: 0.18))
         .refreshable { await reload() }
         .task {
-            // The sort and genre a link asked for, before the first page.
-            if !didApplyInitialSort {
-                didApplyInitialSort = true
-                sort = initialSort
-                genre = initialGenre
-            }
             // Coming back from a detail screen or another tab runs this again. Keep what's loaded, and so the
             // scroll position, only bringing it up to date if something changed here or it's getting old.
             if let loadedToken, !items.isEmpty {
