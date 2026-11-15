@@ -50,11 +50,11 @@ public static class CollectionEndpoints
     {
         var group = api.MapGroup("/collections").WithTags("Collections").NotForKids();
 
-        group.MapGet("/", async (bool? hidden, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        group.MapGet("/", async (bool? hidden, FlexarrDbContext db, CurrentProfile profile, IMemoryCache cache, CancellationToken ct) =>
         {
             var collections = await Visible(db, profile).Where(c => hidden == true && profile.IsMainProfile || !c.Hidden).OrderBy(c => c.Name).ToListAsync(ct);
             // A collection with nothing this profile can see (e.g. films, for a profile kept out of them) isn't listed.
-            return (await SummariesAsync(db, profile, collections, ct))
+            return (await SummariesAsync(db, profile, collections, ct, cache))
                 .Where(s => s.ItemCount > 0 || s.CanEdit && s.Kind != CollectionKind.Franchise).ToList();
         });
 
@@ -317,11 +317,17 @@ public static class CollectionEndpoints
     private static async Task<CollectionSummaryDto> SummaryAsync(FlexarrDbContext db, CurrentProfile profile, Collection c, CancellationToken ct) =>
         (await SummariesAsync(db, profile, [c], ct))[0];
 
+    /// <summary>How long a smart collection's counts and posters are kept, at most: rules can turn on the date ("added this month").</summary>
+    private static readonly TimeSpan SmartFactsKeptFor = TimeSpan.FromMinutes(1);
+
     /// <summary>
     /// What a list of collections shows (counts and four posters each) without summarising every title in them:
-    /// one query for all the manual and franchise ones, one per smart one.
+    /// one query for all the manual and franchise ones, one per smart one (its matches are at most
+    /// <see cref="SmartRules.MaxLimit"/>, so they're counted from what it finds). With <paramref name="cache"/>, a smart
+    /// one's are kept per profile until anything is written, the profile watches something, or a minute has passed.
     /// </summary>
-    private static async Task<List<CollectionSummaryDto>> SummariesAsync(FlexarrDbContext db, CurrentProfile profile, IReadOnlyList<Collection> collections, CancellationToken ct)
+    private static async Task<List<CollectionSummaryDto>> SummariesAsync(FlexarrDbContext db, CurrentProfile profile, IReadOnlyList<Collection> collections, CancellationToken ct,
+        IMemoryCache? cache = null)
     {
         var me = profile.Id;
         var listed = collections.Where(c => c.Kind != CollectionKind.Smart).Select(c => c.Id).ToList();
@@ -340,12 +346,8 @@ public static class CollectionEndpoints
             var missing = c.MissingJson is null || hidden!.Hides(MediaKind.Movie) ? 0 : JsonSerializer.Deserialize<List<MissingFilm>>(c.MissingJson, FranchiseSync.Json)!.Count;
             if (c.Kind == CollectionKind.Smart)
             {
-                // A broad rule can match thousands: count them in the database and fetch only the four posters.
-                var matches = (Rules(c) ?? new SmartRules()).Query(db, me, DateTime.UtcNow);
-                var count = await matches.CountAsync(ct);
-                var watched = await matches.Where(WatchedBy(me)).CountAsync(ct);
-                var first = await matches.Where(i => i.PosterUrl != null).Take(4).Select(FactOf(me)).ToListAsync(ct);
-                summaries.Add(Summary(profile, c, count, watched, Posters(first), missing));
+                var found = await SmartFactsAsync(db, me, c, cache, ct);
+                summaries.Add(Summary(profile, c, found.Count, found.Count(i => i.Watched), Posters(found.Where(i => i.HasPoster).Take(4)), missing));
                 continue;
             }
 
@@ -356,14 +358,31 @@ public static class CollectionEndpoints
         return summaries;
     }
 
+    /// <summary>A smart collection's matches, in order, as just enough to count them and show four posters: one query.</summary>
+    private static async Task<List<ItemFact>> SmartFactsAsync(FlexarrDbContext db, string me, Collection c, IMemoryCache? cache, CancellationToken ct)
+    {
+        Task<List<ItemFact>> Find() => (Rules(c) ?? new SmartRules()).Query(db, me, DateTime.UtcNow).Select(FactOf(me)).ToListAsync(ct);
+        if (cache is null)
+        {
+            return await Find();
+        }
+
+        // Everything the answer turns on: the rules, the profile and what it may see, and the data it was read from.
+        var key = string.Join('|', "smart-collection", c.Id, c.RulesJson ?? "", me, string.Join(',', db.HiddenLibraryIds.Order()), string.Join(',', db.KidsLibraryIds.Order()),
+            db.MaxRatingAge?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "", db.ServesKids, LibraryVisibility.KidsSettingsVersion,
+            DataVersion.Current, DataVersion.ForProfile(me));
+        if (cache.TryGetValue(key, out List<ItemFact>? kept) && kept is not null)
+        {
+            return kept;
+        }
+
+        var found = await Find();
+        cache.Set(key, found, SmartFactsKeptFor);
+        return found;
+    }
+
     private static List<string> Posters(IEnumerable<ItemFact> items) =>
         items.Select(i => ArtworkUrls.For(i.Id, ArtworkUrls.Version(i.MetadataUpdatedAt, i.ArtworkChangedAt), true, false, false, false).Poster!).ToList();
-
-    /// <summary>Watched as <see cref="FactOf"/> works it out: a show once every episode is.</summary>
-    private static System.Linq.Expressions.Expression<Func<MediaItem, bool>> WatchedBy(string profileId) => i =>
-        i.Kind == MediaKind.Series
-            ? !i.Children.SelectMany(s => s.Children).Any(e => !e.PlaybackStates.Any(p => p.UserId == profileId && p.Watched))
-            : i.PlaybackStates.Any(p => p.UserId == profileId && p.Watched);
 
     /// <summary>Just enough of a title for a collection's counts and poster: watched works as it does in summaries.</summary>
     private sealed record ItemFact(Guid Id, bool HasPoster, DateTime? MetadataUpdatedAt, DateTime? ArtworkChangedAt, bool Watched);
