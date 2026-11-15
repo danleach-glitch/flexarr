@@ -17,16 +17,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.WindowInsets
@@ -493,10 +492,14 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
         if (playable != null) {
             ActionButton(playLabel(playable, item), onClick = { navigator.play(playable, from = from) }, icon = FlexarrIcons.play, prominent = true, ambient = ambient, modifier = Modifier.fillMaxWidth())
         }
-        // Sharing the width, until large text would shrink the names to fit: then each its own size, scrolling sideways.
-        val crowded = LocalDensity.current.fontScale > 1.3f
-        Row(if (crowded) Modifier.horizontalScroll(rememberScrollState()) else Modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val slot = if (crowded) Modifier.widthIn(min = 72.dp) else Modifier.weight(1f)
+        // Sharing the width in one line, until large text would shrink the names to fit: then fewer to a line, wrapping
+        // onto the next, so every name stays whole and none goes off the screen's edge.
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            maxItemsInEachRow = actionsPerLine(LocalDensity.current.fontScale, buttons.size),
+        ) {
+            val slot = Modifier.weight(1f)
             buttons.forEach { button ->
                 when (button) {
                     DetailActions.Button.PLAY -> Unit
@@ -603,6 +606,16 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
         )
     }
 }
+
+/**
+ * How many of the round actions under Play share a line: all of them at the usual text sizes; three, then two, as large
+ * text makes their names too wide for a quarter of a phone's width.
+ */
+internal fun actionsPerLine(fontScale: Float, count: Int): Int = when {
+    fontScale > 1.6f -> minOf(2, count)
+    fontScale > 1.3f -> minOf(3, count)
+    else -> count
+}.coerceAtLeast(1)
 
 /** "Watchlist", its bookmark filled once it's there; tapping puts it on or takes it off. */
 @Composable
