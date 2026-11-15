@@ -161,6 +161,7 @@ struct TrackRow: View {
     /// Go to artist in the menu (not on an album, whose artist is a tap away above).
     var offersArtist = true
     let action: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         Button(action: action) {
@@ -188,7 +189,8 @@ struct TrackRow: View {
                             .foregroundStyle(Color.usher)
                     }
                 }
-                .lineLimit(1)
+                // Two lines at the accessibility text sizes, where one holds only a word or two of a long name.
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                 Spacer(minLength: 12)
                 if isDownloaded {
                     DownloadedMark()

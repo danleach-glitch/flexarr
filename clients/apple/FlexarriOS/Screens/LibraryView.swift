@@ -46,6 +46,7 @@ struct LibraryView: View {
     @State private var gridHoldsAlbums: Bool?
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private static let pageSize = 60
     /// The most the server sends in one page (ItemEndpoints' MaxPageSize).
@@ -66,8 +67,10 @@ struct LibraryView: View {
         _opened = State(initialValue: [first])
     }
 
+    /// Fewer, wider columns at the accessibility text sizes, so a title under its poster has room for its words.
     private var columns: [GridItem] {
-        let minimum: CGFloat = sizeClass == .regular ? 140 : 100
+        let large = dynamicTypeSize.isAccessibilitySize
+        let minimum: CGFloat = sizeClass == .regular ? (large ? 220 : 140) : (large ? 150 : 100)
         return [GridItem(.adaptive(minimum: minimum, maximum: minimum * 1.45), spacing: 12, alignment: .top)]
     }
 
@@ -202,7 +205,7 @@ struct LibraryView: View {
                 if music, offersAlbums { Text(t(Words.albums)).tag(Showing.albums) }
                 if hasGenres { Text(t(Words.genres)).tag(Showing.genres) }
             }
-            .pickerStyle(.segmented)
+            .switchPickerStyle()
             .labelsHidden()
         }
     }

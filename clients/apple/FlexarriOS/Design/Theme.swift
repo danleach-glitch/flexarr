@@ -100,6 +100,26 @@ struct SectionHeading: View {
     }
 }
 
+extension View {
+    /// A switch between a page's views (Browse, All movies, Genres): segmented, or at the accessibility text sizes,
+    /// which a segmented control doesn't grow with, a menu in the size of the rest of the page.
+    func switchPickerStyle() -> some View {
+        modifier(SwitchPickerStyle())
+    }
+}
+
+private struct SwitchPickerStyle: ViewModifier {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    func body(content: Content) -> some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            content.pickerStyle(.menu)
+        } else {
+            content.pickerStyle(.segmented)
+        }
+    }
+}
+
 /// Play and the other actions on heroes and details: the main one filled with the title's ambient colour (see
 /// `Color.mainButton`), the rest quieter on a translucent seat.
 struct ActionButtonStyle: ButtonStyle {
@@ -115,6 +135,7 @@ struct ActionButtonStyle: ButtonStyle {
             .font(.body.weight(.semibold))
             .labelStyle(ActionLabelStyle(singleLine: singleLine))
             .padding(.horizontal, 20)
+            .modifier(ScaledVerticalPadding())
             .frame(minHeight: 48)
             .foregroundStyle(prominent ? Color.room : Color.screen)
             .background {
@@ -124,6 +145,16 @@ struct ActionButtonStyle: ButtonStyle {
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .opacity(configuration.isPressed ? 0.85 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+
+    /// Room above and below the words that grows with them, so at the accessibility text sizes they don't fill the
+    /// button top to bottom. At the usual sizes 48 points is taller anyway.
+    private struct ScaledVerticalPadding: ViewModifier {
+        @ScaledMetric(relativeTo: .body) private var padding: CGFloat = 8
+
+        func body(content: Content) -> some View {
+            content.padding(.vertical, padding)
+        }
     }
 
     private struct ActionLabelStyle: LabelStyle {

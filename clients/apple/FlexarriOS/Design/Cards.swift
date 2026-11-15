@@ -8,6 +8,7 @@ struct PosterCard: View {
     var width: CGFloat?
     /// Called as the card opens its title (search notes the pick).
     var onOpen: (() -> Void)?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         Button {
@@ -26,7 +27,8 @@ struct PosterCard: View {
                             .foregroundStyle(Color.usher)
                     }
                 }
-                .lineLimit(1)
+                // Two lines at the accessibility text sizes, where one holds only "Big Buc…".
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
             }
             .frame(width: width)
             .contentShape(Rectangle())
