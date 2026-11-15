@@ -81,6 +81,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On iPhone and iPad, a title's page no longer has a More button with just one thing in it: Shuffle, Go to show, Version or Subtitles sits on the row instead.
 - On iPhone, page titles keep one size: a library, Watchlist, Coming soon and Settings › Library order have a large title however you reach them, and a tab's first page keeps its large title after the phone is turned sideways and back.
 - On iPhone and iPad, the keyboard's Search and Go keys take the app's silver instead of the system's blue.
+- On iPhone and iPad, Search's "Nothing matches" line sits at the top of the page, so it shows above the search field when the phone is held sideways, and the search field's hint now mentions music.
 
 ### Downloads
 

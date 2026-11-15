@@ -41,8 +41,10 @@ struct SearchView: View {
                 if let results {
                     if results.isEmpty && outside.isEmpty && outsideMusic.isEmpty {
                         // Nothing in the library yet: say so only once the searches beyond it have answered too.
+                        // At the top of the page, not the middle of a tall box: held sideways with the keyboard up,
+                        // only a strip shows above the floating search field.
                         StatusView(state: lookingFurther ? .loading : .empty(t("Nothing matches “{search}”.", ["search": query])))
-                            .frame(height: 240)
+                            .frame(maxWidth: .infinity, alignment: .top)
                     }
                     if !results.films.isEmpty {
                         section(t(Words.moviesAndShows)) {
@@ -140,12 +142,12 @@ struct SearchView: View {
                     }
                 } else if let error {
                     StatusView(state: .failed(error) { Task { await search() } })
-                        .frame(height: 240)
+                        .frame(maxWidth: .infinity, alignment: .top)
                 } else if query.isEmpty && !recents.isEmpty {
                     recentSections
                 } else {
-                    StatusView(state: .empty(t("Find movies, shows, episodes and people in your libraries.")))
-                        .frame(height: 240)
+                    StatusView(state: .empty(t("Find movies, shows, music and people in your libraries.")))
+                        .frame(maxWidth: .infinity, alignment: .top)
                 }
             }
             .padding(.vertical, 12)
@@ -157,12 +159,12 @@ struct SearchView: View {
         #if os(macOS)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                PageSearchField(text: $query, prompt: t("Movies, shows, episodes and people"), width: 440, focus: $typing, onSubmit: keepSearch)
+                PageSearchField(text: $query, prompt: t("Movies, shows, music and people"), width: 440, focus: $typing, onSubmit: keepSearch)
             }
         }
         #else
         .searchable(text: $query, isPresented: $searching, placement: .navigationBarDrawer(displayMode: .always),
-                    prompt: t("Movies, shows, episodes and people"))
+                    prompt: t("Movies, shows, music and people"))
         // On iPad an active search hid the navigation bar, and the tab bar with it (it's along the top there), and the
         // field has no Cancel of its own: the bar stays, with a Cancel that ends the search.
         .searchPresentationToolbarBehavior(sizeClass == .regular ? .avoidHidingContent : .automatic)
