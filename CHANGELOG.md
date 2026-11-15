@@ -50,6 +50,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - **Coming soon** now shows that it's loading, and says so with **Try again** when it can't load, instead of an empty page.
 - In a big music or audiobooks library, jumping to a letter in Albums or All books is now quick: only the albums or books at that letter load, with **Show earlier** above them.
 - Live TV's **On now** stays quick with thousands of channels: starring one or the minute's update redraws only the channels that changed.
+- Back on Home or a library's Browse, after watching something, the rows you left show at once and catch up a moment later, instead of a blank page while they load.
 
 ### Playback
 

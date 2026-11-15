@@ -49,4 +49,34 @@ describe('useApi', () => {
     await waitFor(() => expect(result.current.data).toBe('answer 3'))
     expect(result.current.error).toBeUndefined()
   })
+
+  it('with a name for its answer, shows the last one at once when opened again, while it asks afresh', async () => {
+    const first = renderHook(() => useApi(async () => 'rows from before', [], 'kept-test'))
+    await waitFor(() => expect(first.result.current.data).toBe('rows from before'))
+    first.unmount()
+
+    const fresh = deferred<string>()
+    const again = renderHook(() => useApi(() => fresh.promise, [], 'kept-test'))
+    expect(again.result.current.data).toBe('rows from before')
+    expect(again.result.current.loading).toBe(true)
+    await act(async () => fresh.answer('rows now'))
+    expect(again.result.current.data).toBe('rows now')
+    expect(again.result.current.loading).toBe(false)
+
+    // Without a name, nothing is shown until the answer comes.
+    const unnamed = renderHook(() => useApi(() => new Promise<string>(() => undefined), []))
+    expect(unnamed.result.current.data).toBeUndefined()
+  })
+
+  it('shows the last answer of the name it moves to', async () => {
+    const { result, rerender } = renderHook(({ id }) => useApi(async () => `browse ${id}`, [id], `kept-browse ${id}`), { initialProps: { id: 'a' } })
+    await waitFor(() => expect(result.current.data).toBe('browse a'))
+    rerender({ id: 'b' })
+    await waitFor(() => expect(result.current.data).toBe('browse b'))
+
+    const later = renderHook(({ id }) => useApi(() => new Promise<string>(() => undefined), [id], `kept-browse ${id}`), { initialProps: { id: 'b' } })
+    expect(later.result.current.data).toBe('browse b')
+    later.rerender({ id: 'a' })
+    expect(later.result.current.data).toBe('browse a')
+  })
 })

@@ -260,11 +260,11 @@ function LibraryBrowse({ library }: { library: Library }) {
   // A scan changes the count every few seconds; these rows are heavy, so refresh them at most every 30 seconds while
   // it runs, and once more when it's done.
   const itemCount = useThrottled(library.itemCount, library.scan ? 30_000 : 0)
-  const { data: loaded, error, reload } = useApi((signal) => getLibraryBrowse(library.id, signal), [library.id, itemCount])
+  const { data: loaded, error, reload } = useApi((signal) => getLibraryBrowse(library.id, signal), [library.id, itemCount], `browse ${library.id}`)
   useWatchedChanges(reload)
   // A music library's Browse ends with Your artists, as in the apps; See all opens Artists when there are more.
   const music = library.type === 'Music'
-  const artists = useApi((signal) => (music ? getLibraryItems(library.id, { take: ARTISTS_IN_ROW }, signal) : Promise.resolve(undefined)), [library.id, music, itemCount])
+  const artists = useApi((signal) => (music ? getLibraryItems(library.id, { take: ARTISTS_IN_ROW }, signal) : Promise.resolve(undefined)), [library.id, music, itemCount], `browse-artists ${library.id}`)
   const data = useMemo(() => {
     const page = artists.data
     if (!loaded || !page || page.items.length === 0) return loaded

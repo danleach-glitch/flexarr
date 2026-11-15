@@ -17,7 +17,8 @@ import { t, tk, Words } from '../i18n'
 
 export function HomePage() {
   const { libraries } = useLibraries()
-  const { data, error, reload } = useApi(getHome, [])
+  // Back on Home (from a film, say), its last rows show at once while it's asked afresh.
+  const { data, error, reload } = useApi(getHome, [], 'home')
   useWatchedChanges(reload)
   const { me, profiles } = useSession()
   // The newest episodes of the podcasts this profile follows that it hasn't heard, where Home places them. Asked for
@@ -28,7 +29,7 @@ export function HomePage() {
   useEffect(() => {
     if (data) writeFlag(offKey, rowOff)
   }, [data, offKey, rowOff])
-  const episodes = useApi((signal) => (podcasts && !rowOff ? getNewEpisodes(signal, true) : Promise.resolve([])), [podcasts, rowOff])
+  const episodes = useApi((signal) => (podcasts && !rowOff ? getNewEpisodes(signal, true) : Promise.resolve([])), [podcasts, rowOff], `home-episodes ${podcasts} ${rowOff}`)
   // The setup guide, for the main profile: servers before it answer 404, and have no guide.
   // A profile with an age limit and nothing within it: no setup talk, no way into Settings.
   const limited = me?.maxRatingAge != null
@@ -37,10 +38,10 @@ export function HomePage() {
   const main = me?.isAdmin === true || me?.canUnlock === true
   const admin = me?.isAdmin === true
   // Kept as long as Home's own answer: Home waits for it, and back from a title neither is asked for again.
-  const guide = useApi((signal) => (main ? getSetupGuideForHome(signal).catch(() => null) : Promise.resolve(null)), [main])
+  const guide = useApi((signal) => (main ? getSetupGuideForHome(signal).catch(() => null) : Promise.resolve(null)), [main], `home-guide ${main}`)
 
   if (error) return <PageError error={error} onRetry={reload} />
-  if (!data || guide.loading) return <div className="hero hero-loading" aria-busy="true" />
+  if (!data || (guide.loading && guide.data === undefined)) return <div className="hero hero-loading" aria-busy="true" />
   // A new server, with nothing set up and the guide never opened: start there.
   if (guide.data && !guide.data.opened && !guide.data.dismissed && !guide.data.apps && !guide.data.libraries && !data.rows.some((r) => r.style === 'live')) return <Navigate to="/setup" replace />
   const checklist = showsChecklist(guide.data) && <SetupChecklist guide={guide.data} />

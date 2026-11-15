@@ -486,7 +486,27 @@ export function forgetPage(key: string) {
 /** Forgets every page's kept state. */
 export function clearKeptPages() {
   pages.clear()
+  answers.clear()
 }
+
+const MAX_ANSWERS = 20
+const answers = new Map<string, unknown>()
+
+/**
+ * Keeps a page's last answer (Home's rows) for showing at once when it's opened again, while it's asked for afresh.
+ * Like keepPage, it outlives the cache and goes with the profile.
+ */
+export function keepAnswer(key: string, value: unknown) {
+  const full = `${profileToken() ?? ''} ${key}`
+  answers.delete(full)
+  answers.set(full, value)
+  for (const old of answers.keys()) {
+    if (answers.size <= MAX_ANSWERS) break
+    answers.delete(old)
+  }
+}
+
+export const keptAnswer = <T>(key: string) => answers.get(`${profileToken() ?? ''} ${key}`) as T | undefined
 
 /** Runs `load` with its cached GETs fetched afresh (a page reloading on purpose); they must start synchronously. */
 export function freshly<T>(load: () => T): T {
