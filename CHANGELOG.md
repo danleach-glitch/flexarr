@@ -124,6 +124,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Android, the button to watch a channel when a recording is in the way, “Playing on” when casting, and the player’s skip amounts are in your language.
 - On Android phones, a library’s title count and the Live TV guide’s rows grow with large text instead of being cut off.
 - On Android tablets, the mini player sits above the gesture bar and beside the side tabs instead of under them.
+- On Android phones, Search finds songs: a Tracks row plays the one you tap, and the hint mentions music when you have a music library.
 
 ### Trakt
 

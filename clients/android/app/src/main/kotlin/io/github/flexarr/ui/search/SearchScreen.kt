@@ -76,6 +76,8 @@ import androidx.compose.ui.unit.sp
 import io.github.flexarr.core.MediaKind
 import io.github.flexarr.ui.music.AlbumCard
 import io.github.flexarr.ui.music.ArtistCard
+import io.github.flexarr.ui.music.TrackCard
+import io.github.flexarr.core.LibraryType
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.ExternalTitle
 import io.github.flexarr.core.ItemSummary
@@ -145,6 +147,8 @@ fun SearchScreen(model: AppModel) {
     // Artists and albums beyond the library, when Lidarr's set up for this profile.
     var searchesMusic by remember { mutableStateOf(false) }
     var music by remember { mutableStateOf<Pair<String, MusicSearch>?>(null) }
+    // A music library to search: the hint names music too.
+    var hasMusic by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
@@ -180,6 +184,9 @@ fun SearchScreen(model: AppModel) {
         } catch (_: Exception) {
             false
         }
+    }
+    LaunchedEffect(model.credentials) {
+        hasMusic = runCatching { client.libraries().any { it.type == LibraryType.Music } }.getOrDefault(false)
     }
     LaunchedEffect(model.credentials) {
         searchesMusic = try {
@@ -273,7 +280,10 @@ fun SearchScreen(model: AppModel) {
     RoomBackground(ambient = null) {
         Column(Modifier.fillMaxSize()) {
             PageTitle(t(Words.search))
-            SearchField(query, onChange = { query = it }, modifier = Modifier.padding(horizontal = Edge).padding(bottom = 8.dp).focusRequester(focus)) {
+            SearchField(
+                query, onChange = { query = it }, modifier = Modifier.padding(horizontal = Edge).padding(bottom = 8.dp).focusRequester(focus),
+                placeholder = if (hasMusic) t("Movies, shows, music and people") else t("Movies, shows, episodes and people"),
+            ) {
                 keyboard?.hide()
                 // Pressing Search keeps the words as a recent search, as picking a result does, shown at once.
                 val words = query.trim()
@@ -322,7 +332,10 @@ fun SearchScreen(model: AppModel) {
                         onClear = ::clear,
                         onReopen = { record(null, it.id) },
                     )
-                    else -> item { StatusView(t("Find movies, shows, episodes and people in your libraries."), empty = true, modifier = Modifier.height(240.dp)) }
+                    else -> item {
+                        val hint = if (hasMusic) t("Find movies, shows, music and people in your libraries.") else t("Find movies, shows, episodes and people in your libraries.")
+                        StatusView(hint, empty = true, modifier = Modifier.height(240.dp))
+                    }
                 }
             }
         }
@@ -368,6 +381,23 @@ private fun LazyListScope.results(
             Section(t(Words.albums)) {
                 LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing), verticalAlignment = Alignment.Top) {
                     items(results.albums, key = { it.id }) { AlbumCard(it, width = PosterWidth, showsArtist = true) }
+                }
+            }
+        }
+    }
+    // Tracks by name: tapping one plays it, then the rest found after it.
+    if (results.tracks.isNotEmpty()) {
+        item(key = "tracks") {
+            Section(t("Tracks")) {
+                val tracks = results.tracks.map { it.item }
+                LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(RowSpacing), verticalAlignment = Alignment.Top) {
+                    itemsIndexed(tracks, key = { _, it -> it.id }) { index, track ->
+                        TrackCard(model, track, PosterWidth) {
+                            // A track has no page to reopen: the words that found it are what's kept.
+                            onPick(null)
+                            model.music.play(tracks, start = index)
+                        }
+                    }
                 }
             }
         }
