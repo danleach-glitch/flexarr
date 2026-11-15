@@ -276,6 +276,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Libraries
 
+- Scanning new films and episodes reads each video file once rather than twice, so big imports finish sooner.
 - Deleting a film, show or episode through Radarr or Sonarr first checks that their record is really that title, so a record that has come to point at another one (after Radarr's database was rebuilt, say) can no longer take that title's files with it.
 - Deleting an artist through Lidarr is refused when their folder there also holds music filed under another artist, which Lidarr would delete too.
 - Deleting a file that holds two episodes stops Sonarr wanting both, so the second isn't downloaded again.
