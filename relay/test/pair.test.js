@@ -10,11 +10,11 @@ delete process.env.KV_REST_API_TOKEN;
 
 let address = 0;
 
-function call({ method = 'GET', url = '/api/pair', body, contentType = 'application/json', ip } = {}) {
+function call({ method = 'GET', url = '/api/pair', body, contentType = 'application/json', ip, headers = {} } = {}) {
   const req = Readable.from(body === undefined ? [] : [JSON.stringify(body)]);
   req.method = method;
   req.url = url;
-  req.headers = { 'content-type': contentType, 'x-forwarded-for': ip || `203.0.113.${++address % 250}` };
+  req.headers = { 'content-type': contentType, 'x-forwarded-for': ip || `203.0.113.${++address % 250}`, ...headers };
   return new Promise((resolve) => {
     const res = {
       statusCode: 0,
@@ -111,6 +111,20 @@ test('an invite left in a code\'s last seconds keeps the code alive until it\'s 
   assert.ok(pair._memory.get('pair:EEEEFFFF').until > Date.now() + 590_000);
   const collected = await call({ url: `/api/pair?code=EEEEFFFF&secret=${secret}` });
   assert.equal(collected.status, 200);
+});
+
+test('a TV can send its secret in a header, which keeps it out of the address', async () => {
+  pair._memory.clear();
+  assert.equal((await call({ method: 'POST', body: { code: 'HJKMNPQR', publicKey: publicKey(), secret } })).status, 201);
+  const poll = (value) => call({ url: '/api/pair?code=HJKMNPQR', headers: { 'x-pair-secret': value } });
+
+  assert.equal((await poll(secret)).status, 204);
+  assert.equal((await poll('y'.repeat(43))).status, 403);
+  const invite = { serverKey: publicKey(), sealed: Buffer.from('sealed invite').toString('base64') };
+  assert.equal((await call({ method: 'POST', url: '/api/pair?code=HJKMNPQR&action=invite', body: invite })).status, 201);
+  const collected = await poll(secret);
+  assert.equal(collected.status, 200);
+  assert.deepEqual(collected.body, invite);
 });
 
 test('bad codes, keys, secrets and invites are refused', async () => {

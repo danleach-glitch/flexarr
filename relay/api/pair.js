@@ -4,7 +4,9 @@
 //   TV      POST /api/pair                          {code, publicKey, secret}   registers its code for ten minutes
 //   server  GET  /api/pair?code=ABCDEFGH            -> {publicKey}              the TV's public key
 //   server  POST /api/pair?code=ABCDEFGH&action=invite  {serverKey, sealed}     leaves the invite, sealed to that key
-//   TV      GET  /api/pair?code=ABCDEFGH&secret=…   -> {serverKey, sealed}      collects it once (204 while waiting)
+//   TV      GET  /api/pair?code=ABCDEFGH            -> {serverKey, sealed}      collects it once (204 while waiting), its
+//                                                                               secret in X-Pair-Secret (or, from TV apps
+//                                                                               before that, &secret=… in the query)
 //
 // Only public keys and ciphertext pass through here: the invite is encrypted on the server to the TV's key (P-256
 // ECDH, HKDF-SHA256, AES-256-GCM) and only the TV can open it. The TV's secret keeps anyone else from collecting it.
@@ -268,7 +270,9 @@ module.exports = async (req, res) => {
 
     if (typeof code !== 'string' || !CODE.test(code)) return reply(res, 400, { reason: 'BadCode' });
     if (overBudget('unknown', ip)) return reply(res, 429, { reason: 'TooManyRequests' });
-    const secret = req.method === 'GET' ? query.get('secret') : null;
+    // In a header, so it stays out of request logs; older TV apps put it in the query.
+    const header = req.headers['x-pair-secret'];
+    const secret = req.method !== 'GET' ? null : typeof header === 'string' && header !== '' ? header : query.get('secret');
     // A TV's poll (every few seconds) reads its code and any invite together, in one round trip to the store.
     let invite;
     let entry;

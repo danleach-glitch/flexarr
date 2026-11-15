@@ -46,6 +46,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Through an assistant, a kids profile has no watchlist or Live TV, as in the apps, and a profile with an age limit no longer looks up films and shows outside the library.
 - Error reports, when they're on, now leave out server names given with a port (`sonarr.example.net:8989`), not only full addresses.
 - A Live TV programme with a very long title, or one in a script that takes more room on disk, now records: its file name is kept short enough, and a recording that can't be saved no longer leaves its pieces behind.
+- A TV waiting for a family invite by its code now keeps its secret out of the relay's request logs, and on Android, **Open in Flexarr** on an invite's page hands the invite only to Flexarr.
 
 ### iPad
 

@@ -213,7 +213,8 @@ class GuestInviteTest {
             assertEquals(tv.secret, body["secret"]!!.jsonPrimitive.content)
             val polled = relay.takeRequest()
             assertEquals(tv.code, polled.url.queryParameter("code"))
-            assertEquals(tv.secret, polled.url.queryParameter("secret"))
+            assertEquals(null, polled.url.queryParameter("secret"))
+            assertEquals(tv.secret, polled.headers["X-Pair-Secret"])
         }
     }
 }
