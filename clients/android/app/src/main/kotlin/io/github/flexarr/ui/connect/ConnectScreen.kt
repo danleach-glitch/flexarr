@@ -383,7 +383,8 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
         }
         error?.let { ErrorNote(it) }
         Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(t("Back"), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver, modifier = Modifier.pressable(onBack).minimumInteractiveComponentSize())
+            // The same button as Back beside Connect on the address screen, whatever went wrong.
+            ActionButton(t("Back"), onClick = onBack)
             // Only works if the browser on this phone is signed in already, so it stays out of the way.
             if (shown != null && !needsSetup) {
                 Text(
@@ -391,7 +392,7 @@ private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: ()
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Flexarr.silver,
-                    modifier = Modifier.pressable({ session.link(server)?.let(uri::openUri) }).minimumInteractiveComponentSize(),
+                    modifier = Modifier.weight(1f, fill = false).pressable({ session.link(server)?.let(uri::openUri) }).minimumInteractiveComponentSize(),
                 )
             }
         }
@@ -614,8 +615,7 @@ private fun PhoneGuestCode(model: AppModel, onBack: () -> Unit) {
         }
         // Not beside Join and Not now: those already say what to do.
         if (!(invite != null && model.inviteFromCode && joinProblem == null && !model.joining)) {
-            Text(t("Back"), fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver,
-                modifier = Modifier.padding(top = 6.dp).pressable({ if (!model.joining) onBack() }).minimumInteractiveComponentSize())
+            ActionButton(t("Back"), onClick = { if (!model.joining) onBack() }, enabled = !model.joining, modifier = Modifier.padding(top = 6.dp))
         }
     }
 }

@@ -145,6 +145,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Android phones and tablets, the message when notifications can’t reach Google’s service is in your language.
 - On Android phones and tablets, TalkBack reads how far a download has got as it comes, the same percentage the Download button shows.
 - On Android phones and tablets, a downloaded show whose episodes have no picture of their own shows the show’s picture in Downloads instead of a blank box.
+- On Android phones and tablets, Back on every connect screen (a code to approve, a server that can’t be reached, a guest code) is the same button as beside Connect.
 
 ### Trakt
 
