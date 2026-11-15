@@ -25,6 +25,9 @@ class FlexarrApplication : Application(), SingletonImageLoader.Factory {
     lateinit var model: AppModel
         private set
 
+    /** Who's signed in now (the sign-in, with its profile), or null: what screens' kept answers belong to. */
+    val signedInAs: Any? get() = if (::model.isInitialized) model.credentials else null
+
     override fun onCreate() {
         super.onCreate()
         // The language shown last, before anything draws, for the app and its widgets and notifications alike; its
