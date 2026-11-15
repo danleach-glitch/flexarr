@@ -200,7 +200,7 @@ struct CollectionRow: View {
 
     var body: some View {
         NavigationLink {
-            OfflineCollectionView(collectionId: collection.id).roomForBottomBars()
+            OfflineCollectionView(collectionId: collection.id).roomForBottomBars().pushedPageTitle()
         } label: {
             HStack(spacing: 12) {
                 CollectionArtwork(collection: collection).frame(width: 63, height: 63)

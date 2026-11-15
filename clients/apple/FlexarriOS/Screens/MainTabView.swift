@@ -115,7 +115,7 @@ struct TabStack<Content: View>: View {
                 content()
                     .roomForBottomBars()
                     .navigationDestination(for: Route.self) { route in
-                        RouteDestination(route: route).roomForBottomBars()
+                        RouteDestination(route: route).roomForBottomBars().pushedPageTitle()
                     }
             }
             // On a strip of its own above the page. Not on a wide iPad: its tab bar and the page's back button share

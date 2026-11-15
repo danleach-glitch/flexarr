@@ -226,7 +226,7 @@ struct SettingsLink<Destination: View>: View {
     }
 
     var body: some View {
-        NavigationLink(destination: { destination().roomForBottomBars() }) {
+        NavigationLink(destination: { destination().roomForBottomBars().pushedPageTitle() }) {
             LabeledContent {
                 if let value { Text(value).lineLimit(1) }
             } label: {

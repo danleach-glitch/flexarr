@@ -84,6 +84,24 @@ final class IPadLayoutTest: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
     }
 
+    /// #420: a page pushed onto a tab (Watchlist here, which opened large) has a small title that stays put when the
+    /// page is touched, rather than jumping to a large one.
+    func testPushedPageTitleStaysSmall() {
+        let app = launch(["-FlexarrOpen", "flexarr://watchlist"])
+        let bar = app.navigationBars.firstMatch
+        XCTAssertTrue(bar.waitForExistence(timeout: 15))
+        sleep(2)
+        let before = bar.frame.height
+        keep(app, "ipad-pushed-title")
+        app.swipeDown()
+        sleep(1)
+        app.swipeUp()
+        sleep(1)
+        keep(app, "ipad-pushed-title-after-touch")
+        XCTAssertEqual(bar.frame.height, before, accuracy: 4, "the title shouldn't grow once the page is touched")
+        XCTAssertLessThan(before, 130, "a pushed page's bar should be the small one (about 108 points with the tab bar, a large title adds about 50)")
+    }
+
     private func firstAlbum(_ libraryId: String) async throws -> ItemSummary? {
         guard let artist = try await client.libraryItems(libraryId, take: 1).items.first else { return nil }
         return try await client.item(artist.id).children.first
