@@ -430,6 +430,25 @@ public class LibraryScanWorkerTests(FlexarrApiFactory factory) : IClassFixture<F
         }
     }
 
+    /// <summary>
+    /// The queries are written for the plans SQLite picks without statistics (see <see cref="SqliteTuning"/>): with
+    /// them, about 200 of the server's statements read every item in a real library. Nothing the server runs as it
+    /// starts (migrations, the pragmas, its first scans) may gather them.
+    /// </summary>
+    [Fact]
+    public async Task TheServer_NeverGathersPlannerStatistics()
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        using var worker = new LibraryScanWorker(new RecordingScanQueue(), factory.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<LibraryScanWorker>.Instance,
+            factory.Services.GetRequiredService<LibraryWorkGate>());
+        await worker.EnqueueAllAsync(LibraryScanWorker.StartupReason, default);
+
+        var tables = await db.Database.SqlQueryRaw<string>("SELECT name AS Value FROM sqlite_master WHERE name LIKE 'sqlite_stat%'").ToListAsync();
+
+        Assert.Empty(tables);
+    }
+
     [Fact]
     public async Task TheAddedEvent_ForANewShow_DoesntLookThroughEarlierEpisodes_AndForAnOldOneOnlyItsOwn()
     {
