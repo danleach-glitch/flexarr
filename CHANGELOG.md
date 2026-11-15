@@ -80,6 +80,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On iPhone and iPad, Downloads lines up every name at one edge (films, shows, music, books and podcasts), and a picture that hasn't come shows as a dark box rather than an icon floating on the row.
 - On iPhone and iPad, a title's page no longer has a More button with just one thing in it: Shuffle, Go to show, Version or Subtitles sits on the row instead.
 - On iPhone, page titles keep one size: a library, Watchlist, Coming soon and Settings › Library order have a large title however you reach them, and a tab's first page keeps its large title after the phone is turned sideways and back.
+- On iPhone and iPad, the keyboard's Search and Go keys take the app's silver instead of the system's blue.
 
 ### Downloads
 

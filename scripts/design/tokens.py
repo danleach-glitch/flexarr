@@ -19,6 +19,9 @@ SCORES = ROOT / "design" / "scores.json"
 WEB_SCORES = ROOT / "frontend/src/components/scoreMarks.generated.ts"
 SWIFT_SCORES = ROOT / "clients/apple/Shared/Design/ScoreMarks.swift"
 KOTLIN_SCORES = ROOT / "clients/android/app/src/main/kotlin/io/github/flexarr/ui/theme/ScoreMarks.kt"
+# The iPhone and iPad app's asset-catalog accent: UIKit's own controls that SwiftUI's .tint never reaches (the
+# keyboard's Search and Go keys) take it, so it's the silver token rather than system blue.
+IOS_ACCENT = ROOT / "clients/apple/FlexarriOS/Assets.xcassets/AccentColor.colorset/Contents.json"
 SCORES_HEADER = "Generated from design/scores.json by `make tokens`. Don't edit; redraw with scripts/design/draw_scores.py."
 HEADER = "Generated from design/tokens.json by `make tokens`. Don't edit; change the JSON."
 
@@ -117,6 +120,14 @@ def swift(data):
     lines += ["}", "", "enum MainButton {", f"    /// {data['mainButton']['use']}.",
               f"    static let ambientMix: Double = {num(data['mainButton']['ambientMix'])}", "}"]
     return "\n".join(lines) + "\n"
+
+
+def accent_colorset(data):
+    h = data["colors"]["silver"]["hex"].lstrip("#").upper()
+    components = {"alpha": "1.000", "blue": f"0x{h[4:6]}", "green": f"0x{h[2:4]}", "red": f"0x{h[0:2]}"}
+    doc = {"colors": [{"color": {"color-space": "srgb", "components": components}, "idiom": "universal"}],
+           "info": {"author": "xcode", "version": 1}}
+    return json.dumps(doc, indent=2) + "\n"
 
 
 def kotlin(data):
@@ -285,7 +296,8 @@ def outputs(data, scores=None):
     scores = scores or load_scores()
     return {CSS: css(data), SWIFT: swift(data), KOTLIN: kotlin(data),
             WEB_ICONS: web_icons(data), SWIFT_ICONS: swift_icons(data), KOTLIN_ICONS: kotlin_icons(data),
-            WEB_SCORES: web_scores(scores), SWIFT_SCORES: swift_scores(scores), KOTLIN_SCORES: kotlin_scores(scores)}
+            WEB_SCORES: web_scores(scores), SWIFT_SCORES: swift_scores(scores), KOTLIN_SCORES: kotlin_scores(scores),
+            IOS_ACCENT: accent_colorset(data)}
 
 
 def main(argv):
@@ -296,6 +308,7 @@ def main(argv):
             if not path.exists() or path.read_text() != text:
                 stale.append(str(path.relative_to(ROOT)))
         else:
+            path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text)
     if stale:
         print("Out of date (run `make tokens`): " + ", ".join(stale), file=sys.stderr)

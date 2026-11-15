@@ -21,6 +21,11 @@ class TokensTests(unittest.TestCase):
         swift = tokens.swift(self.data)
         self.assertIn("static let room = Color(.sRGB, red: 27 / 255, green: 23 / 255, blue: 32 / 255)", swift)
 
+    def test_ios_accent_is_silver(self):
+        doc = json.loads(tokens.accent_colorset(self.data))
+        c = doc["colors"][0]["color"]["components"]
+        self.assertEqual((c["red"], c["green"], c["blue"]), ("0xA9", "0xC2", "0xEC"))
+
     def test_radii_and_mix(self):
         css, kotlin = tokens.css(self.data), tokens.kotlin(self.data)
         self.assertIn("--radius-art: 4px;", css)
