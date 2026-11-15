@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -47,6 +48,7 @@ import io.github.flexarr.core.Format
 import io.github.flexarr.core.LocalDownload
 import io.github.flexarr.core.bytes
 import io.github.flexarr.ui.components.Edge
+import io.github.flexarr.ui.components.LocalClient
 import io.github.flexarr.ui.components.PageTitle
 import io.github.flexarr.ui.components.SectionHeading
 import io.github.flexarr.ui.components.StatusView
@@ -71,8 +73,24 @@ internal fun DownloadedShowRow(model: AppModel, show: DownloadedShow, onOpen: ()
     ) {
         Box(Modifier.size(112.dp, 63.dp).clip(RoundedCornerShape(Tokens.radiusArt)).background(Flexarr.aisle), contentAlignment = Alignment.Center) {
             Icon(FlexarrIcons.shows, contentDescription = null, tint = Flexarr.usher)
-            show.episodes.firstNotNullOfOrNull { store.image(it) }?.let {
-                AsyncImage(model = it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            val kept = show.episodes.firstNotNullOfOrNull { store.image(it) }
+            if (kept != null) {
+                AsyncImage(model = kept, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            } else {
+                // Episodes saved without a picture (before they took their show's): the show's own, from the server
+                // while it's in reach; its backdrop, or its poster when it has none.
+                val client = LocalClient.current
+                val pictures = show.showPictures
+                var tried by remember(show.key) { mutableIntStateOf(0) }
+                pictures.getOrNull(tried)?.let { path ->
+                    AsyncImage(
+                        model = client.imageUrl(path, 300),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        onError = { tried += 1 },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             }
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {

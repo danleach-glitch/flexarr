@@ -144,9 +144,20 @@ data class DownloadedShow(
     /** Its episodes under each season's number (null for episodes with none, shown as specials), in order. */
     val seasons: List<Pair<Int?, List<LocalDownload>>>
         get() = episodes.groupBy { it.item.seasonNumber }.toList().sortedBy { it.first ?: 0 }
+
+    /** The show's own pictures, wide one first, for a row whose episodes kept none; empty when no episode names the show. */
+    val showPictures: List<String>
+        get() = DownloadedShows.showPictures(episodes.firstNotNullOfOrNull { it.item.seriesId })
 }
 
 object DownloadedShows {
+    /**
+     * A show's backdrop then its poster, by the server's image address for a title (which needs no ?v= and answers 404
+     * when there's none), for an episode with no still or backdrop of its own.
+     */
+    fun showPictures(seriesId: String?): List<String> =
+        if (seriesId.isNullOrEmpty()) emptyList() else listOf("backdrop", "poster").map { "/api/v1/images/items/$seriesId/$it" }
+
     /**
      * Downloaded (or downloading) episodes, one entry per show: grouped by the show's id, or its name when there's no id;
      * episodes in season then episode order, shows by name.
