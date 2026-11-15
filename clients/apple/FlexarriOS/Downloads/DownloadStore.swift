@@ -686,10 +686,17 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     /// have come. Out of reach, the rest wait for the next catch-up; one the server hasn't heard of (404) is let go.
     private func tellDue(with client: FlexarrClient) async {
         guard let profile = attachedProfileId else { return }
-        func tell(_ entries: Set<String>, forget: (String) -> Void, _ send: (_ entry: String, _ id: String) async throws -> Void) async -> Bool {
-            for (entry, id) in ProfileTells.due(entries, profileId: profile) {
+        func tell(_ kind: String, _ entries: () -> Set<String>, forget: (String) -> Void,
+                  _ send: (_ entry: String, _ id: String) async throws -> Void) async -> Bool {
+            for (entry, id) in ProfileTells.due(entries(), profileId: profile) {
                 // Another profile attached meanwhile: what's due has changed.
                 guard attachedProfileId == profile else { return false }
+                // Several rounds run at once (each delete starts one): one told meanwhile, or being told now, goes once.
+                // Told again once forgotten, a delete the app made would go as by hand.
+                let key = kind + entry
+                guard entries().contains(entry), !tellsInFlight.contains(key) else { continue }
+                tellsInFlight.insert(key)
+                defer { tellsInFlight.remove(key) }
                 do {
                     try await send(entry, id)
                     forget(entry)
@@ -701,11 +708,14 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             }
             return true
         }
-        guard await tell(unsentDeletes, forget: forgetDelete, { entry, id in
+        guard await tell("delete:", { unsentDeletes }, forget: forgetDelete, { entry, id in
             try await client.deleteDownload(id, byHand: !unsentAutomaticDeletes.contains(entry))
         }) else { return }
-        _ = await tell(unsentReceipts, forget: { unsentReceipts.remove($0) }, { try await client.markDownloadReceived($1) })
+        _ = await tell("received:", { unsentReceipts }, forget: { unsentReceipts.remove($0) }, { try await client.markDownloadReceived($1) })
     }
+
+    /// What `tellDue` is telling the server right now, so overlapping rounds don't tell it twice.
+    @ObservationIgnored private var tellsInFlight: Set<String> = []
 
     private func forgetDelete(_ entry: String) {
         unsentDeletes.remove(entry)

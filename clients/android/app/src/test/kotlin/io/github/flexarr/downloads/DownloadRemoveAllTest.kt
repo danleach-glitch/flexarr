@@ -28,7 +28,9 @@ class DownloadRemoveAllTest {
                     "userData":{"positionSeconds":0,"watched":false,"playCount":0},"seriesId":"show","seriesTitle":"Show"}}""",
                 )
             }
-            request.method == "DELETE" && path.contains("/offline/") -> mockwebserver3.MockResponse.Builder().code(204).build()
+            // A moment on the way, as over a network: what else is telling the server meanwhile shows.
+            request.method == "DELETE" && path.contains("/offline/") ->
+                mockwebserver3.MockResponse.Builder().code(204).headersDelay(100, java.util.concurrent.TimeUnit.MILLISECONDS).build()
             else -> null
         }
     }
@@ -60,6 +62,27 @@ class DownloadRemoveAllTest {
         assertEquals(setOf("/api/v1/offline/d-e1", "/api/v1/offline/d-e2", "/api/v1/offline/d-e3"), server.requests.filter { it.method == "DELETE" }.map { it.url.encodedPath }.toSet())
         // Taken off by hand: said as older apps say it, with no flag.
         assertTrue(server.requests.filter { it.method == "DELETE" }.all { it.url.queryParameter("byHand") == null })
+    }
+
+    @Test
+    fun `delete all tells the server of each once, as the app's own doing`() {
+        store.attach(model.client, "p")
+        var asked = 0
+        model.scope.launch {
+            for (id in listOf("e1", "e2", "e3")) store.download(id, DownloadQuality.Medium, automatic = false)
+            asked = 3
+        }
+        server.waitUntil("the episodes asked for") { asked == 3 && store.all.size == 3 }
+
+        // The removal and the catch-up after it each start telling the server.
+        store.deleteAll()
+
+        server.waitUntil("the server told") { server.requests.count { it.method == "DELETE" } >= 3 }
+        var ticks = 0
+        server.waitUntil("any second telling") { ++ticks > 30 }
+        val deletes = server.requests.filter { it.method == "DELETE" }
+        assertEquals(listOf("/api/v1/offline/d-e1", "/api/v1/offline/d-e2", "/api/v1/offline/d-e3"), deletes.map { it.url.encodedPath }.sorted())
+        assertTrue(deletes.all { it.url.queryParameter("byHand") == "false" })
     }
 
     @Test

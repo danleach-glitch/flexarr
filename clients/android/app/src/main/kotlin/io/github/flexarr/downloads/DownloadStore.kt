@@ -964,10 +964,14 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
      */
     private suspend fun tellDue(client: FlexarrClient) {
         val profile = signedInProfile ?: return
-        suspend fun tell(entries: () -> Set<String>, forget: (String) -> Unit, send: suspend (entry: String, id: String) -> Unit) {
+        suspend fun tell(kind: String, entries: () -> Set<String>, forget: (String) -> Unit, send: suspend (entry: String, id: String) -> Unit) {
             for ((entry, id) in ProfileTells.due(entries(), profile)) {
                 // Another profile chosen meanwhile: the client is still the last one's, but what's due has changed.
                 if (signedInProfile != profile) return
+                // Several rounds run at once (a removal and a catch-up each start one): one told meanwhile, or being told
+                // now, goes once. Told again once forgotten, a delete the app made would go as by hand.
+                val key = kind + entry
+                if (entry !in entries() || !tellsInFlight.add(key)) continue
                 try {
                     send(entry, id)
                     forget(entry)
@@ -975,12 +979,17 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
                     if (e.status == 404) forget(entry)
                 } catch (_: FlexarrException) {
                     return // still out of reach
+                } finally {
+                    tellsInFlight.remove(key)
                 }
             }
         }
-        tell({ unsentDeletes }, ::forgetDelete) { entry, id -> client.deleteDownload(id, byHand = entry !in unsentAutomaticDeletes) }
-        tell({ unsentReceipts }, { unsentReceipts = unsentReceipts - it }) { _, id -> client.markDownloadReceived(id) }
+        tell("delete:", { unsentDeletes }, ::forgetDelete) { entry, id -> client.deleteDownload(id, byHand = entry !in unsentAutomaticDeletes) }
+        tell("received:", { unsentReceipts }, { unsentReceipts = unsentReceipts - it }) { _, id -> client.markDownloadReceived(id) }
     }
+
+    /** What [tellDue] is telling the server right now, so overlapping rounds don't tell it twice. */
+    private val tellsInFlight = HashSet<String>()
 
     private fun forgetDelete(entry: String) {
         unsentDeletes = unsentDeletes - entry
