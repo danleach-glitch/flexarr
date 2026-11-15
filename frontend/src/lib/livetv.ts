@@ -35,3 +35,20 @@ export function tidyGroup(group: string) {
 export function programmeTitle(p: LiveProgramme) {
   return p.subtitle && p.subtitle !== p.title && p.subtitle.length < 60 ? `${p.title}: ${p.subtitle}` : p.title
 }
+
+/**
+ * The channels of a fresh answer, with each one that hasn't changed since `previous` kept as the same object (and the
+ * same list, when none has), so memoised rows are redrawn only for what changed.
+ */
+export function keepUnchanged<T extends { id: string }>(previous: readonly T[] | undefined, next: T[]): T[] {
+  if (!previous) return next
+  const before = new Map(previous.map((c) => [c.id, c]))
+  let same = previous.length === next.length
+  const merged = next.map((c, i) => {
+    const old = before.get(c.id)
+    const kept = old && JSON.stringify(old) === JSON.stringify(c) ? old : c
+    if (kept !== previous[i]) same = false
+    return kept
+  })
+  return same ? (previous as T[]) : merged
+}

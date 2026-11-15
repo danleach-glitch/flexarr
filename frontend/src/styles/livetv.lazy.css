@@ -84,6 +84,12 @@
   list-style: none;
 }
 
+/* A line-up can run to thousands of channels: rows off screen skip layout and paint. */
+.livetv-list > li {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 68px;
+}
+
 .livetv-row {
   position: relative;
   display: flex;

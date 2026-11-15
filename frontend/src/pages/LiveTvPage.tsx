@@ -11,8 +11,9 @@ import { icon } from '../components/icons.generated'
 import { useFavourites } from '../hooks/useFavourites'
 import { useAgeLimits, useSession } from '../hooks/sessionContext'
 import { useApi } from '../hooks/useApi'
+import { useMinute } from '../hooks/useMinute'
 import { usePolling } from '../hooks/usePolling'
-import { clock, programmeTime, programmeTitle, progress, tidyGroup } from '../lib/livetv'
+import { clock, keepUnchanged, programmeTime, programmeTitle, progress, tidyGroup } from '../lib/livetv'
 import { liveTvRefresh, type AskedRefresh } from '../lib/liveTvRefresh'
 import { locale, t, Words } from '../i18n'
 import '../styles/livetv.lazy.css'
@@ -256,7 +257,11 @@ const FAVOURITES = '\u0000favourites'
 
 // Only redrawn when a refresh finishes, not by every look at the status above it.
 const OnNow = memo(function OnNow({ refreshed }: { refreshed: number }) {
-  const { data, error, loading, reload } = useApi(getLiveChannels, [])
+  const { data: answer, error, loading, reload } = useApi(getLiveChannels, [])
+  // Each minute's answer, with the channels that didn't change kept as they were, so only their rows are redrawn.
+  const [stable, setStable] = useState<{ from?: LiveChannel[]; channels?: LiveChannel[] }>({})
+  if (stable.from !== answer) setStable({ from: answer, channels: answer && keepUnchanged(stable.channels, answer) })
+  const data = stable.from === answer ? stable.channels : answer
   usePolling(reload, 60_000)
   useEffect(() => {
     if (refreshed) reload()
@@ -272,7 +277,7 @@ const OnNow = memo(function OnNow({ refreshed }: { refreshed: number }) {
   const shown = (data ?? []).filter((c) => (group === FAVOURITES ? isFavourite(c) : !group || c.group === group))
   const row = (c: LiveChannel) => (
     <li key={c.id}>
-      <ChannelRow channel={c} favourite={isFavourite(c)} onToggle={() => toggle(c)} />
+      <ChannelRow channel={c} favourite={isFavourite(c)} onToggle={toggle} />
     </li>
   )
 
@@ -323,7 +328,18 @@ function RecordMark({ programme }: { programme: LiveProgramme }) {
   return programme.recording ? <RecordDot className="record-dot" aria-label={t('Set to record')} /> : null
 }
 
-function ChannelRow({ channel: c, favourite, onToggle }: { channel: LiveChannel; favourite: boolean; onToggle: () => void }) {
+/** How far through its programme a channel is, moved on each minute without redrawing the row around it. */
+function RowProgress({ programme }: { programme: LiveProgramme }) {
+  const now = useMinute()
+  return (
+    <span className="livetv-progress livetv-row-progress" aria-hidden="true">
+      <span style={{ width: `${progress(programme, now) * 100}%` }} />
+    </span>
+  )
+}
+
+// Memoised: a star, or a minute's answer, redraws only the rows it changed (a line-up can have thousands).
+const ChannelRow = memo(function ChannelRow({ channel: c, favourite, onToggle }: { channel: LiveChannel; favourite: boolean; onToggle: (channel: LiveChannel) => void }) {
   return (
     <div className="livetv-row">
       <Link className="livetv-row-link" to={`/live/${c.id}`} aria-label={c.now ? t('{number} {name}, now {title}', { number: c.number, name: c.name, title: c.now.title }) : `${c.number} ${c.name}`}>
@@ -340,9 +356,7 @@ function ChannelRow({ channel: c, favourite, onToggle }: { channel: LiveChannel;
             <span className="livetv-row-name">{c.name}</span>
             {c.now && (
               <>
-                <span className="livetv-progress livetv-row-progress" aria-hidden="true">
-                  <span style={{ width: `${progress(c.now) * 100}%` }} />
-                </span>
+                <RowProgress programme={c.now} />
                 <span className="livetv-row-time">{programmeTime(c.now)}</span>
               </>
             )}
@@ -359,10 +373,10 @@ function ChannelRow({ channel: c, favourite, onToggle }: { channel: LiveChannel;
           )}
         </span>
       </Link>
-      <FavouriteButton name={c.name} favourite={favourite} onToggle={onToggle} />
+      <FavouriteButton name={c.name} favourite={favourite} onToggle={() => onToggle(c)} />
     </div>
   )
-}
+})
 
 /** Minutes from the guide's start to a time. */
 const guideMinutes = (from: Date, iso: string | number) => ((typeof iso === 'number' ? iso : Date.parse(iso)) - from.getTime()) / 60_000
