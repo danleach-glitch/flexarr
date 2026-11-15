@@ -52,6 +52,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On iPad, a page you open from a tab (Films, Watchlist, Settings › Playback, a downloaded show) keeps a small title at the top instead of jumping to a large one when you touch it.
 - On iPhone, tab names in longer languages are drawn a little smaller so they no longer run into each other.
 - On iPhone, iPad and Apple TV, a show's page asks for its season once, and sooner. On iPhone, Download show on a show with many seasons asks its question sooner, coming back to the app after Control Centre no longer sends a burst of requests, and Downloads › Music scrolls smoothly while its covers load.
+- On iPhone, iPad and Apple TV, subtitle choices name their language (German, Dutch) instead of the file's own codes like "GER (srt)".
 
 ### Downloads
 
