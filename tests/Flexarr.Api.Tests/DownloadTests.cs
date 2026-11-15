@@ -276,6 +276,46 @@ public sealed class DownloadTests : IDisposable
     }
 
     [Fact]
+    public async Task WatchingOffline_IgnoredAsOlder_IsLogged()
+    {
+        var (movie, _) = await AddMovieAsync("mov,mp4,m4a,3gp,3g2,mj2", "h264", "aac");
+        var marker = $"Offline{Guid.NewGuid():N}"[..20];
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            (await db.MediaItems.SingleAsync(i => i.Id == movie)).Title = marker;
+            await db.SaveChangesAsync();
+        }
+
+        var client = Client();
+        var uri = new Uri($"/api/v1/items/{movie}/offline-progress", UriKind.Relative);
+        (await client.PostAsJsonAsync(uri, new { positionSeconds = 300, finished = false, playedAt = DateTime.UtcNow.AddHours(-1) })).EnsureSuccessStatusCode();
+        Assert.False(await LoggedAsync(client, marker, tries: 3));
+
+        // Older than what's saved: still accepted (204), but the server's log says it changed nothing.
+        (await client.PostAsJsonAsync(uri, new { positionSeconds = 100, finished = false, playedAt = DateTime.UtcNow.AddHours(-3) })).EnsureSuccessStatusCode();
+        Assert.True(await LoggedAsync(client, marker, tries: 50));
+        Assert.Equal(300, await PositionAsync(movie));
+    }
+
+    /// <summary>Whether the server's log mentions <paramref name="text"/>, asking a few times while it's written.</summary>
+    private static async Task<bool> LoggedAsync(HttpClient client, string text, int tries)
+    {
+        for (var i = 0; i < tries; i++)
+        {
+            var page = await client.GetFromJsonAsync<JsonElement>(new Uri($"/api/v1/logs?q={text}", UriKind.Relative));
+            if (page.GetProperty("entries").GetArrayLength() > 0)
+            {
+                return true;
+            }
+
+            await Task.Delay(100);
+        }
+
+        return false;
+    }
+
+    [Fact]
     public async Task WatchingOffline_CountsAsWatched_ByStreamingsRule_PastTheCreditsOrMostOfTheWay()
     {
         var (movie, _) = await AddMovieAsync("mov,mp4,m4a,3gp,3g2,mj2", "h264", "aac");
