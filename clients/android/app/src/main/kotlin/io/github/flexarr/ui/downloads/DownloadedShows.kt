@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.downloads
 
+import io.github.flexarr.ui.components.ReadableWidth
+import androidx.compose.foundation.layout.widthIn
 import io.github.flexarr.core.i18n.t
 import io.github.flexarr.core.i18n.Words
 
@@ -142,7 +144,7 @@ internal fun DownloadedShowScreen(model: AppModel, key: String, onBack: () -> Un
 
 @Composable
 private fun SeasonRows(model: AppModel, episodes: List<LocalDownload>) {
-    Column(Modifier.padding(horizontal = Edge).clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)) {
+    Column(Modifier.padding(horizontal = Edge).widthIn(max = ReadableWidth).clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)) {
         episodes.forEach { DownloadRow(model, it) }
     }
 }

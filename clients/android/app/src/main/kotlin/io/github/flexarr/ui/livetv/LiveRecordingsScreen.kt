@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.livetv
 
+import io.github.flexarr.ui.components.ReadableWidth
+import androidx.compose.foundation.layout.widthIn
 import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import android.text.format.Formatter
@@ -211,7 +213,7 @@ private fun LazyListScope.section(title: String, content: @Composable () -> Unit
     item(key = title) {
         Column(Modifier.padding(horizontal = Edge)) {
             SectionHeading(title, Modifier.padding(bottom = 8.dp))
-            Column(Modifier.clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)) { content() }
+            Column(Modifier.widthIn(max = ReadableWidth).clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)) { content() }
         }
     }
 }

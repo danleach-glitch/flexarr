@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.settings
 
+import io.github.flexarr.ui.components.ReadableWidth
+import androidx.compose.foundation.layout.widthIn
 import io.github.flexarr.core.i18n.t
 import android.os.Build
 import androidx.compose.foundation.background
@@ -118,7 +120,7 @@ fun DiagnosticsSettingsScreen(model: AppModel) {
 
 @Composable
 private fun Notes(footer: String?, content: @Composable () -> Unit) {
-    Column(Modifier.padding(horizontal = Edge), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.padding(horizontal = Edge).widthIn(max = ReadableWidth), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)) { content() }
         footer?.let { Text(it, fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp)) }
     }

@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.downloads
 
+import io.github.flexarr.ui.components.ReadableWidth
+import androidx.compose.foundation.layout.widthIn
 import io.github.flexarr.core.i18n.t
 import io.github.flexarr.core.i18n.Words
 
@@ -151,7 +153,7 @@ private fun <T> LazyListScope.section(title: String, downloads: List<T>, row: @C
     if (downloads.isEmpty()) return
     item(key = "heading-$title") { SectionHeading(title) }
     item(key = "rows-$title") {
-        Column(Modifier.padding(horizontal = Edge).clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)) {
+        Column(Modifier.padding(horizontal = Edge).widthIn(max = ReadableWidth).clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)) {
             downloads.forEach { row(it) }
         }
     }

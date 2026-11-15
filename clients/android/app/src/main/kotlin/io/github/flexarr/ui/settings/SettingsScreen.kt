@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.settings
 
+import io.github.flexarr.ui.components.ReadableWidth
+import androidx.compose.foundation.layout.widthIn
 import io.github.flexarr.core.i18n.Words
 
 import androidx.compose.material.icons.filled.Language
@@ -728,7 +730,7 @@ private fun <T> List<T>.moved(from: Int, to: Int): List<T> = toMutableList().app
 /** A group of rows on the seat, with an optional heading above and note below, as iPhone's grouped lists. */
 @Composable
 internal fun Group(header: String? = null, footer: String? = null, content: @Composable () -> Unit) {
-    Column(Modifier.padding(horizontal = Edge), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.padding(horizontal = Edge).widthIn(max = ReadableWidth), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         header?.let { Text(it, fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp)) }
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)) { content() }
         footer?.let { Text(it, fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp)) }

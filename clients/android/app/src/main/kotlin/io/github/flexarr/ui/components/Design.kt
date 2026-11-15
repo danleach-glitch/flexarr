@@ -94,6 +94,12 @@ import io.github.flexarr.ui.theme.mainButtonFill
 
 /** The shared left edge for heroes, rows and grids. */
 val Edge = 20.dp
+
+/**
+ * The widest a list of rows (Settings and its pages, Libraries, Downloads) or a two-part switch runs, held to the start
+ * edge on a tablet: any wider and a row's name sits a long way from its value or chevron.
+ */
+val ReadableWidth = 640.dp
 /**
  * A tablet's width (600 dp and over, as Android's own layouts count it): bigger posters and heroes, two columns of
  * episodes and a navigation rail, as the iPhone app lays out on iPad (its regular size class).

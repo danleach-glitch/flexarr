@@ -1,5 +1,7 @@
 package io.github.flexarr.ui.library
 
+import io.github.flexarr.ui.components.ReadableWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.heightIn
 import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
@@ -116,7 +118,7 @@ fun LibrariesScreen(model: AppModel) {
                     val showsWatchlist = model.hasWatchlist && profile?.hidesFromMenu(MenuItem.WATCHLIST) != true
                     LazyColumn(contentPadding = PaddingValues(horizontal = Edge, vertical = 8.dp), modifier = Modifier.fillMaxSize()) {
                         item {
-                            Column(Modifier.clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)) {
+                            Column(Modifier.widthIn(max = ReadableWidth).clip(RoundedCornerShape(Tokens.radiusPanel)).background(Flexarr.seat)) {
                                 // The watchlist first, ahead of the profile's own order of libraries.
                                 if (showsWatchlist) {
                                     LibraryRow(t(Words.watchlist), Icons.Filled.Bookmark) { navigator.openWatchlist() }
@@ -591,7 +593,7 @@ private fun SortAndFilter(sort: LibrarySort, onSort: (LibrarySort) -> Unit, genr
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun <T> ShowingSwitch(choices: List<Pair<String, T>>, showing: T, onChange: (T) -> Unit) {
-    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = Edge).padding(bottom = 12.dp)) {
+    SingleChoiceSegmentedButtonRow(Modifier.padding(horizontal = Edge).padding(bottom = 12.dp).widthIn(max = ReadableWidth).fillMaxWidth()) {
         choices.forEachIndexed { index, (label, value) ->
             SegmentedButton(
                 selected = showing == value,
