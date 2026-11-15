@@ -41,16 +41,14 @@ struct MusicDownloadButton: View {
         } label: {
             ZStack {
                 switch status {
-                case .downloading(let fraction):
-                    DownloadRing(fraction: fraction, lineWidth: 3)
-                case .preparing:
-                    Image(systemName: "hourglass").foregroundStyle(Color.usher)
-                case .downloaded:
-                    Image(systemName: "checkmark").foregroundStyle(Color.go)
-                case .failed:
-                    Image(systemName: "exclamationmark.circle").foregroundStyle(Color.danger)
                 case nil:
                     Image(systemName: "arrow.down")
+                case .downloading(let fraction):
+                    DownloadRing(fraction: fraction, lineWidth: 3)
+                case let status?:
+                    // The same marks as a film's or an episode's Download (the filled green arrow once here), not a
+                    // tick that reads as Watched.
+                    DownloadStateIcon(state: status.iconState)
                 }
             }
             .frame(width: 22, height: 22)
@@ -97,6 +95,18 @@ struct MusicDownloadButton: View {
         case .downloading(let fraction): t("Downloading, {percent}%", ["percent": Int(fraction * 100)])
         case .downloaded: t("Downloaded")
         case .failed: t("Couldn’t download")
+        }
+    }
+}
+
+extension LocalCollection.Status {
+    /// The single download's state whose icon stands for this.
+    var iconState: LocalDownload.State {
+        switch self {
+        case .preparing: .preparing(0)
+        case .downloading(let fraction): .downloading(fraction)
+        case .downloaded: .downloaded
+        case .failed(let reason): .failed(reason)
         }
     }
 }
