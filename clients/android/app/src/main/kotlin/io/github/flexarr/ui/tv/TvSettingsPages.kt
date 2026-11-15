@@ -583,7 +583,7 @@ internal fun TvServerSettings(model: AppModel, libraries: Loader<List<Library>>,
         } else if (remote == null) {
             t("To watch away from home, turn on remote access with Tailscale in Settings › Remote access on the web. This TV picks the address up by itself.")
         } else if (model.credentials?.remoteConfirmed == false) {
-            t("This TV hasn’t reached the server over Tailscale yet. Connect Tailscale on it to check.")
+            t("This TV hasn’t reached the server over Tailscale yet.")
         } else {
             t("Away from home, this TV reaches the server over Tailscale, which needs to be connected on it.")
         },

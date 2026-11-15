@@ -72,7 +72,7 @@ struct ServerSettingsView: View {
         model.credentials?.remoteAddress == nil
             ? t("To watch away from home, turn on remote access with Tailscale in Settings › Remote access on the web. This Apple TV picks the address up by itself.")
             : model.credentials?.remoteConfirmed == false
-            ? t("This Apple TV hasn’t reached the server over Tailscale yet. Connect Tailscale on it to check.")
+            ? t("This Apple TV hasn’t reached the server over Tailscale yet.")
             : t("Away from home, this Apple TV reaches the server over Tailscale, which needs to be connected on it.")
     }
 
