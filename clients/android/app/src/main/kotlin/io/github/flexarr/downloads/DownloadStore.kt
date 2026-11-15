@@ -1016,6 +1016,41 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         }
     }
 
+    /**
+     * Try again, for a download that failed: asked for once more as it was (the same size, as the same profile), the
+     * old one taken off first as the app's own doing. A title's page and the Downloads list both come here, so trying
+     * again is the same wherever it's pressed.
+     */
+    suspend fun retry(id: String) {
+        val download = byId(id)?.takeIf { it.phase == LocalPhase.Failed } ?: return
+        // Someone else is watching now: not theirs to ask for.
+        if (download.profileId != profileId) return
+        dropFailed(id)
+        download(download.item.id, download.quality, automatic = false)
+    }
+
+    /** Try again, for an album or playlist: each track that failed (or was never asked for) is asked for again. */
+    suspend fun retryCollection(id: String) {
+        val collection = collection(id) ?: return
+        fetchTracks(collection)
+    }
+
+    /** This profile's failed rows in Downloads: films, episodes and podcast episodes, then albums and playlists. */
+    val failedDownloads: List<LocalDownload> get() = downloads.filter { it.phase == LocalPhase.Failed && it.item.kind != MediaKind.Track }
+    val failedCollections: List<LocalCollection> get() = musicCollections.filter { status(it) is CollectionStatus.Failed }
+
+    /** Try all again: every failed download in Downloads, one after another; the first problem is thrown once all have been asked. */
+    suspend fun retryAllFailed() {
+        var problem: Exception? = null
+        for (download in failedDownloads) {
+            try { retry(download.id) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { problem = problem ?: e }
+        }
+        for (collection in failedCollections) {
+            try { retryCollection(collection.id) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { problem = problem ?: e }
+        }
+        problem?.let { throw it }
+    }
+
     internal fun failed(id: String, message: String) {
         transferring.remove(id)
         update(id) { it.copy(phase = LocalPhase.Failed, failure = message) }
@@ -1114,10 +1149,20 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
                     updateCollection(saved.id) { it.copy(estimatedBytes = estimate) }
                 }
             }
-            // Tracks have no sizes: each comes as it is (or as AAC, when the phone couldn't play its file).
-            for (track in tracks) download(track.id, DownloadQuality.Original, automatic = false)
+            fetchTracks(saved)
         } finally {
             queueing = queueing - saved.id
+        }
+    }
+
+    /** Asks for each of a collection's tracks: those here or on their way stay as they are, failed ones start again. */
+    private suspend fun fetchTracks(collection: LocalCollection) {
+        queueing = queueing + collection.id
+        try {
+            // Tracks have no sizes: each comes as it is (or as AAC, when the phone couldn't play its file).
+            for (trackId in collection.trackIds) download(trackId, DownloadQuality.Original, automatic = false)
+        } finally {
+            queueing = queueing - collection.id
         }
     }
 

@@ -60,6 +60,8 @@ export const icon = {
   removeFromRow: Close,
   /** Refresh the Live TV guide */
   refresh: Refresh,
+  /** Try again after something failed (a download) */
+  retry: Refresh,
   /** Choose a title's version (4K or 1080p, a director's cut) */
   version: Layers,
   /** Play on another screen */

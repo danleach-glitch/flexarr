@@ -231,11 +231,10 @@ struct CollectionRow: View {
             }
         }
         .listRowBackground(Color.seat)
-        .swipeActions {
-            Button(role: .destructive) { store.remove(collectionId: collection.id) } label: { Label(t(Words.delete), systemImage: Symbol.delete) }
-                .tint(Color.danger)
-        }
+        .failedDownloadActions(isFailed, retry: { try await store.retry(collectionId: collection.id) }) { store.remove(collectionId: collection.id) }
     }
+
+    private var isFailed: Bool { if case .failed = store.status(of: collection) { true } else { false } }
 
     @ViewBuilder private var status: some View {
         let tracks = store.tracks(in: collection)
@@ -255,7 +254,7 @@ struct CollectionRow: View {
                          formatBytes(store.bytesUsed(by: collection))].joined(separator: "  "))
             }
         case .failed(let message):
-            Text(message).font(.caption).foregroundStyle(Color.danger)
+            FailedDownloadLine(message: message) { try await store.retry(collectionId: collection.id) }
         }
     }
 

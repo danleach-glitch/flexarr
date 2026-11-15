@@ -6,6 +6,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Apps
 
+- On iPhone, iPad, the Mac and Android, a download that failed can be tried again straight from Downloads: each failed film, episode, show, album, playlist, audiobook or podcast episode has Try again under its reason (and in its swipe or long-press menu beside Delete), asking for it again at the same size, as on its own page. When more than one has failed, Try all again at the top asks for them all.
 - On iPhone, iPad and Android, watching a download, online or offline, now reaches your watch history: Continue watching, the resume point and the watched mark catch up as soon as the server is back in reach (or the app comes to the front), on that device and the others. Plays not yet sent survive signing out and go once you sign in to the same server and profile again.
 - On iPhone and iPad, a download that won't play over AirPlay (on some TVs' own AirPlay) plays as a stream from your server instead, from the same place, when the server is in reach.
 - On iPhone, iPad and Android, choosing another profile no longer breaks the first profile's downloads: what's still coming waits and carries on when that profile is chosen again, rather than failing with "The server doesn't have this download any more". The next episode always comes as the right profile, and two profiles can each keep the same audiobook on one device.
