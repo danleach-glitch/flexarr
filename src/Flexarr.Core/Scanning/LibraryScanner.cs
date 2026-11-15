@@ -95,6 +95,9 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         var held = false; // A folder looked unmounted: remove nothing this time.
         var incomplete = false;
         var unreadableFolders = new List<string>();
+        // In a scan of part of the library, the items it could have changed (those of the files it knew of or found),
+        // so the tidying after it is only of them: one imported episode doesn't go over the whole library.
+        var touched = scope is null ? null : new HashSet<Guid>();
 
         foreach (var (root, target) in targets)
         {
@@ -120,6 +123,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             var existing = new Dictionary<string, MediaFile>(StringComparer.Ordinal);
             var duplicates = new List<MediaFile>();
             var known = await KnownFilesAsync(library.Id, root, target, cancellationToken).ConfigureAwait(false);
+            touched?.UnionWith(known.Select(f => f.MediaItemId));
             foreach (var file in known)
             {
                 if (!existing.TryAdd(PathComparison.Key(file.Path), file))
@@ -295,6 +299,7 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                         state.ChangedBooks.Add(item.Id);
                     }
 
+                    touched?.Add(item.Id);
                     var mediaFile = new MediaFile { Path = file.FullName, MediaItemId = item.Id, BookProbe = bookProbe?.ToJson() };
                     Apply(mediaFile, file, result, error, music);
                     db.MediaFiles.Add(mediaFile);
@@ -363,8 +368,9 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             removed = await RemoveExpiredAsync(library.Id, roots, scope is null ? null : targets.Select(t => t.Scope).ToList(), unreadableFolders, cancellationToken).ConfigureAwait(false);
         }
 
-        await PruneEmptyItemsAsync(db, library.Id, cancellationToken).ConfigureAwait(false);
-        await MarkMissingItemsAsync(library.Id, cancellationToken).ConfigureAwait(false);
+        var within = touched is null ? null : await WithParentsAsync(touched, cancellationToken).ConfigureAwait(false);
+        await PruneEmptyItemsAsync(db, library.Id, cancellationToken, within).ConfigureAwait(false);
+        await MarkMissingItemsAsync(library.Id, cancellationToken, within).ConfigureAwait(false);
         if (library.Type == LibraryType.HomeVideos)
         {
             await NumberHomeVideosAsync(library.Id, cancellationToken).ConfigureAwait(false);
@@ -380,8 +386,12 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
             await BookCarryOver.CarryOverAsync(db, library.Id, cancellationToken).ConfigureAwait(false);
         }
 
-        // Ids from folder names are known now; those from Radarr/Sonarr after the metadata refresh, which does this again.
-        await WatchHistoryCarryOver.CarryOverAsync(db, cancellationToken).ConfigureAwait(false);
+        // Ids from folder names are known now; those from Radarr/Sonarr after the metadata refresh, which does this again
+        // (LibraryScanWorker, after every scan): a scan of part of the library leaves it to that.
+        if (scope is null)
+        {
+            await WatchHistoryCarryOver.CarryOverAsync(db, cancellationToken).ConfigureAwait(false);
+        }
         await NoticeReplacedArtworkAsync(library.Id, scope is null ? null : targets.Select(t => t.Scope).ToList(), cancellationToken).ConfigureAwait(false);
 
         library.LastScannedAt = DateTime.UtcNow;
@@ -727,14 +737,39 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
         return removed;
     }
 
+    /// <summary><paramref name="items"/> with their parents and grandparents (an episode's season and show, a track's album and artist).</summary>
+    private async Task<HashSet<Guid>> WithParentsAsync(HashSet<Guid> items, CancellationToken ct)
+    {
+        var all = new HashSet<Guid>(items);
+        var level = items.ToList();
+        for (var up = 0; up < 2 && level.Count > 0; up++)
+        {
+            var parents = new List<Guid>();
+            foreach (var chunk in level.Chunk(500))
+            {
+                parents.AddRange(await db.MediaItems.IgnoreQueryFilters().Where(i => chunk.Contains(i.Id) && i.ParentId != null)
+                    .Select(i => i.ParentId!.Value).Distinct().ToListAsync(ct).ConfigureAwait(false));
+            }
+
+            level = [.. parents.Where(all.Add)];
+        }
+
+        return all;
+    }
+
     /// <summary>
     /// Hides playable items whose files are all missing, then the seasons/albums and series/artists with nothing left
     /// to show; and brings back any whose files have reappeared.
     /// </summary>
-    private async Task MarkMissingItemsAsync(Guid libraryId, CancellationToken ct)
+    /// <param name="within">Only these items (what a scan of part of the library touched); null for the whole library.</param>
+    private async Task MarkMissingItemsAsync(Guid libraryId, CancellationToken ct, IReadOnlyCollection<Guid>? within = null)
     {
         var now = DateTime.UtcNow;
         var items = db.MediaItems.IgnoreQueryFilters().Where(i => i.LibraryId == libraryId);
+        if (within is not null)
+        {
+            items = items.Where(i => within.Contains(i.Id));
+        }
 
         var playable = items.Where(i => i.Kind == MediaKind.Movie || i.Kind == MediaKind.Episode || i.Kind == MediaKind.Track || i.Kind == MediaKind.Audiobook);
         await playable.Where(i => i.MissingSince == null && i.Files.All(f => f.MissingSince != null))
@@ -793,19 +828,21 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
     /// Removes a library's playable items left without files, then the seasons/albums and series/artists left empty
     /// (their history kept a while, by id, as a scan does).
     /// </summary>
-    public static async Task PruneEmptyItemsAsync(FlexarrDbContext db, Guid libraryId, CancellationToken ct)
+    /// <param name="within">Only these items (what a scan of part of the library touched); null for the whole library.</param>
+    public static async Task PruneEmptyItemsAsync(FlexarrDbContext db, Guid libraryId, CancellationToken ct, IReadOnlyCollection<Guid>? within = null)
     {
         ArgumentNullException.ThrowIfNull(db);
         // Missing files still count: their items wait out the grace period with them.
         // Their history and collections are kept a while, by id, in case the title comes back under a new path.
-        var items = db.MediaItems.IgnoreQueryFilters().Where(i => i.LibraryId == libraryId);
+        var library = db.MediaItems.IgnoreQueryFilters().Where(i => i.LibraryId == libraryId);
+        var items = within is null ? library : library.Where(i => within.Contains(i.Id));
         var playable = items.Where(i => (i.Kind == MediaKind.Movie || i.Kind == MediaKind.Episode || i.Kind == MediaKind.Track || i.Kind == MediaKind.Audiobook) && !i.Files.Any());
         await WatchHistoryCarryOver.BuryAsync(db, playable, ct).ConfigureAwait(false);
         await playable.ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await items.Where(i => (i.Kind == MediaKind.Season || i.Kind == MediaKind.Album) && !i.Children.Any()).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         // A placeholder whose artist turned up as a separate artist after all (by MusicBrainz id) is no longer needed.
         var placeholders = items.Where(i => i.Kind == MediaKind.Artist && i.Placeholder && !i.Children.Any() && i.MusicBrainzId != null);
-        await placeholders.Where(p => items.Any(o => o.Kind == MediaKind.Artist && !o.Placeholder && o.MusicBrainzId == p.MusicBrainzId))
+        await placeholders.Where(p => library.Any(o => o.Kind == MediaKind.Artist && !o.Placeholder && o.MusicBrainzId == p.MusicBrainzId))
             .ExecuteDeleteAsync(ct).ConfigureAwait(false);
         // An artist's first album arriving makes a followed artist's placeholder an ordinary artist.
         await items.Where(i => i.Kind == MediaKind.Artist && i.Placeholder && i.Children.Any())
@@ -904,8 +941,8 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 return index;
             }
 
-            // Untracked: a scan only finds parents among them and never changes them, and tracking every season and
-            // episode of a big library held them all, twice over, for the whole scan.
+            // Untracked, and only in part: a scan only finds parents among them and never changes them, and tracking
+            // every season and episode of a big library held them all, twice over, for the whole scan.
             var seasons = items.AsNoTracking().Where(i => i.Kind == MediaKind.Season);
             var episodes = items.AsNoTracking().Where(i => i.Kind == MediaKind.Episode);
             if (folders is not null && folders.All(f => f is not null))
@@ -918,9 +955,17 @@ public sealed partial class LibraryScanner(FlexarrDbContext db, IMediaProbe prob
                 episodes = episodes.Where(i => i.Parent!.ParentId != null && seriesIds.Contains(i.Parent.ParentId.Value));
             }
 
-            (await seasons.ToListAsync(ct).ConfigureAwait(false)).ForEach(index.Track);
-            (await episodes.ToListAsync(ct).ConfigureAwait(false)).ForEach(index.Track);
+            // Only what finding them by number or path takes: a scan returns an episode it found for a new file to be
+            // hung on, and changes nothing else about it. Overviews and the rest of 50,000 episodes stay in the database.
+            (await Light(seasons).ToListAsync(ct).ConfigureAwait(false)).ForEach(index.Track);
+            (await Light(episodes).ToListAsync(ct).ConfigureAwait(false)).ForEach(index.Track);
             return index;
+
+            static IQueryable<MediaItem> Light(IQueryable<MediaItem> query) => query.Select(i => new MediaItem
+            {
+                Id = i.Id, LibraryId = i.LibraryId, ParentId = i.ParentId, Kind = i.Kind, Title = i.Title, SortTitle = i.SortTitle,
+                SeasonNumber = i.SeasonNumber, EpisodeNumber = i.EpisodeNumber, AirDate = i.AirDate, Path = i.Path,
+            });
         }
 
         /// <summary>Artists whose albums have been loaded, in a scan of part of the library; null when they all were.</summary>
