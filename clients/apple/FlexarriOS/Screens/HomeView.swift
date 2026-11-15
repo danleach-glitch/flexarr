@@ -18,6 +18,10 @@ struct HomeView: View {
     @State private var loadedAt: Date?
     @State private var isVisible = false
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    /// The fade under the status bar, once the hero (or, with none, the first row) has scrolled up under it.
+    @State private var topFade = 0.0
 
     var body: some View {
         ZStack {
@@ -100,8 +104,16 @@ struct HomeView: View {
             // The hero runs up under the status bar; without one (a server of only podcasts, say) the rows start below it.
             .ignoresSafeArea(edges: home.featured.isEmpty ? [] : .top)
             .withoutTopEdgeEffect()
+            .trackingTopFade(heroHeight: heroHeight(home, window: proxy.size.height + proxy.safeAreaInsets.top), into: $topFade)
             .refreshable { await load() }
         }
+        .overlay { TopBarFade(strength: topFade) }
+    }
+
+    /// As tall as `HomeHero` makes itself in a page `window` tall; none without one.
+    private func heroHeight(_ home: Home, window: CGFloat) -> CGFloat {
+        guard !home.featured.isEmpty else { return 0 }
+        return CGFloat(HeroLayout.featuredHeight(regularWidth: sizeClass == .regular, compactHeight: verticalSizeClass == .compact, window: Double(window)))
     }
 
     private func shows(_ row: HomeRow, in home: Home) -> Bool { HomeRowSlot.shows(row, in: home) }

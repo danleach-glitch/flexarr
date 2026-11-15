@@ -45,6 +45,8 @@ struct DetailView: View {
     /// Fetching `gaps`, on its own so a slow Sonarr or Seerr never holds up the page or a pull to refresh.
     @State private var gapsTask: Task<Void, Never>?
     @Environment(\.scenePhase) private var scenePhase
+    /// The fade under the status bar and back button, once the backdrop has scrolled away.
+    @State private var topFade = 0.0
 
     private var item: ItemSummary? { detail?.item ?? (preview?.kind == .season ? nil : preview) }
     /// What Play would start here, got ready after a moment on the page.
@@ -75,7 +77,9 @@ struct DetailView: View {
                     .padding(.bottom, 40)
                 }
                 .ignoresSafeArea(edges: .top)
+                .trackingTopFade(heroHeight: heroHeight, into: $topFade)
                 .refreshable { await load() }
+                TopBarFade(strength: topFade)
             } else if let error {
                 StatusView(state: .failed(error) { Task { await load() } })
             } else {
