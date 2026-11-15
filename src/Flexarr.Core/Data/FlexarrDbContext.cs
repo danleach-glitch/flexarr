@@ -79,7 +79,7 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         ArgumentNullException.ThrowIfNull(optionsBuilder);
-        optionsBuilder.AddInterceptors(DataVersion.Interceptors);
+        optionsBuilder.AddInterceptors(DataVersion.Interceptors).AddInterceptors(SqliteTuning.Interceptor);
     }
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
