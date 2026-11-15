@@ -556,7 +556,7 @@ public static partial class ProfileEndpoints
                         browser);
                     if (result == PinCheck.Right && ownTried)
                     {
-                        guard.Forgive(profile.Id, callers, current.IsAdmin);
+                        guard.Forgive(profile.Id, callers, current.IsAdmin, browser);
                     }
                 }
 
