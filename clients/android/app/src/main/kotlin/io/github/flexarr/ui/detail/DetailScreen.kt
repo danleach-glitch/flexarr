@@ -836,7 +836,7 @@ private fun episodeTime(episode: ItemSummary): String? {
 private fun FileInfo(file: MediaFile, version: TitleVersion?, studio: String?) {
     // With versions, the one that plays or is chosen, which may be in another copy than the one opened.
     val video = version?.let { listOfNotNull(it.label, it.videoCodec?.uppercase(Locale.ROOT)).joinToString(" ") }
-        ?: listOfNotNull(file.height?.let { "${it}p" }, file.videoCodec?.uppercase(Locale.ROOT), file.pictureLabel).joinToString(" ")
+        ?: listOfNotNull(file.resolutionLabel, file.videoCodec?.uppercase(Locale.ROOT), file.pictureLabel).joinToString(" ")
     val audioCodec = if (version == null) file.audioCodec else version.audioCodec
     val channels = if (version == null) file.audioChannels else version.audioChannels
     val audio = listOfNotNull(audioCodec?.uppercase(Locale.ROOT), channels?.let(::channelsLabel)).joinToString(" ")
