@@ -49,7 +49,7 @@ const sections: { id: string; label: string; help: string; off?: boolean }[] = [
   { id: 'podcasts', label: tk('Country'), help: tk('The names of age limits, podcast charts and the Audible store.') },
   { id: 'notifications', label: tk('Notifications'), help: tk('Push notifications to phones.') },
   { id: 'access', label: tk('Access'), help: tk('When to ask for the API key, and trusted proxies. Asks for the admin PIN.') },
-  { id: 'machine', label: tk('This machine’s paths'), help: tk('ffmpeg, the cache and backups folders. Usually wrong on another machine, and it asks for the admin PIN.'), off: true },
+  { id: 'machine', label: tk('This machine’s paths'), help: tk('The cache and backups folders. Usually wrong on another machine, and it asks for the admin PIN.'), off: true },
   {
     id: 'keys',
     label: tk('Server keys'),

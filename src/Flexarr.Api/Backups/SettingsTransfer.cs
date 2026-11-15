@@ -64,6 +64,12 @@ public static class SettingsTransfer
         [KeysSection] = ["apiKey", "webhookSecret", "imageSecret"],
     };
 
+    /// <summary>
+    /// Programs this server runs. A file can only name programs on the machine it came from, and whatever it names
+    /// would be run here, so importing one leaves this server's as they are.
+    /// </summary>
+    private static readonly HashSet<string> ProgramPaths = new(StringComparer.OrdinalIgnoreCase) { "ffmpegPath", "ffprobePath" };
+
     /// <summary>Settings added to a section later: a file without them leaves this server's as they are.</summary>
     private static readonly HashSet<string> KeptUnlessGiven = new(StringComparer.OrdinalIgnoreCase) { "trakt", "tmdb", "musicRequests", "watchFolders" };
 
@@ -309,12 +315,12 @@ public static class SettingsTransfer
                 {
                     // The section as the file has it: settings it doesn't have go back to their defaults, except ones a
                     // file from before they were exported can't have had (your own Trakt app, the TMDB key).
-                    foreach (var key in config.Select(p => p.Key).Where(k => SectionOf(k) == section && !(KeptUnlessGiven.Contains(k) && !settings.ContainsKey(k))).ToList())
+                    foreach (var key in config.Select(p => p.Key).Where(k => SectionOf(k) == section && !ProgramPaths.Contains(k) && !(KeptUnlessGiven.Contains(k) && !settings.ContainsKey(k))).ToList())
                     {
                         config.Remove(key);
                     }
 
-                    foreach (var (key, value) in settings.Where(p => SectionOf(p.Key) == section))
+                    foreach (var (key, value) in settings.Where(p => SectionOf(p.Key) == section && !ProgramPaths.Contains(p.Key)))
                     {
                         config[key] = Portable(key, value?.DeepClone());
                     }

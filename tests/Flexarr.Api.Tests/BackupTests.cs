@@ -470,6 +470,25 @@ public class BackupTests
     }
 
     [Fact]
+    public async Task SettingsFile_NeverChangesTheProgramsTheServerRuns()
+    {
+        await using var factory = new FlexarrApiFactory();
+        var client = Client(factory);
+        ServerConfigStore.Update(factory.DataDirectory, config => config["ffmpegPath"] = "/opt/here/ffmpeg");
+
+        var file = System.Text.Encoding.UTF8.GetBytes("""
+            {"format":"flexarr-settings","settings":{"ffmpegPath":"/tmp/elsewhere/run-me","ffprobePath":"/tmp/elsewhere/probe","cacheDirectory":"/srv/cache"}}
+            """);
+        var upload = await UploadAsync(client, file);
+        (await client.PostAsJsonAsync(Api($"/backups/uploads/{upload.GetProperty("id").GetString()}/import"), new { sections = new[] { "machine" } })).EnsureSuccessStatusCode();
+
+        var config = JsonNode.Parse(await File.ReadAllTextAsync(ServerConfigStore.PathFor(factory.DataDirectory)))!;
+        Assert.Equal("/opt/here/ffmpeg", config["ffmpegPath"]!.GetValue<string>());
+        Assert.Null(config["ffprobePath"]);
+        Assert.Equal("/srv/cache", config["cacheDirectory"]!.GetValue<string>());
+    }
+
+    [Fact]
     public async Task SettingsFile_CarriesOnlySettingsFlexarrKnows()
     {
         await using var factory = new FlexarrApiFactory();
