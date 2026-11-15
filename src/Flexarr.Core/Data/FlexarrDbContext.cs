@@ -656,6 +656,10 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
         // In a quiet scope (bookkeeping), only titles and watch state move the data version.
         var changes = ChangeTracker.HasChanges() && (!DataVersion.IsQuiet || catalog
             || ChangeTracker.Entries<PlaybackState>().Any(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted));
+        // Only watch state changing, outside a transaction someone else commits (progress every few seconds): only those
+        // profiles' own number moves, and the save itself is quiet, so everyone else's Home is kept.
+        var watchers = changes && !catalog && Database.CurrentTransaction is null ? OnlyWatchState() : null;
+        using var quietly = watchers is not null ? DataVersion.Quietly() : null;
         try
         {
             await MirrorWatchStateAsync(cancellationToken);
@@ -699,11 +703,40 @@ public sealed class FlexarrDbContext(DbContextOptions<FlexarrDbContext> options)
                 CatalogVersion.Bump();
             }
 
-            if (changes)
+            if (watchers is not null)
+            {
+                foreach (var watcher in watchers)
+                {
+                    DataVersion.BumpProfile(watcher);
+                }
+            }
+            else if (changes)
             {
                 DataVersion.Bump();
             }
         }
+    }
+
+    /// <summary>The profiles whose watch state is all this save changes, or null if it changes anything else.</summary>
+    private List<string>? OnlyWatchState()
+    {
+        var watchers = new List<string>();
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            if (entry.State is EntityState.Unchanged or EntityState.Detached)
+            {
+                continue;
+            }
+
+            if (entry.Entity is not PlaybackState state)
+            {
+                return null;
+            }
+
+            watchers.Add(state.UserId);
+        }
+
+        return watchers.Count > 0 ? [.. watchers.Distinct(StringComparer.Ordinal)] : null;
     }
 
     /// <summary>

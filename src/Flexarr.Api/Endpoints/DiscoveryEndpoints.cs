@@ -74,10 +74,11 @@ public static partial class DiscoveryEndpoints
             var options = services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions>>().CurrentValue;
             // The profile's own rows, or the server's while it hasn't chosen.
             var cache = services.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>();
-            // Kept a minute, until anything is written or the settings change (see HomeCache).
+            // Kept a minute, until anything is written, this profile watches something or the settings change (see HomeCache).
             var version = DataVersion.Current;
+            var profileVersion = DataVersion.ForProfile(me);
             var homeKey = HomeCache.Key(db, profile, listening, DateTime.UtcNow);
-            if (HomeCache.TryGet(cache, homeKey, version, options, out var kept))
+            if (HomeCache.TryGet(cache, homeKey, version, profileVersion, options, out var kept))
             {
                 return kept;
             }
@@ -271,7 +272,7 @@ public static partial class DiscoveryEndpoints
             }
 
             var home = new HomeDto(rotation, overviews, arranged, upcoming, downloading, resume, resumes, PlacesPodcasts: true);
-            HomeCache.Set(cache, homeKey, version, options, home, DateTime.UtcNow);
+            HomeCache.Set(cache, homeKey, version, profileVersion, options, home, DateTime.UtcNow);
             return home;
         }).WithTags("Discovery");
 

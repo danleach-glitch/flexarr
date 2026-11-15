@@ -139,6 +139,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - With a hardware encoder, preparing a download keeps going while someone watches a converted stream, as long as the server has a conversion to spare, instead of starting again from nothing each time.
 - On Linux (Docker, a NAS), hardware acceleration left on Auto now finds a working NVIDIA, VA-API or Quick Sync encoder by itself when the server starts. Converting in software, a picture is made no larger than 1080p, and fewer conversions run at once on a machine with few cores unless you set the limit yourself.
 
+### Server
+
+- Home opens faster while someone else in the household is watching: their progress no longer makes every other profile's Home be worked out again.
+
 ### Music, audiobooks and podcasts
 
 - On iPhone, iPad, Apple TV and Mac, a track, book or episode that can't start now says why, instead of the spinner stopping with nothing playing.

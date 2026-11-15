@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Data.Common;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
@@ -7,7 +8,9 @@ namespace Flexarr.Core.Data;
 /// A number that moves on after every write to the database, of any kind: a save that changed something, a bulk update
 /// or delete, raw SQL, a transaction committed. It moves once the write is in, so a cache built from what it read under
 /// one number can be kept while the number stays put (Home keeps each profile's for a minute). Unlike
-/// <see cref="CatalogVersion"/> it covers everything, and it moves far more often.
+/// <see cref="CatalogVersion"/> it covers everything, and it moves far more often. A save that changes only watch state
+/// (the progress every player reports every few seconds) moves just the profile's own number
+/// (<see cref="ForProfile"/>) instead, so one person watching doesn't drop everyone else's Home.
 /// </summary>
 public static class DataVersion
 {
@@ -18,6 +21,16 @@ public static class DataVersion
     private static readonly AsyncLocal<bool> quiet = new();
 
     public static void Bump() => Interlocked.Increment(ref value);
+
+    private static readonly ConcurrentDictionary<string, long> profiles = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// A number that moves on when a save changes only <paramref name="profileId"/>'s watch state. A cache of what that
+    /// profile is shown is kept while both it and <see cref="Current"/> stay put.
+    /// </summary>
+    public static long ForProfile(string profileId) => profiles.TryGetValue(profileId, out var at) ? at : 0;
+
+    public static void BumpProfile(string profileId) => profiles.AddOrUpdate(profileId, 1, (_, at) => at + 1);
 
     /// <summary>
     /// For bookkeeping nothing cached on this number shows (a download's progress, a podcast feed checked, loudness
