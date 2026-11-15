@@ -160,6 +160,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Security
 
+- The main profile's own PIN, when it has one, is now asked for on every app and browser that hasn't been given it, older apps and other programs included. An app too old to ask who's watching says to update it.
 - A damaged or hostile `.nfo` or `.opf` file in a library folder can no longer crash the server during a scan.
 - Family guests can no longer set or see the household's recordings by asking through an assistant.
 - Family guests can no longer search for, download or re-sync subtitles: what's found is saved beside the household's own files.
@@ -256,6 +257,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Linking two copies of a title (4K and 1080p) keeps one you're part way through in Continue Watching, at your place, instead of marking it watched.
 - With a hardware encoder, preparing a download keeps going while someone watches a converted stream, as long as the server has a conversion to spare, instead of starting again from nothing each time.
 - On Linux (Docker, a NAS), hardware acceleration left on Auto now finds a working NVIDIA, VA-API or Quick Sync encoder by itself when the server starts. Converting in software, a picture is made no larger than 1080p, and fewer conversions run at once on a machine with few cores unless you set the limit yourself.
+- Away from home, **Automatic** quality now converts a film or episode that would keep buffering on a connection that swings: the apps judge the connection by a typical reading rather than its best moments, and the server allows for the file's busiest stretches, not just its average.
 
 ### Server
 
@@ -280,6 +282,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A music folder holding tracks from several albums, such as a Singles folder, now shows each album on its own, instead of filing every track under the first one's album and artist.
 - Episodes numbered 1000 or more (S01E1071) and shows whose seasons are years (S2024E05, Season 2024) are now added to the library as the right episode, and "Show S01E05 24 Hours" is no longer read as episodes 5 to 24.
 - A show matched by hand to a TVmaze result with no TVDB id keeps that match once a Sonarr is added.
+- A new episode that arrives before its description or picture now gets them within an hour of Sonarr having them, instead of staying blank for up to a week.
 
 ### Music, audiobooks and podcasts
 

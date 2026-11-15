@@ -2,8 +2,9 @@
  * How fast data reaches this browser from the server lately, for the start request's `measuredBitrate`
  * (docs/fast-start.md): each stream segment big enough is a sample of its bytes over the time they took to arrive,
  * not counting the wait for the first byte (which includes the server converting it). Artwork doesn't count: small
- * files loaded side by side read far below the link. With a few samples, the upper quartile of the last several,
- * kept for half an hour; with fewer, nothing (better to stream as at home than to cap on a guess).
+ * files loaded side by side read far below the link. With a few samples, the median of the last several (the lower
+ * middle one when there's an even number), kept for half an hour, so a link that swings is judged by a typical reading,
+ * not its good moments (#539); with fewer, nothing (better to stream as at home than to cap on a guess).
  */
 
 /** Answers smaller than this are mostly the round trip, not the speed. */
@@ -53,7 +54,7 @@ function save() {
 /** The measured speed in bits per second, or undefined with nothing recent to go on. */
 export function linkSpeed(now = Date.now()): number | undefined {
   const fresh = samples.filter((s) => now - s.at < FRESH_MS).map((s) => s.bps).sort((a, b) => a - b)
-  return fresh.length >= MIN_SAMPLES ? fresh[Math.floor(fresh.length * 0.75)] : undefined
+  return fresh.length >= MIN_SAMPLES ? fresh[Math.floor((fresh.length - 1) / 2)] : undefined
 }
 
 /** Watches the page's own requests to the server for samples (once). */

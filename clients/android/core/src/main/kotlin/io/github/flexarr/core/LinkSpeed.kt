@@ -4,7 +4,8 @@ package io.github.flexarr.core
  * How fast data reaches this device from the server lately, for the start request's `measuredBitrate`
  * (docs/fast-start.md): each big enough segment of a video stream is a sample of its bytes over the time they took.
  * Not audio, and not a file played as it is (one long download paced by the player, which measures what was played,
- * not the link). With a few samples, the upper quartile of the last several, for half an hour; with fewer, nothing.
+ * not the link). With a few samples, the median of the last several (the lower middle one when there's an even number),
+ * for half an hour, so a link that swings is judged by a typical reading, not its good moments (#539); with fewer, nothing.
  */
 class LinkSpeed(private val now: () -> Long = System::currentTimeMillis) {
     private class Sample(val bitsPerSecond: Long, val at: Long)
@@ -26,7 +27,7 @@ class LinkSpeed(private val now: () -> Long = System::currentTimeMillis) {
     fun current(): Long? {
         val at = now()
         val fresh = samples.filter { at - it.at < FRESH_MS }.map { it.bitsPerSecond }.sorted()
-        return if (fresh.size >= MIN_SAMPLES) fresh[(fresh.size * 3) / 4] else null
+        return if (fresh.size >= MIN_SAMPLES) fresh[(fresh.size - 1) / 2] else null
     }
 
     companion object {

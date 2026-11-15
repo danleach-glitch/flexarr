@@ -8,8 +8,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Flexarr.Api.Tests;
 
 /// <summary>
-/// A main profile with a PIN of its own: a device or browser that never gave it, from a client that says it can ask
-/// who's watching (X-Flexarr-Profile-Choice), is answered as no profile chosen. Clients that don't say are unchanged.
+/// A main profile with a PIN of its own: a device or browser that never gave it is answered as no profile chosen,
+/// whether or not its client says it can ask who's watching (X-Flexarr-Profile-Choice).
 /// </summary>
 public class ProfileChoiceTests
 {
@@ -103,17 +103,37 @@ public class ProfileChoiceTests
     }
 
     [Fact]
-    public async Task AnAppThatDoesntSayItCanAsk_CarriesOnAsTheMainProfile_AsBefore()
+    public async Task AnAppThatDoesntSayItCanAsk_IsAnsweredAsNoProfileChosen_AndToldToUpdate_UntilThePinIsGiven()
     {
         using var server = new FlexarrApiFactory();
-        await SetUpAsync(server.Services);
-        var tv = Device(server, await PairAsync(server), asks: false);
+        var sam = await SetUpAsync(server.Services);
+        var token = await PairAsync(server);
+        var tv = Device(server, token, asks: false);
 
         var me = await MeAsync(tv);
+        var libraries = await tv.GetAsync(Api("/libraries"));
+        var history = await tv.GetAsync(Api("/home"));
+        var problem = await libraries.Content.ReadFromJsonAsync<JsonElement>();
 
-        Assert.Equal(PlaybackState.DefaultUser, me.GetProperty("profileId").GetString());
-        Assert.False(me.GetProperty("chooseProfile").GetBoolean());
+        Assert.True(me.GetProperty("chooseProfile").GetBoolean());
+        Assert.Equal(HttpStatusCode.Forbidden, libraries.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, history.StatusCode);
+        Assert.True(problem.GetProperty("chooseProfile").GetBoolean());
+        Assert.Contains("update", problem.GetProperty("detail").GetString(), StringComparison.Ordinal);
+        // What an older app needs to ask who's watching still answers.
+        Assert.Equal(HttpStatusCode.OK, (await tv.GetAsync(Api("/profiles"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await tv.PostAsJsonAsync(Api("/profiles/owner/select"), new { })).StatusCode);
+
+        // Its own PIN chooses the main profile, kept on the TV's sign-in, header or not.
+        Assert.Equal(HttpStatusCode.OK, (await tv.PostAsJsonAsync(Api("/profiles/owner/select"), new { pin = OwnPin })).StatusCode);
+        Assert.False((await MeAsync(tv)).GetProperty("chooseProfile").GetBoolean());
         Assert.Equal(HttpStatusCode.OK, (await tv.GetAsync(Api("/libraries"))).StatusCode);
+
+        // Another profile needs no PIN of the main profile's.
+        var other = Device(server, await PairAsync(server), asks: false);
+        Assert.Equal(HttpStatusCode.OK, (await other.PostAsJsonAsync(Api($"/profiles/{sam}/select"), new { })).StatusCode);
+        Assert.Equal(sam, (await MeAsync(other)).GetProperty("profileId").GetString());
+        Assert.Equal(HttpStatusCode.OK, (await other.GetAsync(Api("/libraries"))).StatusCode);
     }
 
     [Fact]
@@ -199,9 +219,41 @@ public class ProfileChoiceTests
         Assert.False(after.GetProperty("chooseProfile").GetBoolean());
         Assert.False(after.GetProperty("isAdmin").GetBoolean());
         Assert.Equal(HttpStatusCode.OK, (await signedIn.GetAsync(Api("/libraries"))).StatusCode);
-        // Another browser at home is asked in its turn; one that doesn't say it can ask is the main profile, as before.
+        // Another browser at home is asked in its turn, and so is one that doesn't say it can ask.
         Assert.True((await MeAsync(Browser())).GetProperty("chooseProfile").GetBoolean());
-        Assert.Equal(HttpStatusCode.OK, (await Browser(asks: false).GetAsync(Api("/libraries"))).StatusCode);
+        Assert.True((await MeAsync(Browser(asks: false))).GetProperty("chooseProfile").GetBoolean());
+        Assert.Equal(HttpStatusCode.Forbidden, (await Browser(asks: false).GetAsync(Api("/libraries"))).StatusCode);
+    }
+
+    [Fact]
+    public async Task AtHome_AProgramThatDoesntSayItCanAsk_GetsInAsTheMainProfile_OnlyWithItsOwnPin()
+    {
+        using var server = new RemoteAccessFactory();
+        await SetUpAsync(server.Services);
+        HttpClient Program(string? profileToken = null)
+        {
+            var client = server.CreateClient();
+            client.DefaultRequestHeaders.Add("X-Test-Peer", "192.168.1.62");
+            if (profileToken is not null)
+            {
+                client.DefaultRequestHeaders.Add("X-Flexarr-Profile", profileToken);
+            }
+
+            return client;
+        }
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await Program().GetAsync(Api("/home"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await Program().PostAsJsonAsync(Api("/profiles/owner/select"), new { pin = "0000" })).StatusCode);
+
+        var chosen = await Program().PostAsJsonAsync(Api("/profiles/owner/select"), new { pin = OwnPin });
+        Assert.Equal(HttpStatusCode.OK, chosen.StatusCode);
+        var token = (await chosen.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString()!;
+
+        var me = await MeAsync(Program(token));
+        Assert.Equal(PlaybackState.DefaultUser, me.GetProperty("profileId").GetString());
+        Assert.False(me.GetProperty("chooseProfile").GetBoolean());
+        Assert.False(me.GetProperty("isAdmin").GetBoolean());
+        Assert.Equal(HttpStatusCode.OK, (await Program(token).GetAsync(Api("/home"))).StatusCode);
     }
 
     [Fact]

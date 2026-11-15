@@ -32,9 +32,9 @@ public static class FlexarrClaims
     public const string KidsHome = "flexarr:kids-home";
 
     /// <summary>
-    /// Present ("true") when the request would be the main profile, whose own PIN was never given here, from a client
-    /// that says it can ask who's watching (see <see cref="Authentication.ApiKeyAuthenticationHandler.ProfileChoiceHeader"/>):
-    /// it's answered as no profile chosen until one is (see <see cref="Profiles.ProfileChoiceGate"/>).
+    /// Present ("true") when the request would be the main profile, whose own PIN was never given here, only because
+    /// nothing else was chosen (see <see cref="Authentication.ApiKeyAuthenticationHandler.ProfileChoiceHeader"/>): it's
+    /// answered as no profile chosen until one is (see <see cref="Profiles.ProfileChoiceGate"/>).
     /// </summary>
     public const string ChooseProfile = "flexarr:choose-profile";
 

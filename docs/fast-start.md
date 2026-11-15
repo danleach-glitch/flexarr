@@ -86,20 +86,29 @@ A server setting, `Transcoding.AwayFromHome` (Settings › Streaming › *Away f
 `Original`.
 
 Apps measure how fast stream segments arrive (not artwork: small files loaded side by side read far below the link, and
-not audio) and send the upper quartile of recent samples as `measuredBitrate` (bits per second) on the start request:
+not audio) and send the median of recent samples (the lower middle one of an even number) as `measuredBitrate` (bits
+per second) on the start request, so a link that swings is judged by a typical reading rather than its good moments:
 the web from its segments' resource timing (excluding the wait for the first byte), Apple from AVPlayer's observed
 bitrate, Android from the video player's segment loads. Too few samples, and nothing is sent.
 
-When the setting is Automatic, the viewer is remote, the request names no quality of its own (the web player's menu
-wins) and the file's known bitrate is more than three quarters of the measured speed, the stream is capped at three
-quarters of it (never under 1.5 Mbps). The reason given is the connection. If converting needs a slot the server
-doesn't have, and the cap was the only reason, the file plays as it is. Home viewing never changes. Audiobooks and
-podcasts are below the floor, so they always play as they are.
+When the setting is Automatic, the viewer is remote and the request names no quality of its own (the web player's
+menu wins), a file is judged by its busy stretches, not its average: one and a half times its known bitrate (a 1080p
+episode averaging 4.9 Mbps ran 1.3 times that in its busiest tenth and twice it at its peaks; a converted stream may run
+1.3 times its own, FFmpeg's maxrate). When that's more than three quarters of the measured speed, the stream is capped
+at the average whose busy stretches fit: three quarters of the speed divided by one and a half (never under 1.5 Mbps),
+below the file's own bitrate unless that floor is reached, so it's converted. The reason given is the connection. If converting needs a slot
+the server doesn't have, and the cap was the only reason, the file plays as it is. Home viewing never changes.
+Audiobooks and podcasts are below the floor, so they always play as they are.
+
+The first start away from home has no measurement yet, and plays as at home: capping on a guess would convert streams
+for everyone whose connection is fast. Once a stream has been sampled, the next start (a retry after buffering
+included) uses the measurement.
 
 Remote means anything the server's network rules (`NetworkZones`) don't count as the home network: Tailscale and
 relayed requests (Cloudflare Tunnel, Funnel, untrusted proxies) included.
 
-Older servers ignore `measuredBitrate`; older apps don't send it and stream as before.
+Older servers ignore `measuredBitrate`; older apps don't send it and stream as before. Apps before 0.67 send the upper
+quartile instead of the median, which the server's allowance for busy stretches still mostly covers.
 
 ## Books converted early
 

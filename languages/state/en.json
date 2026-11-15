@@ -492,6 +492,7 @@
   "Choose the main profile to change the admin PIN.": "s",
   "Choose the main profile to manage the server.": "s",
   "Choose who’s watching first.": "s",
+  "Choose who’s watching first. If this app doesn’t ask, update it.": "s",
   "Choose {name} in Who’s watching.": "s",
   "Choose…": "w",
   "Choosing a folder above saves one. Edit them to type a path yourself or remove an old one.": "w",

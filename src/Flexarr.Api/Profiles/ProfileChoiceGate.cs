@@ -6,11 +6,11 @@ using Microsoft.AspNetCore.Authorization;
 namespace Flexarr.Api.Profiles;
 
 /// <summary>
-/// Holds back a request answered as no profile chosen (the main profile has a PIN of its own that wasn't given here, and
-/// the client said it can ask who's watching; see
+/// Holds back a request answered as no profile chosen (the main profile has a PIN of its own that wasn't given here; see
 /// <see cref="Authentication.ApiKeyAuthenticationHandler.ProfileChoiceHeader"/>). Until a profile is chosen it may only
 /// see who it is, list the profiles and choose one, and sign out: anything else that needs signing in is refused with
-/// 403 and <c>chooseProfile: true</c>, so none of the main profile's watching shows.
+/// 403 and <c>chooseProfile: true</c>, so none of the main profile's watching shows. A client that doesn't say it can
+/// ask (an app from before 0.63) is also told to update, since it may never show who's watching.
 /// </summary>
 public static partial class ProfileChoiceGate
 {
@@ -22,7 +22,9 @@ public static partial class ProfileChoiceGate
             return;
         }
 
-        await Results.Problem(detail: Loc.T("Choose who’s watching first."), statusCode: StatusCodes.Status403Forbidden,
+        var asks = http.Request.Headers[Authentication.ApiKeyAuthenticationHandler.ProfileChoiceHeader].ToString() == "1";
+        var detail = asks ? Loc.T("Choose who’s watching first.") : Loc.T("Choose who’s watching first. If this app doesn’t ask, update it.");
+        await Results.Problem(detail: detail, statusCode: StatusCodes.Status403Forbidden,
             extensions: new Dictionary<string, object?> { ["chooseProfile"] = true }).ExecuteAsync(http);
     });
 
