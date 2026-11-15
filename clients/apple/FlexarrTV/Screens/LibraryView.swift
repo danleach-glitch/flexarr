@@ -229,6 +229,10 @@ struct LibraryView: View {
             .focusSection()
         }
         .padding(.top, onTab ? LibraryViewSwitch.topInset : 20)
+        // One section the full width of the page as well: the switch ends left of the third poster and the sort pills
+        // start right of it, so up from that poster found nothing straight above it and stayed put.
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .focusSection()
     }
 
     /// A page of what this grid lists, as it's sorted and filtered now.
