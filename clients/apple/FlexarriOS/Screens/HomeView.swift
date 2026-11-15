@@ -220,12 +220,14 @@ struct HomeHero: View {
     /// What a title's Play picks up from, when it's been started.
     var resuming: (ItemSummary) -> ItemSummary? = { _ in nil }
 
-    /// Shorter on a phone held sideways, so the title and Play stay on screen.
-    private var height: CGFloat { verticalSizeClass == .compact ? 340 : sizeClass == .regular ? 620 : 560 }
-
     var body: some View {
+        // Shorter on a phone held sideways, so the title and Play stay on screen; on an iPad held sideways (or a short
+        // Mac window) little over half the page, so the first row's heading shows beneath it.
+        let regular = sizeClass == .regular, compact = verticalSizeClass == .compact
         pages
-        .frame(height: height)
+        .containerRelativeFrame(.vertical) { window, _ in
+            CGFloat(HeroLayout.featuredHeight(regularWidth: regular, compactHeight: compact, window: Double(window)))
+        }
         .task(id: "\(index)#\(holdsStill)") {
             // Moves on by itself after a while; a swipe restarts the clock. Not while the pointer's over it.
             guard items.count > 1, !holdsStill, (try? await Task.sleep(for: .seconds(10))) != nil else { return }
