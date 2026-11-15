@@ -423,7 +423,8 @@ enum Play {
             }
             if let switching { query.append(URLQueryItem(name: "profile", value: switching.id)) }
             components.queryItems = query.isEmpty ? nil : query
-            guard let url = components.url else { throw FlexarrIntentError.nothingToPlay(item.title) }
+            // With the app's link key: the app plays a link it made itself, where one from outside only opens the page.
+            guard let url = components.url.map({ OwnLinks.signed($0, key: OwnLinks.key) }) else { throw FlexarrIntentError.nothingToPlay(item.title) }
             let next = playing.id == item.id && (item.kind == .series || item.kind == .season) && !shuffling
             let said = switch (shuffling, next, switching?.name) {
             case (true, _, let profile?): t("Shuffling {title} as {profile}.", ["title": item.title, "profile": profile])

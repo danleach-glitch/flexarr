@@ -277,10 +277,10 @@ struct FlexarriOSApp: App {
                 .tint(.silver)
                 // Switches that are on are green, as everywhere in Flexarr; everything else takes the silver accent.
                 .toggleStyle(GoSwitchStyle())
-                .onOpenURL { model.open(url: $0) }
+                .onOpenURL { model.openLink($0) }
                 // flexarr.io/join links (family invites) open the app straight from Messages or the Camera.
                 .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
-                    if let url = activity.webpageURL { model.open(url: url) }
+                    if let url = activity.webpageURL { model.openLink(url) }
                 }
                 .sheet(item: Bindable(model).pendingInvite) { JoinInviteView(invite: $0).environment(model) }
                 .alert(model.inviteNotice ?? "", isPresented: Binding(

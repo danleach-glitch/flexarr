@@ -68,7 +68,7 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationC
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
-        for url in urls { model?.open(url: url) }
+        for url in urls { model?.openLink(url) }
     }
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
@@ -149,9 +149,9 @@ struct FlexarrMacApp: App {
                 .preferredColorScheme(.dark)
                 .tint(.silver)
                 .toggleStyle(GoSwitchStyle())
-                .onOpenURL { model.open(url: $0) }
+                .onOpenURL { model.openLink($0) }
                 .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
-                    if let url = activity.webpageURL { model.open(url: url) }
+                    if let url = activity.webpageURL { model.openLink(url) }
                 }
                 .sheet(item: Bindable(model).pendingInvite) { JoinInviteView(invite: $0).environment(model) }
                 .alert(model.inviteNotice ?? "", isPresented: Binding(

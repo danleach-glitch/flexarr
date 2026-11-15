@@ -2093,10 +2093,24 @@ final class AppModel {
         }
     }
 
+    /// A link the system opened the app with (another app, a web page, a widget, the Top Shelf). One of the app's own
+    /// (it carries `OwnLinks.key`) goes ahead as it is; any other only opens what it names: a title to play opens its
+    /// page, a channel does nothing, and a profile it names is asked about first (see `OwnLinks.fromOutside`).
+    func openLink(_ url: URL) {
+        if OwnLinks.isSigned(url, key: OwnLinks.key) { return open(url: OwnLinks.unsigned(url)) }
+        #if DEBUG
+        // A debug build signed in from launch arguments (the UI test tours, a preview) opens the links it's sent as its own.
+        if UserDefaults.standard.string(forKey: "FlexarrServer") != nil { return open(url: url) }
+        #endif
+        guard let allowed = OwnLinks.fromOutside(url) else { return }
+        open(url: allowed, outside: true)
+    }
+
     /// `flexarr://item/<id>` shows a title; `flexarr://play/<id>` plays one (a show or season: the episode to watch
     /// next), with `t=<seconds>`, `s=<subtitle key>` and `shuffle=1`; `flexarr://live/<channel id>` puts a channel on;
     /// `flexarr://watchlist` opens the watchlist. Any of them can add `profile=<id or name>` to switch to that profile first, asking for its PIN if it has one.
-    func open(url: URL) {
+    /// With `outside`, the link came from another app or a web page: a profile it names is always asked about first.
+    func open(url: URL, outside: Bool = false) {
         // https://flexarr.io/join#… or flexarr://join#…: a family invite, asked about first.
         if let invite = GuestInvite.parse(url.absoluteString) {
             if !GuestInvite.guestInvitesOffered {
@@ -2112,7 +2126,7 @@ final class AppModel {
         guard url.scheme == "flexarr", let host = url.host() else { return }
         // A guest's link at launch (Siri, a widget) waits for the tunnel, or it would find no server.
         if credentials?.isGuest == true, GuestTunnel.shared.address == nil {
-            Task { if await ensureGuestTunnel() { open(url: url) } }
+            Task { if await ensureGuestTunnel() { open(url: url, outside: outside) } }
             return
         }
         let id = url.pathComponents.dropFirst().first ?? ""
@@ -2129,7 +2143,7 @@ final class AppModel {
             components?.queryItems = query.filter { $0.name != "profile" }
             if components?.queryItems?.isEmpty == true { components?.queryItems = nil }
             guard let rest = components?.url else { return }
-            Task { await open(rest, as: wanted) }
+            Task { await open(rest, as: wanted, askFirst: outside) }
             return
         }
         // "Who's watching?" comes first: a link (Play on the Top Shelf, say) that arrives while it's up, or before
@@ -2218,14 +2232,15 @@ final class AppModel {
 
     /// Opens `url` as the profile `wanted` (its id, or its name in any case): switched to straight away without a PIN,
     /// else "Who's watching?" asks for it and the link goes ahead once someone is chosen. An unknown profile, or one
-    /// already watching, opens the link as things are.
-    private func open(_ url: URL, as wanted: String) async {
+    /// already watching, opens the link as things are. With `askFirst` (a link from outside the app), "Who's
+    /// watching?" asks even for a profile without a PIN.
+    private func open(_ url: URL, as wanted: String, askFirst: Bool = false) async {
         // Opening the app with a link can arrive before the profiles have.
         for _ in 0..<50 where !profilesLoaded { try? await Task.sleep(for: .milliseconds(200)) }
         guard let profile = profiles.first(where: { $0.id == wanted }) ?? profiles.first(where: { $0.name.caseInsensitiveCompare(wanted) == .orderedSame })
         else { return open(url: url) }
         if profile.isCurrent && !needsProfileChoice { return open(url: url) }
-        if !profile.needsPinToChoose, (try? await switchProfile(to: profile)) != nil { return open(url: url) }
+        if !askFirst, !profile.needsPinToChoose, (try? await switchProfile(to: profile)) != nil { return open(url: url) }
         afterProfileChoice = url
         linkProfile = profile
         endPlayback()
