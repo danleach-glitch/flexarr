@@ -60,7 +60,10 @@ import io.github.flexarr.core.DirectoryPodcast
 import io.github.flexarr.core.Podcast
 import io.github.flexarr.core.PodcastEpisode
 import io.github.flexarr.core.podcastEpisode
+import io.github.flexarr.ui.Navigator
 import io.github.flexarr.ui.components.ActionButton
+import io.github.flexarr.ui.components.LocalNavigator
+import kotlinx.coroutines.CancellationException
 import io.github.flexarr.ui.downloads.EpisodeDownloadButton
 import io.github.flexarr.ui.components.Edge
 import io.github.flexarr.ui.components.FactsLine
@@ -165,6 +168,7 @@ fun PodcastEpisodeRow(
 ) {
     var notes by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
+    val navigator = LocalNavigator.current
     val download = model.downloads.entry(episode.id)
     val actions = buildList {
         add(MenuAction(if (episode.progress != null) t("Resume") else t(Words.play)) { model.podcasts.play(episode) })
@@ -173,7 +177,7 @@ fun PodcastEpisodeRow(
         removeFromUpNext?.let { add(MenuAction(t("Remove from Up next"), run = it)) }
         add(MenuAction(if (episode.isPlayed) t("Mark as unplayed") else t(Words.markAsPlayed)) { setPlayed(!episode.isPlayed) })
         if (download == null) {
-            add(MenuAction(t(Words.download)) { model.scope.launch { runCatching { model.downloads.downloadEpisode(episode.id) } } })
+            add(MenuAction(t(Words.download)) { navigator.downloadEpisode(episode.id) })
         } else {
             add(MenuAction(if (download.isDownloaded) t("Remove download") else t("Stop download")) { model.downloads.delete(download.id) })
         }
@@ -194,7 +198,7 @@ fun PodcastEpisodeRow(
         } else {
             add(SwipeAction(t(Words.addToQueue), Icons.AutoMirrored.Filled.PlaylistAdd, Flexarr.silver, Flexarr.room) { model.addToUpNext(episode.id, next = false) })
             if (download == null) {
-                add(SwipeAction(t(Words.download), FlexarrIcons.download, Flexarr.aisle) { model.scope.launch { runCatching { model.downloads.downloadEpisode(episode.id) } } })
+                add(SwipeAction(t(Words.download), FlexarrIcons.download, Flexarr.aisle) { navigator.downloadEpisode(episode.id) })
             } else {
                 add(SwipeAction(if (download.isDownloaded) t("Remove download") else t("Stop download"), FlexarrIcons.delete, Flexarr.danger, Flexarr.room) { model.downloads.delete(download.id) })
             }
@@ -329,12 +333,22 @@ fun dateLine(published: String?): String? {
     }
 }
 
-/** Marks an episode played or unplayed for screens that don't keep their own list: sent, then screens reload. */
-fun setEpisodePlayed(model: AppModel, episode: PodcastEpisode, played: Boolean) {
+/**
+ * Marks an episode played or unplayed for screens that don't keep their own list: sent, then screens reload (which,
+ * when the server refused, puts back what it has). A refusal is said.
+ */
+fun setEpisodePlayed(model: AppModel, navigator: Navigator, episode: PodcastEpisode, played: Boolean) {
     val client = model.client ?: return
     model.marked(episode.id, played)
     model.scope.launch {
-        runCatching { client.setWatched(episode.id, played) }.onSuccess { if (played) model.downloads.markedPlayed(episode.id) }
+        try {
+            client.setWatched(episode.id, played)
+            if (played) model.downloads.markedPlayed(episode.id)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            navigator.tellFailure(if (played) t("Couldn’t mark this as played") else t("Couldn’t mark this as unplayed"), e)
+        }
         model.watchStateChanged()
     }
 }

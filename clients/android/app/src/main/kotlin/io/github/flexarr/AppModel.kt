@@ -94,6 +94,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
+import io.github.flexarr.data.DiscoveredServer
+import io.github.flexarr.ui.connect.PairingSession
 import okhttp3.HttpUrl
 
 private val flexarrLog = FlexarrLog("signin")
@@ -1084,6 +1087,38 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                 joining = false
             }
         }
+    }
+
+    /** The phone's connect screen's code for a server, kept here: see [pairingSession]. */
+    private class HeldPairing(val server: DiscoveredServer, val attempt: Int, val session: PairingSession, val job: Job)
+    private var heldPairing: HeldPairing? = null
+
+    /**
+     * The code shown for [server] (its [attempt]th: Try again after "Don't allow" starts another), asked about on the
+     * app's own scope rather than the screen's, so rotating a tablet or unfolding a phone while someone approves it
+     * keeps the same code. Asks only while the app is in front. [stopPairing] lets it go.
+     */
+    fun pairingSession(server: DiscoveredServer, attempt: Int): PairingSession {
+        heldPairing?.let { held ->
+            if (held.server == server && held.attempt == attempt) return held.session
+            held.job.cancel()
+        }
+        val session = PairingSession()
+        val job = scope.launch {
+            session.run(this@AppModel, server) {
+                ProcessLifecycleOwner.get().lifecycle.currentStateFlow.first { it.isAtLeast(Lifecycle.State.STARTED) }
+            }
+            // Signed in: nothing left to show. Turned away (or the server too old) stays, for the screen to say so.
+            if (!session.declined && session.error == null && heldPairing?.session === session) heldPairing = null
+        }
+        heldPairing = HeldPairing(server, attempt, session, job)
+        return session
+    }
+
+    /** Back from the code (or signed in): it stops being asked about. */
+    fun stopPairing() {
+        heldPairing?.job?.cancel()
+        heldPairing = null
     }
 
     /** "Cancel", or the problem said: the invite is let go. */

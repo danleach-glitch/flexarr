@@ -1,5 +1,6 @@
 package io.github.flexarr.player
 
+import io.github.flexarr.core.streamLine
 import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import android.view.KeyEvent
@@ -115,7 +116,7 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
 
     fun skip(seconds: Int) {
         controller.skip(seconds)
-        flash = if (seconds < 0) "−${-seconds} s" else "+$seconds s"
+        flash = if (seconds < 0) t("−{seconds} s", "seconds" to -seconds) else t("+{seconds} s", "seconds" to seconds)
         flashCount++
     }
 
@@ -322,7 +323,7 @@ private fun Controls(controller: PlaybackController, scrubTo: Double?, onScrub: 
             Column(Modifier.padding(horizontal = 40.dp, vertical = 28.dp)) {
                 Text(info.item.displayTitle, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 info.item.episodeSubtitle?.let { Text(it, fontSize = 15.sp, color = Flexarr.screen.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                info.transcodeSummary?.let { Text(it, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, maxLines = 1, modifier = Modifier.padding(top = 4.dp)) }
+                streamLine(info)?.let { Text(it, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, maxLines = 1, modifier = Modifier.padding(top = 4.dp)) }
             }
         }
         Column(Modifier.align(Alignment.BottomCenter).padding(horizontal = 40.dp, vertical = 26.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {

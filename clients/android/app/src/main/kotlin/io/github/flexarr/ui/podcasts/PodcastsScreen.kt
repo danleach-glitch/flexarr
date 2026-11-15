@@ -139,14 +139,14 @@ fun PodcastsScreen(model: AppModel) {
                             item(key = "upnext-heading") { SectionHeading(t(Words.upNext), Modifier.padding(top = 20.dp)) }
                             items(model.upNext, key = { "upnext-${it.id}" }) { episode ->
                                 EpisodeListRow {
-                                    PodcastEpisodeRow(model, episode, showsPodcast = true, compact = true, setPlayed = { setEpisodePlayed(model, episode, it) }, removeFromUpNext = { model.removeFromUpNext(episode.id) })
+                                    PodcastEpisodeRow(model, episode, showsPodcast = true, compact = true, setPlayed = { setEpisodePlayed(model, navigator, episode, it) }, removeFromUpNext = { model.removeFromUpNext(episode.id) })
                                 }
                             }
                         }
                         if (home.listening.isNotEmpty()) {
                             item(key = "listening-heading") { SectionHeading(t("Continue listening"), Modifier.padding(top = 20.dp)) }
                             items(home.listening, key = { "listening-${it.id}" }) { episode ->
-                                EpisodeListRow { PodcastEpisodeRow(model, episode, showsPodcast = true, setPlayed = { setEpisodePlayed(model, episode, it) }) }
+                                EpisodeListRow { PodcastEpisodeRow(model, episode, showsPodcast = true, setPlayed = { setEpisodePlayed(model, navigator, episode, it) }) }
                             }
                         }
                         val listening = home.listening.map { it.id }.toSet()
@@ -154,7 +154,7 @@ fun PodcastsScreen(model: AppModel) {
                         if (unplayed.isNotEmpty()) {
                             item(key = "new-heading") { SectionHeading(t("New episodes"), Modifier.padding(top = 20.dp)) }
                             items(unplayed, key = { "new-${it.id}" }) { episode ->
-                                EpisodeListRow { PodcastEpisodeRow(model, episode, showsPodcast = true, compact = true, setPlayed = { setEpisodePlayed(model, episode, it) }) }
+                                EpisodeListRow { PodcastEpisodeRow(model, episode, showsPodcast = true, compact = true, setPlayed = { setEpisodePlayed(model, navigator, episode, it) }) }
                             }
                         }
                     }

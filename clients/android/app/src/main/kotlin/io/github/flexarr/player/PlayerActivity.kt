@@ -1,5 +1,6 @@
 package io.github.flexarr.player
 
+import io.github.flexarr.core.streamLine
 import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import android.content.Context
@@ -397,8 +398,8 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
                     onDoubleTap = { offset ->
                         val x = offset.x / size.width
                         when {
-                            x < 0.35f -> { controller.skip(-controller.skipSeconds); flash = "−${controller.skipSeconds} s"; flashCount++ }
-                            x > 0.65f -> { controller.skip(controller.skipSeconds); flash = "+${controller.skipSeconds} s"; flashCount++ }
+                            x < 0.35f -> { controller.skip(-controller.skipSeconds); flash = t("−{seconds} s", "seconds" to controller.skipSeconds); flashCount++ }
+                            x > 0.65f -> { controller.skip(controller.skipSeconds); flash = t("+{seconds} s", "seconds" to controller.skipSeconds); flashCount++ }
                             else -> controller.togglePlayPause()
                         }
                     },
@@ -506,7 +507,7 @@ private fun Controls(controller: PlaybackController, onClose: () -> Unit, onPict
                 Column(Modifier.weight(1f).padding(top = 2.dp)) {
                     Text(info.item.displayTitle, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Flexarr.screen, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     info.item.episodeSubtitle?.let { Text(it, fontSize = 15.sp, color = Flexarr.screen.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                    info.transcodeSummary?.let { Text(it, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, maxLines = 1, modifier = Modifier.padding(top = 4.dp)) }
+                    streamLine(info)?.let { Text(it, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, maxLines = 1, modifier = Modifier.padding(top = 4.dp)) }
                 }
             }
             GlassCastButton()

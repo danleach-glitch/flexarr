@@ -136,6 +136,7 @@ import io.github.flexarr.ui.theme.marquee
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import io.github.flexarr.ui.components.endsFormat
 import java.util.Date
@@ -600,6 +601,7 @@ private fun SleepMenu(player: PodcastPlayer, modifier: Modifier = Modifier) {
 @Composable
 private fun EpisodeMenu(model: AppModel, episode: PodcastEpisode, podcast: Podcast?, goToPodcast: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val navigator = LocalNavigator.current
     val player = model.podcasts
     var open by remember { mutableStateOf(false) }
     Box(modifier, contentAlignment = Alignment.Center) {
@@ -612,7 +614,15 @@ private fun EpisodeMenu(model: AppModel, episode: PodcastEpisode, podcast: Podca
                 open = false
                 val client = model.client ?: return@MenuEntry
                 model.scope.launch {
-                    runCatching { client.setWatched(episode.id, true) }
+                    try {
+                        client.setWatched(episode.id, true)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        // Refused: it stays where it is, rather than skipping on as if it were played.
+                        navigator.tellFailure(t("Couldn’t mark this as played"), e)
+                        return@launch
+                    }
                     model.watchStateChanged()
                     // Played: on to what comes next, as if it had finished.
                     player.seek((player.duration - 0.5).coerceAtLeast(0.0))
@@ -622,7 +632,7 @@ private fun EpisodeMenu(model: AppModel, episode: PodcastEpisode, podcast: Podca
             if (download == null) {
                 MenuEntry(t(Words.download), FlexarrIcons.download) {
                     open = false
-                    model.scope.launch { runCatching { model.downloads.downloadEpisode(episode.id) } }
+                    navigator.downloadEpisode(episode.id)
                 }
             } else {
                 MenuEntry(if (download.isDownloaded) t("Remove download") else t("Stop download"), FlexarrIcons.delete) {

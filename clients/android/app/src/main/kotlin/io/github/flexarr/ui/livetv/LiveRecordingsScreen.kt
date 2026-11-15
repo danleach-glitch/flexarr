@@ -18,7 +18,9 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -45,6 +47,7 @@ import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.FlexarrClient
 import io.github.flexarr.core.Recording
+import io.github.flexarr.core.RecordingSeries
 import io.github.flexarr.core.Recordings
 import io.github.flexarr.core.recordings
 import io.github.flexarr.core.removeRecording
@@ -82,6 +85,9 @@ fun LiveRecordingsScreen(model: AppModel) {
     var recordings by remember { mutableStateOf<Recordings?>(null) }
     var failed by remember { mutableStateOf<String?>(null) }
     var refreshing by remember { mutableStateOf(false) }
+    // A finished recording, or a series, about to go: asked first, as on the TV and the web.
+    var confirmingDelete by remember { mutableStateOf<Recording?>(null) }
+    var confirmingSeries by remember { mutableStateOf<RecordingSeries?>(null) }
 
     suspend fun load() {
         try {
@@ -94,9 +100,16 @@ fun LiveRecordingsScreen(model: AppModel) {
         }
     }
     RepeatWhileShowing(30_000, model.credentials) { load() }
-    fun act(action: suspend (FlexarrClient) -> Unit) {
+    /** Does it, then fetches the list again; says [failure] (and why) if the server refused. */
+    fun act(failure: String, action: suspend (FlexarrClient) -> Unit) {
         scope.launch {
-            runCatching { action(client) }
+            try {
+                action(client)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                navigator.tellFailure(failure, e)
+            }
             load()
         }
     }
@@ -123,7 +136,9 @@ fun LiveRecordingsScreen(model: AppModel) {
                             }
                             loaded.upcoming.forEachIndexed { index, recording ->
                                 if (index > 0) Divider()
-                                RecordingRow(recording, action = if (recording.isRecordingNow) t("Stop") else t("Don’t record")) { act { it.removeRecording(recording.id) } }
+                                RecordingRow(recording, action = if (recording.isRecordingNow) t("Stop") else t("Don’t record")) {
+                                    act(t("Couldn’t change this recording")) { it.removeRecording(recording.id) }
+                                }
                             }
                         }
                         if (loaded.series.isNotEmpty()) {
@@ -142,7 +157,7 @@ fun LiveRecordingsScreen(model: AppModel) {
                                                 color = Flexarr.usher,
                                             )
                                         }
-                                        RowMenu(t("Stop series")) { act { it.removeSeries(series.id) } }
+                                        RowMenu(t("Stop series")) { confirmingSeries = series }
                                     }
                                 }
                             }
@@ -155,7 +170,11 @@ fun LiveRecordingsScreen(model: AppModel) {
                                         recording,
                                         action = if (recording.state == "completed") t(Words.delete) else t("Clear"),
                                         onOpen = recording.itemId?.let { item -> { navigator.play(item) } },
-                                    ) { act { it.removeRecording(recording.id) } }
+                                    ) {
+                                        // A finished recording is gone for good: asked first. A failed one just clears.
+                                        if (recording.state == "completed") confirmingDelete = recording
+                                        else act(t("Couldn’t change this recording")) { it.removeRecording(recording.id) }
+                                    }
                                 }
                             }
                         }
@@ -164,6 +183,28 @@ fun LiveRecordingsScreen(model: AppModel) {
             }
         }
     }
+    confirmingDelete?.let { recording ->
+        ConfirmDialog(t("Delete the recording of {title}?", "title" to recording.title), null, t("Delete recording"), onDismiss = { confirmingDelete = null }) {
+            act(t("Couldn’t delete this")) { it.removeRecording(recording.id) }
+        }
+    }
+    confirmingSeries?.let { series ->
+        ConfirmDialog(series.title, t("Its scheduled showings come off the list. What it’s recorded stays."), t("Stop recording the series"), onDismiss = { confirmingSeries = null }) {
+            act(t("Couldn’t stop recording the series")) { it.removeSeries(series.id) }
+        }
+    }
+}
+
+@Composable
+private fun ConfirmDialog(title: String, message: String?, confirm: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = message?.let { { Text(it) } },
+        confirmButton = { TextButton(onClick = { onDismiss(); onConfirm() }) { Text(confirm, color = Flexarr.danger) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(t(Words.cancel), color = Flexarr.screen) } },
+        containerColor = Flexarr.seat,
+    )
 }
 
 private fun LazyListScope.section(title: String, content: @Composable () -> Unit) {

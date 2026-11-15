@@ -2,9 +2,6 @@ package io.github.flexarr.ui.connect
 
 import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import kotlinx.coroutines.flow.first
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
@@ -39,6 +36,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -48,6 +46,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -98,6 +98,26 @@ private sealed interface Step {
     data object Guest : Step
 }
 
+/** [Step] as plain strings, for rememberSaveable. */
+private val StepSaver = listSaver<Step, String>(
+    save = { step ->
+        when (step) {
+            Step.Choose -> listOf("choose")
+            is Step.Pair -> listOf("pair", step.server.name, step.server.address)
+            Step.Manual -> listOf("manual")
+            Step.Guest -> listOf("guest")
+        }
+    },
+    restore = { saved ->
+        when (saved.firstOrNull()) {
+            "pair" -> if (saved.size == 3) Step.Pair(DiscoveredServer(saved[1], saved[2])) else Step.Choose
+            "manual" -> Step.Manual
+            "guest" -> Step.Guest
+            else -> Step.Choose
+        }
+    },
+)
+
 internal const val INSTALL_URL = "https://flexarr.io/#install"
 
 /**
@@ -114,10 +134,16 @@ fun ConnectScreen(model: AppModel) {
         onDispose { browser.stop() }
     }
     // Signed out on the server: show a code for the same server straight away.
-    var step by remember {
+    // Saved, so rotating or unfolding (or the app being put away and brought back) keeps the place.
+    var step by rememberSaveable(stateSaver = StepSaver) {
         val last = model.store.lastAddress
         mutableStateOf(if (model.signedOutNotice != null && !model.signedOutAsGuest && last != null) Step.Pair(server(last)) else Step.Choose)
     }
+    // Left the code: it stops being asked about (kept through a rotation, which doesn't change the step).
+    LaunchedEffect(step) { if (step !is Step.Pair) model.stopPairing() }
+    // Gone for good (not just rotated): the code goes too.
+    val activity = LocalActivity.current
+    DisposableEffect(Unit) { onDispose { if (activity?.isChangingConfigurations != true) model.stopPairing() } }
     // Back from a code or an address goes back to the servers, as the screen's own Back does, rather than out of the app.
     BackHandler(enabled = step != Step.Choose) {
         if (step == Step.Guest) {
@@ -284,12 +310,10 @@ private fun Badge(title: String, icon: androidx.compose.ui.graphics.vector.Image
 @Composable
 private fun PairWithServer(model: AppModel, server: DiscoveredServer, onBack: () -> Unit) {
     val uri = LocalUriHandler.current
-    var attempt by remember { mutableIntStateOf(0) }
-    // Try again after "Don't allow" starts over with a code they're asked about.
-    val session = remember(server, attempt) { PairingSession() }
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
-    // Asks only while the app is in front: nobody's there to read the code otherwise.
-    LaunchedEffect(session) { session.run(model, server) { lifecycle.currentStateFlow.first { it.isAtLeast(Lifecycle.State.STARTED) } } }
+    var attempt by rememberSaveable { mutableIntStateOf(0) }
+    // Try again after "Don't allow" starts over with a code they're asked about. Kept by the app, so a rotation
+    // shows the same code; it asks only while the app is in front, as nobody's there to read the code otherwise.
+    val session = remember(server, attempt) { model.pairingSession(server, attempt) }
     val declined = session.declined
     val needsSetup = session.needsSetup
     val setupNeedsCode = session.setupNeedsCode
@@ -406,9 +430,10 @@ private fun ErrorNote(message: String) {
 @Composable
 private fun ManualConnect(model: AppModel, onPair: (DiscoveredServer) -> Unit, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
-    var address by remember { mutableStateOf(model.store.lastAddress.orEmpty()) }
+    // The address survives a rotation; the API key, a password, is never written into saved state.
+    var address by rememberSaveable { mutableStateOf(model.store.lastAddress.orEmpty()) }
     var apiKey by remember { mutableStateOf("") }
-    var usesKey by remember { mutableStateOf(false) }
+    var usesKey by rememberSaveable { mutableStateOf(false) }
     var connecting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val addressFocus = remember { FocusRequester() }

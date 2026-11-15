@@ -186,7 +186,7 @@ private fun PlayingOn(casting: Casting) {
     val device = casting.deviceName ?: return
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.widthIn(max = 420.dp)) {
         Icon(Icons.Filled.Cast, contentDescription = null, tint = Flexarr.silver, modifier = Modifier.size(18.dp))
-        Text("Playing on $device", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(t("Playing on {device}", "device" to device), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.silver, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

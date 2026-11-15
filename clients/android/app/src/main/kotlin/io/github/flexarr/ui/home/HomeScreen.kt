@@ -411,6 +411,7 @@ private fun HomeRowView(model: AppModel, row: HomeRow) {
  */
 @Composable
 private fun NewEpisodesRow(model: AppModel, episodes: List<PodcastEpisode>) {
+    val navigator = LocalNavigator.current
     var opened by remember { mutableStateOf<PodcastEpisode?>(null) }
     val width = PosterWidth * 1.15f
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -433,7 +434,7 @@ private fun NewEpisodesRow(model: AppModel, episodes: List<PodcastEpisode>) {
         }
     }
     opened?.let { episode ->
-        EpisodeSheet(model, episode, setPlayed = { setEpisodePlayed(model, episode, it) }, onDismiss = { opened = null })
+        EpisodeSheet(model, episode, setPlayed = { setEpisodePlayed(model, navigator, episode, it) }, onDismiss = { opened = null })
     }
 }
 

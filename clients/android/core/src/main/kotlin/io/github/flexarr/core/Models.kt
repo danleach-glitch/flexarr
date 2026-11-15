@@ -712,6 +712,11 @@ data class PlaybackInfo(
     val canSearchSubtitles: Boolean? = null,
     /** A book's files on its timeline, chapters, bookmarks and place. Absent from servers before 0.58. */
     val book: BookManifest? = null,
+    /**
+     * What a converted or repackaged stream is, as fields to word in the language shown ([transcodeSummary] is the
+     * server's English). Null when the file plays as it is. Absent from servers before 0.66.
+     */
+    val stream: StreamSummary? = null,
 ) {
     /** The server keeps audio offsets and show speeds (0.53 and later). */
     val hasPlayerControls: Boolean get() = audioDelaySeconds != null

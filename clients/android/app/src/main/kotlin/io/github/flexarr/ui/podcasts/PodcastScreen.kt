@@ -174,8 +174,11 @@ fun PodcastScreen(model: AppModel, id: String) {
         podcast?.let { show -> if (changes) podcast = show.copy(unplayedCount = (show.unplayedCount + if (played) -1 else 1).coerceAtLeast(0)) }
         model.marked(episode.id, played)
         scope.launch {
-            if (runCatching { client.setWatched(episode.id, played) }.isFailure) {
+            val failure = runCatching { client.setWatched(episode.id, played) }.exceptionOrNull()
+            if (failure is CancellationException) throw failure
+            if (failure != null) {
                 reload++ // didn't stick: back to what the server has
+                navigator.tellFailure(if (played) t("Couldn’t mark this as played") else t("Couldn’t mark this as unplayed"), failure as? Exception ?: Exception(failure.message))
             } else {
                 if (played) model.downloads.markedPlayed(episode.id)
                 runCatching { client.podcast(id) }.onSuccess { podcast = it }
@@ -200,7 +203,17 @@ fun PodcastScreen(model: AppModel, id: String) {
                                         menu = false
                                         if (oldest != oldestFirst) {
                                             oldestFirst = oldest
-                                            if (show.isSubscribed) scope.launch { runCatching { client.subscribe(id, oldest) }.onSuccess { podcast = it } }
+                                            if (show.isSubscribed) scope.launch {
+                                                try {
+                                                    podcast = client.subscribe(id, oldest)
+                                                } catch (e: CancellationException) {
+                                                    throw e
+                                                } catch (e: Exception) {
+                                                    // Didn't stick: back to the order it had.
+                                                    oldestFirst = !oldest
+                                                    navigator.tellFailure(t("Couldn’t change the order"), e)
+                                                }
+                                            }
                                         }
                                     },
                                 )
@@ -255,7 +268,16 @@ fun PodcastScreen(model: AppModel, id: String) {
                     markingAllPlayed = false
                     model.marked(id, played = true)
                     scope.launch {
-                        runCatching { client.setWatched(id, true) }.onSuccess { model.downloads.markedPlayed(id) }
+                        try {
+                            client.setWatched(id, true)
+                            model.downloads.markedPlayed(id)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            navigator.tellFailure(t("Couldn’t mark all as played"), e)
+                        }
+                        // Read again either way: refused, the episodes go back to how the server has them.
+                        reload++
                         model.watchStateChanged()
                     }
                 }) { Text(t(Words.markAsPlayed)) }

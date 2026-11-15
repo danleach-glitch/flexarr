@@ -1,5 +1,6 @@
 package io.github.flexarr.ui.library
 
+import androidx.compose.foundation.layout.heightIn
 import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import androidx.compose.foundation.background
@@ -526,7 +527,8 @@ fun LibraryScreen(model: AppModel, libraryId: String, initialSort: LibrarySort, 
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = Flexarr.usher,
-                                modifier = Modifier.height(if (items.isEmpty()) 0.dp else 20.dp),
+                                // At least its line, and taller at large text sizes rather than cut off.
+                                modifier = if (items.isEmpty()) Modifier.height(0.dp) else Modifier.heightIn(min = 20.dp),
                             )
                         }
                         itemsIndexed(items, key = { _, item -> item.id }) { index, item ->

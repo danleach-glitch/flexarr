@@ -116,6 +116,13 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Android TV, the Home banner no longer moves on to another title by itself with TalkBack on or animations turned off, and TalkBack reads the new title when you move to it.
 - On Android TV, TalkBack reads the player’s timeline and where it’s up to.
 - On Android TV, small captions are a little bigger to read across the room, and the sidebar sits clear of the screen’s edge.
+- On Android phones, deleting a finished recording or stopping a series recording asks first, and a recording change the server refuses says why.
+- On Android, a podcast download that can’t start, marking an episode (or a whole show) played, and changing a show’s episode order now say when they didn’t work, and put back what was shown.
+- On Android phones and TVs, Search shows a spinner while a first search is on its way, and a failed search no longer leaves the results for the words before it on screen.
+- On Android phones and TVs, the line under the player’s title saying how a stream is converted is in your language.
+- On Android phones and tablets, rotating or unfolding while connecting to a server keeps your place, the address you typed and the code on screen.
+- On Android, the button to watch a channel when a recording is in the way, “Playing on” when casting, and the player’s skip amounts are in your language.
+- On Android phones, a library’s title count and the Live TV guide’s rows grow with large text instead of being cut off.
 
 ### Trakt
 

@@ -134,8 +134,9 @@ import kotlinx.coroutines.launch
 fun SearchScreen(model: AppModel) {
     val client = model.client ?: return
     var query by rememberSaveable { mutableStateOf("") }
-    var results by remember { mutableStateOf<SearchResults?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
+    // Each kept with the words it answers (see searchShown).
+    var results by remember { mutableStateOf<Pair<String, SearchResults>?>(null) }
+    var error by remember { mutableStateOf<Pair<String, String>?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
     var recents by remember { mutableStateOf(RecentSearches()) }
     // Films and shows beyond the library, when Seerr's set up: what was found, and the words that found it.
@@ -231,12 +232,12 @@ fun SearchScreen(model: AppModel) {
         // Debounce typing so each keystroke doesn't hit the server.
         delay(300)
         try {
-            results = client.search(text)
+            results = text to client.search(text)
             error = null
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            error = e.message ?: t("Something went wrong.")
+            error = text to (e.message ?: t("Something went wrong."))
         }
     }
 
@@ -281,18 +282,20 @@ fun SearchScreen(model: AppModel) {
                     recents = recents.copy(queries = (listOf(words) + recents.queries.filterNot { it.equals(words, ignoreCase = true) }).take(5))
                 }
             }
-            val shown = results
+            val shown = searchShown(query.trim(), results, error)
             LazyColumn(
                 Modifier.fillMaxSize().nestedScroll(dismissOnScroll),
                 contentPadding = PaddingValues(vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(24.dp),
             ) {
                 when {
-                    shown != null -> {
-                        val text = query.trim()
+                    shown is SearchShown.Failed -> item { StatusView(shown.message, retry = { attempt++ }, modifier = Modifier.height(240.dp)) }
+                    shown is SearchShown.Found -> {
+                        // The words these results answer: the ones before, perhaps, while the newest are on their way.
+                        val text = shown.query
                         // Beyond the library: what the library's own results haven't already shown.
                         val found = everything?.takeIf { it.first == text }?.second
-                        val inLibrary = shown.titles.mapTo(HashSet()) { it.id }
+                        val inLibrary = shown.results.titles.mapTo(HashSet()) { it.id }
                         val beyond = found?.filter { it.libraryItemId == null || it.libraryItemId !in inLibrary }
                         val musicFound = music?.takeIf { it.first == text }?.second
                         // As the iPhone: what the household has (artists and albums alike) isn't "not in your library".
@@ -301,12 +304,13 @@ fun SearchScreen(model: AppModel) {
                             MusicSearch(m.artists.filter(::outside), m.albums.filter(::outside))
                         }
                         results(
-                            shown, text, beyond, beyondMusic,
+                            shown.results, text, beyond, beyondMusic,
                             waitingForMore = (searchesEverything && found == null) || (searchesMusic && musicFound == null),
                             model = model, onPick = { record(text, it?.id) },
                         )
                     }
-                    error != null -> item { StatusView(error, retry = { attempt++ }, modifier = Modifier.height(240.dp)) }
+                    // A first search on its way: a spinner, not the hint.
+                    shown is SearchShown.Searching -> item { StatusView(modifier = Modifier.height(240.dp)) }
                     query.isBlank() && !recents.isEmpty -> recentRows(
                         recents,
                         onSearch = {
