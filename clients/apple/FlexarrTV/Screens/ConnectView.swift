@@ -369,6 +369,10 @@ private struct ManualConnect: View {
                 Button(t("Back"), action: onBack)
                     .buttonStyle(ActionButtonStyle(prominent: false))
             }
+            // Down from the wide field above lands on Connect, not on whichever button is nearer its middle (Back,
+            // which would throw the address away).
+            .focusSection()
+            .defaultFocus($focus, .connect, priority: .userInitiated)
             .padding(.top, 8)
 
             if let error {
