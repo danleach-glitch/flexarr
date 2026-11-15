@@ -666,10 +666,7 @@ struct EpisodeCard: View {
     var body: some View {
         ArtworkButton(ambient: episode.glowColor, focus: focus, focusID: episode.id, action: action) {
             RemoteImage(url: model.client?.imageURL(episode.artwork.thumb ?? episode.artwork.backdrop, width: 640)) {
-                ZStack {
-                    Color.seat
-                    Image(systemName: Symbol.play).font(.system(size: 40)).foregroundStyle(Color.usher)
-                }
+                EpisodePlaceholder()
             }
             .frame(width: width, height: width * 9 / 16)
             .overlay(alignment: .bottom) {
@@ -714,6 +711,24 @@ struct EpisodeCard: View {
             return Format.remaining(duration - episode.userData.positionSeconds)
         }
         return episode.runtimeMinutes.flatMap(Format.runtime(minutes:)) ?? episode.durationSeconds.flatMap(Format.runtime(seconds:))
+    }
+}
+
+/// An episode with no still yet (new, or before its artwork arrives). Dark on dark, the card style has nothing to light
+/// up, so focused it lightens and gains a ring, as a round card does (`CircleCardStyle`).
+private struct EpisodePlaceholder: View {
+    @Environment(\.isFocused) private var isFocused
+
+    var body: some View {
+        ZStack {
+            isFocused ? Color.aisle : Color.seat
+            Image(systemName: Symbol.play).font(.system(size: 40)).foregroundStyle(isFocused ? Color.screen : Color.usher)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: Radius.art, style: .continuous)
+                .strokeBorder(Color.screen, lineWidth: isFocused ? 5 : 0)
+        }
+        .animation(.easeOut(duration: 0.2), value: isFocused)
     }
 }
 
