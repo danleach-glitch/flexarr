@@ -268,6 +268,7 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
                 Batch = d.MediaItem!.Kind == MediaKind.Episode ? d.MediaItem.Parent!.ParentId : d.MediaItem.Kind == MediaKind.Track ? d.MediaItem.ParentId : null,
             }).ToListAsync(ct))
             .Select(d => new DownloadTurns.Waiting(d.Id, d.ProfileId, d.Batch ?? d.MediaItemId, d.CreatedAt)).ToList();
+        ForgetPiecesExcept(queued.Select(d => d.Id));
         if (_turns.Next(queued) is not { } next
             || await db.Downloads.IgnoreQueryFilters().FirstOrDefaultAsync(d => d.Id == next && d.Status == DownloadStatus.Queued, ct) is not { } download)
         {
@@ -350,27 +351,71 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
         Directory.CreateDirectory(folder);
         var finished = Path.Combine(folder, $"{download.Id:N}.{extension}");
         var settings = PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue);
-        IReadOnlyList<string> Args(TranscodeSettings current) => plan.IsAudioOnly
-            ? FfmpegCommand.M4a(file.Path, plan.AudioIndex ?? 0, plan.Convert?.AudioChannels ?? 2, partial)
-            : FfmpegCommand.Mp4(file.Path, plan.Convert, plan.VideoIndex, plan.AudioIndex, plan.VideoCodec, plan.Subtitles, partial, current);
+        var duration = file.DurationSeconds ?? 0;
+        // A film's picture being converted is the long kind, and is made in pieces when it has to stop for someone:
+        // the next turn carries on from where it got. Copies and sound alone are quick, and simply start again.
+        var inPieces = !plan.IsAudioOnly && plan.Convert is { VideoStreamIndex: >= 0 } && duration > 0;
+        IReadOnlyList<string> Args(TranscodeSettings current, string output, double start = 0) => plan.IsAudioOnly
+            ? FfmpegCommand.M4a(file.Path, plan.AudioIndex ?? 0, plan.Convert?.AudioChannels ?? 2, output)
+            : FfmpegCommand.Mp4(file.Path, plan.Convert, plan.VideoIndex, plan.AudioIndex, plan.VideoCodec, plan.Subtitles, output, current, start, stoppable: inPieces);
+
+        // Pieces kept from an earlier turn go on only if this turn would make them the same way (same file, size and encoder).
+        var kept = inPieces ? KeptPieces(download.Id, string.Join('\n', Args(settings, "-"))) : null;
+        if (!inPieces)
+        {
+            ForgetPieces(download.Id);
+        }
+
+        var start = kept?.Seconds ?? 0;
+        var output = kept is null ? partial : PiecePath(folder, download.Id, kept.Pieces.Count);
 
         // Someone starting to watch something converted takes precedence: the conversion stops and goes back in the queue.
-        var error = await RunAsync(settings.FfmpegPath, Args(settings), file.DurationSeconds ?? 0, download.Id, ct, yieldTo: () => MakesWay(settings));
+        var error = await RunAsync(settings.FfmpegPath, Args(settings, output, start), duration, download.Id, ct, yieldTo: () => MakesWay(settings),
+            startSeconds: start, stopsGently: inPieces);
 
-        // The hardware encoder failed (busy, out of sessions, a codec it won't take): once more in software, as streams do.
-        if (error is not null && !ReferenceEquals(error, Yielded) && !plan.IsAudioOnly && plan.Convert is { VideoStreamIndex: >= 0 }
+        // The hardware encoder failed (busy, out of sessions, a codec it won't take): once more in software, as streams
+        // do, and from the start, since pieces from two encoders don't join.
+        if (error is not null && !ReferenceEquals(error, Yielded) && !ReferenceEquals(error, Paused) && !plan.IsAudioOnly && plan.Convert is { VideoStreamIndex: >= 0 }
             && settings is { SoftwareFallback: true } && settings.Resolved != HardwareAcceleration.None
             && await db.Downloads.IgnoreQueryFilters().AnyAsync(d => d.Id == download.Id, ct))
         {
             LogSoftwareFallback(download.Id, settings.Resolved.ToString());
-            TryDelete(partial);
+            TryDelete(output);
+            ForgetPieces(download.Id);
+            kept = null;
+            start = 0;
+            output = partial;
             settings = settings with { HardwareAcceleration = HardwareAcceleration.None };
-            error = await RunAsync(settings.FfmpegPath, Args(settings), file.DurationSeconds ?? 0, download.Id, ct, yieldTo: () => MakesWay(settings));
+            error = await RunAsync(settings.FfmpegPath, Args(settings, output), duration, download.Id, ct, yieldTo: () => MakesWay(settings), stopsGently: inPieces);
         }
 
-        if (ReferenceEquals(error, Yielded))
+        if (ReferenceEquals(error, Paused) || ReferenceEquals(error, Yielded))
         {
-            File.Delete(partial);
+            // Stopped cleanly, what it made is kept as a piece and the next turn starts where its picture ends; one
+            // too short to bother with (or that can't be measured) is thrown away, and so is one ffmpeg was killed in
+            // the middle of. Pieces from earlier turns stay either way.
+            var pieces = kept?.Pieces ?? [];
+            var piece = PiecePath(folder, download.Id, pieces.Count);
+            if (ReferenceEquals(error, Paused) && output != piece)
+            {
+                File.Move(output, piece, overwrite: true);
+            }
+
+            if (ReferenceEquals(error, Paused) && await PictureSecondsAsync(piece, ct) is var seconds and > 1)
+            {
+                pieces = [.. pieces, new FfmpegCommand.Piece(piece, seconds)];
+            }
+            else
+            {
+                TryDelete(piece);
+                TryDelete(output);
+            }
+
+            if (pieces.Count > 0)
+            {
+                _pieces[download.Id] = new KeptConversion(string.Join('\n', Args(settings, "-")), pieces);
+            }
+
             await db.Entry(download).ReloadAsync(ct);
             if (StillPreparing(db, download))
             {
@@ -378,9 +423,33 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
                 download.Progress = 0;
                 await db.SaveChangesAsync(ct);
             }
+            else
+            {
+                ForgetPieces(download.Id); // deleted meanwhile
+            }
 
-            LogYielded(download.Id);
+            if (pieces.Count > 0)
+            {
+                LogPaused(download.Id, Math.Round(pieces.Sum(p => p.Seconds)));
+            }
+            else
+            {
+                LogYielded(download.Id);
+            }
+
             return;
+        }
+
+        // The last piece is done: the pieces become one file.
+        if (error is null && kept is not null)
+        {
+            error = await JoinAsync(settings.FfmpegPath, folder, download.Id, [.. kept.Pieces, new FfmpegCommand.Piece(output, 0)], file.Path, plan.Subtitles, partial, ct);
+        }
+
+        ForgetPieces(download.Id);
+        if (output != partial)
+        {
+            TryDelete(output);
         }
 
         // Deleted while it was being made? Then there's nothing to keep.
@@ -413,6 +482,124 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
     /// </summary>
     private static bool StillPreparing(FlexarrDbContext db, Download download) =>
         db.Entry(download).State != EntityState.Detached && download.Status == DownloadStatus.Preparing;
+
+    /// <summary>A conversion stopped part way for someone watching: the pieces made so far, and how they were made.</summary>
+    private sealed record KeptConversion(string Made, IReadOnlyList<FfmpegCommand.Piece> Pieces)
+    {
+        /// <summary>Where in the film the next piece starts.</summary>
+        public double Seconds => Pieces.Sum(p => p.Seconds);
+    }
+
+    /// <summary>
+    /// Conversions waiting to carry on, by download. Only in memory: after a restart the pieces are swept up with the
+    /// other partial files (<see cref="RecoverAsync"/>) and the conversion starts again, as it always did.
+    /// </summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, KeptConversion> _pieces = new();
+
+    /// <summary>The pieces kept for <paramref name="id"/>, if they were made as <paramref name="made"/> says; others are deleted.</summary>
+    private KeptConversion? KeptPieces(Guid id, string made)
+    {
+        if (!_pieces.TryGetValue(id, out var kept))
+        {
+            return null;
+        }
+
+        if (kept.Made == made && kept.Pieces.All(p => File.Exists(p.Path)))
+        {
+            return kept;
+        }
+
+        ForgetPieces(id);
+        return null;
+    }
+
+    /// <summary>Deletes the pieces kept for a download, if any.</summary>
+    private void ForgetPieces(Guid id)
+    {
+        if (_pieces.TryRemove(id, out var kept))
+        {
+            foreach (var piece in kept.Pieces)
+            {
+                TryDelete(piece.Path);
+            }
+        }
+    }
+
+    /// <summary>Deletes the pieces of downloads no longer waiting (deleted, or taken off the phone, while queued).</summary>
+    private void ForgetPiecesExcept(IEnumerable<Guid> queued)
+    {
+        var waiting = queued.ToHashSet();
+        foreach (var id in _pieces.Keys.Where(id => !waiting.Contains(id)))
+        {
+            ForgetPieces(id);
+        }
+    }
+
+    /// <summary>How many conversions have pieces waiting (tests).</summary>
+    internal int KeptConversions => _pieces.Count;
+
+    /// <summary>A piece's file: a partial, so a restart sweeps it up.</summary>
+    private static string PiecePath(string folder, Guid id, int index) =>
+        Path.Combine(folder, $"{id:N}.part.{index.ToString(CultureInfo.InvariantCulture)}.mp4");
+
+    /// <summary>How long a piece's picture runs, by ffprobe; 0 when it can't say.</summary>
+    private async Task<double> PictureSecondsAsync(string piece, CancellationToken ct)
+    {
+        var start = new ProcessStartInfo(options.CurrentValue.FfprobePath) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+        foreach (var arg in (string[])["-v", "error", .. FfmpegCommand.LocalFile, "-select_streams", "v:0", "-show_entries", "stream=duration", "-of", "csv=p=0", piece])
+        {
+            start.ArgumentList.Add(arg);
+        }
+
+        try
+        {
+            using var process = Process.Start(start)!;
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(TimeSpan.FromSeconds(30));
+            var output = process.StandardOutput.ReadToEndAsync(timeout.Token);
+            _ = process.StandardError.ReadToEndAsync(timeout.Token);
+            try
+            {
+                await process.WaitForExitAsync(timeout.Token);
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                process.Kill(entireProcessTree: true);
+                return 0;
+            }
+
+            return process.ExitCode == 0 && double.TryParse((await output).Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds) && seconds > 0
+                ? seconds
+                : 0;
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            return 0; // no ffprobe
+        }
+    }
+
+    /// <summary>Joins a conversion's pieces into <paramref name="output"/>; null when it worked, else what went wrong.</summary>
+    private async Task<string?> JoinAsync(string ffmpeg, string folder, Guid id, IReadOnlyList<FfmpegCommand.Piece> pieces, string input,
+        IReadOnlyList<SubtitleTrack> subtitles, string output, CancellationToken ct)
+    {
+        // The join writes a second copy before the pieces go: it needs the room for one.
+        if (ShortOfSpace(folder, pieces.Sum(p => File.Exists(p.Path) ? new FileInfo(p.Path).Length : 0)))
+        {
+            LogShortOfSpace(id, folder);
+            return "The server is too short of space to get this ready. Try again later.";
+        }
+
+        var list = Path.Combine(folder, $"{id:N}.part.txt");
+        await File.WriteAllTextAsync(list, FfmpegCommand.ConcatList(pieces), ct);
+        try
+        {
+            return await RunAsync(ffmpeg, FfmpegCommand.JoinMp4(list, input, subtitles, output), 0, id, ct);
+        }
+        finally
+        {
+            TryDelete(list);
+        }
+    }
 
     private static void TryDelete(string path)
     {
@@ -650,13 +837,26 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
     /// <summary>What <see cref="RunAsync"/> gives back when it stopped to make way for someone watching.</summary>
     private static readonly string Yielded = new("yielded".ToCharArray());
 
+    /// <summary>What <see cref="RunAsync"/> gives back when it stopped for someone watching and ffmpeg finished its file cleanly.</summary>
+    private static readonly string Paused = new("paused".ToCharArray());
+
+    /// <summary>How long ffmpeg has to finish its file once asked to stop (it moves the index to the front first).</summary>
+    internal TimeSpan StopGrace { get; set; } = TimeSpan.FromMinutes(3);
+
     /// <summary>
     /// Runs ffmpeg, noting its progress; null when it worked, else what went wrong, or <see cref="Yielded"/> when
     /// <paramref name="yieldTo"/> said to stop for someone else (it isn't asked once the conversion is <see cref="NearlyDone"/>).
+    /// When it <paramref name="stopsGently"/>, ffmpeg is asked to stop (a <c>q</c> on stdin) rather than killed, and
+    /// <see cref="Paused"/> means it finished what it had made into a whole file. <paramref name="startSeconds"/> is
+    /// where in the film this run started, for the progress.
     /// </summary>
-    private async Task<string?> RunAsync(string ffmpeg, IReadOnlyList<string> args, double duration, Guid id, CancellationToken ct, Func<bool>? yieldTo = null)
+    private async Task<string?> RunAsync(string ffmpeg, IReadOnlyList<string> args, double duration, Guid id, CancellationToken ct, Func<bool>? yieldTo = null,
+        double startSeconds = 0, bool stopsGently = false)
     {
-        var start = new ProcessStartInfo(ffmpeg) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+        var start = new ProcessStartInfo(ffmpeg)
+        {
+            RedirectStandardOutput = true, RedirectStandardError = true, RedirectStandardInput = stopsGently, UseShellExecute = false,
+        };
         foreach (var arg in args)
         {
             start.ArgumentList.Add(arg);
@@ -681,6 +881,11 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
             {
                 if (done < NearlyDone && yieldTo?.Invoke() == true)
                 {
+                    if (stopsGently && await StopGentlyAsync(process, ct))
+                    {
+                        return Paused;
+                    }
+
                     process.Kill(entireProcessTree: true);
                     await process.WaitForExitAsync(ct);
                     return Yielded;
@@ -689,7 +894,7 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
                 if (line.StartsWith("out_time_us=", StringComparison.Ordinal) && duration > 0
                     && long.TryParse(line.AsSpan("out_time_us=".Length), NumberStyles.Integer, CultureInfo.InvariantCulture, out var micros))
                 {
-                    done = Math.Clamp(micros / 1_000_000.0 / duration, 0, 0.99);
+                    done = Math.Clamp((startSeconds + (micros / 1_000_000.0)) / duration, 0, 0.99);
                 }
 
                 // Every few seconds whatever ffmpeg said (it writes its progress twice a second): with no duration to
@@ -733,6 +938,41 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
         return "Converting this file didn't work.";
     }
 
+    /// <summary>
+    /// Asks ffmpeg to stop (<c>q</c>, as at a terminal) and waits for it to finish its file; true when it did, false
+    /// when it wouldn't (the caller then kills it and the piece is thrown away).
+    /// </summary>
+    private async Task<bool> StopGentlyAsync(Process process, CancellationToken ct)
+    {
+        try
+        {
+            await process.StandardInput.WriteAsync('q');
+            await process.StandardInput.FlushAsync(ct);
+            process.StandardInput.Close();
+        }
+        catch (IOException)
+        {
+            return false; // gone already
+        }
+
+        using var grace = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        grace.CancelAfter(StopGrace);
+        try
+        {
+            // Its last words go on stdout, which must be read for it to get them out and finish.
+            while (await process.StandardOutput.ReadLineAsync(grace.Token) is not null)
+            {
+            }
+
+            await process.WaitForExitAsync(grace.Token);
+            return process.ExitCode == 0;
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return false;
+        }
+    }
+
     /// <summary>Saves how far it's got; false if the download has been deleted (or, a podcast episode's, taken off the phone).</summary>
     private async Task<bool> SaveProgressAsync(Guid id, double progress, CancellationToken ct)
     {
@@ -745,6 +985,9 @@ public sealed partial class DownloadPreparer(IServiceScopeFactory scopes, IOptio
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Download {Id} stopped to make way for someone watching; it starts again when they're done")]
     private partial void LogYielded(Guid id);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Download {Id} paused at {Seconds}s to make way for someone watching; it carries on from there when they're done")]
+    private partial void LogPaused(Guid id, double seconds);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Download {Id}: the {Encoder} encoder failed; converting in software instead")]
     private partial void LogSoftwareFallback(Guid id, string encoder);

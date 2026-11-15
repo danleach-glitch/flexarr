@@ -1,7 +1,7 @@
 /// <reference types="vitest/config" />
 import react from '@vitejs/plugin-react'
 import type { IncomingHttpHeaders } from 'node:http'
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, type HtmlTagDescriptor, type Plugin } from 'vite'
 
 // The API server (src/Flexarr.Api) listens on 8383; in dev, Vite proxies API calls to it.
 const apiTarget = process.env.FLEXARR_API_URL ?? 'http://localhost:8383'
@@ -75,8 +75,44 @@ function signInPreview(key: string | undefined): Plugin {
   }
 }
 
+/**
+ * The two fonts' Latin files, as the build names them (assets/big-shoulders-display-latin-wght-normal-<hash>.woff2).
+ * Every page's first words are in them; their other scripts and Atkinson's italic load only when text needs them.
+ */
+const firstFonts = /(?:^|\/)(?:big-shoulders-display|atkinson-hyperlegible-next)-latin-wght-normal-[\w-]+\.woff2$/
+
+/**
+ * Preload tags for the fonts every page shows, so the browser fetches them beside the stylesheet rather than only once
+ * it has read the stylesheet and laid out the first text.
+ */
+export function fontPreloads(fileNames: string[], base: string): HtmlTagDescriptor[] {
+  return fileNames
+    .filter((name) => firstFonts.test(name))
+    .sort()
+    .map((name) => ({
+      tag: 'link',
+      attrs: { rel: 'preload', as: 'font', type: 'font/woff2', href: `${base}${name}`, crossorigin: '' },
+      injectTo: 'head',
+    }))
+}
+
+function preloadFonts(): Plugin {
+  let base = '/'
+  return {
+    name: 'flexarr-preload-fonts',
+    apply: 'build',
+    configResolved(config) {
+      base = config.base
+    },
+    transformIndexHtml: {
+      order: 'post',
+      handler: (_html, ctx) => fontPreloads(Object.keys(ctx.bundle ?? {}), base),
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react(), signInPreview(process.env.FLEXARR_API_KEY)],
+  plugins: [react(), signInPreview(process.env.FLEXARR_API_KEY), preloadFonts()],
   server: {
     port: 5173,
     proxy: {

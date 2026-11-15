@@ -80,11 +80,15 @@ public interface IMediaProbe
     }
 }
 
-public sealed class MediaProbeException(string message) : Exception(message);
+public sealed class MediaProbeException(string message, bool timedOut = false) : Exception(message)
+{
+    /// <summary>ffprobe gave no answer in time (a share that's stopped answering), rather than refusing the file.</summary>
+    public bool TimedOut { get; } = timedOut;
+}
 
 /// <summary>
 /// Reads container and stream details with <c>ffprobe -show_format -show_streams</c>, and HDR10+ and closed captions
-/// from the first frames.
+/// from the first frames, in the same run for anything but an audio file.
 /// </summary>
 public sealed class FfprobeMediaProbe(string ffprobePath = "ffprobe") : IMediaProbe
 {
@@ -94,9 +98,42 @@ public sealed class FfprobeMediaProbe(string ffprobePath = "ffprobe") : IMediaPr
     private static readonly string[] BookFile = ["-show_format", "-show_streams", "-show_chapters"];
     private static readonly string[] FirstFrames = ["-select_streams", "v:0", "-read_intervals", "%+#5", "-show_frames"];
 
+    /// <summary>
+    /// The stream details and the first packets of every stream, decoded: <c>-select_streams</c> would narrow the stream
+    /// details to the video too, so the frames are everyone's. 40 packets leave a handful of video frames beside five
+    /// audio tracks; when they hold none (more tracks, or audio muxed well ahead), the video's own are read after.
+    /// </summary>
+    private static readonly string[] StreamsAndFirstFrames = ["-show_format", "-show_streams", "-read_intervals", "%+#40", "-show_frames"];
+
     public async Task<ProbeResult> ProbeAsync(string path, CancellationToken cancellationToken)
     {
-        var result = Parse(await RunAsync(Streams, path, cancellationToken).ConfigureAwait(false));
+        // Music has no frames worth reading, and its tags are read on their own (lyrics, loudness).
+        if (Scanning.MediaFileEnumerator.AudioExtensions.Contains(Path.GetExtension(path)))
+        {
+            return Parse(await RunAsync(Streams, path, cancellationToken).ConfigureAwait(false));
+        }
+
+        string json;
+        try
+        {
+            json = await RunAsync(StreamsAndFirstFrames, path, cancellationToken).ConfigureAwait(false);
+        }
+        catch (MediaProbeException ex) when (!ex.TimedOut)
+        {
+            // Frames that won't decode mustn't cost the stream details: ask for those alone, as before frames were read.
+            return await WithFramesAsync(Parse(await RunAsync(Streams, path, cancellationToken).ConfigureAwait(false)), null, path, cancellationToken).ConfigureAwait(false);
+        }
+
+        return await WithFramesAsync(Parse(json), json, path, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Adds HDR10+ and closed captions, which aren't in the stream details, only in the frames themselves: the first few
+    /// are enough (broadcasts send caption data with every frame, empty or not). They come from
+    /// <paramref name="frames"/> when it holds video frames, or else from a run that reads only the video's first five.
+    /// </summary>
+    private async Task<ProbeResult> WithFramesAsync(ProbeResult result, string? frames, string path, CancellationToken cancellationToken)
+    {
         var hdr = result.VideoRange is VideoRange.Hdr10 or VideoRange.DolbyVision;
         var captions = CanCarryCaptions(result.Streams.FirstOrDefault(s => s.Type == StreamType.Video)?.Codec);
         if (!hdr && !captions)
@@ -104,22 +141,32 @@ public sealed class FfprobeMediaProbe(string ffprobePath = "ffprobe") : IMediaPr
             return result;
         }
 
-        // HDR10+ and closed captions aren't in the stream details, only in the frames themselves: the first few are
-        // enough (broadcasts send caption data with every frame, empty or not).
-        try
+        if (frames is null || !HasVideoFrames(frames))
         {
-            var frames = await RunAsync(FirstFrames, path, cancellationToken).ConfigureAwait(false);
-            return result with
+            try
             {
-                Hdr10Plus = hdr && HasSideData(frames, "2094-40"),
-                ClosedCaptions = captions ? HasSideData(frames, "A53") : null,
-            };
+                frames = await RunAsync(FirstFrames, path, cancellationToken).ConfigureAwait(false);
+            }
+            catch (MediaProbeException)
+            {
+                // Still plays as HDR10; the label is all that's missing. Captions are taken as absent, not checked again.
+                return result with { ClosedCaptions = captions ? false : null };
+            }
         }
-        catch (MediaProbeException)
+
+        return result with
         {
-            // Still plays as HDR10; the label is all that's missing. Captions are taken as absent, not checked again.
-            return result with { ClosedCaptions = captions ? false : null };
-        }
+            Hdr10Plus = hdr && HasSideData(frames, "2094-40"),
+            ClosedCaptions = captions ? HasSideData(frames, "A53") : null,
+        };
+    }
+
+    /// <summary>The <c>-show_frames</c> output holds at least one video frame.</summary>
+    internal static bool HasVideoFrames(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        return doc.RootElement.TryGetProperty("frames", out var frames) && frames.ValueKind == JsonValueKind.Array
+            && frames.EnumerateArray().Any(f => Str(f, "media_type") == "video");
     }
 
     public async Task<BookFileProbe> ProbeBookFileAsync(string path, CancellationToken cancellationToken)
@@ -220,7 +267,7 @@ public sealed class FfprobeMediaProbe(string ffprobePath = "ffprobe") : IMediaPr
                 throw;
             }
 
-            throw new MediaProbeException($"ffprobe timed out after {Timeout.TotalSeconds}s");
+            throw new MediaProbeException($"ffprobe timed out after {Timeout.TotalSeconds}s", timedOut: true);
         }
     }
 

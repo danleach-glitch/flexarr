@@ -6,6 +6,8 @@ import java.io.File
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArraySet
+import java.util.concurrent.CountDownLatch
+import kotlin.concurrent.thread
 
 /** A language the server offers. Absent from servers before 0.61, which offer none. */
 @Serializable
@@ -43,14 +45,27 @@ object Localization {
     private val parsed = ConcurrentHashMap<String, List<MessageFormat.Part>>()
     private val failed = ConcurrentHashMap.newKeySet<String>()
     private val listeners = CopyOnWriteArraySet<() -> Unit>()
+    private val lock = Any()
+
+    private class Found(val pack: LanguagePack?)
+
+    /** What [newestOnDevice] found for each language, so the pack read at launch isn't read again when the server answers. */
+    private val read = ConcurrentHashMap<String, Found>()
+
+    /** The pack [startWithLastShown] is reading, off the main thread; whatever asks for a string meanwhile waits for it. */
+    @Volatile private var starting: CountDownLatch? = null
 
     /** Where downloaded packs are kept (the app sets it to its files folder). */
     @Volatile var cacheDir: File? = null
+        set(value) {
+            field = value
+            read.clear()
+        }
 
     /** The language shown: a BCP 47 code, "en" for English. */
-    val code: String get() = pack?.code ?: "en"
+    val code: String get() = awaitStart().let { pack?.code ?: "en" }
 
-    val isRightToLeft: Boolean get() = pack?.direction == "rtl"
+    val isRightToLeft: Boolean get() = awaitStart().let { pack?.direction == "rtl" }
 
     /** The locale to format dates and numbers with: the language shown, in the device's own variant of it. */
     val locale: Locale get() = formattingLocale(code)
@@ -77,6 +92,7 @@ object Localization {
         val english = split?.groupValues?.get(2) ?: message
         val ctx = given ?: split?.groupValues?.get(1)
         val key = if (ctx != null) "$ctx::$english" else english
+        awaitStart()
         val current = pack
         val translation = current?.messages?.get(key)
         if (current != null && translation != null) {
@@ -94,12 +110,17 @@ object Localization {
 
     /** Shows a pack (null: English). */
     fun show(next: LanguagePack?) {
-        val now = pack
-        if (now?.code == next?.code && now?.version == next?.version) return
-        pack = next
-        parsed.clear()
-        failed.clear()
-        listeners.forEach { it() }
+        val changed = synchronized(lock) {
+            // A language chosen now wins over the one still being read from the device.
+            starting = null
+            val now = pack
+            if (now?.code == next?.code && now?.version == next?.version) return@synchronized false
+            pack = next
+            parsed.clear()
+            failed.clear()
+            true
+        }
+        if (changed) listeners.forEach { it() }
     }
 
     // ---- packs on the device ----
@@ -125,6 +146,7 @@ object Localization {
 
     private fun keep(pack: LanguagePack) {
         if (!isFileSafe(pack.code)) return
+        read.clear()
         val dir = cacheDir?.resolve("languages") ?: return
         runCatching {
             dir.mkdirs()
@@ -139,6 +161,7 @@ object Localization {
      * keep replacing the built-in words once signed in to another. The pack showing stays until the next settle.
      */
     fun forgetDownloaded() {
+        read.clear()
         val dir = cacheDir?.resolve("languages") ?: return
         runCatching { dir.listFiles()?.filter { it.name.endsWith(".json") || it.name.endsWith(".json.part") }?.forEach { it.delete() } }
     }
@@ -151,17 +174,42 @@ object Localization {
             runCatching { f.parentFile?.mkdirs(); if (value == null) f.delete() else f.writeText(value) }
         }
 
-    /** Starts in the language shown last, before anything draws, so it doesn't flash English first. */
+    /**
+     * Starts in the language shown last, so it doesn't flash English first. Its pack is read off the main thread while
+     * the app sets itself up; the first string asked for (as anything draws) waits for it.
+     */
     fun startWithLastShown() {
-        lastShown?.let { show(newestOnDevice(it)) }
+        val latch = CountDownLatch(1)
+        starting = latch
+        thread(name = "flexarr-language", isDaemon = true) {
+            try {
+                val found = lastShown?.let(::newestOnDevice)
+                synchronized(lock) {
+                    // Unless a language was shown meanwhile. Nothing has drawn in another yet, so nothing needs telling.
+                    if (starting === latch) {
+                        pack = found
+                        parsed.clear()
+                        failed.clear()
+                    }
+                }
+            } finally {
+                synchronized(lock) { if (starting === latch) starting = null }
+                latch.countDown()
+            }
+        }
+    }
+
+    /** Waits for the pack [startWithLastShown] is reading, if it's still being read. */
+    private fun awaitStart() {
+        starting?.await()
     }
 
     /** The newest pack on the device for a language: built in or kept from the server. */
-    fun newestOnDevice(code: String): LanguagePack? {
+    fun newestOnDevice(code: String): LanguagePack? = read.getOrPut(code) {
         val built = bundled(code)
         val downloaded = fallbacks(code).firstNotNullOfOrNull { kept(it) }
-        return listOfNotNull(built, downloaded).maxByOrNull { it.version }
-    }
+        Found(listOfNotNull(built, downloaded).maxByOrNull { it.version })
+    }.pack
 
     /** The best of the device's languages among those offered (pt-BR, then pt); null for English or none. */
     fun deviceChoice(offered: List<String>, preferred: List<String> = deviceLanguages): String? {

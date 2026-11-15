@@ -92,6 +92,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Downloads
 
+- A film or episode being converted for a download no longer starts again from the beginning when someone starts watching on a server that converts without a hardware encoder: it pauses, keeping what it's done, and carries on from there when they stop.
 - A film or episode watched from a download now counts as watched by the same rule as streaming (past the credits or most of the way), so it no longer stays in Continue Watching at 93%.
 - A podcast episode heard offline keeps its place however short, and a phone whose clock runs fast no longer holds back what other devices watched offline.
 - On iPhone and Android, a downloaded film or episode now starts from where you got to on another device (an hour watched on the TV, say), rather than from the beginning or an old place, and no longer puts the old place back afterwards. One finished elsewhere starts from the beginning.
@@ -193,6 +194,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Web
 
+- The web app opens in its own lettering straight away, rather than showing a stand-in font for a moment first.
 - On a phone, naming a new playlist (or renaming one) puts the name on its own row, with Create and Cancel together under it.
 - In the web player, a long show or episode title keeps to two lines, with Back beside its first line.
 - Settings › About shows file names in the changelog as code, without backticks, and on a phone its folder paths sit on their own line under the label.
@@ -259,6 +261,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Linux (Docker, a NAS), hardware acceleration left on Auto now finds a working NVIDIA, VA-API or Quick Sync encoder by itself when the server starts. Converting in software, a picture is made no larger than 1080p, and fewer conversions run at once on a machine with few cores unless you set the limit yourself.
 - Away from home, **Automatic** quality now converts a film or episode that would keep buffering on a connection that swings: the apps judge the connection by a typical reading rather than its best moments, and the server allows for the file's busiest stretches, not just its average.
 
+### Live TV
+
+- A channel's rewind window no longer fills the server's disk: each channel keeps at most 8 GB (about four hours of HD), so a 4K channel can be rewound less far, and when the disk is nearly full the oldest part of the window goes first.
+
 ### Server
 
 - Home opens faster while someone else in the household is watching: their progress no longer makes every other profile's Home be worked out again.
@@ -270,6 +276,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Libraries
 
+- Scanning new films and episodes reads each video file once rather than twice, so big imports finish sooner.
 - Deleting a film, show or episode through Radarr or Sonarr first checks that their record is really that title, so a record that has come to point at another one (after Radarr's database was rebuilt, say) can no longer take that title's files with it.
 - Deleting an artist through Lidarr is refused when their folder there also holds music filed under another artist, which Lidarr would delete too.
 - Deleting a file that holds two episodes stops Sonarr wanting both, so the second isn't downloaded again.

@@ -81,7 +81,7 @@ Star the channels you watch most. Each profile has its own, and Live TV opens on
 
 You can pause a channel and rewind it. The timeline shows the time of day, **LIVE** or how far behind you are, and a button to jump back to live.
 
-The server keeps the rewind window while anyone is watching a channel, so you can rewind to when the channel was first put on, up to the limit. Set the limit in **Settings › Live TV › Rewind up to**, from 15 minutes to 4 hours (1 hour to start with). It takes about 2 GB of space an hour for HD.
+The server keeps the rewind window while anyone is watching a channel, so you can rewind to when the channel was first put on, up to the limit. Set the limit in **Settings › Live TV › Rewind up to**, from 15 minutes to 4 hours (1 hour to start with). It takes about 2 GB of space an hour for HD. Each channel keeps at most 8 GB, so a 4K channel can be rewound less far, and when the server's disk is nearly full the oldest part of the window goes first.
 
 ### Picture and sound
 

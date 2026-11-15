@@ -121,6 +121,29 @@ import Testing
         #expect(asked.contains("/api/v1/languages/en-XA"))
         Localization.shared.show(nil)
     }
+
+    /// The pack read at launch (off the main thread) is what the first string asked for comes in, and a sign-in that
+    /// settles on the same language uses that reading rather than the file again.
+    @Test func startsInTheLanguageShownLast() throws {
+        let pack = LanguagePack(code: "en-XC", name: "Test", direction: "rtl", version: 3, messages: ["Play": "Yalp"])
+        #expect(Localization.keep(pack, askedFor: "en-XC"))
+        let file = try #require(FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first)
+            .appending(path: "Languages/en-XC.json")
+        defer {
+            try? FileManager.default.removeItem(at: file)
+            Localization.lastShown = nil
+        }
+        // Its own instance: other suites show languages on the shared one meanwhile, and a language shown wins.
+        let localization = Localization()
+
+        localization.startWithLastShown()
+
+        #expect(localization.translate("Play", [:], ctx: nil) == "Yalp")
+        #expect(localization.code == "en-XC")
+        #expect(localization.isRightToLeft)
+        try FileManager.default.removeItem(at: file)
+        #expect(Localization.newestOnDevice("en-XC") == pack)
+    }
 }
 
 /// A pack is kept in a file named after the code it gives itself, and the server writes that code.

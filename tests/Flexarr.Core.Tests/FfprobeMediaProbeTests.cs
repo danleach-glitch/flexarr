@@ -107,6 +107,91 @@ public class FfprobeMediaProbeTests
     public void CanCarryCaptions_OnlyBroadcastCodecs(string? codec, bool expected) =>
         Assert.Equal(expected, FfprobeMediaProbe.CanCarryCaptions(codec));
 
+    /// <summary>
+    /// Runs <see cref="FfprobeMediaProbe.ProbeAsync"/> against a stand-in ffprobe that answers <paramref name="all"/>
+    /// (stream details, and frames when asked) or, asked for the video's frames alone, <paramref name="videoOnly"/>, and
+    /// gives what came back with how many times ffprobe ran.
+    /// </summary>
+    [System.Runtime.Versioning.UnsupportedOSPlatform("windows")]
+    private static async Task<(ProbeResult Result, string[] Runs)> ProbeWithStandInAsync(string file, string all, string videoOnly)
+    {
+        var dir = Directory.CreateTempSubdirectory("flexarr-probe-").FullName;
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "all.json"), all);
+            File.WriteAllText(Path.Combine(dir, "video.json"), videoOnly);
+            var log = Path.Combine(dir, "runs");
+            var ffprobe = Path.Combine(dir, "ffprobe");
+            File.WriteAllText(ffprobe, $$"""
+                #!/bin/sh
+                echo "$*" >> '{{log}}'
+                case "$*" in *-select_streams*) cat '{{dir}}/video.json' ;; *) cat '{{dir}}/all.json' ;; esac
+                """);
+            File.SetUnixFileMode(ffprobe, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            var result = await new FfprobeMediaProbe(ffprobe).ProbeAsync(file, default);
+            return (result, File.ReadAllLines(log));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    private const string HdrStreams = """
+        "format":{"format_name":"matroska,webm"},
+        "streams":[{"index":0,"codec_type":"video","codec_name":"hevc","width":3840,"color_transfer":"smpte2084","color_primaries":"bt2020"},
+          {"index":1,"codec_type":"audio","codec_name":"eac3","channels":6}]
+        """;
+
+    private const string Hdr10PlusFrame = """{"media_type":"video","side_data_list":[{"side_data_type":"HDR Dynamic Metadata SMPTE2094-40 (HDR10+)"}]}""";
+
+    [Fact]
+    public async Task AVideo_IsProbedOnce_WithItsFirstFrames()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var (result, runs) = await ProbeWithStandInAsync("/films/Dune.mkv", $$"""{{{HdrStreams}},"frames":[{"media_type":"audio"},{{Hdr10PlusFrame}}]}""", "{}");
+
+        var run = Assert.Single(runs);
+        Assert.Contains("-show_streams", run, StringComparison.Ordinal);
+        Assert.Contains("-show_frames", run, StringComparison.Ordinal);
+        Assert.Equal(VideoRange.Hdr10, result.VideoRange);
+        Assert.True(result.Hdr10Plus);
+        Assert.False(result.ClosedCaptions);
+    }
+
+    [Fact]
+    public async Task AVideo_WhoseFirstPacketsAreAllAudio_HasItsOwnFramesReadAfter()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var (result, runs) = await ProbeWithStandInAsync("/films/Dune.mkv", $$"""{{{HdrStreams}},"frames":[{"media_type":"audio"}]}""", $$"""{"frames":[{{Hdr10PlusFrame}}]}""");
+
+        Assert.Equal(2, runs.Length);
+        Assert.Contains("-select_streams v:0", runs[1], StringComparison.Ordinal);
+        Assert.True(result.Hdr10Plus);
+    }
+
+    [Fact]
+    public async Task Music_IsProbedForItsStreamsAlone()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var (result, runs) = await ProbeWithStandInAsync("/music/Track.flac", """{"streams":[{"index":0,"codec_type":"audio","codec_name":"flac","channels":2}]}""", "{}");
+
+        Assert.DoesNotContain("-show_frames", Assert.Single(runs), StringComparison.Ordinal);
+        Assert.Equal(StreamType.Audio, Assert.Single(result.Streams).Type);
+    }
+
     [Fact]
     public void Parse_SkipsEmbeddedCoverArt()
     {

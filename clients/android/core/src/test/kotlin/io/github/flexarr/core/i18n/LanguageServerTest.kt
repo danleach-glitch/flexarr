@@ -95,4 +95,23 @@ class LanguageServerTest {
         assertEquals("de", Localization.lastShown)
         assertTrue((Localization.newestOnDevice("de")?.version ?: 0) < 9_999_999)
     }
+
+    /** The pack read at launch, off the main thread, is what the first string comes in; settling again doesn't reread it. */
+    @Test fun startsInTheLanguageShownLast() = withCache { root ->
+        val offered = listOf(LanguageInfo("en-XC", "Test", direction = "rtl", version = 3))
+        Localization.settle("en-XC", offered) { code -> LanguagePack(code, "Test", "rtl", 3, mapOf("Play" to "Yalp")) }
+        Localization.lastShown = "en-XC"
+        Localization.show(null)
+        try {
+            Localization.startWithLastShown()
+            assertEquals("Yalp", t("Play"))
+            assertEquals("en-XC", Localization.code)
+            assertTrue(Localization.isRightToLeft)
+            File(root, "files/languages/en-XC.json").delete()
+            assertEquals(3L, Localization.newestOnDevice("en-XC")?.version)
+        } finally {
+            Localization.lastShown = null
+            Localization.show(null)
+        }
+    }
 }
