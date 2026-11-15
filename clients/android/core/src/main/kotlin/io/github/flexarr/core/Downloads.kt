@@ -147,7 +147,13 @@ enum class LocalPhase {
 
 /** Watched offline and not yet told to the server. */
 @Serializable
-data class UnsentProgress(val position: Double, val finished: Boolean, val playedAtMillis: Long)
+data class UnsentProgress(
+    val position: Double,
+    val finished: Boolean,
+    val playedAtMillis: Long,
+    /** How many times the server has said it has no such title (see [UnsentReports.notFoundAgain]). */
+    val notFound: Int = 0,
+)
 
 /** A film, episode or podcast episode kept on this phone for watching or listening with no connection. Saved as JSON. */
 @Serializable

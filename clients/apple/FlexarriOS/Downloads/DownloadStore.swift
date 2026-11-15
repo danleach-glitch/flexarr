@@ -114,6 +114,9 @@ struct UnsentProgress: Codable, Hashable {
     var position: Double
     var finished: Bool
     var playedAt: Date
+    /// How many times the server has said it has no such title (see `UnsentReports.notFoundAgain`). Nil in lists
+    /// saved before it was counted.
+    var notFound: Int?
 }
 
 /// An album or playlist downloaded whole: its tracks (as downloads of their own, in order) under one picture and
@@ -485,6 +488,15 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     func attach(client: FlexarrClient?, profileId: String?) {
         self.client = client
         attachedProfileId = client == nil ? nil : profileId
+        if let client {
+            // A family guest's address is the tunnel's loopback one, the same whoever's Flexarr it joins: its plays are
+            // never kept past its downloads, so none could reach another host's history.
+            let server = GuestMode.isActive ? nil : UnsentReports.serverKey(client.addresses.home)
+            if server != self.server {
+                self.server = server
+                UserDefaults.standard.set(server, forKey: "downloads.server")
+            }
+        }
         if let profileId, profileId != self.profileId {
             self.profileId = profileId
             UserDefaults.standard.set(profileId, forKey: "downloads.profile")
@@ -629,15 +641,15 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
                 break // still out of reach
             }
         }
+        var sent = false
         for download in all where download.profileId == profileId {
-            guard let unsent = download.unsent else { continue }
-            do {
-                try await send(unsent, itemId: download.item.id, isBook: download.book != nil, with: client)
-                update(download.id) { if $0.unsent == unsent { $0.unsent = nil } }
-            } catch {
-                log.warning("Couldn't send offline progress", error: error)
-            }
+            guard download.unsent != nil else { continue }
+            if await deliverUnsent(of: download.id, with: client) { sent = true }
         }
+        if await sendKeptReports(with: client, server: server, profileId: attachedProfileId) { sent = true }
+        // Every screen showing what was watched (Continue watching, a show's next up, the watched marks) loads again,
+        // once for all of them.
+        if sent { onReportsSent?() }
         for download in all where download.profileId == profileId {
             guard let speed = download.book?.unsentSpeed else { continue }
             do {
@@ -1262,31 +1274,84 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         images.removeObject(forKey: name as NSString)
     }
 
-    /// Signing out: every download goes, whoever's it was (the server keeps its record of what was declined).
-    /// Watched offline and not yet sent, kept from downloads deleted by signing out until the sign-in has sent it.
-    private var leftoverProgress: [(profileId: String, itemId: String, progress: UnsentProgress, isBook: Bool)] = []
-    /// The profile that was watching when the downloads were deleted by signing out: whose leftovers the sign-in sends.
+    /// The server the downloads were last attached to (see `UnsentReports.serverKey`), remembered so what's kept from
+    /// downloads deleted by signing out is known to be its.
+    @ObservationIgnored private var server: String? = UserDefaults.standard.string(forKey: "downloads.server")
+    /// The profile that was watching when the downloads were deleted by signing out: whose reports the sign-out sends.
     @ObservationIgnored private var signedOutProfileId: String?
+    /// Screens reload: something watched offline has reached the server.
+    @ObservationIgnored var onReportsSent: (() -> Void)?
 
-    /// Signing out: sends what this profile watched offline and not yet sent, with the sign-in that's still working,
-    /// whether or not the downloads have been deleted yet. Another profile's goes unsent: the sign-in is this
-    /// profile's, so it would land in the wrong history.
-    func sendLeftoverProgress(with client: FlexarrClient) async {
-        let pending = leftoverProgress + unsentProgress()
-        let owner = profileId ?? signedOutProfileId
-        leftoverProgress = []
-        signedOutProfileId = nil
-        for (profile, itemId, unsent, isBook) in pending where profile == owner {
-            try? await send(unsent, itemId: itemId, isBook: isBook, with: client)
+    private static let keptReportsFile = folder.appending(path: "unsent-reports.json")
+    /// Watched offline and not yet sent, kept from downloads that have gone (signing out, Delete all) until it's sent
+    /// to the server and profile it was watched as: after the next sign-in there, however long that is.
+    @ObservationIgnored private var keptReports: [UnsentReport] = SavedList.load(UnsentReport.self, from: DownloadStore.keptReportsFile).items {
+        didSet {
+            guard keptReports != oldValue else { return }
+            if keptReports.isEmpty {
+                try? FileManager.default.removeItem(at: Self.keptReportsFile)
+            } else if let data = try? Self.makeEncoder().encode(keptReports) {
+                try? data.write(to: Self.keptReportsFile, options: .atomic)
+            }
         }
     }
 
-    private func unsentProgress() -> [(profileId: String, itemId: String, progress: UnsentProgress, isBook: Bool)] {
-        all.compactMap { d in d.unsent.map { (d.profileId, d.item.id, $0, d.book != nil) } }
+    /// Signing out: sends what this profile watched offline and not yet sent, with the sign-in that's still working,
+    /// whether or not the downloads have been deleted yet. What doesn't go (out of reach, or another profile's, which
+    /// would land in the wrong history) is kept for the next sign-in to this server as that profile.
+    func sendLeftoverProgress(with client: FlexarrClient) async {
+        let owner = attachedProfileId ?? profileId ?? signedOutProfileId
+        signedOutProfileId = nil
+        for download in all where download.profileId == owner && download.unsent != nil {
+            await deliverUnsent(of: download.id, with: client)
+        }
+        await sendKeptReports(with: client, server: UnsentReports.serverKey(client.addresses.home), profileId: owner)
     }
 
+    /// Sends the kept reports that are this server's and profile's. True when any reached it. Stops at the first that
+    /// can't be sent for want of the server, leaving the rest for the next catch-up.
+    @discardableResult
+    private func sendKeptReports(with client: FlexarrClient, server: String?, profileId: String?) async -> Bool {
+        var sent = false
+        for report in UnsentReports.due(in: keptReports, server: server, profileId: profileId) {
+            let unsent = UnsentProgress(position: report.position, finished: report.finished, playedAt: report.playedAt)
+            do {
+                try await send(unsent, itemId: report.itemId, isBook: report.isBook, with: client)
+                keptReports = UnsentReports.removing(report, from: keptReports)
+                sent = true
+            } catch FlexarrClientError.http(status: 404, _) {
+                if let count = UnsentReports.notFoundAgain(report.notFound) {
+                    var counted = report
+                    counted.notFound = count
+                    keptReports = keptReports.map { $0 == report ? counted : $0 }
+                } else {
+                    keptReports = UnsentReports.removing(report, from: keptReports)
+                }
+            } catch {
+                log.warning("Couldn't send offline progress kept from a deleted download", error: error)
+                break
+            }
+        }
+        return sent
+    }
+
+    /// What's still to send of the downloads about to go, kept apart (see `keptReports`). Nothing is kept without knowing
+    /// whose server it was: sent to another, the main profile's would land in that server's history.
+    private func keepUnsentReports() {
+        guard let server else { return }
+        let reports = all.compactMap { download in
+            download.unsent.map {
+                UnsentReport(server: server, profileId: download.profileId, itemId: download.item.id, position: $0.position,
+                             finished: $0.finished, playedAt: $0.playedAt, isBook: download.book != nil, notFound: $0.notFound ?? 0)
+            }
+        }
+        if !reports.isEmpty { keptReports = UnsentReports.adding(reports, to: keptReports) }
+    }
+
+    /// Every download goes, whoever's it was (signing out, or Settings' Delete all; the server keeps its record of what
+    /// was declined). What was watched on them and not yet sent stays, to be sent (see `keptReports`).
     func deleteAll() {
-        leftoverProgress += unsentProgress()
+        keepUnsentReports()
         signedOutProfileId = profileId ?? signedOutProfileId
         for id in all.map(\.id) { delete(id) }
         let pictures = collections.compactMap(\.imageFileName)
@@ -1349,20 +1414,45 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         if finished, let updated = entry(for: itemId) { fetchNext(after: updated) }
         // A place saved part way (every few seconds while it plays) goes on its own; the end of it brings everything
         // up to date (what's finished with is deleted once that's sent).
-        if finished { Task { await catchUp() } } else { Task { await sendProgress(of: download.id) } }
+        let id = download.id
+        let sending = Task { await sendProgress(of: id) }
+        reportsSent = sending
+        if finished { Task { await sending.value; await catchUp() } }
     }
 
     /// Sends one download's place, saved while it played, if there's one to send and the server's in reach.
     private func sendProgress(of id: String) async {
         guard let client, isOnline, let download = all.first(where: { $0.id == id }), download.profileId == profileId,
-              let unsent = download.unsent else { return }
+              download.unsent != nil else { return }
+        await deliverUnsent(of: id, with: client)
+    }
+
+    /// Sends one download's unsent place. True once the server has it. A title the server says it hasn't is tried a
+    /// few times (on separate catch-ups) and then let go; anything else keeps it for the next catch-up.
+    @discardableResult
+    private func deliverUnsent(of id: String, with client: FlexarrClient) async -> Bool {
+        guard let download = all.first(where: { $0.id == id }), let unsent = download.unsent else { return false }
         do {
             try await send(unsent, itemId: download.item.id, isBook: download.book != nil, with: client)
             update(id) { if $0.unsent == unsent { $0.unsent = nil } }
+            // Deleted meanwhile (signing out while it was on its way): what was kept from it has gone too.
+            keptReports.removeAll { $0.profileId == download.profileId && $0.itemId == download.item.id && $0.playedAt <= unsent.playedAt }
+            return true
+        } catch FlexarrClientError.http(status: 404, _) {
+            let count = UnsentReports.notFoundAgain(unsent.notFound ?? 0)
+            if count == nil { log.warning("The server has no such title: dropping the offline progress of \(download.item.title)") }
+            update(id) {
+                guard $0.unsent == unsent else { return }
+                if let count { $0.unsent?.notFound = count } else { $0.unsent = nil }
+            }
         } catch {
             log.warning("Couldn't send offline progress", error: error)
         }
+        return false
     }
+
+    /// The report the last place recorded from a download went in, so the screens reload once the server has it.
+    @ObservationIgnored private(set) var reportsSent: Task<Void, Never>?
 
     /// Where listening to a downloaded book got to: kept here, and sent with its time once there's a connection.
     func recordBook(itemId: String, position: Double, ended: Bool) {

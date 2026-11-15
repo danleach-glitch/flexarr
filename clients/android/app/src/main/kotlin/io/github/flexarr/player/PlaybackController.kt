@@ -1545,8 +1545,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     }
 
     /** Watched from a download: kept with it, finished once it ended or the credits began, and sent to the server later. */
-    private fun recordOffline(current: PlaybackInfo, at: Double, ended: Boolean) {
-        model.downloads.record(current.item.id, at, finished = ended || isPastCredits(current, at))
+    private fun recordOffline(current: PlaybackInfo, at: Double, ended: Boolean, stopped: Boolean = false) {
+        model.downloads.record(current.item.id, at, finished = ended || isPastCredits(current, at), stopped = stopped)
     }
 
     /** The player closed: the last position, then the session ends (finishing even though the screen has gone). */
@@ -1573,7 +1573,9 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         }
         player.release()
         if (isOffline) {
-            info?.let { if (model.recordsHistory) recordOffline(it, at, ended = false) }
+            // Sent now rather than with the next minute's catch-up: once it's there the screens load again (the reload
+            // here shows what this phone has; that one, what the server has).
+            info?.let { if (model.recordsHistory) recordOffline(it, at, ended = false, stopped = true) }
             model.watchStateChanged()
             return
         }

@@ -6,6 +6,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Apps
 
+- On iPhone, iPad and Android, watching a download, online or offline, now reaches your watch history: Continue watching, the resume point and the watched mark catch up as soon as the server is back in reach (or the app comes to the front), on that device and the others. Plays not yet sent survive signing out and go once you sign in to the same server and profile again.
 - Signed in to a server older than 0.59, the apps' list of devices waiting to connect, recent searches and language list show as empty rather than as an error.
 - On iPad, the Offline notice no longer covers the back button in Downloads: it's now a small pill at the bottom of the page.
 - On iPhone, the mini player no longer hides the bottom of a page: Sign out, an album's last track and each list's last rows stay in reach.

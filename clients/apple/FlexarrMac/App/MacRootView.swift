@@ -142,6 +142,7 @@ struct MacRootView: View {
             downloads.isPlaying = { [weak model] id in model?.music.isPlayingFile(of: id) == true }
             model.onPodcastHeard = { [downloads] in Task { await downloads.catchUp() } }
             model.onBookHeard = { [downloads] id in downloads.bookFinished(itemId: id) }
+            downloads.onReportsSent = { [weak model] in model?.offlineReportsSent() }
             downloads.attach(client: model.client, profileId: model.currentProfile?.id)
             if model.client != nil { notifications.refresh() }
         }

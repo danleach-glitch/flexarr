@@ -1611,6 +1611,12 @@ final class AppModel {
     @ObservationIgnored private var listeningRefresh: Task<Void, Never>?
     @ObservationIgnored private var lastListeningRefresh = Date.distantPast
 
+    /// Watching done from a download has reached the server (sent once it was back in reach, or after signing in
+    /// again): the screens show it, as they would after streaming.
+    func offlineReportsSent() {
+        watchStateChanged()
+    }
+
     /// Something was watched or marked: titles can leave the watchlist.
     private func watchStateChanged() {
         invalidate()

@@ -49,6 +49,8 @@ import io.github.flexarr.core.checkOffline
 import io.github.flexarr.core.PlaylistSummary
 import io.github.flexarr.core.ServerAnswer
 import io.github.flexarr.core.TransferQueue
+import io.github.flexarr.core.UnsentReport
+import io.github.flexarr.core.UnsentReports
 import io.github.flexarr.core.UserData
 import io.github.flexarr.core.deleteDownload
 import io.github.flexarr.core.downloadOptions
@@ -185,6 +187,32 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         set(value) {
             field = value
             prefs.edit { putStringSet(UNSENT_DELETES, value) }
+        }
+
+    /**
+     * The server signed in to (see [UnsentReports.serverKey]), remembered so what's kept from downloads deleted by
+     * signing out is known to be its. Null for a family guest, whose address is this phone's own loopback one whoever's
+     * Flexarr it joins: its plays are never kept past its downloads.
+     */
+    private var server: String? = prefs.getString(SERVER, null)
+        set(value) {
+            field = value
+            prefs.edit { if (value == null) remove(SERVER) else putString(SERVER, value) }
+        }
+
+    /**
+     * Watched offline and not yet sent, kept from downloads that have gone (signing out, Delete all) until it's sent to
+     * the server and profile it was watched as: after the next sign-in there, however long that is.
+     */
+    private var keptReports: List<UnsentReport> = prefs.getString(KEPT_REPORTS, null)
+        ?.let { runCatching { FlexarrClient.json.decodeFromString(ListSerializer(UnsentReport.serializer()), it) }.getOrNull() }
+        .orEmpty()
+        set(value) {
+            if (value == field) return
+            field = value
+            prefs.edit {
+                if (value.isEmpty()) remove(KEPT_REPORTS) else putString(KEPT_REPORTS, FlexarrClient.json.encodeToString(ListSerializer(UnsentReport.serializer()), value))
+            }
         }
 
     private var client: FlexarrClient? = null
@@ -437,13 +465,18 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
      * if it's the same server, and catch up from where they were; for another server they go, as signing out would,
      * whole audiobooks with them (the main profile has the same id on every server, so they'd show as this server's).
      */
-    fun signingIn(address: String) {
-        val keptFor = prefs.getString(KEPT_FOR, null) ?: return
-        prefs.edit { remove(KEPT_FOR) }
-        if (keptFor == address) return
-        flexarrLog.info("Signed in to another server: deleting the downloads kept from the last one")
-        signedOut(null)
-        model.bookDownloads.deleteAll(null)
+    fun signingIn(address: String, guest: Boolean = false) {
+        val keptFor = prefs.getString(KEPT_FOR, null)
+        if (keptFor != null) {
+            prefs.edit { remove(KEPT_FOR) }
+            if (keptFor != address) {
+                flexarrLog.info("Signed in to another server: deleting the downloads kept from the last one")
+                // What was watched on them is kept for the last server, so this happens before the new one's remembered.
+                signedOut(null)
+                model.bookDownloads.deleteAll(null)
+            }
+        }
+        server = if (guest) null else UnsentReports.serverKey(address)
     }
 
     /**
@@ -555,19 +588,9 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         var sent = false
         try {
             for (download in all.filter { it.profileId == profileId && it.unsent != null }) {
-                val unsent = download.unsent ?: continue
-                try {
-                    client.reportOfflineProgress(download.item.id, unsent.position, unsent.finished, Instant.ofEpochMilli(unsent.playedAtMillis))
-                    update(download.id) { if (it.unsent == unsent) it.copy(unsent = null) else it }
-                    sent = true
-                } catch (e: FlexarrException.Http) {
-                    // The title's gone from the server: there's nothing left to tell it about.
-                    if (e.status == 404) update(download.id) { if (it.unsent == unsent) it.copy(unsent = null) else it }
-                    else flexarrLog.warning("Couldn't send offline progress", e)
-                } catch (e: FlexarrException) {
-                    if (e !is FlexarrException.Unreachable) flexarrLog.warning("Couldn't send offline progress", e)
-                }
+                if (deliverUnsent(download.id, client)) sent = true
             }
+            if (sendKeptReports(client, server, profileId)) sent = true
         } finally {
             if (sent) model.watchStateChanged()
         }
@@ -589,6 +612,72 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         reconcilePodcasts()
         // Whole books are kept apart, and catch up with the rest.
         model.bookDownloads.catchUp()
+    }
+
+    /**
+     * Sends one download's unsent place. True once the server has it. A title the server says it hasn't is tried a few
+     * times (on separate catch-ups) and then let go; anything else keeps it for the next catch-up.
+     */
+    private suspend fun deliverUnsent(id: String, client: FlexarrClient): Boolean {
+        val download = byId(id) ?: return false
+        val unsent = download.unsent ?: return false
+        try {
+            client.reportOfflineProgress(download.item.id, unsent.position, unsent.finished, Instant.ofEpochMilli(unsent.playedAtMillis))
+            update(id) { if (it.unsent == unsent) it.copy(unsent = null) else it }
+            // Deleted meanwhile (signing out while it was on its way): what was kept from it has gone too.
+            keptReports = keptReports.filterNot { it.profileId == download.profileId && it.itemId == download.item.id && it.playedAtMillis <= unsent.playedAtMillis }
+            return true
+        } catch (e: FlexarrException.Http) {
+            if (e.status == 404) {
+                val count = UnsentReports.notFoundAgain(unsent.notFound)
+                if (count == null) flexarrLog.warning("The server has no such title: dropping the offline progress of ${download.item.title}")
+                update(id) { if (it.unsent == unsent) it.copy(unsent = count?.let { n -> unsent.copy(notFound = n) }) else it }
+            } else {
+                flexarrLog.warning("Couldn't send offline progress", e)
+            }
+        } catch (e: FlexarrException) {
+            if (e !is FlexarrException.Unreachable) flexarrLog.warning("Couldn't send offline progress", e)
+        }
+        return false
+    }
+
+    /**
+     * Sends the kept reports that are [server]'s and [profile]'s. True when any reached it. Stops at the first that can't
+     * be sent for want of the server, leaving the rest for the next catch-up.
+     */
+    private suspend fun sendKeptReports(client: FlexarrClient, server: String?, profile: String?): Boolean {
+        var sent = false
+        for (report in UnsentReports.due(keptReports, server, profile)) {
+            try {
+                client.reportOfflineProgress(report.itemId, report.position, report.finished, Instant.ofEpochMilli(report.playedAtMillis))
+                keptReports = UnsentReports.removing(report, keptReports)
+                sent = true
+            } catch (e: FlexarrException.Http) {
+                if (e.status == 404) {
+                    val count = UnsentReports.notFoundAgain(report.notFound)
+                    keptReports = if (count == null) UnsentReports.removing(report, keptReports) else keptReports.map { if (it == report) report.copy(notFound = count) else it }
+                } else {
+                    flexarrLog.warning("Couldn't send offline progress kept from a deleted download", e)
+                    break
+                }
+            } catch (e: FlexarrException) {
+                if (e !is FlexarrException.Unreachable) flexarrLog.warning("Couldn't send offline progress kept from a deleted download", e)
+                break
+            }
+        }
+        return sent
+    }
+
+    /**
+     * What's still to send of the downloads about to go, kept apart ([keptReports]). Nothing is kept without knowing whose
+     * server it was: sent to another, the main profile's would land in that server's history.
+     */
+    private fun keepUnsentReports() {
+        val server = server ?: return
+        val reports = all.mapNotNull { download ->
+            download.unsent?.let { UnsentReport(server, download.profileId, download.item.id, it.position, it.finished, it.playedAtMillis, it.notFound) }
+        }
+        if (reports.isNotEmpty()) keptReports = UnsentReports.adding(reports, keptReports)
     }
 
     /**
@@ -1109,33 +1198,33 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         }
     }
 
-    /** Every download goes (Settings' Delete all). What was watched offline is sent first, while it can be. */
+    /**
+     * Every download goes (Settings' Delete all). What was watched on them and not yet sent stays, and is sent now if the
+     * server's in reach, or at a catch-up once it is.
+     */
     fun deleteAll() {
         model.bookDownloads.deleteAll()
         forgetAllStarted()
         if (!loaded) clearedBeforeLoad = true
-        val client = currentClient
-        val pending = all.mapNotNull { download -> download.unsent?.let { download.item.id to it } }
+        keepUnsentReports()
         remove(all.map { it.id }, tellServer = true, inBackground = true)
         val pictures = collections.mapNotNull { it.imageFileName }
         collections = emptyList()
         saveCollections()
         pictures.forEach(::removeImageIfUnused)
-        if (client != null && pending.isNotEmpty()) {
-            scope.launch {
-                pending.forEach { (itemId, unsent) ->
-                    runCatching { client.reportOfflineProgress(itemId, unsent.position, unsent.finished, Instant.ofEpochMilli(unsent.playedAtMillis)) }
-                }
-            }
-        }
+        scope.launch { catchUp() }
     }
 
     /**
      * Signing out: what was watched offline is sent and the server told to drop its copies, with the sign-in that still
-     * works, then every download goes, whoever's it was. The returned job ends once the server's been told.
+     * works, then every download goes, whoever's it was. What isn't sent (out of reach, or another profile's, which would
+     * land in the wrong history) is kept for the next sign-in to this server as that profile. The returned job ends once
+     * the server's been told.
      */
     fun signedOut(client: FlexarrClient?): Job {
-        val pending = all.mapNotNull { download -> download.unsent?.let { download.item.id to it } }
+        val owner = profileId
+        val signedOutOf = server
+        keepUnsentReports()
         val ids = all.map { it.id }
         work.cancelAllWorkByTag(WORK_TAG)
         UserInitiatedTransfers.cancelAll(context)
@@ -1155,23 +1244,24 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         this.client = null
         return scope.launch {
             if (client == null) return@launch
-            pending.forEach { (itemId, unsent) ->
-                runCatching { client.reportOfflineProgress(itemId, unsent.position, unsent.finished, Instant.ofEpochMilli(unsent.playedAtMillis)) }
-            }
+            sendKeptReports(client, signedOutOf, owner)
             ids.forEach { runCatching { client.deleteDownload(it) } }
         }
     }
 
     // Playing
 
-    /** Watched or heard to [position] (or the end) from a download: kept here and sent when the server can be reached. */
-    fun record(itemId: String, position: Double, finished: Boolean) {
+    /**
+     * Watched or heard to [position] (or the end) from a download: kept here and sent when the server can be reached.
+     * [stopped]: the player closed there, so it goes now and the screens load again once it's sent.
+     */
+    fun record(itemId: String, position: Double, finished: Boolean, stopped: Boolean = false) {
         val download = entry(itemId) ?: return
         update(download.id) { it.recorded(position, finished, System.currentTimeMillis()) }
         if (finished) byId(download.id)?.let(::fetchNext)
-        // Playing records every few seconds: sent at once when it's finished, else at most once a minute (what's
-        // recorded meanwhile goes with it, as catching up sends the latest).
-        if (finished) {
+        // Playing records every few seconds: sent at once when it's finished or the player closed, else at most once
+        // a minute (what's recorded meanwhile goes with it, as catching up sends the latest).
+        if (finished || stopped) {
             scope.launch { catchUp() }
         } else if (recordedCatchUp?.isActive != true) {
             val wait = (lastRecordedCatchUp + RECORDED_CATCH_UP_MS - System.currentTimeMillis()).coerceAtLeast(0)
@@ -1242,6 +1332,8 @@ class DownloadStore(private val context: Context, private val model: AppModel) {
         private const val SKIPPED_NEXT = "skippedNextEpisodes"
         private const val FRESH_PLACE_MS = 3_000L
         private const val UNSENT_DELETES = "unsentDeletes"
+        private const val SERVER = "server"
+        private const val KEPT_REPORTS = "keptReports"
         private const val STARTED_GROUPS = "startedGroups"
         /** The server whose downloads were kept when it refused this device's sign-in. */
         private const val KEPT_FOR = "keptFor"
