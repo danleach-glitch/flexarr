@@ -132,6 +132,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - With VA-API, HDR films converted for an SDR screen are mapped from their full 10-bit picture, which stops the conversion failing over to the much slower processor.
 - A 4K HDR film with burned-in subtitles is shrunk before its colours are converted, like one without, so it's several times lighter on the processor.
 - Looking at a title's page gets its stream ready more gently: at low priority with only the opening made, and not at all on a server converting in software while someone is watching a converted stream.
+- MP4 and MOV films that can be played as they are now are from their very first play, instead of being converted the first time while Flexarr reads the whole file; and a film watched now and then isn't read end to end again every few months.
 
 ### Music, audiobooks and podcasts
 

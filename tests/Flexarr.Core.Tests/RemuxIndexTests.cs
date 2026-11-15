@@ -100,4 +100,23 @@ public sealed class RemuxIndexTests : IDisposable
 
         Assert.Equal(3, File.ReadAllLines(runs).Length);
     }
+
+    [Fact]
+    public async Task ASavedIndex_IsMarkedUsedWhenRead_SoTheJanitorCountsFromItsLastPlay()
+    {
+        var film = Path.Combine(_dir, "recording.ts");
+        File.WriteAllText(film, "x");
+        var info = new FileInfo(film);
+        var key = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(
+            string.Create(CultureInfo.InvariantCulture, $"{film}|{info.Length}|{info.LastWriteTimeUtc.Ticks}"))))[..32];
+        var cache = Directory.CreateDirectory(Path.Combine(_dir, "cache", "remux-index")).FullName;
+        var saved = Path.Combine(cache, key + ".json");
+        File.WriteAllText(saved, $$"""{"keyframes":[0,2,4],"video":{"codec":"h264","width":1920,"height":1080,"interlaced":false},"factsVersion":{{RemuxIndex.FactsVersion}}}""");
+        File.SetLastWriteTimeUtc(saved, DateTime.UtcNow.AddDays(-80));
+
+        using var index = new RemuxIndex(new TranscodeSettings { CacheDirectory = Path.Combine(_dir, "cache") }, "ffprobe-not-needed", NullLogger<RemuxIndex>.Instance);
+        Assert.NotNull(await index.GetAsync(film, CancellationToken.None));
+
+        Assert.True(DateTime.UtcNow - File.GetLastWriteTimeUtc(saved) < TimeSpan.FromMinutes(1));
+    }
 }

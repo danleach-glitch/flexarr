@@ -36,6 +36,57 @@ public sealed class MatroskaCuesTests : IDisposable
         Assert.Contains(cues, t => Math.Abs(t - 7.25) < 0.05);
     }
 
+    [Theory]
+    [InlineData("h264.mp4", "libx264", "-bf 3 -g 50 -sc_threshold 40")]
+    [InlineData("hevc.mov", "libx265", "-x265-params log-level=error:keyint=60 -tag:v hvc1")]
+    [InlineData("offset.mp4", "libx264", "-bf 2 -g 45 -movflags +faststart -output_ts_offset 2")]
+    [InlineData("scenecuts.m4v", "libx264", "-g 48 -force_key_frames 3.5,7.25,19.9")]
+    public async Task WhenFfmpegIsInstalled_AnMp4sSampleTables_MatchEveryKeyframeFfprobeFinds(string name, string codec, string options)
+    {
+        if (!await HasFfmpegAsync())
+        {
+            return;
+        }
+
+        var clip = Path.Combine(_dir, name);
+        await RunAsync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=24000/1001", "-f", "lavfi", "-i", "sine", "-t", "30",
+            "-c:v", codec, "-pix_fmt", "yuv420p", "-c:a", "aac", .. options.Split(' '), clip]);
+        var expected = (await RunAsync("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "packet=pts_time,flags", "-of", "csv=p=0", clip))
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Where(l => l.Split(',')[1].Contains('K'))
+            .Select(l => double.Parse(l.Split(',')[0], CultureInfo.InvariantCulture))
+            .ToList();
+
+        var times = Mp4SyncSamples.Read(clip);
+
+        Assert.NotNull(times);
+        Assert.True(expected.Count > 3);
+        Assert.Equal(expected.Count, times.Count);
+        Assert.All(expected.Zip(times), pair => Assert.Equal(pair.First, pair.Second, 3));
+    }
+
+    [Fact]
+    public async Task WhenFfmpegIsInstalled_AFragmentedMp4_IsLeftToTheScan()
+    {
+        if (!await HasFfmpegAsync())
+        {
+            return;
+        }
+
+        var clip = Path.Combine(_dir, "frag.mp4");
+        await RunAsync("ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=24", "-t", "5", "-c:v", "libx264", "-g", "24",
+            "-movflags", "+frag_keyframe+empty_moov", clip);
+
+        Assert.Null(Mp4SyncSamples.Read(clip));
+    }
+
+    [Theory]
+    [InlineData(new byte[0])]
+    [InlineData(new byte[] { 0x00, 0x00, 0x00, 0x08, 0x66, 0x74, 0x79, 0x70 })]
+    [InlineData(new byte[] { 0x00, 0x00, 0x00, 0x10, 0x6D, 0x6F, 0x6F, 0x76, 0x00, 0x00, 0x00, 0xFF, 0x74, 0x72, 0x61, 0x6B })]
+    [InlineData(new byte[] { 0x1A, 0x45, 0xDF, 0xA3, 0x80, 0x18, 0x53, 0x80 })]
+    public void NotAnMp4WithSampleTables_IsNull(byte[] data) => Assert.Null(Mp4SyncSamples.Read(new MemoryStream(data)));
+
     /// <summary>
     /// ffmpeg writes a CRC-32 element before the track entries. Its four bytes aren't elements, and once happened to
     /// look like a three-byte element ID with a size that ran off the end, which lost the whole index.
