@@ -650,6 +650,8 @@
  "Couldn’t re-sync subtitles": "Couldn’t re-sync subtitles",
  "Couldn’t reach Apple’s notification service. Check this {device} is online and try again.": "Couldn’t reach Apple’s notification service. Check this {device} is online and try again.",
  "Couldn’t reach Flexarr’s relay. Try again in a minute.": "Couldn’t reach Flexarr’s relay. Try again in a minute.",
+ "Couldn’t reach Google’s notification service. Check this phone is online and try again.": "Couldn’t reach Google’s notification service. Check this phone is online and try again.",
+ "Couldn’t reach Google’s notification service. Check this tablet is online and try again.": "Couldn’t reach Google’s notification service. Check this tablet is online and try again.",
  "Couldn’t reach TMDB from the server.": "Couldn’t reach TMDB from the server.",
  "Couldn’t reach Tailscale ({error}).": "Couldn’t reach Tailscale ({error}).",
  "Couldn’t reach Trakt.": "Couldn’t reach Trakt.",
