@@ -153,7 +153,12 @@ public sealed class PlaybackService(
                 markerQueue.Prioritize(seasonId); // Analyse this season now so skip-intro is ready for the next episode.
             }
 
-            subtitleCache.Prefetch(file, subtitles);
+            // Only when subtitles are likely to be shown: extracting them reads the whole file, as the stream starts.
+            // Turned on later, a track is read when it's asked for.
+            if (subtitleKey is not null || (request.SubtitleKey is not "off" && preferences.Subtitle is not null))
+            {
+                subtitleCache.Prefetch(file, subtitles);
+            }
         }
 
         if (!request.Prepare)

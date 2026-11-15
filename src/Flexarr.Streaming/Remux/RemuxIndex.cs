@@ -39,8 +39,8 @@ public sealed record RemuxInfo(IReadOnlyList<double> Keyframes, VideoFacts Video
 
 /// <summary>
 /// Finds and remembers each file's <see cref="RemuxInfo"/>. MKVs and MP4s index their keyframes, which is read in
-/// milliseconds; other files (MPEG-TS recordings, AVI) need every packet scanned, which is done in the background (one at
-/// a time) for next time.
+/// milliseconds; other files (MPEG-TS recordings, AVI) need every packet scanned, which is done in the background (one whole-file
+/// read at a time, see <see cref="WholeFileReads"/>) for next time.
 /// </summary>
 public sealed partial class RemuxIndex(TranscodeSettings settings, string ffprobePath, ILogger<RemuxIndex> logger) : IDisposable
 {
@@ -49,12 +49,14 @@ public sealed partial class RemuxIndex(TranscodeSettings settings, string ffprob
     private readonly ConcurrentDictionary<string, bool> _scanning = new();
     private readonly ConcurrentDictionary<string, DateTime> _touched = new();
     private readonly ConcurrentDictionary<(string Key, int Stream), double?> _firstPackets = new();
-    private readonly SemaphoreSlim _scan = new(1, 1);
 
     /// <summary>The facts as this server reads them: with the HEVC record and the frame rate.</summary>
     public const int FactsVersion = 1;
 
-    public void Dispose() => _scan.Dispose();
+    public void Dispose()
+    {
+        // Nothing of its own to free: background scans share WholeFileReads.Gate.
+    }
 
     /// <summary>The file's info, or null when it isn't known yet (a scan is then started for next time).</summary>
     public async Task<RemuxInfo?> GetAsync(string path, CancellationToken ct)
@@ -179,7 +181,7 @@ public sealed partial class RemuxIndex(TranscodeSettings settings, string ffprob
 
         _ = Task.Run(async () =>
         {
-            await _scan.WaitAsync().ConfigureAwait(false);
+            await WholeFileReads.Gate.WaitAsync().ConfigureAwait(false);
             try
             {
                 var started = Stopwatch.StartNew();
@@ -196,7 +198,7 @@ public sealed partial class RemuxIndex(TranscodeSettings settings, string ffprob
             }
             finally
             {
-                _scan.Release();
+                WholeFileReads.Gate.Release();
                 _scanning.TryRemove(key, out _);
             }
         });
