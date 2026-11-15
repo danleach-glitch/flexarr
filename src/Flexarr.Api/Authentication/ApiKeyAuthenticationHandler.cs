@@ -55,7 +55,8 @@ public sealed class ApiKeyAuthenticationHandler(
     /// a browser let in by the home network or the owner's Tailscale account), such a client is answered as no profile
     /// chosen: <c>/me</c> says <c>chooseProfile</c>, and everything but choosing one is refused with 403 and
     /// <c>chooseProfile: true</c> (see <see cref="ProfileChoiceGate"/>). Without the header, the main profile, as before,
-    /// so apps that don't send it are unchanged.
+    /// so apps that don't send it are unchanged; but a paired device or browser whose app has sent it once is held to it
+    /// (see <see cref="SignIn.AsksProfile"/>).
     /// </summary>
     public const string ProfileChoiceHeader = "X-Flexarr-Profile-Choice";
 
@@ -359,7 +360,14 @@ public sealed class ApiKeyAuthenticationHandler(
         }
 
         var guest = signIn is { Guest: true };
-        var choose = mainByDefault && !admin && Request.Headers[ProfileChoiceHeader].ToString() == "1"
+        // A sign-in whose app has once said it can ask is held to that, so leaving the header off doesn't get round it.
+        var asks = Request.Headers[ProfileChoiceHeader].ToString() == "1";
+        if (asks && mainByDefault && signIn is not null)
+        {
+            signIns.NoteAsksProfile(signIn);
+        }
+
+        var choose = mainByDefault && !admin && (asks || signIn is { AsksProfile: true })
             && await db.Profiles.AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.PinHash != null, Context.RequestAborted);
         var canUnlock = !admin && !guest && profile == PlaybackState.DefaultUser;
         var claims = new List<Claim> { new(FlexarrClaims.Method, method), new(FlexarrClaims.Profile, profile) };
