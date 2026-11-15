@@ -46,6 +46,33 @@ class LoaderMemoryTest {
     }
 
     @Test
+    fun `loaders side by side on a screen each get their own answer back`() {
+        lateinit var nav: NavHostController
+        rule.setContent {
+            nav = rememberNavController()
+            NavHost(nav, startDestination = "library") {
+                composable("library") {
+                    // As the library page has them: one after another, of different types.
+                    val browse = rememberLoader("lib") { "browse" }
+                    val library = rememberLoader("lib") { 42 }
+                    val genres = rememberLoader("lib") { listOf("Drama") }
+                    Loaded(browse) { b ->
+                        Loaded(library) { l ->
+                            Loaded(genres) { g -> Text("$b ${l + 1} ${g.single()}") }
+                        }
+                    }
+                }
+                composable("title") { Text("A title") }
+            }
+        }
+        rule.onNodeWithText("browse 43 Drama").assertExists()
+        rule.runOnIdle { nav.navigate("title") }
+        rule.onNodeWithText("A title").assertExists()
+        rule.runOnIdle { nav.popBackStack() }
+        rule.onNodeWithText("browse 43 Drama").assertExists()
+    }
+
+    @Test
     fun `a kept answer stands only for what it was loaded for, and while it's fresh`() {
         val now = System.currentTimeMillis()
         val kept = LoaderMemory.Kept(listOf("a", 1, null), "answer", now)
@@ -56,10 +83,10 @@ class LoaderMemoryTest {
         assertFalse(LoaderMemory.isCurrent(null, kept.keys))
 
         val memory = LoaderMemory()
-        memory.keep(7L, kept)
-        assertEquals("answer", memory.restore(7L, listOf("a", 2, null))?.value)
+        memory.keep("a", kept)
+        assertEquals("answer", memory.restore("a", listOf("a", 2, null))?.value)
         // Another profile signed in: nothing of the last one's is shown.
-        assertEquals(null, memory.restore(7L, listOf("a", 1, "someone else")))
-        assertEquals(null, memory.restore(8L, kept.keys))
+        assertEquals(null, memory.restore("a", listOf("a", 1, "someone else")))
+        assertEquals(null, memory.restore("b", kept.keys))
     }
 }

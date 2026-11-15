@@ -5,7 +5,7 @@ import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.logging.FlexarrLog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.currentCompositeKeyHashCode
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
@@ -95,20 +95,26 @@ internal class LoaderMemory : ViewModel() {
     /** [keys]: what [rememberLoader] was handed, and who was signed in. */
     class Kept(val keys: List<Any?>, val value: Any?, val loadedAt: Long)
 
-    private val answers = HashMap<Any, Kept>()
+    // The most recently kept first to go when there are many: a TV's screens all share the activity's memory.
+    private val answers = object : LinkedHashMap<String, Kept>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Kept>?): Boolean = size > MAX_KEPT
+    }
 
     /**
      * What to show at [slot], loaded for [keys], on coming back: the answer kept there when it was loaded for the same
      * sign-in (the screen's own keys, a title's id say, don't change while it's in the back stack; a watched-state
      * version that moved meanwhile fetches again with it showing), or null.
      */
-    fun restore(slot: Any, keys: List<Any?>): Kept? = answers[slot]?.takeIf { it.keys.lastOrNull() == keys.lastOrNull() }
+    fun restore(slot: String, keys: List<Any?>): Kept? = answers[slot]?.takeIf { it.keys.lastOrNull() == keys.lastOrNull() }
 
-    fun keep(slot: Any, kept: Kept) {
+    fun keep(slot: String, kept: Kept) {
         answers[slot] = kept
     }
 
     companion object {
+        /** How many answers are kept at most, for screens that aren't each in a NavHost entry of their own. */
+        const val MAX_KEPT = 100
+
         /**
          * Whether the [kept] answer can stand on coming back, loaded for [keys], instead of being fetched again: for
          * just the same, and no more than a minute old ([Freshness]).
@@ -128,7 +134,9 @@ internal class LoaderMemory : ViewModel() {
 @Composable
 fun <T> rememberLoader(vararg keys: Any?, onRefreshFailed: ((Exception) -> Unit)? = null, load: suspend () -> T): Loader<T> {
     val memory = LocalViewModelStoreOwner.current?.let { viewModel<LoaderMemory>(it) }
-    val slot = currentCompositeKeyHashCode
+    // Each loader's own place in the memory, kept with the screen's saved state, so coming back gives each loader its
+    // own answer. Not the composite key hash: loaders side by side on a screen share one (their calls have no group).
+    val slot = rememberSaveable { java.util.UUID.randomUUID().toString() }
     // Who's signed in, so one profile's answer is never shown to another (a child's leaves out what it may not see).
     val signIn = (LocalContext.current.applicationContext as? FlexarrApplication)?.signedInAs
     val identity = keys.toList() + listOf(signIn)
