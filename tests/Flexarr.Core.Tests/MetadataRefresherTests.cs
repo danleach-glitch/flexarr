@@ -64,6 +64,59 @@ public sealed class MetadataRefresherTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AShowWithANewBlankEpisode_IsDueHourly_UntilItsFilledIn()
+    {
+        var tv = new Library { Name = "TV", Type = LibraryType.TvShows, Folders = [new LibraryFolder { Path = "/tv" }] };
+        _db.Libraries.Add(tv);
+        await _db.SaveChangesAsync();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var twoHoursAgo = DateTime.UtcNow.AddHours(-2);
+
+        // Aired three days ago, imported before TVDB had a description or picture: due again after an hour.
+        await AddShowAsync(tv, "Rivals", twoHoursAgo, today.AddDays(-3), overview: null, thumb: null);
+        // Only the picture missing is enough.
+        await AddShowAsync(tv, "Slow Horses", twoHoursAgo, today.AddDays(-1), overview: "Jackson's day.", thumb: null);
+        // Tried half an hour ago: not again yet.
+        await AddShowAsync(tv, "Severance", DateTime.UtcNow.AddMinutes(-30), today.AddDays(-2), overview: null, thumb: null);
+        // Filled in: back to the weekly refresh.
+        await AddShowAsync(tv, "Andor", twoHoursAgo, today.AddDays(-2), overview: "Cassian runs.", thumb: "https://image.test/andor.jpg");
+        // Blank, but aired too long ago to be waiting on TVDB.
+        await AddShowAsync(tv, "Taskmaster", twoHoursAgo, today.AddDays(-30), overview: null, thumb: null);
+        // Blank, but its file has gone.
+        await AddShowAsync(tv, "Gone", twoHoursAgo, today.AddDays(-3), overview: null, thumb: null, missing: true);
+
+        var before = await _db.MediaItems.AsNoTracking().Where(i => i.LibraryId == tv.Id && i.Kind == MediaKind.Series)
+            .ToDictionaryAsync(i => i.Title, i => i.MetadataUpdatedAt);
+        var result = await Refresher().RefreshDueAsync(tv, 25, [], default);
+
+        Assert.Equal(2, result.FromArr + result.FromLookup + result.Unmatched + result.FromLocal);
+        var after = await _db.MediaItems.AsNoTracking().Where(i => i.LibraryId == tv.Id && i.Kind == MediaKind.Series)
+            .ToDictionaryAsync(i => i.Title, i => i.MetadataUpdatedAt);
+        Assert.Equal(["Rivals", "Slow Horses"], after.Where(a => a.Value != before[a.Key]).Select(a => a.Key).Order());
+    }
+
+    private async Task AddShowAsync(Library library, string title, DateTime updatedAt, DateOnly aired, string? overview, string? thumb, bool missing = false)
+    {
+        var show = new MediaItem
+        {
+            LibraryId = library.Id, Kind = MediaKind.Series, Title = title, SortTitle = title.ToLowerInvariant(),
+            Path = $"/tv/{title}", MetadataUpdatedAt = updatedAt, PosterUrl = $"https://image.test/{title}.jpg",
+        };
+        var season = new MediaItem
+        {
+            LibraryId = library.Id, Kind = MediaKind.Season, Title = "Season 1", SortTitle = "season 1", SeasonNumber = 1,
+            Parent = show, MetadataUpdatedAt = updatedAt,
+        };
+        _db.MediaItems.AddRange(show, season, new MediaItem
+        {
+            LibraryId = library.Id, Kind = MediaKind.Episode, Title = "Episode 1", SortTitle = "episode 1", SeasonNumber = 1, EpisodeNumber = 1,
+            Parent = season, ReleaseDate = aired, Overview = overview, ThumbUrl = thumb, MetadataUpdatedAt = updatedAt,
+            MissingSince = missing ? DateTime.UtcNow.AddDays(-1) : null,
+        });
+        await _db.SaveChangesAsync();
+    }
+
+    [Fact]
     public async Task ATimedRefresh_TakesTheLongestDueFirst_AFewAtATime()
     {
         var now = DateTime.UtcNow;

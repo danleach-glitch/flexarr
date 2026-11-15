@@ -37,6 +37,14 @@ public sealed partial class MetadataRefresher(
     private static readonly TimeSpan RetryUnmatchedAfter = TimeSpan.FromDays(1);
 
     /// <summary>
+    /// A show with an episode aired in the last <see cref="NewEpisodesFor"/> that still has no description or picture is
+    /// due again this often: Sonarr imports an episode as it airs, before TVDB has either, and fills them in hours later.
+    /// </summary>
+    private static readonly TimeSpan RetryBlankEpisodesAfter = TimeSpan.FromHours(1);
+
+    private const int NewEpisodesFor = 21;
+
+    /// <summary>
     /// Covers that couldn't be read (without Lidarr), by item and the cover's address, and when to try again: a day on,
     /// not every scan. Kept in memory, so a restart tries each once more.
     /// </summary>
@@ -1922,12 +1930,20 @@ public sealed partial class MetadataRefresher(
         var retryCutoff = now - RetryUnmatchedAfter;
         // Items that didn't match last time, or were only found by a title search (or, for music, only have their tags),
         // are retried daily (a rename or new *arr entry may fix them). A new *arr entry also arrives as a webhook, whose
-        // folder is refreshed straight away.
+        // folder is refreshed straight away. Shows with an episode aired in the last few weeks that's still without a
+        // description or picture are tried hourly until both arrive, then go back to weekly.
+        var blankEpisodes = kind == MediaKind.Series;
+        var blankCutoff = now - RetryBlankEpisodesAfter;
+        var today = DateOnly.FromDateTime(now);
+        var airedSince = today.AddDays(-NewEpisodesFor);
         return db.MediaItems.Where(i => i.LibraryId == libraryId && i.Kind == kind
             && (force || also.Contains(i.Id) || i.MetadataUpdatedAt == null || i.MetadataUpdatedAt < cutoff
                 || ((i.PosterUrl == null || ((i.MetadataSource == RadarrLookup || i.MetadataSource == SonarrLookup || i.MetadataSource == TmdbSearch
                         || i.MetadataSource == TvMazeSearch || i.MetadataSource == Tags) && !i.MatchLocked))
-                    && i.MetadataUpdatedAt < retryCutoff)));
+                    && i.MetadataUpdatedAt < retryCutoff)
+                || (blankEpisodes && i.MetadataUpdatedAt < blankCutoff
+                    && db.MediaItems.Any(e => e.Kind == MediaKind.Episode && e.Parent!.ParentId == i.Id && e.MissingSince == null && !e.DetailsLocked
+                        && e.ReleaseDate >= airedSince && e.ReleaseDate <= today && (e.Overview == null || e.ThumbUrl == null)))));
     }
 
     /// <summary>
