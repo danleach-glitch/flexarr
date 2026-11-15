@@ -29,6 +29,13 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.runtime.mutableFloatStateOf
+import io.github.flexarr.core.displayTitle
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -279,6 +286,8 @@ fun DetailScreen(model: AppModel, id: String) {
     }
 
     val list = rememberLazyListState()
+    // Where the header's title is on screen, so the top bar is solid by the time it would reach Back.
+    val titleTop = remember(id) { mutableFloatStateOf(Float.MAX_VALUE) }
     CompositionLocalProvider(LocalPlayFrom provides pageToken) {
     RoomBackground(ambient = ambient, intensity = 0.22f) {
         when {
@@ -291,7 +300,7 @@ fun DetailScreen(model: AppModel, id: String) {
             ) {
                 val episodeColumns = if (isWide) 2 else 1
                 LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-                    item(key = "header") { Header(item, series, loaded, ambient, nextUp, seasons[selectedSeasonId], allEpisodes) }
+                    item(key = "header") { Header(item, series, loaded, ambient, nextUp, seasons[selectedSeasonId], allEpisodes, onTitleTop = { titleTop.floatValue = it }) }
                     sections(item, loaded, seasons[selectedSeasonId], selectedSeasonId, { selectedSeasonId = it }, similar, ambient, columns = episodeColumns, missing = missing,
                         seasonFailed = selectedSeasonId?.let { failedSeasons[it] }, retrySeason = { selectedSeasonId?.let { failedSeasons.remove(it) }; seasonAttempt++ }) {
                         if (item.kind == MediaKind.Series) {
@@ -332,16 +341,44 @@ fun DetailScreen(model: AppModel, id: String) {
             else -> StatusView()
         }
         StatusBarShade(list)
-        IconButton(
-            onClick = { navigator.back() },
-            modifier = Modifier.statusBarsPadding().padding(8.dp).clip(CircleShape).background(Flexarr.room.copy(alpha = 0.55f)),
-        ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = t("Back"), tint = Flexarr.screen) }
+        // Back, on a bar that fades in solid (with the title) as the header's title scrolls up to it, as the iPhone's
+        // navigation bar does, so the title never runs under the button.
+        val density = LocalDensity.current
+        val statusTop = WindowInsets.statusBars.getTop(density).toFloat()
+        val barBottom = statusTop + with(density) { 64.dp.toPx() }
+        val fade = with(density) { 40.dp.toPx() }
+        val solid = {
+            if (loaded == null) 0f
+            else if (list.firstVisibleItemIndex > 0) 1f
+            else ((barBottom + fade - titleTop.floatValue) / fade).coerceIn(0f, 1f)
+        }
+        Box(Modifier.fillMaxWidth()) {
+            Box(Modifier.matchParentSize().graphicsLayer { alpha = solid() }.background(Flexarr.room))
+            Row(Modifier.statusBarsPadding().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = { navigator.back() },
+                    modifier = Modifier.clip(CircleShape).drawBehind { drawRect(Flexarr.room.copy(alpha = 0.55f * (1f - solid()))) },
+                ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = t("Back"), tint = Flexarr.screen) }
+                item?.let {
+                    Text(
+                        it.displayTitle,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Flexarr.screen,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        // Said once in the header; this copy is only for the eye.
+                        modifier = Modifier.weight(1f).padding(start = 8.dp, end = 48.dp).graphicsLayer { alpha = solid() }.clearAndSetSemantics {},
+                    )
+                }
+            }
+        }
     }
     }
 }
 
 @Composable
-private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, ambient: Color, nextUp: ItemSummary?, season: ItemDetail?, allEpisodes: suspend () -> List<ItemSummary>) {
+private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, ambient: Color, nextUp: ItemSummary?, season: ItemDetail?, allEpisodes: suspend () -> List<ItemSummary>, onTitleTop: (Float) -> Unit = {}) {
     var overviewExpanded by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         // Taller than usual only when large text needs it.
@@ -355,7 +392,11 @@ private fun Header(item: ItemSummary, series: ItemSummary?, detail: ItemDetail, 
                     .background(Brush.verticalGradient(0.3f to Color.Transparent, 1f to Flexarr.room.copy(alpha = 0.6f))),
             )
             // Clear of Back above it, however tall large text makes it.
-            Column(Modifier.align(Alignment.BottomStart).statusBarsPadding().padding(top = 64.dp).padding(horizontal = Edge), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                Modifier.align(Alignment.BottomStart).statusBarsPadding().padding(top = 64.dp).padding(horizontal = Edge)
+                    .onGloballyPositioned { onTitleTop(it.positionInWindow().y) },
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 if (item.kind == MediaKind.Episode && series != null) {
                     TitleArt(series, maxWidth = 240.dp, maxHeight = 80.dp, fontSize = 40, maxLines = 3, textMaxWidth = 720.dp)
                     // Said by TalkBack when the page moves on to the next episode.

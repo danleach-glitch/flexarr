@@ -126,6 +126,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On Android tablets, the mini player sits above the gesture bar and beside the side tabs instead of under them.
 - On Android phones, Search finds songs: a Tracks row plays the one you tap, and the hint mentions music when you have a music library.
 - On Android phones and tablets, a long film or show name without a logo is shown in full on its page and on Home, set smaller and across the width instead of cut short. On Android TV, long names are set a little smaller too.
+- On Android phones and tablets, scrolling a film or show page fades in a bar with Back and the title, so the title no longer slides under the Back button.
 
 ### Trakt
 
