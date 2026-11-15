@@ -197,6 +197,8 @@ struct DetailView: View {
             }
             // Fade out rather than painting the room colour, so there's no seam with the ambient wash behind.
             .mask(LinearGradient(stops: [.init(color: .black, location: 0.55), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
+            // Edge to edge on a phone held sideways, not stopping at the safe area's lines; the words stay inside them.
+            .ignoresSafeArea(.container, edges: .horizontal)
     }
 
     /// The buttons in the order every client shares (`DetailActions`).

@@ -317,6 +317,8 @@ struct HomeHero: View {
             }
         }
         .tabViewStyle(.page(indexDisplayMode: items.count > 1 ? .always : .never))
+        // Edge to edge on a phone held sideways; each slide keeps its words inside the safe area.
+        .ignoresSafeArea(.container, edges: .horizontal)
     }
     #endif
 
@@ -343,6 +345,7 @@ struct HomeHero: View {
                 }
                 // Fade out rather than painting the room colour, so there's no seam with the rows below.
                 .mask(LinearGradient(stops: [.init(color: .black, location: 0.5), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
+                .ignoresSafeArea(.container, edges: .horizontal)
 
             VStack(alignment: .leading, spacing: 12) {
                 if item.kind == .album {
@@ -427,6 +430,7 @@ struct HomeHero: View {
                                    startPoint: .top, endPoint: .bottom)
                 }
                 .mask(LinearGradient(stops: [.init(color: .black, location: 0.5), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
+                .ignoresSafeArea(.container, edges: .horizontal)
 
             layout {
                 SquareArtwork(item: item, imageWidth: 800)
