@@ -359,6 +359,16 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail,
             canChooseVersion = (detail.versions?.size ?: 0) > 1,
         ),
     )
+    // What ⋯ holds here, as it can be done now, each with the icon it takes on the row when it's on its own. A phone's
+    // overflow never reaches a TV's row, and Play on another screen is the phone's.
+    val moreEntries: List<Pair<MenuAction, ImageVector>> = actions.menu.mapNotNull { entry ->
+        when (entry) {
+            is DetailActions.MenuItem.Moved, DetailActions.MenuItem.PlayOn -> null
+            DetailActions.MenuItem.Version -> MenuAction(t(Words.version)) { choosingVersion = true } to FlexarrIcons.version
+            DetailActions.MenuItem.Subtitles -> detail.subtitleTargetId?.let { found -> MenuAction(t("Search for subtitles")) { searchingSubtitlesFor = found } to FlexarrIcons.subtitles }
+            DetailActions.MenuItem.GoToShow -> series?.let { show -> MenuAction(t(Words.goToShow)) { navigator.openItem(show.id) } to FlexarrIcons.goToShow }
+        }
+    }
     val first = remember { FocusRequester() }
     // Play takes focus as the page opens, so OK plays at once; with nothing to play, the first button does.
     LaunchedEffect(target != null) { runCatching { first.requestFocus() } }
@@ -409,26 +419,22 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, detail: ItemDetail,
                             }
                         }
                     }
-                    DetailActions.Button.DOWNLOAD -> Unit
-                    DetailActions.Button.MORE -> RoundAction(t("More"), FlexarrIcons.more, ambient, { focusedName = it }, focusFirst()) { more = true }
+                    // Phones only: the TV keeps Version, subtitles and Go to show in ⋯.
+                    DetailActions.Button.DOWNLOAD, DetailActions.Button.CHOOSE_VERSION, DetailActions.Button.FIND_SUBTITLES,
+                    DetailActions.Button.OPEN_SHOW, DetailActions.Button.PLAY_ON -> Unit
+                    DetailActions.Button.MORE -> {
+                        val only = moreEntries.singleOrNull()
+                        // One thing needs no menu: it's a round button of its own, as on the Apple TV.
+                        if (only != null) RoundAction(only.first.label, only.second, ambient, { focusedName = it }, focusFirst(), onClick = only.first.run)
+                        else if (moreEntries.isNotEmpty()) RoundAction(t("More"), FlexarrIcons.more, ambient, { focusedName = it }, focusFirst()) { more = true }
+                    }
                 }
             }
         }
         // The focused round button's name; the line keeps its height so nothing jumps.
         Text(focusedName ?: " ", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Flexarr.screen.copy(alpha = 0.75f), modifier = Modifier.semantics { hideFromAccessibility() })
     }
-    if (more) {
-        val entries = actions.menu.mapNotNull { entry ->
-            when (entry) {
-                // Only a phone's row runs out of room.
-                is DetailActions.MenuItem.Moved -> null
-                DetailActions.MenuItem.Version -> MenuAction(t(Words.version)) { choosingVersion = true }
-                DetailActions.MenuItem.Subtitles -> detail.subtitleTargetId?.let { found -> MenuAction(t("Search for subtitles")) { searchingSubtitlesFor = found } }
-                DetailActions.MenuItem.GoToShow -> series?.let { show -> MenuAction(t(Words.goToShow)) { navigator.openItem(show.id) } }
-            }
-        }
-        TvItemMenu(item.displayTitle, entries, onDismiss = { more = false })
-    }
+    if (more) TvItemMenu(item.displayTitle, moreEntries.map { it.first }, onDismiss = { more = false })
     if (choosingVersion) {
         val versions = detail.versions.orEmpty()
         val entries = listOf(MenuAction(t(Words.automatic), selected = versions.none { it.chosen }) { navigator.chooseVersion(item, null) }) +

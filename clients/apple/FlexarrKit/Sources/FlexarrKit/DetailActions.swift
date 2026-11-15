@@ -30,10 +30,12 @@ public struct DetailActions: Equatable, Sendable {
         case download
         /// ⋯, holding `menu`; there only when the menu has something in it (on a phone, more than one thing).
         case more
-        /// Phones only: the menu's Version, Search for subtitles or Go to show on the row, when it's all ⋯ would hold.
+        /// Phones only: the menu's Version, Search for subtitles, Go to show or Play on another screen on the row, when
+        /// it's all ⋯ would hold.
         case chooseVersion
         case findSubtitles
         case openShow
+        case playOn
     }
 
     /// What ⋯ holds: only things the apps already do.
@@ -47,6 +49,8 @@ public struct DetailActions: Equatable, Sendable {
         case subtitles
         /// An episode's show.
         case goToShow
+        /// Play on another screen, last. Android's phone app offers it today; the Apple apps leave `canPlayOn` off.
+        case playOn
     }
 
     public let buttons: [Button]
@@ -59,9 +63,10 @@ public struct DetailActions: Equatable, Sendable {
     ///   - canSearchSubtitles: whether the server can find subtitles for it.
     ///   - canWatchlist: whether this title can go on a watchlist here (films and shows, on servers that have one).
     ///   - canChooseVersion: whether it has more than one version.
+    ///   - canPlayOn: whether it can be sent to play on another screen from here.
     ///   - wide: a phone app with a wide screen (an iPad, the Mac): every button fits, so none moves to ⋯.
     public init(kind: Kind, hasProgress: Bool, watched: Bool, hasTrailer: Bool, isKids: Bool, platform: Platform,
-                canPlayTrailers: Bool, canDownload: Bool, canSearchSubtitles: Bool = false, canWatchlist: Bool = true, canChooseVersion: Bool = false, wide: Bool = false) {
+                canPlayTrailers: Bool, canDownload: Bool, canSearchSubtitles: Bool = false, canWatchlist: Bool = true, canChooseVersion: Bool = false, canPlayOn: Bool = false, wide: Bool = false) {
         var row: [Button] = []
         if hasProgress { row.append(.startOver) }
         if kind == .show { row.append(.shuffle) }
@@ -86,6 +91,7 @@ public struct DetailActions: Equatable, Sendable {
         if canChooseVersion { menu.append(.version) }
         if !isKids && canSearchSubtitles { menu.append(.subtitles) }
         if kind == .episode { menu.append(.goToShow) }
+        if canPlayOn { menu.append(.playOn) }
 
         // A phone's ⋯ with a single thing in it is a tap for nothing: show that one on the row in ⋯'s place.
         if platform == .phone, menu.count == 1 {
@@ -94,6 +100,7 @@ public struct DetailActions: Equatable, Sendable {
             case .version: row.append(.chooseVersion)
             case .subtitles: row.append(.findSubtitles)
             case .goToShow: row.append(.openShow)
+            case .playOn: row.append(.playOn)
             }
             menu = []
         }

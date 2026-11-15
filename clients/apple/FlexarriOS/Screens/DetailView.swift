@@ -342,6 +342,9 @@ struct DetailView: View {
             if let series {
                 Button { router.push(.item(series)) } label: { Label(t(Words.goToShow), systemImage: Symbol.goToShow) }
             }
+        case .playOn:
+            // Android's phone app sends a title to another screen; the Apple apps don't ask for it (`canPlayOn`).
+            EmptyView()
         case .more:
             Menu {
                 ForEach(menu, id: \.self) { entry in
@@ -378,6 +381,8 @@ struct DetailView: View {
                         if let series {
                             Button { router.push(.item(series)) } label: { Label(t(Words.goToShow), systemImage: Symbol.goToShow) }
                         }
+                    case .playOn:
+                        EmptyView()
                     }
                 }
             } label: {

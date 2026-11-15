@@ -307,7 +307,7 @@ struct DetailView: View {
                     .focused($focusedAction, equals: t(Words.watchlist))
                     .anchorPreference(key: ActionBoundsKey.self, value: .bounds) { [t(Words.watchlist): $0] }
             }
-        case .download, .chooseVersion, .findSubtitles, .openShow:
+        case .download, .chooseVersion, .findSubtitles, .openShow, .playOn:
             // Phones only: the TV keeps Version, subtitles and Go to show in ⋯.
             EmptyView()
         case .more:
@@ -343,7 +343,7 @@ struct DetailView: View {
     private func moreEntries(_ menu: [DetailActions.MenuItem]) -> [MoreEntry] {
         menu.compactMap { entry in
             switch entry {
-            case .button:
+            case .button, .playOn:
                 return nil
             case .version:
                 return MoreEntry(id: entry, name: t(Words.version), symbol: Symbol.version) { showingVersions = true }

@@ -445,6 +445,8 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
     var showingTrailer by remember(item.id) { mutableStateOf(false) }
     var more by remember(item.id) { mutableStateOf(false) }
     var choosingVersion by remember(item.id) { mutableStateOf(false) }
+    // Version on the row, when it's all ⋯ would hold: its list drops from the button.
+    var choosingVersionOnRow by remember(item.id) { mutableStateOf(false) }
     // What Play starts: the item itself, or for a show the next-up episode (falling back to the selected season's first).
     val playable = when (item.kind) {
         MediaKind.Movie, MediaKind.Episode -> item
@@ -468,6 +470,8 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
         watchlistChanged = !on
         navigator.setOnWatchlist(item, !on, onFailed = { watchlistChanged = on })
     }
+    // Another screen: a film or episode as it is, a show the episode that screen's profile is up to.
+    val playsOn = item.kind == MediaKind.Movie || item.kind == MediaKind.Episode || item.kind == MediaKind.Series
     val actions = DetailActions.of(
         DetailActions.Input(
             kind = kind,
@@ -482,12 +486,14 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
             canSearchSubtitles = detail.canSearchSubtitles == true && file != null,
             canChooseVersion = (detail.versions?.size ?: 0) > 1,
             canWatchlist = onWatchlist != null,
+            canPlayOn = playsOn,
         ),
     )
-    // Another screen: a film or episode as it is, a show the episode that screen's profile is up to. The phone's own
-    // addition to the menu.
-    val playsOn = item.kind == MediaKind.Movie || item.kind == MediaKind.Episode || item.kind == MediaKind.Series
-    val buttons = if (playsOn && DetailActions.Button.MORE !in actions.buttons) actions.buttons + DetailActions.Button.MORE else actions.buttons
+    val buttons = actions.buttons
+    val chooseVersion = { fileId: String? ->
+        more = false; choosingVersion = false; choosingVersionOnRow = false
+        navigator.chooseVersion(item, fileId)
+    }
     Column(Modifier.padding(horizontal = Edge).widthIn(max = 520.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         if (playable != null) {
             ActionButton(playLabel(playable, item), onClick = { navigator.play(playable, from = from) }, icon = FlexarrIcons.play, prominent = true, ambient = ambient, modifier = Modifier.fillMaxWidth())
@@ -525,24 +531,7 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
                         DropdownMenu(more, onDismissRequest = { more = false; choosingVersion = false }) {
                             // Version's list takes the menu's place, so there's no second popup to open as the first one closes.
                             if (choosingVersion) {
-                                val versions = detail.versions.orEmpty()
-                                val choose = { fileId: String? -> more = false; choosingVersion = false; navigator.chooseVersion(item, fileId) }
-                                // Read out as a choice, and which one is on: the row says so rather than its circle.
-                                val choice = { on: Boolean -> Modifier.semantics { role = Role.RadioButton; selected = on } }
-                                DropdownMenuItem(
-                                    text = { Text(t(Words.automatic)) },
-                                    leadingIcon = { RadioButton(versions.none { it.chosen }, onClick = null, Modifier.clearAndSetSemantics {}) },
-                                    onClick = { choose(null) },
-                                    modifier = choice(versions.none { it.chosen }),
-                                )
-                                versions.forEach { version ->
-                                    DropdownMenuItem(
-                                        text = { Text(version.name(versions)) },
-                                        leadingIcon = { RadioButton(version.chosen, onClick = null, Modifier.clearAndSetSemantics {}) },
-                                        onClick = { choose(version.fileId) },
-                                        modifier = choice(version.chosen),
-                                    )
-                                }
+                                VersionChoices(detail.versions.orEmpty(), chooseVersion)
                                 return@DropdownMenu
                             }
                             actions.menu.forEach { entry ->
@@ -574,11 +563,27 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
                                     DetailActions.MenuItem.GoToShow -> series?.let { show ->
                                         DropdownMenuItem(text = { Text(t(Words.goToShow)) }, onClick = { more = false; navigator.openItem(show.id) })
                                     }
+                                    DetailActions.MenuItem.PlayOn ->
+                                        DropdownMenuItem(text = { Text(t("Play on another screen")) }, onClick = { more = false; choosingScreen = true })
                                 }
                             }
-                            if (playsOn) DropdownMenuItem(text = { Text(t("Play on another screen")) }, onClick = { more = false; choosingScreen = true })
                         }
                     }
+                    // What ⋯ would have held alone, on the row in its place.
+                    DetailActions.Button.CHOOSE_VERSION -> Box(slot) {
+                        LabeledAction(t(Words.version), FlexarrIcons.version, { choosingVersionOnRow = true }, Modifier.fillMaxWidth())
+                        DropdownMenu(choosingVersionOnRow, onDismissRequest = { choosingVersionOnRow = false }) {
+                            VersionChoices(detail.versions.orEmpty(), chooseVersion)
+                        }
+                    }
+                    DetailActions.Button.FIND_SUBTITLES -> detail.subtitleTargetId?.let { found ->
+                        LabeledAction(t(Words.subtitles), FlexarrIcons.subtitles, { searchingSubtitlesFor = found }, slot.semantics { contentDescription = t("Search for subtitles") })
+                    }
+                    DetailActions.Button.OPEN_SHOW -> series?.let { show ->
+                        LabeledAction(t(Words.goToShow), FlexarrIcons.goToShow, { navigator.openItem(show.id) }, slot)
+                    }
+                    DetailActions.Button.PLAY_ON ->
+                        LabeledAction(t("Another screen"), FlexarrIcons.playOn, { choosingScreen = true }, slot.semantics { contentDescription = t("Play on another screen") }, maxLines = 2)
                 }
             }
         }
@@ -611,6 +616,27 @@ private fun Actions(item: ItemSummary, series: ItemSummary?, nextUp: ItemSummary
  * How many of the round actions under Play share a line: all of them at the usual text sizes; three, then two, as large
  * text makes their names too wide for a quarter of a phone's width.
  */
+/** Automatic first, then each version, a radio button on the one chosen. */
+@Composable
+private fun VersionChoices(versions: List<TitleVersion>, choose: (String?) -> Unit) {
+    // Read out as a choice, and which one is on: the row says so rather than its circle.
+    val choice = { on: Boolean -> Modifier.semantics { role = Role.RadioButton; selected = on } }
+    DropdownMenuItem(
+        text = { Text(t(Words.automatic)) },
+        leadingIcon = { RadioButton(versions.none { it.chosen }, onClick = null, Modifier.clearAndSetSemantics {}) },
+        onClick = { choose(null) },
+        modifier = choice(versions.none { it.chosen }),
+    )
+    versions.forEach { version ->
+        DropdownMenuItem(
+            text = { Text(version.name(versions)) },
+            leadingIcon = { RadioButton(version.chosen, onClick = null, Modifier.clearAndSetSemantics {}) },
+            onClick = { choose(version.fileId) },
+            modifier = choice(version.chosen),
+        )
+    }
+}
+
 internal fun actionsPerLine(fontScale: Float, count: Int): Int = when {
     fontScale > 1.6f -> minOf(2, count)
     fontScale > 1.3f -> minOf(3, count)

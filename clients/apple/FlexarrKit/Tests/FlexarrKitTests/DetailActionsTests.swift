@@ -68,6 +68,19 @@ struct DetailActionsTests {
         #expect(versions.menu.isEmpty)
     }
 
+    // Issue 509: a film not started, with only Play on another screen left for ⋯.
+    @Test func playOnIsAButtonOfItsOwnWhenItsAllTheMenuWouldHold() {
+        let alone = DetailActions(kind: .movie, hasProgress: false, watched: false, hasTrailer: false, isKids: false, platform: .phone,
+                                  canPlayTrailers: true, canDownload: true, canPlayOn: true)
+        #expect(alone.buttons == [.play, .watched, .watchlist, .download, .playOn])
+        #expect(alone.menu.isEmpty)
+        let company = DetailActions(kind: .episode, hasProgress: false, watched: false, hasTrailer: false, isKids: false,
+                                    platform: .phone, canPlayTrailers: true, canDownload: false, canWatchlist: false, canPlayOn: true)
+        #expect(company.buttons == [.play, .watched, .more])
+        #expect(company.menu == [.goToShow, .playOn])
+        #expect(!actions().buttons.contains(.playOn))
+    }
+
     @Test func aPhonePartWayKeepsStartOverAndWatched() {
         let a = actions(progress: true, download: true, subtitles: true)
         #expect(a.buttons == [.play, .startOver, .watched, .download, .more])
