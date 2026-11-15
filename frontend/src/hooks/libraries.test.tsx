@@ -1,5 +1,6 @@
 import { act, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { clearApiCache, getHome } from '../api/client'
 import { mockApi, movies } from '../test/mockApi'
 import { LibrariesProvider } from './libraries'
 
@@ -30,5 +31,37 @@ describe('LibrariesProvider', () => {
     const before = asked()
     await wait(20_000)
     expect(asked()).toBe(before)
+  })
+
+  it('during a scan, forgets cached pages every 30 seconds rather than at every check, and once more when it ends', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'setTimeout', 'clearTimeout', 'Date'] })
+    clearApiCache()
+    let count = 10
+    let scanning = true
+    const fetchMock = mockApi({
+      '/libraries': () => [{ ...movies, itemCount: (count += 1), lastScannedAt: '2026-11-01T00:00:00Z', scan: scanning ? movies.scan : null }],
+      '/home': { rows: [] },
+    })
+    const homes = () => fetchMock.mock.calls.filter(([input]) => String(input).includes('/home')).length
+    render(<LibrariesProvider>{null}</LibrariesProvider>)
+    // The first change forgets at once.
+    await wait(3000)
+    await act(() => getHome())
+
+    // Ten more checks, each with more titles: Home stays cached.
+    await wait(20_000)
+    await act(() => getHome())
+    expect(homes()).toBe(1)
+
+    // 30 seconds on, it's forgotten.
+    await wait(12_000)
+    await act(() => getHome())
+    expect(homes()).toBe(2)
+
+    // And when the scan ends.
+    scanning = false
+    await wait(2000)
+    await act(() => getHome())
+    expect(homes()).toBe(3)
   })
 })
