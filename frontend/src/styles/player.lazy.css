@@ -22,7 +22,8 @@
 .player-top {
   top: 0;
   display: flex;
-  align-items: center;
+  /* Back sits beside a long title's first line, not halfway down it. */
+  align-items: flex-start;
   gap: 14px;
   padding: 18px var(--edge) 60px;
   background: linear-gradient(to bottom, rgb(0 0 0 / 0.7), transparent);
@@ -42,6 +43,25 @@
   font-family: var(--display);
   font-size: var(--step-3);
   font-weight: 800;
+}
+
+/* A long show or episode title keeps to two lines over the picture. */
+.player-title > span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+/* The back button and the stream's pill line up with the title's first line. */
+.player-top > .icon-button {
+  flex: none;
+  margin-top: calc((var(--step-3) * 1.25 - 44px) / 2);
+}
+
+.player-badge {
+  align-self: flex-start;
 }
 
 .player-badge {

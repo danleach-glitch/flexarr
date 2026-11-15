@@ -43,6 +43,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Web
 
+- In the web player, a long show or episode title keeps to two lines, with Back beside its first line.
 - Settings › About shows file names in the changelog as code, without backticks, and on a phone its folder paths sit on their own line under the label.
 - Removing a library in Settings asks with a short heading, with the note that the files stay underneath.
 - A card's ⋯ in Continue watching says **Remove from Continue watching**, not just **Remove**.
