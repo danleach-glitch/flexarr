@@ -45,22 +45,7 @@ struct NowPlayingView: View {
                     // A book's page is an episode's, with its chapters, bookmarks and offers.
                     podcastPage(track)
                 } else {
-                    ScrollView(.vertical) {
-                        VStack(spacing: 24) {
-                            grabber
-                            cover(track)
-                                .padding(.top, 8)
-                            titles(track)
-                            scrubber
-                            controls
-                            extras
-                            upNext
-                        }
-                        .padding(.horizontal, 28)
-                        .padding(.bottom, 32)
-                        .frame(maxWidth: 560)
-                        .frame(maxWidth: .infinity)
-                    }
+                    musicPage(track)
                 }
             } else {
                 StatusView(state: .empty(t("Nothing is playing.")))
@@ -93,6 +78,67 @@ struct NowPlayingView: View {
         .animation(.easeInOut(duration: 0.25), value: music.bookmarkNotice)
         .task(id: music.artwork) { artworkGlow = music.artwork?.averageColor.map { Color(rgb: $0.glow) } }
         .onChange(of: music.current == nil) { _, empty in if empty { dismiss() } }
+        // An iPad's sheet can't be swiped away as readily as a phone's: a way out that can be seen.
+        .overlay(alignment: .topLeading) {
+            if sizeClass == .regular {
+                Button { dismiss() } label: { Label(t("Close"), systemImage: "xmark") }
+                    .buttonStyle(RoundActionStyle(scales: false))
+                    .accessibilityLabel(t("Close Now Playing"))
+                    .frame(width: 48, height: 48)
+                    .padding(16)
+            }
+        }
+    }
+
+    /// A track's page: on a phone (or a narrow iPad sheet) one column that scrolls; on a wide iPad sheet the cover and
+    /// controls on the left and what comes next beside them, so neither is cut off below the edge.
+    private func musicPage(_ track: ItemSummary) -> some View {
+        GeometryReader { proxy in
+            if sizeClass == .regular, proxy.size.width >= 900, !music.upNext.isEmpty {
+                HStack(alignment: .top, spacing: 32) {
+                    ScrollView(.vertical) {
+                        VStack(spacing: 24) {
+                            // Small enough that the controls and AirPlay fit under it in a landscape sheet.
+                            cover(track)
+                                .frame(maxWidth: proxy.size.height * 0.42)
+                            titles(track)
+                            scrubber
+                            controls
+                            extras
+                        }
+                        .padding(.top, 40)
+                        .padding(.bottom, 32)
+                        .frame(minHeight: proxy.size.height)
+                    }
+                    .scrollBounceBehavior(.basedOnSize)
+                    .frame(maxWidth: 520)
+                    ScrollView(.vertical) {
+                        upNext
+                            .padding(.top, 40)
+                            .padding(.bottom, 32)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .padding(.horizontal, 40)
+            } else {
+                ScrollView(.vertical) {
+                    VStack(spacing: 24) {
+                        grabber
+                        cover(track)
+                            .padding(.top, 8)
+                        titles(track)
+                        scrubber
+                        controls
+                        extras
+                        upNext
+                    }
+                    .padding(.horizontal, 28)
+                    .padding(.bottom, 32)
+                    .frame(maxWidth: 560)
+                    .frame(maxWidth: .infinity)
+                }
+            }
+        }
     }
 
     /// The track's own colour, else its cover's.

@@ -48,6 +48,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - The video player on iPhone, iPad and Apple TV works with VoiceOver: the timeline reads "32:10 of 1:56:00" and moves with a swipe up or down, the controls stay up, every button says what it does, and a two-finger double tap plays or pauses. On iPhone and iPad the two-finger scrub closes the player.
 - On Apple TV, the guide's programme times are larger and brighter, and VoiceOver reads each programme's times and whether it's recording.
 - On iPad, Search keeps the tab bar while you search, and has a Cancel that clears it.
+- On iPad, Now Playing opens full size with a close button, nothing cut off: in landscape the queue sits beside the cover and controls, and the mini player steps aside while it's open.
 - On iPhone, iPad and Apple TV, a show's page asks for its season once, and sooner. On iPhone, Download show on a show with many seasons asks its question sooner, coming back to the app after Control Centre no longer sends a burst of requests, and Downloads › Music scrolls smoothly while its covers load.
 
 ### Downloads

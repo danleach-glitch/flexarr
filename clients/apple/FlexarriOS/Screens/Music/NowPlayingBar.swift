@@ -7,6 +7,7 @@ import SwiftUI
 struct NowPlayingBar: View {
     @Environment(AppModel.self) private var model
     @Environment(Router.self) private var router
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     private var music: MusicPlayer { model.music }
 
@@ -97,12 +98,17 @@ struct NowPlayingBar: View {
             }
             .padding(.horizontal, 10)
             .padding(.bottom, 6)
+            // On iPad Now Playing doesn't cover the bar: hidden while it's up, so there's one set of controls, not two.
+            .opacity(router.showsNowPlaying && sizeClass == .regular ? 0 : 1)
+            .accessibilityHidden(router.showsNowPlaying && sizeClass == .regular)
             #if DEBUG
             // `-FlexarrShowNowPlaying YES` opens Now Playing as soon as something plays (with `-FlexarrPlay <id>`).
             .task { if UserDefaults.standard.bool(forKey: "FlexarrShowNowPlaying") { router.showsNowPlaying = true } }
             #endif
             .sheet(isPresented: Bindable(router).showsNowPlaying) {
                 NowPlayingView()
+                    // On iPad the page size, not the small form sheet that cut the controls off.
+                    .presentationSizing(.page)
                     .presentationDetents([.large])
                     .presentationDragIndicator(.hidden)
                     .presentationBackground(Color.room)
