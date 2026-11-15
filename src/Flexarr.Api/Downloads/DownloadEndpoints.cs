@@ -138,12 +138,20 @@ public static class DownloadEndpoints
                 existing = null; // its file went (Sonarr upgraded it, say): a new one is made from the file there now
             }
 
+            var requester = Requester(profile);
             if (existing is null)
             {
-                existing = new Download { ProfileId = profile.Id, MediaItemId = item.Id, Quality = quality, Status = DownloadStatus.Queued };
+                existing = new Download { ProfileId = profile.Id, MediaItemId = item.Id, Quality = quality, Status = DownloadStatus.Queued, Requesters = requester };
                 db.Downloads.Add(existing);
                 await db.SaveChangesAsync(ct);
                 preparer.Wake();
+            }
+            else if (!Requesters(existing.Requesters).Contains(requester))
+            {
+                // Another device of the profile's wants it too (a podcast's auto-download on phone and tablet, say): the
+                // file stays until both have it.
+                existing.Requesters = string.Join(' ', [.. Requesters(existing.Requesters), requester]);
+                await db.SaveChangesAsync(ct);
             }
 
             // Whole, ready or not: the apps keep the length (and the rest) from this first answer.
@@ -211,21 +219,45 @@ public static class DownloadEndpoints
                 return Results.NotFound();
             }
 
+            // Another device asked for it too and hasn't got it yet: it stays Ready for that one.
+            var others = Requesters(download.Requesters).Where(r => r != Requester(profile)).ToList();
+            if (others.Count > 0 && download.Status == DownloadStatus.Ready)
+            {
+                download.Requesters = string.Join(' ', others);
+                await db.SaveChangesAsync(ct);
+                return Results.NoContent();
+            }
+
             DownloadPreparer.DeleteFile(download);
             download.Status = DownloadStatus.Received;
+            download.Requesters = null;
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         });
 
-        // Taken off the device. A podcast episode's is remembered as removed, so the phone isn't handed it again to
-        // download by itself (see /podcasts/auto-downloads); anything else is forgotten.
-        group.MapDelete("/{id:guid}", async (Guid id, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
+        // Taken off the device. A podcast episode taken off by hand is remembered as removed, so the phone isn't handed it
+        // again to download by itself (see /podcasts/auto-downloads); anything else is forgotten. byHand=false says the
+        // app took it off by itself (keeping only the newest few, once it's played, signing out, trying again): that's
+        // no choice to remember, and such an episode may be wanted again. Absent (apps before 0.67) it counts as by hand,
+        // as it always did. Another device of the profile's still waiting for it keeps it, unless it was taken off by hand.
+        group.MapDelete("/{id:guid}", async (Guid id, bool? byHand, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
         {
             if (await db.Downloads.Include(d => d.MediaItem).FirstOrDefaultAsync(d => d.Id == id && d.ProfileId == profile.Id, ct) is { } download)
             {
-                DownloadPreparer.DeleteFile(download);
-                if (download.MediaItem?.Kind == MediaKind.PodcastEpisode)
+                var podcast = download.MediaItem?.Kind == MediaKind.PodcastEpisode;
+                var remembered = podcast && byHand != false;
+                var others = Requesters(download.Requesters).Where(r => r != Requester(profile)).ToList();
+                if (others.Count > 0 && !remembered && download.Status is DownloadStatus.Queued or DownloadStatus.Preparing or DownloadStatus.Ready)
                 {
+                    download.Requesters = string.Join(' ', others);
+                    await db.SaveChangesAsync(ct);
+                    return Results.NoContent();
+                }
+
+                DownloadPreparer.DeleteFile(download);
+                if (remembered)
+                {
+                    download.Requesters = null;
                     download.Status = DownloadStatus.Removed;
                 }
                 else
@@ -245,6 +277,11 @@ public static class DownloadEndpoints
 
         return api;
     }
+
+    /// <summary>Who's asking, as <see cref="Download.Requesters"/> keeps them: the device's sign-in, or the API key's.</summary>
+    private static string Requester(CurrentProfile profile) => profile.SignInId is { Length: > 0 } id ? id : "key";
+
+    private static string[] Requesters(string? kept) => kept?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? [];
 
     /// <summary>What a Ready download whose file has gone says, so the device offers to download it again.</summary>
     internal const string FileGone = "This title's file changed on the server. Download it again.";

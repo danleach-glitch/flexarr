@@ -679,6 +679,9 @@ namespace Flexarr.Core.Data.Migrations
                     b.Property<DateTime?>("ReadyAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Requesters")
+                        .HasColumnType("TEXT");
+
                     b.Property<long?>("SizeBytes")
                         .HasColumnType("INTEGER");
 

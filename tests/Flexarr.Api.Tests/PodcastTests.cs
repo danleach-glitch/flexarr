@@ -691,6 +691,74 @@ public sealed class PodcastTests : IDisposable
         return created.GetProperty("id").GetString()!;
     }
 
+    /// <summary>A device signed in to the main profile, with its own sign-in.</summary>
+    private async Task<HttpClient> DeviceAsync(string name)
+    {
+        var response = await Client().PostAsJsonAsync(Api("session/device"), new { deviceName = name });
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var client = _server.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", body.GetProperty("token").GetString()!);
+        return client;
+    }
+
+    [Fact]
+    public async Task APhoneAndATablet_SharingADownload_EachGetTheFile_ThenItGoes()
+    {
+        var phone = await DeviceAsync("Phone");
+        var tablet = await DeviceAsync("Tablet");
+        var downloadId = await QueueNewestAsync(phone);
+        var episode = (await GetAsync(phone, $"offline/{downloadId}")).GetProperty("itemId").GetString();
+        var shared = await (await tablet.PostAsJsonAsync(Api("offline"), new { itemId = episode, quality = "Original" })).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(downloadId, shared.GetProperty("id").GetString());
+        await _server.Services.GetRequiredService<Flexarr.Api.Downloads.DownloadPreparer>().RunOnceAsync(CancellationToken.None);
+        Assert.Equal("Ready", (await GetAsync(phone, $"offline/{downloadId}")).GetProperty("status").GetString());
+
+        // The phone has it first: the tablet can still fetch it.
+        (await phone.PostAsync(Api($"offline/{downloadId}/received"), null)).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.OK, (await tablet.GetAsync(Api($"offline/{downloadId}/file"))).StatusCode);
+
+        // Once the tablet has it too, the server's copy goes.
+        (await tablet.PostAsync(Api($"offline/{downloadId}/received"), null)).EnsureSuccessStatusCode();
+        Assert.Equal("Received", (await GetAsync(tablet, $"offline/{downloadId}")).GetProperty("status").GetString());
+        Assert.Equal(HttpStatusCode.NotFound, (await tablet.GetAsync(Api($"offline/{downloadId}/file"))).StatusCode);
+    }
+
+    [Fact]
+    public async Task OneDeviceTakingASharedDownloadOff_LeavesItForTheOther_UnlessItWasByHand()
+    {
+        var phone = await DeviceAsync("Phone");
+        var tablet = await DeviceAsync("Tablet");
+        var downloadId = await QueueNewestAsync(phone);
+        var episode = (await GetAsync(phone, $"offline/{downloadId}")).GetProperty("itemId").GetString();
+        await tablet.PostAsJsonAsync(Api("offline"), new { itemId = episode, quality = "Original" });
+
+        // The phone's app took it off by itself (keeping only the newest, say): the tablet's is still coming.
+        (await phone.DeleteAsync(Api($"offline/{downloadId}?byHand=false"))).EnsureSuccessStatusCode();
+        Assert.Equal("Queued", (await GetAsync(tablet, $"offline/{downloadId}")).GetProperty("status").GetString());
+
+        // Taken off by hand: remembered for the profile, whoever else wanted it.
+        (await phone.PostAsJsonAsync(Api("offline"), new { itemId = episode, quality = "Original" })).EnsureSuccessStatusCode();
+        (await phone.DeleteAsync(Api($"offline/{downloadId}"))).EnsureSuccessStatusCode();
+        Assert.Empty((await GetAsync(tablet, "offline")).EnumerateArray());
+    }
+
+    [Fact]
+    public async Task AnEpisodeTheAppTookOffByItself_IsHandedBackLater()
+    {
+        await AddLibraryAsync();
+        var client = Client();
+        var id = (await AddPodcastAsync(client)).GetProperty("id").GetString();
+        await client.PutAsJsonAsync(Api($"podcasts/{id}/subscription"), new { });
+        var newest = (await GetAsync(client, "podcasts/auto-downloads"))[0].GetProperty("episodeId").GetString();
+        var download = await (await client.PostAsJsonAsync(Api("offline"), new { itemId = newest, quality = "Original" })).Content.ReadFromJsonAsync<JsonElement>();
+
+        // Signing out, trying again, keeping only the newest few: not a choice to remember.
+        (await client.DeleteAsync(Api($"offline/{download.GetProperty("id").GetString()}?byHand=false"))).EnsureSuccessStatusCode();
+
+        Assert.Contains((await GetAsync(client, "podcasts/auto-downloads")).EnumerateArray(), w => w.GetProperty("episodeId").GetString() == newest);
+        Assert.Empty((await GetAsync(client, "offline")).EnumerateArray());
+    }
+
     [Fact]
     public async Task AnEpisodeWhoseFetchThrows_EndsAsFailed_NotGettingReadyForever()
     {
