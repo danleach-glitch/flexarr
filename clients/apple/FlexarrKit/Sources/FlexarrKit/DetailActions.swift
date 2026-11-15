@@ -7,7 +7,8 @@ import Foundation
 /// The phones show at most `phoneSlots` buttons beside Play (plus ⋯), so the row fits like an episode's: Start over and
 /// Download always stay, and the rest fill what's left by where you are with the title. Before you start: Trailer,
 /// Watchlist, then Watched; once you've started or watched it: Watched, Watchlist, then Trailer; Shuffle last. Whatever
-/// doesn't fit moves to the top of ⋯, in the same order.
+/// doesn't fit moves to the top of ⋯, in the same order. A phone never opens ⋯ for one thing: when it would hold
+/// only one, that one takes ⋯'s place on the row instead.
 public struct DetailActions: Equatable, Sendable {
     public enum Kind: Sendable { case movie, show, episode }
     public enum Platform: Sendable { case phone, tv }
@@ -27,8 +28,12 @@ public struct DetailActions: Equatable, Sendable {
         case watchlist
         /// Phones only, when the title can be downloaded.
         case download
-        /// ⋯, holding `menu`; there only when the menu has something in it.
+        /// ⋯, holding `menu`; there only when the menu has something in it (on a phone, more than one thing).
         case more
+        /// Phones only: the menu's Version, Search for subtitles or Go to show on the row, when it's all ⋯ would hold.
+        case chooseVersion
+        case findSubtitles
+        case openShow
     }
 
     /// What ⋯ holds: only things the apps already do.
@@ -65,6 +70,7 @@ public struct DetailActions: Equatable, Sendable {
         if !isKids && canWatchlist { row.append(.watchlist) }
         if platform == .phone && canDownload { row.append(.download) }
 
+        let everything = row
         var moved: [MenuItem] = []
         if platform == .phone && !wide && row.count > Self.phoneSlots {
             let pinned = row.filter { $0 == .startOver || $0 == .download }
@@ -80,6 +86,17 @@ public struct DetailActions: Equatable, Sendable {
         if canChooseVersion { menu.append(.version) }
         if !isKids && canSearchSubtitles { menu.append(.subtitles) }
         if kind == .episode { menu.append(.goToShow) }
+
+        // A phone's ⋯ with a single thing in it is a tap for nothing: show that one on the row in ⋯'s place.
+        if platform == .phone, menu.count == 1 {
+            switch menu[0] {
+            case .button: row = everything
+            case .version: row.append(.chooseVersion)
+            case .subtitles: row.append(.findSubtitles)
+            case .goToShow: row.append(.openShow)
+            }
+            menu = []
+        }
 
         self.buttons = [.play] + row + (menu.isEmpty ? [] : [.more])
         self.menu = menu

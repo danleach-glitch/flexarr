@@ -307,7 +307,8 @@ struct DetailView: View {
                     .focused($focusedAction, equals: t(Words.watchlist))
                     .anchorPreference(key: ActionBoundsKey.self, value: .bounds) { [t(Words.watchlist): $0] }
             }
-        case .download:
+        case .download, .chooseVersion, .findSubtitles, .openShow:
+            // Phones only: the TV keeps Version, subtitles and Go to show in ⋯.
             EmptyView()
         case .more:
             let entries = moreEntries(menu)

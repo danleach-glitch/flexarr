@@ -78,6 +78,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On iPhone and iPad, a genre card's name and count stay readable on pale artwork: the shade behind them is deeper and the count is in white.
 - On iPhone, iPad, Apple TV and the Mac, an empty size reads "0 bytes" (Downloads' "0 bytes used on this iPhone"), not "Zero kB".
 - On iPhone and iPad, Downloads lines up every name at one edge (films, shows, music, books and podcasts), and a picture that hasn't come shows as a dark box rather than an icon floating on the row.
+- On iPhone and iPad, a title's page no longer has a More button with just one thing in it: Shuffle, Go to show, Version or Subtitles sits on the row instead.
 
 ### Downloads
 

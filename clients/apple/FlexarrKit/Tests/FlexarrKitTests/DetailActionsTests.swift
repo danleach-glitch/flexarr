@@ -47,9 +47,25 @@ struct DetailActionsTests {
 
     // A phone's row holds three beside Play, like an episode's; the rest go to the top of ⋯.
     @Test func aPhoneBeforeStartingKeepsTrailerAndWatchlist() {
-        let a = actions(download: true)
+        let a = actions(download: true, subtitles: true)
         #expect(a.buttons == [.play, .trailer, .watchlist, .download, .more])
-        #expect(a.menu == [.button(.watched)])
+        #expect(a.menu == [.button(.watched), .subtitles])
+    }
+
+    // ⋯ never holds just one thing on a phone: that one takes its place on the row.
+    @Test func aPhonesLoneMenuButtonGoesBackOnTheRowInItsPlace() {
+        let a = actions(download: true)
+        #expect(a.buttons == [.play, .trailer, .watched, .watchlist, .download])
+        #expect(a.menu.isEmpty)
+    }
+
+    @Test func aPhonesLoneMenuEntryTakesTheMoreButtonsPlace() {
+        #expect(actions(kind: .episode, trailer: false, watchlist: false).buttons == [.play, .watched, .openShow])
+        #expect(actions(trailer: false, subtitles: true).buttons == [.play, .watched, .watchlist, .findSubtitles])
+        let versions = DetailActions(kind: .movie, hasProgress: false, watched: false, hasTrailer: false, isKids: false, platform: .phone,
+                                     canPlayTrailers: true, canDownload: false, canChooseVersion: true)
+        #expect(versions.buttons == [.play, .watched, .watchlist, .chooseVersion])
+        #expect(versions.menu.isEmpty)
     }
 
     @Test func aPhonePartWayKeepsStartOverAndWatched() {
@@ -59,22 +75,25 @@ struct DetailActionsTests {
     }
 
     @Test func aPhoneOnceWatchedKeepsWatchedAndWatchlist() {
-        let a = actions(watched: true, download: true)
+        let a = actions(watched: true, download: true, subtitles: true)
         #expect(a.buttons == [.play, .watched, .watchlist, .download, .more])
-        #expect(a.menu == [.button(.trailer)])
+        #expect(a.menu == [.button(.trailer), .subtitles])
     }
 
-    @Test func aPhoneShowShufflesFromTheMenu() {
+    @Test func aPhoneShowShufflesFromTheRowWhenItsAllTheMenuWouldHold() {
         let a = actions(kind: .show)
-        #expect(a.buttons == [.play, .trailer, .watched, .watchlist, .more])
-        #expect(a.menu == [.button(.shuffle)])
+        #expect(a.buttons == [.play, .shuffle, .trailer, .watched, .watchlist])
+        #expect(a.menu.isEmpty)
+        let many = actions(kind: .show, download: true)
+        #expect(many.buttons == [.play, .trailer, .watchlist, .download, .more])
+        #expect(many.menu == [.button(.shuffle), .button(.watched)])
         #expect(actions(kind: .show, platform: .tv).buttons == [.play, .shuffle, .trailer, .watched, .watchlist])
     }
 
     @Test func aPhoneEpisodeMatchesItsPage() {
-        let a = actions(kind: .episode, progress: true, trailer: false, download: true, watchlist: false)
+        let a = actions(kind: .episode, progress: true, trailer: false, download: true, subtitles: true, watchlist: false)
         #expect(a.buttons == [.play, .startOver, .watched, .download, .more])
-        #expect(a.menu == [.goToShow])
+        #expect(a.menu == [.subtitles, .goToShow])
     }
 
     @Test func aPhoneWithoutATrailerFillsTheRowWithWatched() {
@@ -89,7 +108,7 @@ struct DetailActionsTests {
     }
 
     @Test func episodesGoToTheirShowFromTheMenu() {
-        let a = actions(kind: .episode, trailer: false, watchlist: false)
+        let a = actions(kind: .episode, trailer: false, platform: .tv, watchlist: false)
         #expect(a.buttons == [.play, .watched, .more])
         #expect(a.menu == [.goToShow])
     }
@@ -98,7 +117,8 @@ struct DetailActionsTests {
         let a = actions(progress: true, kids: true, subtitles: true)
         #expect(a.buttons == [.play, .startOver])
         #expect(a.menu.isEmpty)
-        #expect(actions(kind: .episode, kids: true).menu == [.goToShow])
+        #expect(actions(kind: .episode, kids: true, platform: .tv).menu == [.goToShow])
+        #expect(actions(kind: .episode, kids: true).buttons == [.play, .openShow])
     }
 
     @Test func aTVWithoutYouTubeHasNoTrailer() {

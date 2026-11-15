@@ -328,6 +328,20 @@ struct DetailView: View {
             } else {
                 DownloadButton(item: item, copies: detail?.copyIds ?? [])
             }
+        case .chooseVersion:
+            // What ⋯ would have held alone, on the row in its place.
+            versionMenu(item)
+        case .findSubtitles:
+            if let file = detail?.subtitleTargetId {
+                Button { subtitleSearchFile = SubtitleSearchFile(id: file) } label: {
+                    Label(t(Words.subtitles), systemImage: Symbol.subtitles)
+                }
+                .accessibilityLabel(t("Search for subtitles"))
+            }
+        case .openShow:
+            if let series {
+                Button { router.push(.item(series)) } label: { Label(t(Words.goToShow), systemImage: Symbol.goToShow) }
+            }
         case .more:
             Menu {
                 ForEach(menu, id: \.self) { entry in
