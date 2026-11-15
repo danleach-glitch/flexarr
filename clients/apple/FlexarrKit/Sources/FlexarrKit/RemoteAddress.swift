@@ -59,10 +59,11 @@ extension FlexarrClient {
     /// with Tailscale off still finds the server once it's away with Tailscale on.
     ///
     /// The id it has to give is `knownId`, the one this device kept when it signed in (`ServerCredentials.serverId`),
-    /// whatever `status` says: a status tampered with on the home network can name a host of its own on Tailscale
-    /// and an id to match, but not one that gives the id kept from before. Only without one (signing in, or a sign-in
-    /// from before the app kept it) is the id in `status` what's asked for. Servers before 0.55 have no id, so their
-    /// address is taken without asking.
+    /// whatever `status` says, so an answer naming a different server's address and id is turned away. The id isn't
+    /// secret (`/setup` gives it to anyone), so this tells this server from another one, not from one built to
+    /// pretend: what keeps the sign-in from strangers is that only Tailscale addresses are taken. Only without a kept
+    /// id (signing in, or a sign-in from before the app kept it) is the id in `status` what's asked for. Servers
+    /// before 0.55 have no id, so their address is taken without asking.
     public static func remoteAddress(
         for status: SystemStatus,
         address: URL,

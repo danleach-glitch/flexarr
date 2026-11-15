@@ -72,9 +72,12 @@ data class ServerCredentials(
         copy(remoteAddress = away?.url?.takeIf { guest == null && it != address }, remoteConfirmed = away?.confirmed ?: true)
 
     fun client(onUnauthorized: (() -> Unit)? = null) = FlexarrClient(
-        addresses = ServerAddresses.shared(address.toHttpUrlOrNull()!!, remoteAddress?.toHttpUrlOrNull()?.takeIf { guest == null })
-            .also { addresses -> serverId?.takeIf { guest == null }?.let { addresses.serverId = it } }
-            .also { addresses -> addresses.remoteConfirmed = remoteConfirmed },
+        addresses = ServerAddresses.shared(
+            address.toHttpUrlOrNull()!!,
+            remoteAddress?.toHttpUrlOrNull()?.takeIf { guest == null },
+            serverId = serverId?.takeIf { guest == null && it.isNotEmpty() },
+            remoteConfirmed = remoteConfirmed,
+        ),
         apiKey = apiKey.ifEmpty { null },
         profileToken = profileToken,
         onUnauthorized = onUnauthorized,
@@ -108,11 +111,10 @@ class CredentialStore internal constructor(context: Context, private val secrets
             address,
             key,
             prefs.getString(PROFILE, null),
-            prefs.getString(REMOTE, null).takeIf { guest == null },
+            (prefs.getString(REMOTE, null) ?: prefs.getString(REMOTE_PENDING, null)).takeIf { guest == null },
             guest,
             prefs.getString(SERVER_ID, null).takeIf { guest == null },
-            // Absent: kept by a version that only ever kept confirmed ones.
-            !prefs.getBoolean(REMOTE_UNCONFIRMED, false),
+            prefs.getString(REMOTE, null) != null || prefs.getString(REMOTE_PENDING, null) == null,
         )
     }
 
@@ -128,8 +130,8 @@ class CredentialStore internal constructor(context: Context, private val secrets
             .also { if (guest == null) it.putString(LAST_ADDRESS, credentials.address) }
             .putString(API_KEY, secrets.encrypt(credentials.apiKey))
             .putString(PROFILE, credentials.profileToken)
-            .putString(REMOTE, credentials.remoteAddress.takeIf { guest == null })
-            .putBoolean(REMOTE_UNCONFIRMED, guest == null && credentials.remoteAddress != null && !credentials.remoteConfirmed)
+            .putString(REMOTE, credentials.remoteAddress.takeIf { guest == null && credentials.remoteConfirmed })
+            .putString(REMOTE_PENDING, credentials.remoteAddress.takeIf { guest == null && !credentials.remoteConfirmed })
             .putString(SERVER_ID, credentials.serverId.takeIf { guest == null })
             .putString(GUEST_TARGET, guest?.target)
             .putString(GUEST_HOSTNAME, guest?.hostname)
@@ -146,10 +148,15 @@ class CredentialStore internal constructor(context: Context, private val secrets
     /** The server's name as it last gave it; null before it has said (or for servers before 0.61). */
     val savedServerName: String? get() = prefs.getString(SERVER_NAME, null)
 
-    /** Keeps the server's address for away from home in step with what it says. Never for a guest's sign-in. */
+    /**
+     * Keeps the server's address for away from home in step with what it says. Never for a guest's sign-in. One not
+     * yet confirmed goes under a key of its own ([REMOTE_PENDING]): versions of the app from before it could be read
+     * [REMOTE] as an address to send the sign-in to without asking, so they never see it.
+     */
     fun saveRemoteAddress(away: Away?) {
         if (prefs.getString(GUEST_TARGET, null) != null) return
-        prefs.edit().putString(REMOTE, away?.url).putBoolean(REMOTE_UNCONFIRMED, away?.confirmed == false).apply()
+        val confirmed = away?.confirmed != false
+        prefs.edit().putString(REMOTE, away?.url.takeIf { confirmed }).putString(REMOTE_PENDING, away?.url.takeIf { !confirmed }).apply()
     }
 
     /** Keeps the server's id, learnt from its status. Never for a guest's sign-in. */
@@ -191,7 +198,7 @@ class CredentialStore internal constructor(context: Context, private val secrets
     fun savedKidsLock(): Boolean = prefs.getBoolean(KIDS_LOCK, false)
 
     fun clear() {
-        prefs.edit().remove(ADDRESS).remove(API_KEY).remove(PROFILE).remove(PROFILES).remove(KIDS_LOCK).remove(REMOTE).remove(REMOTE_UNCONFIRMED).remove(SERVER_ID)
+        prefs.edit().remove(ADDRESS).remove(API_KEY).remove(PROFILE).remove(PROFILES).remove(KIDS_LOCK).remove(REMOTE).remove(REMOTE_PENDING).remove(SERVER_ID)
             .remove(GUEST_TARGET).remove(GUEST_HOSTNAME).remove(GUEST_OWNER).remove(GUEST_SERVER_NAME).remove(SERVER_NAME).apply()
     }
 
@@ -208,7 +215,7 @@ class CredentialStore internal constructor(context: Context, private val secrets
         const val PROFILES = "profiles"
         const val KIDS_LOCK = "kidsLock"
         const val REMOTE = "address.remote"
-        const val REMOTE_UNCONFIRMED = "address.remote.unconfirmed"
+        const val REMOTE_PENDING = "address.remote.pending"
         const val SERVER_ID = "serverId"
         const val GUEST_TARGET = "guest.target"
         const val GUEST_HOSTNAME = "guest.hostname"

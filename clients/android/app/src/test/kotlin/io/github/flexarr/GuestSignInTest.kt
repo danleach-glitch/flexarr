@@ -54,6 +54,22 @@ class GuestSignInTest {
     }
 
     @Test
+    fun `an unconfirmed away address is kept where older versions don't look`() {
+        val away = "https://mini.tail.ts.net:8443/"
+        val prefs = context.getSharedPreferences("server", android.content.Context.MODE_PRIVATE)
+        store.save(ServerCredentials("http://192.168.1.2:8383/", "key", remoteAddress = away, serverId = "abc", remoteConfirmed = false))
+        assertNull(prefs.getString("address.remote", null))
+        assertEquals(io.github.flexarr.data.Away(away, confirmed = false), store.load()!!.away)
+
+        store.saveRemoteAddress(io.github.flexarr.data.Away(away))
+        assertNull(prefs.getString("address.remote.pending", null))
+        assertEquals(io.github.flexarr.data.Away(away), store.load()!!.away)
+
+        store.saveRemoteAddress(null)
+        assertNull(store.load()!!.away)
+    }
+
+    @Test
     fun `the server's name is kept for the server it came from`() {
         val named = tunnel.copy(serverName = "Smith House")
         store.save(ServerCredentials("http://127.0.0.1:52000/", "guest-key", guest = named))

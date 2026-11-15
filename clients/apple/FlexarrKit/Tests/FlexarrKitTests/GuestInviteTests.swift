@@ -80,6 +80,31 @@ struct GuestInviteTests {
         #expect(loaded.apiKey == "guest-key")
     }
 
+    @Test func anUnconfirmedAwayAddressIsKeptWhereOlderVersionsDoNotLook() throws {
+        let suite = "away-test-\(UUID().uuidString)"
+        let service = "io.github.flexarr.test.\(UUID().uuidString)"
+        let store = CredentialStore(service: service, suiteName: suite)
+        defer { store.clear(); UserDefaults().removePersistentDomain(forName: suite) }
+        let away = URL(string: "https://mini.tail.ts.net:8443")!
+        do {
+            try store.save(ServerCredentials(address: URL(string: "http://192.168.1.2:8383")!, apiKey: "key", serverId: "abc"))
+        } catch {
+            return // No Keychain for command-line tests on every machine.
+        }
+        let defaults = try #require(UserDefaults(suiteName: suite))
+
+        store.saveRemoteAddress(FlexarrClient.Away(away, confirmed: false))
+        #expect(defaults.string(forKey: "\(service).address.remote") == nil, "what older versions send the sign-in to")
+        #expect(store.load()?.away == FlexarrClient.Away(away, confirmed: false))
+
+        store.saveRemoteAddress(FlexarrClient.Away(away))
+        #expect(defaults.string(forKey: "\(service).address.remotePending") == nil)
+        #expect(store.load()?.away == FlexarrClient.Away(away))
+
+        store.saveRemoteAddress(nil)
+        #expect(store.load()?.away == nil)
+    }
+
     @Test func aTvOpensTheSharedVectorAsTheServerSealsIt() throws {
         let url = try #require(Bundle.module.url(forResource: "tv-invite", withExtension: "json", subdirectory: "Fixtures"))
         let vector = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: String])

@@ -23,7 +23,9 @@ import okhttp3.HttpUrl
  *
  * The away address is asked the same once, when the app kept it without hearing from it ([remoteConfirmed] false:
  * Tailscale wasn't connected on the device when the server gave it). Until it answers with the server's id it gets
- * nothing signed in ([checkRemote]); once it has, it stays trusted (a Tailscale address is only ever on this tailnet).
+ * nothing signed in ([checkRemote]); once it has, it stays trusted for this launch. The id isn't secret (anyone may
+ * ask for it), so this catches a different server at the address (a Tailscale address handed to another machine, a
+ * name that now leads elsewhere), not one set up to pretend.
  */
 class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
     val remote: HttpUrl? = remote?.takeIf { it != home }
@@ -43,7 +45,10 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
     private var homeVerified = false
     private var homeCheck: Deferred<Boolean>? = null
 
-    /** False while [remote] hasn't yet answered this device with the server's id: it's asked before the sign-in. */
+    /**
+     * False while [remote] hasn't yet answered this device with the server's id: it's asked before the sign-in. Set
+     * when made; [shared] only ever moves it to true.
+     */
     @Volatile
     var remoteConfirmed: Boolean = true
 
@@ -181,9 +186,18 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
             registry.values.forEach { it.networkChanged() }
         }
 
-        /** The one instance for this pair of addresses, so clients made at different times share what they've learnt. */
+        /**
+         * The one instance for this pair of addresses and the server expected there, so clients made at different times
+         * share what they've learnt. The away address being confirmed carries over to it, and is never taken back: the
+         * same away address of the same server can't stop being that server's.
+         */
         @Synchronized
-        fun shared(home: HttpUrl, remote: HttpUrl?): ServerAddresses =
-            registry.getOrPut("$home|${remote ?: ""}") { ServerAddresses(home, remote) }
+        fun shared(home: HttpUrl, remote: HttpUrl?, serverId: String? = null, remoteConfirmed: Boolean = true): ServerAddresses =
+            registry.getOrPut("$home|${remote ?: ""}|${serverId ?: ""}") {
+                ServerAddresses(home, remote).also {
+                    it.serverId = serverId
+                    it.remoteConfirmed = remoteConfirmed
+                }
+            }.also { if (remoteConfirmed) it.remoteConfirmed = true }
     }
 }

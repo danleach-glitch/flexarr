@@ -18,7 +18,9 @@ import Foundation
 ///
 /// The away address is asked the same once, when it's one the app kept without hearing from it (`remoteConfirmed`
 /// false: the device couldn't reach it over Tailscale when the server gave it). Until it gives the server's id, it
-/// counts as not there either; once it has, it stays trusted (a Tailscale address is only ever on this tailnet).
+/// counts as not there either; once it has, it stays trusted for this launch. The id isn't secret (anyone may ask
+/// for it), so this catches a different server at the address (a Tailscale address handed to another machine, a
+/// name that now leads elsewhere), not one set up to pretend.
 ///
 /// Shared by every client made for the same sign-in (see `shared(home:remote:)`), so what one request learns, the
 /// next one uses.
@@ -29,7 +31,9 @@ public final class ServerAddresses: @unchecked Sendable {
     /// app doesn't know it (a server before 0.55, a guest's own tunnel), and home is then trusted as it always was.
     public let serverId: String?
     /// False while `remote` hasn't yet given the server's id to this device: it's asked before it's sent the sign-in.
-    public let remoteConfirmed: Bool
+    /// Only ever goes from false to true (see `shared`).
+    public var remoteConfirmed: Bool { lock.withLock { _remoteConfirmed } }
+    private var _remoteConfirmed: Bool
 
     /// How long to wait for the current address before also asking the other one (GETs only).
     public static let alternateDelay: Duration = .milliseconds(2500)
@@ -63,7 +67,7 @@ public final class ServerAddresses: @unchecked Sendable {
         self.home = home
         self.remote = remote == home ? nil : remote
         self.serverId = serverId?.isEmpty == false ? serverId : nil
-        self.remoteConfirmed = remoteConfirmed
+        self._remoteConfirmed = remoteConfirmed
         self.memory = memory
         // The same server at either address: its artwork is kept once, under its home address (see `atHome`).
         if let remote = self.remote { Self.pair(remote: remote, home: home) }
@@ -213,11 +217,16 @@ public final class ServerAddresses: @unchecked Sendable {
     nonisolated(unsafe) private static var registry: [String: ServerAddresses] = [:]
 
     /// The one instance for this pair of addresses (and the server expected there), so clients made at different
-    /// times share what they've learnt.
+    /// times share what they've learnt. The away address being confirmed carries over to the one instance rather than
+    /// making another, so what it knows of home isn't lost; it's never taken back, as the same away address of the same
+    /// server can't stop being that server's.
     public static func shared(home: URL, remote: URL?, serverId: String? = nil, remoteConfirmed: Bool = true) -> ServerAddresses {
-        let key = "\(home.absoluteString)|\(remote?.absoluteString ?? "")|\(serverId ?? "")|\(remoteConfirmed)"
+        let key = "\(home.absoluteString)|\(remote?.absoluteString ?? "")|\(serverId ?? "")"
         return registryLock.withLock {
-            if let existing = registry[key] { return existing }
+            if let existing = registry[key] {
+                if remoteConfirmed { existing.lock.withLock { existing._remoteConfirmed = true } }
+                return existing
+            }
             let made = ServerAddresses(home: home, remote: remote, serverId: serverId, remoteConfirmed: remoteConfirmed,
                                        memory: .standard)
             registry[key] = made

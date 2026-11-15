@@ -127,13 +127,14 @@ public struct CredentialStore: Sendable {
 
     public func load() -> ServerCredentials? {
         guard let text = defaults.string(forKey: addressKey), let url = URL(string: text) else { return nil }
+        let confirmed = defaults.string(forKey: "\(addressKey).remote").flatMap(URL.init(string:))
+        let pending = defaults.string(forKey: "\(addressKey).remotePending").flatMap(URL.init(string:))
         return ServerCredentials(address: url, apiKey: readKey(account: text) ?? "",
                                  profileToken: defaults.string(forKey: "\(addressKey).profile"),
-                                 remoteAddress: defaults.string(forKey: "\(addressKey).remote").flatMap(URL.init(string:)),
+                                 remoteAddress: confirmed ?? pending,
                                  guest: defaults.data(forKey: "\(addressKey).guest").flatMap { try? JSONDecoder().decode(GuestTunnelInfo.self, from: $0) },
                                  serverId: defaults.string(forKey: "\(addressKey).serverId"),
-                                 // Absent: kept by a version that only ever kept confirmed ones.
-                                 remoteConfirmed: !defaults.bool(forKey: "\(addressKey).remoteUnconfirmed"))
+                                 remoteConfirmed: confirmed != nil || pending == nil)
     }
 
     /// The last address used, kept after sign-out so the connect screen can prefill it.
@@ -156,15 +157,13 @@ public struct CredentialStore: Sendable {
     }
 
     /// Remembers the server's address for away from home and whether it's confirmed (nil forgets it). A guest never
-    /// has one.
+    /// has one. One not yet confirmed is kept under a key of its own (`remotePending`): versions of the app from
+    /// before it could be read `remote` as an address to send the sign-in to without asking, so they never see it.
     public func saveRemoteAddress(_ away: FlexarrClient.Away?) {
         guard away == nil || defaults.data(forKey: "\(addressKey).guest") == nil else { return }
-        defaults.set(away?.url.absoluteString, forKey: "\(addressKey).remote")
-        if away?.confirmed == false {
-            defaults.set(true, forKey: "\(addressKey).remoteUnconfirmed")
-        } else {
-            defaults.removeObject(forKey: "\(addressKey).remoteUnconfirmed")
-        }
+        let confirmed = away?.confirmed != false
+        defaults.set(confirmed ? away?.url.absoluteString : nil, forKey: "\(addressKey).remote")
+        defaults.set(confirmed ? nil : away?.url.absoluteString, forKey: "\(addressKey).remotePending")
     }
 
     /// Remembers the server's id (nil forgets it), which the home address is asked for before it's sent the sign-in.
@@ -211,7 +210,7 @@ public struct CredentialStore: Sendable {
         defaults.removeObject(forKey: addressKey)
         defaults.removeObject(forKey: "\(addressKey).profile")
         defaults.removeObject(forKey: "\(addressKey).remote")
-        defaults.removeObject(forKey: "\(addressKey).remoteUnconfirmed")
+        defaults.removeObject(forKey: "\(addressKey).remotePending")
         defaults.removeObject(forKey: "\(addressKey).serverId")
         defaults.removeObject(forKey: "\(addressKey).guest")
         defaults.removeObject(forKey: "\(addressKey).name")
