@@ -222,6 +222,15 @@ final class PlayerViewController: NSViewController {
         state.subtitleSearch = (available, files, resyncing)
     }
 
+    /// The Quality menu: what's asked for (nil: no menu, as for a download) and the level Automatic stepped down to.
+    func setQuality(_ selected: StreamQuality?, lowered: StreamQuality?) {
+        state.quality = selected
+        state.loweredQuality = lowered
+    }
+
+    /// A moment's message over the picture ("Lowered quality for your connection"), leaving the controls as they are.
+    func notice(_ message: String) { flash(message) }
+
     /// A moment's message in the middle of the picture ("Re-syncing subtitles…").
     func flash(_ message: String) {
         flashTask?.cancel()
@@ -306,6 +315,10 @@ final class PlayerViewController: NSViewController {
         transport.setRate(rate)
         state.rate = transport.rate
         delegate?.playerScreen(self, choseRate: transport.rate)
+    }
+
+    func chooseQuality(_ quality: StreamQuality) {
+        delegate?.playerScreen(self, choseQuality: quality)
     }
 
     func searchSubtitles() { delegate?.playerScreenSearchSubtitles(self) }

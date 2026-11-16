@@ -33,6 +33,9 @@ final class MacPlayerState {
     var audioSync: Double?
     var audioSyncOpen = false
     var rate: Float = 1
+    /// The quality asked for (nil: no Quality menu, as for a download) and the level Automatic stepped down to.
+    var quality: StreamQuality?
+    var loweredQuality: StreamQuality?
     var maxRate: Float = 2
     var sleepSetting: SleepTimer.Setting?
     var sleepMinutesLeft: Int?
@@ -287,6 +290,23 @@ struct MacPlayerControls: View {
                 .help(t("Speed"))
                 .accessibilityLabel(t("Speed"))
                 .accessibilityValue(PlayerViewController.rateLabel(state.rate))
+            }
+            if !state.isLive, let quality = state.quality {
+                Menu {
+                    Picker(t(Words.quality), selection: Binding(get: { quality }, set: { screen?.chooseQuality($0) })) {
+                        ForEach([StreamQuality.automatic, .original] + StreamQuality.levels, id: \.self) { choice in
+                            if choice == .automatic, quality == .automatic, let lowered = state.loweredQuality {
+                                Text("\(choice.label) (\(lowered.label))").tag(choice)
+                            } else {
+                                Text(choice.label).tag(choice)
+                            }
+                        }
+                    }
+                    .pickerStyle(.inline)
+                } label: { Image(systemName: "slider.horizontal.3") }
+                .help(t(Words.quality))
+                .accessibilityLabel(t(Words.quality))
+                .accessibilityValue(quality.label)
             }
             if !state.isLive {
                 Menu {
