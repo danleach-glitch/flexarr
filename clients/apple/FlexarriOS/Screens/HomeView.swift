@@ -36,6 +36,20 @@ struct HomeView: View {
             }
         }
         .toolbarBackground(.hidden, for: .navigationBar)
+        #if os(iOS)
+        // On the iPad the picture stays at the top right, in line with the tab bar, as the tab bar does when the page
+        // scrolls. Bigger than the iPhone's: it's on its own up there, not over the hero.
+        .toolbar {
+            if sizeClass == .regular, showsProfileButton {
+                if #available(iOS 26, *) {
+                    ToolbarItem(placement: .topBarTrailing) { profileButton(size: 52) }
+                        .sharedBackgroundVisibility(.hidden)
+                } else {
+                    ToolbarItem(placement: .topBarTrailing) { profileButton(size: 52) }
+                }
+            }
+        }
+        #endif
         .sheet(isPresented: $choosingProfile) {
             ProfilePickerView(marksCurrent: true)
                 .presentationDetents([.medium, .large])
@@ -96,11 +110,15 @@ struct HomeView: View {
                     }
                 }
                 // With no hero the profile picture would sit on the first row's See all: the rows start below it.
-                .padding(.top, home.featured.isEmpty && showsProfileButton ? 52 : 0)
+                // (The iPad's is in the bar above.)
+                .padding(.top, home.featured.isEmpty && showsProfileInPage ? 52 : 0)
                 .padding(.bottom, 32)
-                // Part of the page, so it scrolls away with the hero rather than floating over the rows.
+                // On the iPhone, part of the page, so it scrolls away with the hero rather than floating over the rows.
                 .overlay(alignment: .topTrailing) {
-                    profileButton.padding(.top, home.featured.isEmpty ? 4 : proxy.safeAreaInsets.top + 4).padding(.trailing, 16)
+                    if showsProfileInPage {
+                        profileButton(size: 44)
+                            .padding(.top, home.featured.isEmpty ? 4 : proxy.safeAreaInsets.top + 4).padding(.trailing, 16)
+                    }
                 }
             }
             // The hero runs up under the status bar; without one (a server of only podcasts, say) the rows start below it.
@@ -136,13 +154,16 @@ struct HomeView: View {
         #endif
     }
 
+    /// The profile picture sits in the page on the iPhone; the iPad's is in the bar at the top.
+    private var showsProfileInPage: Bool { showsProfileButton && sizeClass != .regular }
+
     /// The profile watching, to switch from. The Mac's is in its sidebar instead.
     @ViewBuilder
-    private var profileButton: some View {
+    private func profileButton(size: CGFloat) -> some View {
         #if !os(macOS)
         if model.offersProfilePicker, let current = model.currentProfile {
             Button { choosingProfile = true } label: {
-                ProfileAvatar(profile: current, size: 44)
+                ProfileAvatar(profile: current, size: size)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(t("Profile: {name}", ["name": current.name]))
