@@ -327,9 +327,13 @@
 /* A row's quieter second line: what's playing now, the file's own quality. */
 .player-menu-detail {
   display: block;
-  margin-top: 2px;
   font-size: var(--step--1);
   color: var(--usher);
+}
+
+/* With a second line, the tick stays beside the first. */
+.player-menu-item:has(.player-menu-detail).selected::before {
+  top: calc(9px + 0.5lh);
 }
 
 .player-menu-item.selected::before {
