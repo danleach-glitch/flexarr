@@ -82,11 +82,19 @@ final class PlayerViewController: UIViewController {
     static let rateChoices: [Float] = [0.5, 0.75, 1, 1.25, 1.5, 2]
 
     /// Swapped when a session is replaced (the next episode, a recovered stream, the engine's fallback).
+    private let heldPicture = HeldPicture()
+
+    /// The stream about to be replaced in place: paused, silent and left on screen until its replacement plays.
+    func holdPicture(of transport: PlayerTransport) {
+        heldPicture.hold(transport)
+    }
+
     var transport: PlayerTransport? {
         didSet {
             oldValue?.delegate = nil
-            oldValue?.view.removeFromSuperview()
-            guard let transport else { return }
+            // A stream being replaced in place keeps its picture up until the new one plays.
+            if !heldPicture.holds(oldValue) { oldValue?.view.removeFromSuperview() }
+            guard let transport else { return heldPicture.release() }
             transport.delegate = self
             transport.subtitleSize = subtitleSize
             transport.subtitlePlacement = subtitlePlacement
@@ -549,6 +557,7 @@ final class PlayerViewController: UIViewController {
     /// Closes the screen when it's done: the controller asks, having stopped the session.
     func finish(completion: (() -> Void)? = nil) {
         finished = true
+        heldPicture.release()
         sleepWatch?.cancel()
         sleepWatch = nil
         sleep.set(nil)
@@ -1333,6 +1342,7 @@ final class PlayerViewController: UIViewController {
 
 extension PlayerViewController: PlayerTransportDelegate {
     func transport(_ transport: PlayerTransport, phaseChanged phase: TransportPhase) {
+        if phase == .playing, transport === self.transport { heldPicture.release() }
         #if os(iOS)
         if isViewLoaded { preparePictureInPicture(transport) }
         #endif
