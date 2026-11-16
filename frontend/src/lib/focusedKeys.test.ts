@@ -27,6 +27,19 @@ describe('belongsToFocused', () => {
     expect(press('f', button)).toBe(false)
   })
 
+  it('keeps Space for the page on a button that was clicked, until Tab moves focus', () => {
+    const button = document.createElement('button')
+    document.body.append(button)
+    button.dispatchEvent(new Event('pointerdown', { bubbles: true }))
+
+    expect(press(' ', button)).toBe(false)
+    expect(press('Enter', button)).toBe(true)
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab' }))
+    expect(press(' ', button)).toBe(true)
+    button.remove()
+  })
+
   it('leaves a slider its arrows, but Space and the shortcuts to the page', () => {
     const slider = Object.assign(document.createElement('input'), { type: 'range' })
 
