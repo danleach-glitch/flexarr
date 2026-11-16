@@ -329,6 +329,14 @@ public class FfmpegCommandTests
         }
     }
 
+    [Fact]
+    public void ALaddersQuality_KeepsTheFilesOwnPictureTimes_AndAStreamOfOneQualityIsAsBefore()
+    {
+        var ladder = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan, 5, "/out", Settings(HardwareAcceleration.VideoToolbox), sourceTimes: true));
+        Assert.Contains("-fps_mode passthrough -enc_time_base:v 1/90000", ladder, StringComparison.Ordinal);
+        Assert.DoesNotContain("-fps_mode", string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan, 5, "/out", Settings(HardwareAcceleration.VideoToolbox))), StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData(HardwareAcceleration.VideoToolbox, true)]
     [InlineData(HardwareAcceleration.Nvenc, true)]

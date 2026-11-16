@@ -23,6 +23,13 @@ public static class FfmpegCommand
     public const int RemoteOpeningSegmentSeconds = 1;
 
     /// <summary>
+    /// Keeps each picture at the file's own time. By default the encoder counts in frames from wherever a run starts, so
+    /// a run started at 15 s puts the picture the file shows at 15.015 s at 15.000, and its segments sit a fraction of a
+    /// frame off another quality's made from the start; a fine clock and no frame-rate conversion keep them together.
+    /// </summary>
+    public static readonly string[] SourceTimes = ["-fps_mode", "passthrough", "-enc_time_base:v", "1/90000"];
+
+    /// <summary>
     /// Whether <paramref name="encoder"/> can make a ladder of qualities (docs/remote-streaming.md): every quality must
     /// cut at the same moments for players to switch between them, so only encoders that keyframe exactly where told
     /// and nowhere else, in hardware (VideoToolbox, NVENC). Software would take three conversions' worth of processor,
@@ -135,8 +142,12 @@ public static class FfmpegCommand
     /// How long the opening segments are when there are any (<see cref="OpeningSegmentSeconds"/> by default,
     /// <see cref="RemoteOpeningSegmentSeconds"/> away from home).
     /// </param>
+    /// <param name="sourceTimes">
+    /// Every picture keeps the file's own time (a ladder's quality, see <see cref="SourceTimes"/>), so a run started part
+    /// way through lines up with the other qualities' to the frame.
+    /// </param>
     public static IReadOnlyList<string> Hls(string input, TranscodePlan plan, int startSegment, string outputDirectory, TranscodeSettings settings,
-        bool? opening = null, int burstSeconds = RunAheadSeconds, double speed = 1, int openingSeconds = OpeningSegmentSeconds)
+        bool? opening = null, int burstSeconds = RunAheadSeconds, double speed = 1, int openingSeconds = OpeningSegmentSeconds, bool sourceTimes = false)
     {
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(settings);
@@ -215,6 +226,10 @@ public static class FfmpegCommand
         if (!audioOnly)
         {
             AddVideo(args, plan, burn, hw, settings, fromOpening ? openingLength : 0);
+            if (sourceTimes)
+            {
+                args.AddRange(SourceTimes);
+            }
         }
 
         AddAudioAndOutput(args, plan, audioInput, start, startSegment, outputDirectory, fromOpening ? openingLength : SegmentSeconds);

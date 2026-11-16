@@ -628,7 +628,7 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         // segment it hasn't made, with the full burst at normal priority (see GetSegmentAsync).
         var pace = Speed;
         var burst = Warming ? FfmpegCommand.WarmingRunAheadSeconds : FfmpegCommand.RunAheadSeconds;
-        foreach (var arg in FfmpegCommand.Hls(Input, Plan, segment, Directory, _settings, Opening, burst, pace, Math.Max(1, OpeningSeconds)))
+        foreach (var arg in FfmpegCommand.Hls(Input, Plan, segment, Directory, _settings, Opening, burst, pace, Math.Max(1, OpeningSeconds), sourceTimes: Ladder is not null))
         {
             start.ArgumentList.Add(arg);
         }
