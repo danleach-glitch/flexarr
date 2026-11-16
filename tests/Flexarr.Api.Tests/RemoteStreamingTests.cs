@@ -118,4 +118,21 @@ public sealed class RemoteStreamingTests : IAsyncLifetime
 
         Assert.Equal("DirectPlay", (await StartAsync(Client(Away), movie)).GetProperty("method").GetString());
     }
+
+    [Fact]
+    public async Task AConversionForARemoteViewer_OpensWithOneSecondSegments_AndAtHomeTwo()
+    {
+        var movie = await AddMovieAsync();
+
+        async Task<string> FirstSegmentAsync(string peer)
+        {
+            var client = Client(peer);
+            var started = await StartAsync(client, movie, new { ForceTranscode = true });
+            var playlist = await client.GetStringAsync(new Uri($"/api/v1/playback/{started.GetProperty("sessionId").GetString()}/main.m3u8", UriKind.Relative));
+            return playlist.Split('\n').First(l => l.StartsWith("#EXTINF:", StringComparison.Ordinal));
+        }
+
+        Assert.Equal("#EXTINF:1.000,", await FirstSegmentAsync(Away));
+        Assert.Equal("#EXTINF:2.000,", await FirstSegmentAsync(Home));
+    }
 }

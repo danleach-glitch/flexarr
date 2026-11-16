@@ -241,7 +241,9 @@ public sealed partial class PlaybackService(
         {
             try
             {
-                transcode = await transcodes.CreateAsync(profile.Id, file.Path, duration, plan, restarting, request.Prepare);
+                // Away from home the opening segments are shorter, so a slower link has a picture sooner.
+                transcode = await transcodes.CreateAsync(profile.Id, file.Path, duration, plan, restarting, request.Prepare,
+                    remote ? FfmpegCommand.RemoteOpeningSegmentSeconds : FfmpegCommand.OpeningSegmentSeconds);
                 id = transcode.Id;
             }
             catch (TranscodeLimitException) when (asItIs is not null && !request.Prepare)

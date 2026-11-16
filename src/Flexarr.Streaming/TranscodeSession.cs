@@ -73,8 +73,13 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     /// Called before ffmpeg starts again in a session where it isn't running; throws <see cref="TranscodeLimitException"/>
     /// when that would go over the server's limit.
     /// </param>
+    /// <param name="openingSeconds">
+    /// How long the opening segments are, when the plan and encoder have them (<see cref="FfmpegCommand.HasOpening"/>):
+    /// shorter for a viewer away from home. Every quality of a ladder has the same.
+    /// </param>
+    /// <param name="directory">Where its segments go; by default its own folder under the cache's transcodes.</param>
     public TranscodeSession(string id, string input, double durationSeconds, TranscodePlan plan, TranscodeSettings settings, ILogger logger,
-        Action<TranscodeSession>? reserve = null)
+        Action<TranscodeSession>? reserve = null, int openingSeconds = FfmpegCommand.OpeningSegmentSeconds, string? directory = null)
     {
         Id = id;
         Input = input;
@@ -83,13 +88,16 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         _settings = settings;
         _logger = logger;
         _reserve = reserve;
-        Directory = System.IO.Directory.CreateDirectory(Path.Combine(settings.CacheDirectory, "transcodes", id)).FullName;
+        Directory = System.IO.Directory.CreateDirectory(directory ?? Path.Combine(settings.CacheDirectory, "transcodes", id)).FullName;
         // Settled once: a fall back to software mid-session mustn't change where the segments start.
-        Opening = FfmpegCommand.HasOpening(plan, settings);
+        OpeningSeconds = FfmpegCommand.HasOpening(plan, settings) ? Math.Max(1, openingSeconds) : 0;
     }
 
     /// <summary>The segments start with short ones (<see cref="FfmpegCommand.OpeningSegments"/>), for the whole session.</summary>
-    public bool Opening { get; }
+    public bool Opening => OpeningSeconds > 0;
+
+    /// <summary>How long each of the opening segments is (0: there are none), for the whole session.</summary>
+    public int OpeningSeconds { get; }
 
     public string Id { get; }
 
@@ -99,14 +107,14 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     public double DurationSeconds { get; }
     public TranscodePlan Plan { get; }
     public string Directory { get; }
-    public int SegmentCount => Plan.Repackage?.SegmentStarts.Count ?? FfmpegCommand.SegmentCount(DurationSeconds, Opening);
+    public int SegmentCount => Plan.Repackage?.SegmentStarts.Count ?? FfmpegCommand.SegmentCount(DurationSeconds, OpeningSeconds);
 
     /// <summary>The segment playing at <paramref name="seconds"/>.</summary>
     public int SegmentAt(double seconds)
     {
         if (Plan.Repackage is not { } repackage)
         {
-            return Math.Clamp(FfmpegCommand.SegmentAtSeconds(seconds, Opening), 0, SegmentCount - 1);
+            return Math.Clamp(FfmpegCommand.SegmentAtSeconds(seconds, OpeningSeconds), 0, SegmentCount - 1);
         }
 
         var starts = repackage.SegmentStarts;
@@ -152,7 +160,7 @@ public sealed partial class TranscodeSession : IAsyncDisposable
 
     public string MediaPlaylist() => Plan.Repackage is { } repackage
         ? FfmpegCommand.MediaPlaylist(repackage.SegmentStarts, DurationSeconds, StartSeconds)
-        : FfmpegCommand.MediaPlaylist(DurationSeconds, StartSeconds, Plan.Fmp4, Opening);
+        : FfmpegCommand.MediaPlaylist(DurationSeconds, StartSeconds, Plan.Fmp4, OpeningSeconds);
 
     private string SegmentExtension => Plan.Fmp4 ? ".m4s" : ".ts";
 
@@ -568,7 +576,7 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         // segment it hasn't made, with the full burst at normal priority (see GetSegmentAsync).
         var pace = Speed;
         var burst = Warming ? FfmpegCommand.WarmingRunAheadSeconds : FfmpegCommand.RunAheadSeconds;
-        foreach (var arg in FfmpegCommand.Hls(Input, Plan, segment, Directory, _settings, Opening, burst, pace))
+        foreach (var arg in FfmpegCommand.Hls(Input, Plan, segment, Directory, _settings, Opening, burst, pace, Math.Max(1, OpeningSeconds)))
         {
             start.ArgumentList.Add(arg);
         }
@@ -627,7 +635,7 @@ public sealed partial class TranscodeSession : IAsyncDisposable
 
     /// <summary>When segment <paramref name="index"/> starts in the film.</summary>
     private double SegmentStart(int index) =>
-        Plan.Repackage is { } repackage ? repackage.SegmentStarts[index] : FfmpegCommand.SegmentStartSeconds(index, Opening);
+        Plan.Repackage is { } repackage ? repackage.SegmentStarts[index] : FfmpegCommand.SegmentStartSeconds(index, OpeningSeconds);
 
     /// <summary>Deletes the segments more than <see cref="KeptBehind"/> before <paramref name="watching"/>.</summary>
     private async Task PruneAsync(int watching, CancellationToken ct)

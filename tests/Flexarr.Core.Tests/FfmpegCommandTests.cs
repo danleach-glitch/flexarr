@@ -292,6 +292,52 @@ public class FfmpegCommandTests
         Assert.Contains("-hls_time 6 ", music, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void AwayFromHome_TheOpeningSegmentsAreOneSecond_AndTheGridAfterThemIsEven()
+    {
+        var args = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan, 0, "/out", Settings(HardwareAcceleration.VideoToolbox),
+            openingSeconds: FfmpegCommand.RemoteOpeningSegmentSeconds));
+        Assert.Contains("-force_key_frames expr:if(lt(n_forced,3),gte(t,n_forced*1),gte(t,3+(n_forced-3)*6))", args, StringComparison.Ordinal);
+        Assert.Contains("-hls_time 1 ", args, StringComparison.Ordinal);
+
+        // Segment 5 starts at 3 + 2 × 6 = 15 s, keyframed every 6 seconds from there.
+        var later = string.Join(' ', FfmpegCommand.Hls("/in.mkv", Plan, 5, "/out", Settings(HardwareAcceleration.VideoToolbox), openingSeconds: 1));
+        Assert.Contains("-ss 15 ", later, StringComparison.Ordinal);
+        Assert.Contains("-start_number 5 ", later, StringComparison.Ordinal);
+        Assert.Contains("-force_key_frames expr:gte(t,n_forced*6)", later, StringComparison.Ordinal);
+
+        var lengths = FfmpegCommand.MediaPlaylist(20, 0, fmp4: true, openingSeconds: 1).Split('\n').Where(l => l.StartsWith("#EXTINF:", StringComparison.Ordinal))
+            .Select(l => double.Parse(l[8..^1], System.Globalization.CultureInfo.InvariantCulture)).ToList();
+        Assert.Equal([1, 1, 1, 6, 6, 5], lengths);
+        Assert.Equal(15, FfmpegCommand.SegmentStartSeconds(5, openingSeconds: 1));
+        Assert.Equal(4, FfmpegCommand.SegmentAtSeconds(14.9, openingSeconds: 1));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void EveryQualityOfALadder_CutsAtTheSameMoments(int opening)
+    {
+        // The same grid whatever the size: a player can switch at any segment.
+        var low = Plan with { TargetWidth = 854, TargetHeight = 480, VideoBitrate = 1_244_000 };
+        foreach (var segment in new[] { 0, 3, 4, 50 })
+        {
+            string Grid(TranscodePlan plan) => string.Join(' ', FfmpegCommand.Hls("/in.mkv", plan, segment, "/out", Settings(HardwareAcceleration.VideoToolbox), openingSeconds: opening)
+                .SkipWhile(a => a != "-ss").Take(2).Concat(FfmpegCommand.Hls("/in.mkv", plan, segment, "/out", Settings(HardwareAcceleration.VideoToolbox), openingSeconds: opening)
+                    .SkipWhile(a => a != "-force_key_frames").Take(2)));
+            Assert.Equal(Grid(Plan), Grid(low));
+        }
+    }
+
+    [Theory]
+    [InlineData(HardwareAcceleration.VideoToolbox, true)]
+    [InlineData(HardwareAcceleration.Nvenc, true)]
+    [InlineData(HardwareAcceleration.None, false)]
+    [InlineData(HardwareAcceleration.Vaapi, false)]
+    [InlineData(HardwareAcceleration.Qsv, false)]
+    public void OnlyEncodersThatKeyframeWhereTold_MakeALadder(HardwareAcceleration encoder, bool ladder) =>
+        Assert.Equal(ladder, FfmpegCommand.LadderIsSafe(encoder));
+
     [Theory]
     [InlineData(0, 0)]
     [InlineData(1.9, 0)]

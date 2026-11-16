@@ -124,8 +124,9 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
     /// Getting a stream ready ahead of Play (the next episode, a page being looked at): it never takes anyone's place,
     /// and gives way to any other start that needs its slot.
     /// </param>
+    /// <param name="openingSeconds">How long its opening segments are (see <see cref="TranscodeSession.OpeningSeconds"/>).</param>
     public async Task<TranscodeSession> CreateAsync(string profileId, string input, double durationSeconds, TranscodePlan plan, bool restarting = false,
-        bool preparing = false)
+        bool preparing = false, int openingSeconds = FfmpegCommand.OpeningSegmentSeconds)
     {
         if (LowOnSpace())
         {
@@ -206,7 +207,7 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
             }
 
             var id = NewId();
-            session = new TranscodeSession(id, input, durationSeconds, plan, current, _logger, Reserve) { ProfileId = profileId, Warming = preparing };
+            session = new TranscodeSession(id, input, durationSeconds, plan, current, _logger, Reserve, openingSeconds) { ProfileId = profileId, Warming = preparing };
             _sessions[id] = session;
         }
 
