@@ -42,8 +42,10 @@ Don't use **Tailscale Funnel** for Flexarr. Funnel publishes an address to the w
 Hotel Wi-Fi and phone data are slower than your home network, and so is the upload speed of most home broadband.
 
 - **Live TV** comes in a reduced version away from home: at most 720p, at about 2.5 Mbps, in stereo. At home, channels play as they come.
-- **Movies, shows and music** are converted to fit when the file needs more than your connection carries. Each app measures how fast streams arrive and tells the server when you press Play; a file that fits plays as it is. Converting to fit loses HDR and lossless sound. Audiobooks and podcasts are small enough to fit as they are. **Settings › Streaming › Away from home** set to **Original quality** turns this off. At home nothing changes.
-- **On the web**, choosing a quality in the player's menu (1080p, 720p or 480p) wins over the automatic choice for that viewing.
+- **Movies and shows start straight away.** Each app checks your connection's speed when it opens away from home. When the speed easily carries the file, it plays as it is. Otherwise it comes in several qualities at once (1080p, 720p and 480p), starting on a light one, and the player moves up or down every few seconds to match your connection, the way video sites do. Those qualities are converted, so they lose HDR and lossless sound. Audiobooks and podcasts are small enough to play as they are. **Settings › Streaming › Away from home** set to **Original quality** turns this off. At home nothing changes.
+- **If it still buffers,** the player steps down a quality by itself and says so, and moves back up once the connection has been steady for a few minutes.
+- **The Quality menu** in every player (**Automatic**, **Original**, **1080p**, **720p**, **480p**) wins over the automatic choice. Away from home, each device remembers its choice; at home every play starts on Automatic.
+- **Settings › Remote access** says when the best speed your remote devices have measured is less than your busiest files need. That's your home internet's upload, not Flexarr.
 - **Limit each stream to**, also in **Settings › Streaming**, caps every stream, at home too. It's there if your home internet's upload is very slow.
 - **On iPhone and iPad**, downloading before you leave avoids the question altogether. See [Downloads](downloads.md).
 
