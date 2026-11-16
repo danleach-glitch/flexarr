@@ -487,6 +487,9 @@ internal fun VideoSurface(player: androidx.media3.common.Player, keepAwake: Bool
                 useController = false
                 resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                 setShutterBackgroundColor(AndroidColor.BLACK)
+                // A stream opened again (another quality, a step down, another audio track) keeps the last picture up
+                // until the new one's first frame, rather than going black in between (docs/remote-streaming.md).
+                setKeepContentOnPlayerReset(true)
                 // Subtitles are drawn by SubtitleLayer, at the profile's size and height.
                 subtitleView?.visibility = android.view.View.GONE
                 this.player = player
