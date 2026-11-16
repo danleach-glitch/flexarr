@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.runtime.Composable
@@ -53,12 +54,13 @@ import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.tv.TakeFocus
 import io.github.flexarr.ui.tv.TvActionButton
 import io.github.flexarr.ui.theme.Tokens
+import io.github.flexarr.core.StreamQuality
 
 // The player's menus for the remote, as the Apple TV's: a button for each beneath the timeline, opening a panel down
 // the right of the picture, with a page for each submenu. The same choices as the phone's dropdowns (PlayerMenus.kt).
 
 internal enum class TvMenu(private val english: String) {
-    Audio(tk("Audio")), Subtitles(tk(Words.subtitles)), Speed(tk("Speed")), Sleep(tk("Sleep timer"));
+    Audio(tk("Audio")), Subtitles(tk(Words.subtitles)), Speed(tk("Speed")), Quality(tk(Words.quality)), Sleep(tk("Sleep timer"));
 
     val title: String get() = t(english)
 }
@@ -72,10 +74,12 @@ internal fun TvMenuButtons(controller: PlaybackController?, sleep: VideoSleep, m
                 TvMenu.Audio -> Icons.Filled.GraphicEq
                 TvMenu.Subtitles -> Icons.Filled.ClosedCaption
                 TvMenu.Speed -> Icons.Filled.Speed
+                TvMenu.Quality -> Icons.Filled.HighQuality
                 TvMenu.Sleep -> if (sleep.setting != null) Icons.Filled.Bedtime else Icons.Outlined.Bedtime
             }
             val label = when (menu) {
                 TvMenu.Speed -> controller?.rate?.takeIf { it != 1f }?.let(PlaybackController::rateLabel) ?: menu.title
+                TvMenu.Quality -> controller?.quality?.takeIf { it != StreamQuality.Automatic }?.label ?: menu.title
                 TvMenu.Sleep -> sleep.setting?.label ?: menu.title
                 else -> menu.title
             }
@@ -84,10 +88,10 @@ internal fun TvMenuButtons(controller: PlaybackController?, sleep: VideoSleep, m
     }
 }
 
-/** Which menus a film or episode has: Subtitles only when there are some, or some to search for. */
+/** Which menus a film or episode has: Subtitles only when there are some, or some to search for; Quality not for a download. */
 internal fun PlaybackController.tvMenus(): List<TvMenu> {
     val info = info ?: return emptyList()
-    return listOfNotNull(TvMenu.Audio, TvMenu.Subtitles.takeIf { info.subtitles.isNotEmpty() || canSearchSubtitles }, TvMenu.Speed, TvMenu.Sleep)
+    return listOfNotNull(TvMenu.Audio, TvMenu.Subtitles.takeIf { info.subtitles.isNotEmpty() || canSearchSubtitles }, TvMenu.Speed, TvMenu.Quality.takeIf { !isOffline }, TvMenu.Sleep)
 }
 
 /** One row of a menu's page. */
@@ -250,6 +254,9 @@ private fun panelItems(
         }
         TvMenu.Speed -> (PlaybackController.rateChoices + controller.rate).distinct().sorted().filter { it <= PlaybackController.MAX_RATE }.forEach { rate ->
             add(PanelItem(PlaybackController.rateLabel(rate), checked = rate == controller.rate) { close(); controller.chooseRate(rate) })
+        }
+        TvMenu.Quality -> StreamQuality.menu.forEach { quality ->
+            add(PanelItem(quality.label, checked = quality == controller.quality, enabled = !reopening) { close(); controller.chooseQuality(quality) })
         }
         TvMenu.Sleep -> Unit
     }

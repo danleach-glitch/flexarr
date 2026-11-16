@@ -171,6 +171,14 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
         flash = null
     }
     // The controller's own messages ("Re-syncing subtitles…"), with the controls up.
+    // Stepped down for a slow link: said for a moment over the picture, with no controls and nothing taking focus.
+    var notice by remember { mutableStateOf(false) }
+    LaunchedEffect(controller.qualityNotice) {
+        if (controller.qualityNotice == 0) return@LaunchedEffect
+        notice = true
+        delay(3_000)
+        notice = false
+    }
     LaunchedEffect(controller.flash) {
         val (text, _) = controller.flash ?: return@LaunchedEffect
         flash = text
@@ -247,6 +255,10 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
         }
         flash?.let {
             Text(it, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center).glass(CircleShape).padding(horizontal = 18.dp, vertical = 10.dp))
+        }
+        if (notice && controller.error == null) {
+            Text(t(Words.loweredQuality), fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 40.dp).glass(CircleShape).padding(horizontal = 18.dp, vertical = 10.dp))
         }
         controller.error?.let { message -> PlayerError(controller, message, onClose) }
 
