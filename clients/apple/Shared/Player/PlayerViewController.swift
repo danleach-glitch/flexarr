@@ -31,6 +31,8 @@ final class PlayerViewController: UIViewController {
     private var holdTask: Task<Void, Never>?
     #endif
     private var subtitleSize: SubtitleSize = .standard
+    /// The quality asked for and the level Automatic stepped down to, for the Quality menu (nil: no menu).
+    private var quality: (selected: StreamQuality, lowered: StreamQuality?)?
     private var subtitlePlacement = SubtitlePlacement()
     /// The file's audio offset (nil: not adjustable here).
     private var audioSync: Double?
@@ -416,6 +418,19 @@ final class PlayerViewController: UIViewController {
     func setSubtitleSearch(available: Bool, files: Set<String>, resyncing: Bool) {
         subtitleSearch = (available, files, resyncing)
         rebuildMenus()
+    }
+
+    /// The Quality menu: what's asked for (nil: no menu, as for a download) and the level Automatic stepped down to.
+    func setQuality(_ selected: StreamQuality?, lowered: StreamQuality?) {
+        quality = selected.map { ($0, lowered) }
+        rebuildMenus()
+    }
+
+    /// A moment's message in the middle of the picture ("Lowered quality for your connection"), without bringing the
+    /// controls up or moving focus.
+    func notice(_ message: String) {
+        guard isViewLoaded else { return }
+        controls.flashMessage(message)
     }
 
     /// A moment's message in the middle of the picture ("Re-syncing subtitles…"), with the controls up.
@@ -1023,7 +1038,28 @@ final class PlayerViewController: UIViewController {
             }
         })
         controls.setSpeedBadge(controls.speedButton.isHidden || transport.rate == 1 ? nil : Self.rateLabel(transport.rate))
+        rebuildQualityMenu()
         rebuildSleepMenu()
+    }
+
+    /// Automatic, Original, 1080p, 720p, 480p; Automatic says the level it stepped down to, if it has.
+    private func rebuildQualityMenu() {
+        guard let quality else {
+            controls.qualityButton.isHidden = true
+            return
+        }
+        controls.qualityButton.isHidden = false
+        let choices: [StreamQuality] = [.automatic, .original] + StreamQuality.levels
+        controls.qualityButton.menu = UIMenu(title: t(Words.quality), children: choices.map { choice in
+            let action = UIAction(title: choice.label, state: choice == quality.selected ? .on : .off) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.delegate?.playerScreen(self, choseQuality: choice)
+                }
+            }
+            if choice == .automatic, quality.selected == .automatic, let lowered = quality.lowered { action.subtitle = lowered.label }
+            return action
+        })
     }
 
     /// Off, 15 to 60 minutes, End of episode (episodes only); with the minutes left while one runs.

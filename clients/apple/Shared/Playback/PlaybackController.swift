@@ -199,6 +199,18 @@ final class PlaybackController: NSObject {
     @ObservationIgnored private var timing: StartTiming?
     /// A re-sync of the file's subtitles being followed: which title and file, and the polling.
     @ObservationIgnored private var subtitleSync: (itemId: String, fileId: String, task: Task<Void, Never>)?
+    /// The quality chosen in the player's Quality menu this sitting; nil: none, so the one remembered for away from
+    /// home, or Automatic at home (docs/remote-streaming.md).
+    @ObservationIgnored private var chosenQuality: StreamQuality?
+    /// A title stepped down after stalls on Automatic: the level it plays at now, for that title only.
+    @ObservationIgnored private var loweredQuality: (itemId: String, level: StreamQuality)?
+    /// The height of the stream the title first played at, before any step down: a step up that would reach it goes
+    /// back to Automatic.
+    @ObservationIgnored private var originalHeight: Int?
+    /// Counts stalls and smooth minutes, for stepping down and back up.
+    @ObservationIgnored private var qualityWatch = QualityWatch()
+    @ObservationIgnored private var longStallCheck: Task<Void, Never>?
+    @ObservationIgnored private var lastStepUpCheck = Date.distantPast
     private static let countdownSeconds = Int(NextEpisodeTiming.countdownSeconds)
     private static let reportInterval: TimeInterval = 10
     private static var takenOverMessage: String { t("Someone started watching on another screen, so this one had to stop.") }
@@ -219,6 +231,8 @@ final class PlaybackController: NSObject {
         trail = []
         carriedRate = nil
         viewerSubtitleKey = subtitleKey.map { .some($0) }
+        chosenQuality = nil
+        loweredQuality = nil
         var request = request(for: itemId, startAt: startAt)
         if let subtitleKey { request.subtitleKey = subtitleKey }
         timing = StartTiming(.video)
@@ -262,8 +276,9 @@ final class PlaybackController: NSObject {
                 // Got ready on its page a moment ago: no wait for the server.
                 let ready = request.replacesSessionId == nil ? await takeReady(request) : nil
                 if ready == nil { dropReady() }
-                let info: PlaybackInfo
+                var info: PlaybackInfo
                 if let ready { info = ready } else { info = try await client.startPlayback(request) }
+                info = try await serverStreamIfEngineWontKeepUp(info, asked: request)
                 timing?.answered(info, warmed: ready != nil)
                 try present(info)
             } catch {
@@ -303,6 +318,7 @@ final class PlaybackController: NSObject {
         var request = PlaybackRequest(itemId: itemId, profile: Self.deviceProfile, startPositionSeconds: startAt, shuffle: (shuffle ?? shuffling) ? true : nil)
         request.sound = SoundSettings.current.requested(at: Date())
         request.measuredBitrate = LinkSpeed.shared.current()
+        quality(for: itemId).apply(to: &request)
         #if canImport(AetherEngine)
         if Self.usesEngine, engineSuppressedItem != itemId {
             request.profile = Self.engineProfile
@@ -503,7 +519,10 @@ final class PlaybackController: NSObject {
             nextHidden = false
             playingOn = false
             endFinishing()
+            originalHeight = nil
+            qualityWatch = QualityWatch()
         }
+        longStallCheck?.cancel()
         lastReport = Date()
         // A new session on the server knows nothing yet: its first report tells remotes the tracks and sound.
         reportedTracks = nil
@@ -525,6 +544,7 @@ final class PlaybackController: NSObject {
             : nil
         updateSubtitleSearch()
         updateEpisodeNavigation()
+        updateQualityMenu()
         loadArtwork(for: info, into: screen)
     }
 
@@ -709,17 +729,145 @@ final class PlaybackController: NSObject {
         Task {
             defer { isRecovering = false }
             do {
-                let info = try await client.startPlayback(request)
+                var info = try await client.startPlayback(request)
+                info = try await serverStreamIfEngineWontKeepUp(info, asked: request)
                 guard self.info?.sessionId == current.sessionId else {
                     try? await client.stopPlayback(sessionId: info.sessionId)
                     return
                 }
-                transport?.stop()
+                // The old picture stays, paused and silent, until the new stream plays.
+                if let transport { screen.holdPicture(of: transport) }
                 try attach(info, to: screen)
             } catch {
                 dismissPlayer { self.show(error, retry: request) }
             }
         }
+    }
+
+    // MARK: Quality
+
+    private var awayFromHome: Bool { client?.addresses.awayFromHome ?? false }
+
+    /// The quality asked for: the one chosen in the menu this sitting, else the one remembered for away from home, or
+    /// Automatic at home.
+    private var selectedQuality: StreamQuality { chosenQuality ?? StreamQuality.forStart(awayFromHome: awayFromHome) }
+
+    /// What `itemId` is asked for at: a level it was stepped down to, else the selected quality.
+    private func quality(for itemId: String) -> StreamQuality {
+        if let loweredQuality, loweredQuality.itemId == itemId { return loweredQuality.level }
+        return selectedQuality
+    }
+
+    /// The Quality menu: streamed titles only (a download plays as it was made).
+    private func updateQualityMenu() {
+        guard let screen else { return }
+        guard let info, !info.isOffline else { return screen.setQuality(nil, lowered: nil) }
+        let lowered = loweredQuality.flatMap { $0.itemId == info.item.id ? $0.level : nil }
+        screen.setQuality(selectedQuality, lowered: lowered)
+    }
+
+    /// A quality picked in the menu: kept for this sitting, and for plays away from home on this device, and the title
+    /// opened again at it where it is.
+    private func chooseQuality(_ quality: StreamQuality) {
+        guard let current = info, !current.isOffline, !isRecovering else { return }
+        let was = self.quality(for: current.item.id)
+        chosenQuality = quality
+        if awayFromHome { StreamQuality.remember(quality) }
+        loweredQuality = nil
+        qualityWatch.stepped(up: false)
+        updateQualityMenu()
+        guard quality != was else { return }
+        log.info("Quality chosen: \(quality.rawValue)", ["playbackId": current.playbackId])
+        reopen(reopenRequest(current), replacing: current)
+    }
+
+    /// Whether this stream steps its quality itself: Automatic away from home, streamed, and not the server's ladder
+    /// (which the player moves along by itself).
+    private func adaptsQuality(_ info: PlaybackInfo) -> Bool {
+        !info.isOffline && info.adaptive != true && awayFromHome && selectedQuality == .automatic && !isAdvancing
+    }
+
+    /// The height of the stream the title first plays at (before it's stepped down).
+    private func noteOriginalHeight() {
+        guard originalHeight == nil, let info, loweredQuality?.itemId != info.item.id, let size = transport?.videoSize,
+              size.width > 0, size.height > 0 else { return }
+        originalHeight = StreamQuality.effectiveHeight(width: Double(size.width), height: Double(size.height))
+    }
+
+    /// The picture stopped to wait for the stream: two stalls in a minute, or one over 10 seconds, step down.
+    private func noteStall() {
+        guard let info, adaptsQuality(info) else { return }
+        if qualityWatch.stalled() { return stepDown(info) }
+        longStallCheck?.cancel()
+        let sessionId = info.sessionId
+        longStallCheck = Task { [weak self] in
+            guard (try? await Task.sleep(for: .seconds(QualityWatch.longStall + QualityWatch.grace + 0.5))) != nil else { return }
+            guard let self, let info = self.info, info.sessionId == sessionId, self.transport?.phase == .buffering,
+                  self.qualityWatch.shouldStepDown() else { return }
+            self.stepDown(info)
+        }
+    }
+
+    /// Opens the title again where it is on the first quality below what's playing, keeping audio, subtitles and speed.
+    /// On the engine, the first step is to the server's stream instead.
+    private func stepDown(_ current: PlaybackInfo) {
+        guard !isRecovering, self.info?.sessionId == current.sessionId else { return }
+        longStallCheck?.cancel()
+        #if canImport(AetherEngine)
+        if transport is EngineTransport {
+            log.warning("The engine keeps buffering away from home: the server's stream instead", ["playbackId": current.playbackId])
+            engineSuppressedItem = current.item.id
+            qualityWatch.stepped(up: false)
+            screen?.notice(t(Words.loweredQuality))
+            reopen(reopenRequest(current), replacing: current)
+            return
+        }
+        #endif
+        let size = transport?.videoSize ?? .zero
+        let playingHeight = size.width > 0 ? StreamQuality.effectiveHeight(width: Double(size.width), height: Double(size.height)) : nil
+        guard let level = StreamQuality.stepDown(from: quality(for: current.item.id), playingHeight: playingHeight) else { return }
+        log.warning("Stalling: stepping down to \(level.rawValue)", ["playbackId": current.playbackId])
+        loweredQuality = (current.item.id, level)
+        qualityWatch.stepped(up: false)
+        screen?.notice(t(Words.loweredQuality))
+        reopen(reopenRequest(current), replacing: current)
+    }
+
+    /// A stepped-down title back up a quality, once it has played 5 minutes without a stall and the speed fits the next
+    /// one up with room to spare; at most once every 5 minutes.
+    private func considerSteppingUp() {
+        guard Date().timeIntervalSince(lastStepUpCheck) > 15 else { return }
+        lastStepUpCheck = Date()
+        guard let current = info, let lowered = loweredQuality, lowered.itemId == current.item.id, adaptsQuality(current),
+              !isRecovering, qualityWatch.mayStepUp(),
+              let target = StreamQuality.stepUp(from: lowered.level, originalHeight: originalHeight),
+              let bitrate = target.bitrate ?? current.fileBitrate, let speed = LinkSpeed.shared.current(),
+              StreamQuality.fits(bitrate: bitrate, speed: speed) else { return }
+        log.info("Smooth for a while: stepping up to \(target.rawValue)", ["playbackId": current.playbackId])
+        loweredQuality = target == .automatic ? nil : (current.item.id, target)
+        qualityWatch.stepped(up: true)
+        reopen(reopenRequest(current), replacing: current)
+    }
+
+    /// The engine away from home only when the measured speed comfortably carries the file (its busy stretches, 1.5 ×
+    /// its bitrate, within three quarters of the speed): otherwise the server's stream instead, from the start. A
+    /// server that doesn't give the file's bitrate (before 0.67) is played as before; Original is the file whatever.
+    private func serverStreamIfEngineWontKeepUp(_ info: PlaybackInfo, asked: PlaybackRequest) async throws -> PlaybackInfo {
+        #if canImport(AetherEngine)
+        guard let client, Self.usesEngine, !info.isOffline, info.method == .directPlay, engineSuppressedItem != info.item.id,
+              client.addresses.awayFromHome, quality(for: info.item.id) != .original, let fileBitrate = info.fileBitrate else { return info }
+        if let speed = LinkSpeed.shared.current(), StreamQuality.fits(bitrate: fileBitrate, speed: speed) { return info }
+        log.info("Away from home, the speed doesn't carry the file for the engine: the server's stream instead", ["playbackId": info.playbackId])
+        engineSuppressedItem = info.item.id
+        var again = request(for: info.item.id, startAt: info.startPositionSeconds)
+        again.fileId = info.fileId
+        again.audioStreamIndex = asked.audioStreamIndex
+        again.subtitleKey = asked.subtitleKey
+        again.replacesSessionId = info.sessionId
+        return try await client.startPlayback(again)
+        #else
+        return info
+        #endif
     }
 
     // MARK: Finding and re-syncing subtitles
@@ -882,6 +1030,7 @@ final class PlaybackController: NSObject {
         // Moving on to the next episode: this one's last ticks mustn't start its countdown again.
         guard let info, seconds.isFinite, hasPlayed, !isAdvancing else { return }
         lastPosition = seconds
+        considerSteppingUp()
         // A skip landing: the pill holds at 0 until the picture is there, then goes.
         if let landing = skipLanding {
             guard abs(seconds - landing.end) < 2 || Date().timeIntervalSince(landing.at) > 5 else { return }
@@ -1072,6 +1221,10 @@ final class PlaybackController: NSObject {
             // Reported as soon as it's under way, so a remote on another device picks it up at once.
             let first = !hasPlayed
             if first { applyStartingRate(info) }
+            if first { qualityWatch.started() }
+            qualityWatch.resumed()
+            longStallCheck?.cancel()
+            noteOriginalHeight()
             if first, let started = timing, started.isAnswered {
                 started.report(to: log, server: client?.baseURL)
                 firstPicture = (Date(), position, info.playbackId)
@@ -1082,6 +1235,7 @@ final class PlaybackController: NSObject {
         case .paused:
             if hasPlayed { report(paused: true) }
         case .buffering:
+            if hasPlayed { noteStall() }
             // A stall soon after the first picture: its own entry beside the start's. Not a seek (Skip intro, say),
             // which moves the place well past where playing alone would have got to.
             if let first = firstPicture {
@@ -1252,7 +1406,7 @@ final class PlaybackController: NSObject {
                         return
                     }
                     carriedRate = transport?.rate
-                    transport?.stop()
+                    if let transport { screen.holdPicture(of: transport) }
                     try attach(info, to: screen)
                     return
                 } catch {
@@ -1780,6 +1934,8 @@ extension PlaybackController: PlayerScreenDelegate {
 
     func playerScreen(_ screen: PlayerViewController, didSeekTo seconds: Double) {
         lastPosition = seconds
+        // Waiting for the new place to load isn't the connection falling behind.
+        qualityWatch.started()
         // A seek during a skip countdown: once it lands, the tick works out afresh where it stands (a small seek counts on).
         skipCounting = nil
         skipSeekTarget = (seconds, Date())
@@ -1879,5 +2035,9 @@ extension PlaybackController: PlayerScreenDelegate {
 
     func playerScreen(_ screen: PlayerViewController, resyncSubtitle key: String) {
         resyncSubtitles(key: key)
+    }
+
+    func playerScreen(_ screen: PlayerViewController, choseQuality quality: StreamQuality) {
+        chooseQuality(quality)
     }
 }

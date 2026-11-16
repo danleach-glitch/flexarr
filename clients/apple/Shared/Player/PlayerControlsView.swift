@@ -36,6 +36,7 @@ final class PlayerControlsView: UIView {
     let audioButton: UIButton
     let subtitlesButton: UIButton
     let speedButton: UIButton
+    let qualityButton: UIButton
     let sleepButton: UIButton
     let channelsButton: UIButton
     let guideButton: UIButton
@@ -98,6 +99,7 @@ final class PlayerControlsView: UIView {
         audioButton = Self.button("waveform", size: Self.symbolSize * 0.8, menu: true)
         subtitlesButton = Self.button("captions.bubble", size: Self.symbolSize * 0.8, menu: true)
         speedButton = Self.button("gauge.with.needle", size: Self.symbolSize * 0.8, menu: true)
+        qualityButton = Self.button("slider.horizontal.3", size: Self.symbolSize * 0.8, menu: true)
         // The bed is a wide symbol: drawn smaller, it sits as large as the others.
         sleepButton = Self.button("bed.double", size: Self.symbolSize * 0.62, menu: true)
         channelsButton = Self.button("list.bullet.rectangle", size: Self.symbolSize * 0.8)
@@ -495,13 +497,14 @@ final class PlayerControlsView: UIView {
         guideButton.addAction(UIAction { [weak self] _ in self?.onGuide?() }, for: .primaryActionTriggered)
         guideButton.accessibilityLabel = t("Guide")
         guideButton.isHidden = true
-        for button in [audioButton, subtitlesButton, speedButton, sleepButton] {
+        for button in [audioButton, subtitlesButton, speedButton, qualityButton, sleepButton] {
             button.showsMenuAsPrimaryAction = true
             button.isHidden = true
         }
         audioButton.accessibilityLabel = t("Audio")
         subtitlesButton.accessibilityLabel = t(Words.subtitles)
         speedButton.accessibilityLabel = t("Speed")
+        qualityButton.accessibilityLabel = t(Words.quality)
         sleepButton.accessibilityLabel = t("Sleep timer")
         // The speed's badge: small type beside the gauge.
         speedButton.configuration?.imagePadding = 6
@@ -516,7 +519,7 @@ final class PlayerControlsView: UIView {
         scrubber.onSwipeUp = { [weak self] in
             guard let self else { return }
             // Live: up to the buttons just above the timeline (the first of them); otherwise up to play.
-            let menu = [channelsButton, guideButton, audioButton, subtitlesButton, speedButton, sleepButton].first { !$0.isHidden }
+            let menu = [channelsButton, guideButton, audioButton, subtitlesButton, speedButton, qualityButton, sleepButton].first { !$0.isHidden }
             focusNext = isLive ? menu ?? playButton : playButton
             setNeedsFocusUpdate()
             updateFocusIfNeeded()
@@ -553,7 +556,7 @@ final class PlayerControlsView: UIView {
         transport.axis = .horizontal
         transport.alignment = .center
         transport.spacing = 36
-        let menus = UIStackView(arrangedSubviews: [channelsButton, guideButton, audioButton, subtitlesButton, speedButton, sleepButton])
+        let menus = UIStackView(arrangedSubviews: [channelsButton, guideButton, audioButton, subtitlesButton, speedButton, qualityButton, sleepButton])
         menus.axis = .horizontal
         menus.alignment = .center
         menus.spacing = 8
@@ -635,12 +638,12 @@ final class PlayerControlsView: UIView {
         transport.axis = .horizontal
         transport.alignment = .center
         transport.spacing = 18
-        let menus = UIStackView(arrangedSubviews: [channelsButton, guideButton, audioButton, subtitlesButton, speedButton, sleepButton])
+        let menus = UIStackView(arrangedSubviews: [channelsButton, guideButton, audioButton, subtitlesButton, speedButton, qualityButton, sleepButton])
         menus.axis = .horizontal
         menus.alignment = .center
         menus.spacing = 0
         // The same slot for each, however wide its symbol, so they sit evenly; the speed's widens for its badge.
-        for button in [channelsButton, guideButton, audioButton, subtitlesButton, sleepButton] {
+        for button in [channelsButton, guideButton, audioButton, subtitlesButton, qualityButton, sleepButton] {
             button.widthAnchor.constraint(equalToConstant: 44).isActive = true
         }
         speedButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
@@ -709,7 +712,7 @@ final class PlayerControlsView: UIView {
         super.didUpdateFocus(in: context, with: coordinator)
         if context.nextFocusedItem as? UIView === promptButton { onPromptFocused?() }
         let next = context.nextFocusedItem as? UIView
-        upFromMenus.isEnabled = next.map { next in [channelsButton, guideButton, audioButton, subtitlesButton, speedButton, sleepButton].contains { next.isDescendant(of: $0) } } ?? false
+        upFromMenus.isEnabled = next.map { next in [channelsButton, guideButton, audioButton, subtitlesButton, speedButton, qualityButton, sleepButton].contains { next.isDescendant(of: $0) } } ?? false
     }
     #endif
 
