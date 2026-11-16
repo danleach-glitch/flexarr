@@ -429,6 +429,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         trail.clear()
         origin = from to (startedWith ?: itemId)
         model.videoStarted()
+        // Away from home, the quality last picked there; at home, Automatic.
+        quality = StreamQuality.forStart(PlayerSettings.awayQuality(appContext), model.isAway)
         play(itemId, fromBeginning, shuffle, startAt)
     }
 
@@ -1070,6 +1072,19 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         lastStepUpCheck = now
         if (steps.lowered == null || !stepsQuality || isOpening || !player.isPlaying) return
         if (steps.stepUp(model.linkSpeed.fresh(model.linkKey(client)), info?.fileBitrate)) stepQuality(down = false)
+    }
+
+    /**
+     * A quality picked in the menu: the stream opened again where it is, keeping sound, subtitles and speed. Picked
+     * away from home, it's what plays there start on from now on.
+     */
+    fun chooseQuality(choice: StreamQuality) {
+        if (choice == quality && steps.lowered == null) return
+        if (info == null || isOffline || (isOpening && !isReopening)) return
+        quality = choice
+        steps.reset()
+        if (model.isAway) PlayerSettings.setAwayQuality(appContext, choice)
+        reopen()
     }
 
     /** The picture's height now, to step down below. */

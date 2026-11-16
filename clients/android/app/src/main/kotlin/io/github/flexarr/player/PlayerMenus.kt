@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Speed
@@ -71,6 +72,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.text.Cue
 import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.SubtitleView
+import io.github.flexarr.core.StreamQuality
 import io.github.flexarr.core.SubtitlePosition
 import io.github.flexarr.core.SubtitleSize
 import io.github.flexarr.core.Teletext
@@ -86,7 +88,7 @@ import io.github.flexarr.ui.theme.Tokens
 // The player's menus for audio, subtitles, speed and the sleep timer, and what they open: the iPhone player's
 // UIMenus, Audio sync panel and "Still watching?" question (PlayerViewController and PlayerPanels.swift).
 
-/** The four menus side by side on one glass pill, above the timeline at the right. A menu with nothing in it isn't there; Audio always has the sound settings. */
+/** The menus side by side on one glass pill, above the timeline at the right. A menu with nothing in it isn't there; Audio always has the sound settings. */
 @Composable
 internal fun MenuBar(controller: PlaybackController, onInteract: () -> Unit, onAudioSync: () -> Unit, modifier: Modifier = Modifier) {
     val info = controller.info ?: return
@@ -96,6 +98,11 @@ internal fun MenuBar(controller: PlaybackController, onInteract: () -> Unit, onA
         if (hasSubtitles) MenuButton(Icons.Filled.ClosedCaption, t(Words.subtitles), onInteract) { close -> SubtitlesMenu(controller, close) }
         val badge = if (controller.rate == 1f) null else PlaybackController.rateLabel(controller.rate)
         MenuButton(Icons.Filled.Speed, t("Speed"), onInteract, badge = badge) { close -> SpeedMenu(controller, close) }
+        // A download plays as it is: nothing to choose.
+        if (!controller.isOffline) {
+            val picked = controller.quality.takeIf { it != StreamQuality.Automatic }?.label
+            MenuButton(Icons.Filled.HighQuality, t(Words.quality), onInteract, badge = picked) { close -> QualityMenu(controller, close) }
+        }
         SleepMenuButton(controller.sleep, controller.offersEndOfEpisode, onInteract)
     }
 }
@@ -385,6 +392,18 @@ private fun SpeedMenu(controller: PlaybackController, close: () -> Unit) {
         Choice(PlaybackController.rateLabel(rate), rate == controller.rate) {
             close()
             controller.chooseRate(rate)
+        }
+    }
+}
+
+/** Automatic, Original, 1080p, 720p, 480p (docs/remote-streaming.md); picking one opens the stream again where it is. */
+@Composable
+private fun QualityMenu(controller: PlaybackController, close: () -> Unit) {
+    MenuTitle(t(Words.quality))
+    StreamQuality.menu.forEach { quality ->
+        Choice(quality.label, quality == controller.quality) {
+            close()
+            controller.chooseQuality(quality)
         }
     }
 }

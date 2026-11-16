@@ -18,5 +18,13 @@ object PlayerSettings {
 
     fun setSkipSeconds(context: Context, seconds: Int) = prefs(context).edit { putInt(SKIP_SECONDS, seconds) }
 
+    private const val AWAY_QUALITY = "awayQuality"
+
+    /** The Quality menu's last pick away from home, which plays away from home start on (docs/remote-streaming.md). */
+    fun awayQuality(context: Context): io.github.flexarr.core.StreamQuality =
+        io.github.flexarr.core.StreamQuality.of(prefs(context).getString(AWAY_QUALITY, null))
+
+    fun setAwayQuality(context: Context, quality: io.github.flexarr.core.StreamQuality) = prefs(context).edit { putString(AWAY_QUALITY, quality.raw) }
+
     private fun prefs(context: Context) = context.getSharedPreferences("player", Context.MODE_PRIVATE)
 }
