@@ -139,6 +139,13 @@
   border-color: var(--screen);
 }
 
+/* Waiting for a chosen quality to play. */
+.player-quality:disabled {
+  opacity: 0.5;
+  cursor: default;
+  border-color: rgb(255 255 255 / 0.3);
+}
+
 /* A speed other than normal shows in the show's colour. */
 .player-quality.active {
   border-color: var(--ambient);
@@ -317,6 +324,14 @@
   background: rgb(255 255 255 / 0.08);
 }
 
+/* A row's quieter second line: what's playing now, the file's own quality. */
+.player-menu-detail {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--step--1);
+  color: var(--usher);
+}
+
 .player-menu-item.selected::before {
   content: '';
   position: absolute;
@@ -481,6 +496,20 @@
   pointer-events: none;
 }
 
+/* Lowered quality for your connection: a click opens the Quality menu. */
+.player-notice.actionable {
+  border: 0;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.player-notice.actionable:hover {
+  background: rgb(20 16 24 / 0.88);
+}
+
 .up-next {
   position: absolute;
   right: var(--edge);
@@ -643,6 +672,15 @@
   border-radius: 50%;
   animation: spin 0.9s linear infinite;
   pointer-events: none;
+}
+
+/* Over the held picture while a new quality opens: small, so the picture stays the thing. */
+.player-spinner.small {
+  z-index: 1;
+  width: 32px;
+  height: 32px;
+  margin: -16px 0 0 -16px;
+  border-width: 3px;
 }
 
 .player-toast {

@@ -7,6 +7,7 @@ import { useLocation, useNavigate, useParams, useSearchParams } from 'react-rout
 import {
   ApiError,
   beaconProgress,
+  getItem,
   getMe,
   getSubtitleSync,
   imageUrl,
@@ -19,6 +20,7 @@ import {
   startPlayback,
   startSubtitleSync,
   stopPlayback,
+  type MediaFile,
   type PlaybackInfo,
   type PlaybackPreferences,
 } from '../api/client'
@@ -61,12 +63,14 @@ import { drop as dropPrepared, getReady, holds as holdsPrepared, take as takePre
 import { extended, FADE_SECONDS, minutesLeft, secondsLeft, sleepChoices, sleepLabel, STILL_WATCHING_SECONDS, type SleepTimer } from '../lib/sleepTimer'
 import { linkSpeed } from '../lib/linkSpeed'
 import {
+  heightClass,
   isAway,
   LONG_STALL_MS,
-  QUALITIES,
+  qualitiesFor,
   rememberedQuality,
   rememberQuality,
   requestFor,
+  resolutionName,
   STALL_WINDOW_MS,
   stallCounts,
   stepBelow,
@@ -78,8 +82,16 @@ import {
 import { t, tk, Words } from '../i18n'
 import '../styles/player.lazy.css'
 
-/** A Quality menu choice's name: Automatic keeps its label Best for this device on the web. */
-const qualityLabel = (q: Quality) => (q === 'auto' ? t('Best for this device') : q === 'original' ? t(Words.originalQuality) : `${q}p`)
+/** A Quality menu row's name (docs/design.md, Words). */
+const qualityLabel = (q: Quality) => (q === 'auto' ? t(Words.automatic) : q === 'original' ? t(Words.originalQuality) : `${q}p`)
+/** The Quality button's own text: Auto, Original, 720p. */
+const qualityShort = (q: Quality) => (q === 'auto' ? t('Auto') : qualityLabel(q))
+/** A file's quality as Original's second line names it: 4K HDR, 1080p. */
+function fileQualityName(file: Pick<MediaFile, 'width' | 'height' | 'videoRange'> | undefined): string | null {
+  const name = file && resolutionName(file.width, file.height)
+  if (!name) return null
+  return file.videoRange && file.videoRange !== 'Sdr' ? t('{quality} HDR', { quality: name }) : name
+}
 
 /** The speeds the player offers; an episode's is kept for its show. */
 const speeds = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const
@@ -256,6 +268,14 @@ export function PlayerPage() {
   const heldFrame = useRef<HTMLCanvasElement>(null)
   const [held, setHeld] = useState(false)
   const heldTimer = useRef(0)
+  /** A quality was chosen and its stream hasn't played yet: the Quality button waits. */
+  const [switching, setSwitching] = useState(false)
+  /** The file playing, for its size and HDR (Original's second line, and which caps it offers). */
+  const [file, setFile] = useState<MediaFile>()
+  /** The picture's size as it plays, which a self-switching stream changes as it moves. */
+  const [picture, setPicture] = useState<{ width: number; height: number } | null>(null)
+  /** Lowered quality for your connection is showing (4 seconds); it opens the Quality menu. */
+  const [loweredNotice, setLoweredNotice] = useState(false)
   // How the attached stream is played, set as it's attached: an error can come before the render that brings `info`.
   const method = useRef<PlaybackInfo['method']>(undefined)
   const [error, setError] = useState<PlayerError>()
@@ -598,7 +618,7 @@ export function PlayerPage() {
     if (!step) return
     Object.assign(stalls.current, { lastChange: performance.now(), counted: [], since: undefined })
     setLowered(step)
-    setNotice(t(Words.loweredQuality))
+    setLoweredNotice(true)
     void restartHere({ quality: step, audioStreamIndex: info.selectedAudioIndex ?? undefined, subtitleKey: subtitleKey ?? 'off' })
   }
   const onStallEvent = (kind: 'waiting' | 'playing' | 'seeking') => {
@@ -754,6 +774,58 @@ export function PlayerPage() {
     }
   }, [held])
   useEffect(() => setHeld(false), [id])
+
+  // A quality chosen waits for its own stream (a new session) to play; the button comes back then, on an error, or
+  // after 20 seconds at most.
+  const switchFrom = useRef<string>(undefined)
+  const playingSession = info?.sessionId
+  useEffect(() => {
+    const el = video.current
+    if (!switching || !el) return
+    if (error) return setSwitching(false)
+    const timer = window.setTimeout(() => setSwitching(false), 20_000)
+    if (playingSession === switchFrom.current) return () => window.clearTimeout(timer)
+    const done = () => setSwitching(false)
+    el.addEventListener('playing', done)
+    return () => {
+      window.clearTimeout(timer)
+      el.removeEventListener('playing', done)
+    }
+  }, [switching, playingSession, error])
+  useEffect(() => setSwitching(false), [id])
+
+  // The file's size and HDR, from the title (servers don't send them with the stream).
+  const titleId = info?.item.id
+  const playingFile = info?.fileId
+  useEffect(() => {
+    setFile(undefined)
+    if (!titleId || !playingFile) return
+    const abort = new AbortController()
+    getItem(titleId, abort.signal)
+      .then((detail) => setFile(detail.files.find((f) => f.id === playingFile)))
+      .catch(() => undefined)
+    return () => abort.abort()
+  }, [titleId, playingFile])
+
+  // The picture's size as it plays: Automatic's second line follows a self-switching stream as it moves.
+  useEffect(() => {
+    const el = video.current
+    if (!el) return
+    const measure = () => setPicture(el.videoWidth && el.videoHeight ? { width: el.videoWidth, height: el.videoHeight } : null)
+    el.addEventListener('resize', measure)
+    el.addEventListener('loadedmetadata', measure)
+    return () => {
+      el.removeEventListener('resize', measure)
+      el.removeEventListener('loadedmetadata', measure)
+    }
+  }, [])
+
+  // Lowered quality for your connection shows for 4 seconds.
+  useEffect(() => {
+    if (!loweredNotice) return
+    const timer = window.setTimeout(() => setLoweredNotice(false), 4000)
+    return () => window.clearTimeout(timer)
+  }, [loweredNotice])
 
   // ---------- Progress reporting
 
@@ -1185,6 +1257,10 @@ export function PlayerPage() {
 
   function chooseQuality(q: Quality) {
     setMenu(null)
+    if (q === quality) return
+    switchFrom.current = info?.sessionId
+    setSwitching(true)
+    setLoweredNotice(false)
     setQuality(q)
     qualityRef.current = q
     setLowered(null)
@@ -1591,8 +1667,28 @@ export function PlayerPage() {
 
   // ---------- The secondary controls' menus: each beside its own button, or all in one ⋯ on a phone
 
-  const qualityName =
-    quality !== 'auto' ? qualityLabel(quality) : lowered ? qualityLabel(lowered) : info?.method === 'DirectPlay' ? t(Words.originalQuality) : t('Auto')
+  // The Quality menu (docs/design.md): only for a video file's own stream, not a book's.
+  const qualityOffered = !!info && !info.book && !(file && !file.streams.some((s) => s.type === 'Video'))
+  /** What's playing now, as Automatic's second line and the button's spoken label say it: 720p, Original. */
+  const playingNow = (() => {
+    if (!info) return null
+    const seen = picture && resolutionName(picture.width, picture.height)
+    if (info.adaptive) return seen || (info.stream?.height ? `${heightClass(null, info.stream.height)}p` : null)
+    if (info.method === 'DirectPlay' || info.stream?.videoCopied) return t(Words.originalQuality)
+    return seen || (lowered ? `${lowered}p` : info.stream?.height ? `${heightClass(null, info.stream.height)}p` : null)
+  })()
+  const originalName = fileQualityName(file)
+  // Caps at or above the file's own aren't offered; one already chosen (remembered from another title) stays, ticked.
+  const offered = qualitiesFor(file ? heightClass(file.width, file.height) : null)
+  const qualities = offered.includes(quality) ? offered : [...offered, quality]
+  const qualitySpoken = playingNow
+    ? t('Quality, {choice}, {playing}', { choice: qualityLabel(quality), playing: playingNow })
+    : t('Quality, {choice}', { choice: qualityLabel(quality) })
+  /** Lowered quality's notice opens the menu: beside its button, or in the ⋯ on a phone. */
+  const openQualityMenu = () => {
+    setLoweredNotice(false)
+    setMenu(window.matchMedia('(max-width: 680px)').matches ? 'more' : 'quality')
+  }
   const canPip = 'pictureInPictureEnabled' in document && document.pictureInPictureEnabled
   const canAirPlay = 'webkitShowPlaybackTargetPicker' in HTMLVideoElement.prototype
   const pictureInPicture = () => {
@@ -1614,16 +1710,25 @@ export function PlayerPage() {
       {info?.item.kind === 'Episode' && <p className="player-menu-note muted">{t('Kept for this show.')}</p>}
     </div>
   )
+  const qualityColumn = qualityOffered && (
+    <div className="player-menu-column">
+      <h3>{t(Words.quality)}</h3>
+      {qualities.map((q) => (
+        <MenuItem
+          key={q}
+          selected={q === quality}
+          onClick={() => chooseQuality(q)}
+          detail={q === 'auto' ? playingNow : q === 'original' ? originalName : null}
+        >
+          {qualityLabel(q)}
+        </MenuItem>
+      ))}
+    </div>
+  )
+  // On the web the playback settings go beside Quality (and with it in the phone's ⋯).
   const qualityColumns = (
     <>
-      <div className="player-menu-column">
-        <h3>{t(Words.quality)}</h3>
-        {QUALITIES.map((q) => (
-          <MenuItem key={q} selected={q === quality} onClick={() => chooseQuality(q)}>
-            {qualityLabel(q)}
-          </MenuItem>
-        ))}
-      </div>
+      {qualityColumn}
       <div className="player-menu-column">
         <h3>{t('While watching')}</h3>
         <MenuItem toggle selected={preferences.autoPlayNext} onClick={() => togglePreference('autoPlayNext')}>
@@ -1746,7 +1851,7 @@ export function PlayerPage() {
       {(stillWatching || asleep) && (
         <div className="player-sleep-dim" aria-hidden="true" style={{ opacity: asleep ? 1 : Math.min(1, 1 - (sleepLeft ?? 0) / STILL_WATCHING_SECONDS) }} />
       )}
-      {waiting && !error && <div className="player-spinner" role="status" aria-label={t('Loading')} />}
+      {(waiting || held) && !error && <div className={held ? 'player-spinner small' : 'player-spinner'} role="status" aria-label={t('Loading')} />}
       {subtitleStatus !== 'idle' && (
         <p className="player-toast" role="status">
           {subtitleStatus === 'loading' ? t('Preparing subtitles. They’ll appear in a moment.') : t('These subtitles couldn’t be loaded. Try another track.')}
@@ -1810,6 +1915,12 @@ export function PlayerPage() {
         <p className="player-notice" role="status">
           {notice}
         </p>
+      )}
+      {/* Stepping down says so; a click opens the Quality menu. Stepping back up is quiet. */}
+      {loweredNotice && !notice && !error && (
+        <button className="player-notice actionable" role="status" onClick={openQualityMenu}>
+          {t(Words.loweredQuality)}
+        </button>
       )}
 
       {stillWatching && (
@@ -2100,21 +2211,24 @@ export function PlayerPage() {
             )}
           </div>
 
-          <div className="menu-anchor player-wide-only">
-            <button
-              className="player-quality"
-              aria-expanded={menu === 'quality'}
-              aria-label={t('Quality: {quality}', { quality: qualityName })}
-              onClick={() => setMenu(menu === 'quality' ? null : 'quality')}
-            >
-              {qualityName}
-            </button>
-            {menu === 'quality' && (
-              <div className="player-menu" role="menu">
-                {qualityColumns}
-              </div>
-            )}
-          </div>
+          {qualityOffered && (
+            <div className="menu-anchor player-wide-only">
+              <button
+                className="player-quality"
+                aria-expanded={menu === 'quality'}
+                aria-label={qualitySpoken}
+                disabled={switching}
+                onClick={() => setMenu(menu === 'quality' ? null : 'quality')}
+              >
+                {qualityShort(quality)}
+              </button>
+              {menu === 'quality' && (
+                <div className="player-menu" role="menu">
+                  {qualityColumns}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="menu-anchor player-wide-only">
             <button
@@ -2232,10 +2346,24 @@ function Segments<T extends string>({ labelledBy, choices, value, onChoose }: { 
   )
 }
 
-function MenuItem({ selected, onClick, children, toggle = false }: { selected: boolean; onClick: () => void; children: React.ReactNode; toggle?: boolean }) {
+function MenuItem({
+  selected,
+  onClick,
+  children,
+  toggle = false,
+  detail,
+}: {
+  selected: boolean
+  onClick: () => void
+  children: React.ReactNode
+  toggle?: boolean
+  /** A quieter second line (what's playing now, the file's own quality). */
+  detail?: string | null
+}) {
   return (
     <button role={toggle ? 'menuitemcheckbox' : 'menuitemradio'} aria-checked={selected} className={selected ? 'player-menu-item selected' : 'player-menu-item'} onClick={onClick}>
       {children}
+      {detail && <span className="player-menu-detail">{detail}</span>}
     </button>
   )
 }

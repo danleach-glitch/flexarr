@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fits, isAway, isPrivateHost, rememberedQuality, rememberQuality, requestFor, SMOOTH_MS, stallCounts, stepBelow, stepDownDue, stepUp } from './streamQuality'
+import { fits, heightClass, isAway, isPrivateHost, rememberedQuality, rememberQuality, qualitiesFor, requestFor, resolutionName, SMOOTH_MS, stallCounts, stepBelow, stepDownDue, stepUp } from './streamQuality'
 
 function memory() {
   const kept = new Map<string, string>()
@@ -73,5 +73,23 @@ describe('stream quality', () => {
     expect(rememberedQuality(true, store)).toBe('original')
     rememberQuality('auto', true, store)
     expect(rememberedQuality(true, store)).toBe('auto')
+  })
+
+  it('names a picture by its class, wide films included', () => {
+    expect(resolutionName(3840, 2160)).toBe('4K')
+    expect(resolutionName(3840, 1600)).toBe('4K')
+    expect(resolutionName(1920, 800)).toBe('1080p')
+    expect(resolutionName(1280, 534)).toBe('720p')
+    expect(resolutionName(720, 480)).toBe('480p')
+    expect(resolutionName(640, 360)).toBe('360p')
+    expect(resolutionName(null, null)).toBeNull()
+    expect(heightClass(1920, 1080)).toBe(1080)
+  })
+
+  it('offers only the caps below the file', () => {
+    expect(qualitiesFor(720)).toEqual(['auto', 'original', 480])
+    expect(qualitiesFor(1080)).toEqual(['auto', 'original', 720, 480])
+    expect(qualitiesFor(2160)).toEqual(['auto', 'original', 1080, 720, 480])
+    expect(qualitiesFor(undefined)).toEqual(['auto', 'original', 1080, 720, 480])
   })
 })

@@ -192,6 +192,47 @@ describe('Player with a copied picture', () => {
   })
 })
 
+describe('Player Quality menu', () => {
+  it('names the choice, offers only caps below the file, and says what plays now and what the file is', async () => {
+    const asked: Record<string, unknown>[] = []
+    let sessions = 0
+    mockApi({
+      'POST /playback': (init?: RequestInit) => {
+        asked.push(JSON.parse(String(init?.body)) as Record<string, unknown>)
+        return playback({ sessionId: `s${++sessions}`, stream: { videoCopied: false, videoCodec: 'h264', dynamicRange: null, hdr10Plus: false, height: 720, videoBitrate: 4_000_000, toneMapped: true, losslessAudio: false, audioChannels: 2 } })
+      },
+      'GET /items/m1': () => ({
+        ...summary({ id: 'm1', kind: 'Movie', title: 'Film' }),
+        files: [{ id: 'f1', path: '/f.mkv', size: 1, width: 1920, height: 1080, videoRange: 'Hdr10', streams: [{ index: 0, type: 'Video' }] }],
+      }),
+    })
+    const page = renderPlayer()
+    const button = await waitFor(() => page.getByRole('button', { name: 'Quality, Automatic, 720p' }))
+    expect(button).toHaveTextContent('Auto')
+    // The file's details come from the title.
+    fireEvent.click(button)
+    await waitFor(() => expect(page.getByRole('menuitemradio', { name: /^Original/ })).toHaveTextContent('Original1080p HDR'))
+    expect(page.getAllByRole('menuitemradio').slice(0, 4).map((r) => r.firstChild?.textContent)).toEqual(['Automatic', 'Original', '720p', '480p'])
+    const automatic = page.getByRole('menuitemradio', { name: /^Automatic/ })
+    expect(automatic).toHaveAttribute('aria-checked', 'true')
+    expect(automatic).toHaveTextContent('Automatic720p')
+
+    // The choice in use again only closes the menu.
+    fireEvent.click(automatic)
+    expect(page.queryByRole('menu')).toBeNull()
+    expect(sessions).toBe(1)
+
+    fireEvent.click(button)
+    fireEvent.click(page.getByRole('menuitemradio', { name: /^480p/ }))
+    expect(page.queryByRole('menu')).toBeNull()
+    await waitFor(() => expect(sessions).toBe(2))
+    expect(asked[1]).toMatchObject({ maxHeight: 480, audioStreamIndex: 1 })
+    // Until the new stream plays.
+    expect(page.getByRole('button', { name: /^Quality, 480p/ })).toBeDisabled()
+    await act(async () => page.unmount())
+  })
+})
+
 describe('Player on a phone', () => {
   it('has speed, quality and the sleep timer in one ⋯ menu as well', async () => {
     mockApi({ 'POST /playback': () => playback(), 'DELETE /playback/s1': undefined })

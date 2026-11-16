@@ -2,7 +2,7 @@
  * The player's Quality menu and what each choice asks the server for (docs/remote-streaming.md).
  */
 
-/** Automatic (labelled Best for this device), the file as it is, or a cap. */
+/** Automatic, the file as it is, or a cap. */
 export type Quality = 'auto' | 'original' | Step
 /** The capped qualities, highest first: the same as the server's ladder. */
 export type Step = 1080 | 720 | 480
@@ -15,6 +15,31 @@ export const STEPS: { height: Step; bitrate: number }[] = [
 
 /** The menu, in order. */
 export const QUALITIES: Quality[] = ['auto', 'original', ...STEPS.map((s) => s.height)]
+
+/**
+ * The quality class of a picture `width` × `height`: 2160 for 4K, 1080, 720, 480, or its own height below those. Wide
+ * films are shorter than their class (a 1080p film at 2.40:1 is 1920 × 800), so the width counts as much as the height.
+ */
+export function heightClass(width: number | null | undefined, height: number | null | undefined): number | null {
+  const tall = Math.max(height ?? 0, ((width ?? 0) * 9) / 16)
+  if (!tall) return null
+  if (tall >= 1800) return 2160
+  if (tall >= 1440) return 1440
+  return [1080, 720, 480].find((h) => tall >= h * 0.9) ?? Math.round(tall)
+}
+
+/** A picture's quality as the menu words it: 4K, 1440p, 1080p, 720p…; null when unknown. */
+export function resolutionName(width: number | null | undefined, height: number | null | undefined): string | null {
+  const h = heightClass(width, height)
+  return h === null ? null : h === 2160 ? '4K' : `${h}p`
+}
+
+/**
+ * The menu's choices for a file of quality class `fileHeight` (`heightClass`): a cap at or above the file's own isn't
+ * offered (a 720p file offers Automatic, Original and 480p). Every choice when the file's size isn't known.
+ */
+export const qualitiesFor = (fileHeight: number | null | undefined): Quality[] =>
+  QUALITIES.filter((q) => typeof q !== 'number' || fileHeight == null || q < fileHeight)
 
 /** What a start request carries for `q`. Automatic leaves it to the server. */
 export function requestFor(q: Quality): { maxHeight?: number; maxBitrate?: number; forceTranscode?: boolean; original?: boolean } {
