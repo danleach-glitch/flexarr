@@ -12,6 +12,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - On iPhone, iPad and Android, choosing another profile no longer breaks the first profile's downloads: what's still coming waits and carries on when that profile is chosen again, rather than failing with "The server doesn't have this download any more". The next episode always comes as the right profile, and two profiles can each keep the same audiobook on one device.
 - On iPhone, iPad and Android, podcast episodes the app removes by itself (keeping only the newest few, once played, signing out, Delete all, or trying a failed download again) can come back by themselves later; only an episode you remove is left out for good. Trying a failed download again no longer ends up with a download that's already gone on the server.
 - Signed in to a server older than 0.59, the apps' list of devices waiting to connect, recent searches and language list show as empty rather than as an error.
+- On iPad, the profile picture on Home is bigger and sits at the top right in line with the tabs, staying there as you scroll.
 - On iPad, the Offline notice no longer covers the back button in Downloads: it's now a small pill at the bottom of the page.
 - On iPhone, the mini player no longer hides the bottom of a page: Sign out, an album's last track and each list's last rows stay in reach.
 - On iPhone, a show's page and a downloaded album fit the screen at the largest text sizes.
