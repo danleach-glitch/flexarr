@@ -245,4 +245,67 @@ public sealed class RemoteStreamingTests : IAsyncLifetime
         var single = await StartAsync(Client(Away), movie, new { MaxHeight = 720, MaxBitrate = 4_000_000L });
         Assert.False(single.GetProperty("adaptive").GetBoolean());
     }
+
+    [Fact]
+    public async Task RemoteAccess_ShowsTheBestRemoteSpeed_AgainstTheLibrarysBusiestTenth()
+    {
+        var home = Client(Home);
+        Assert.Equal(JsonValueKind.Null, (await home.GetFromJsonAsync<JsonElement>(new Uri("/api/v1/remote", UriKind.Relative))).GetProperty("remoteSpeed").ValueKind);
+
+        // Ten films, 1 to 10 Mbps: the busiest tenth is the 10 Mbps one.
+        var movies = new List<Guid>();
+        for (var mbps = 1; mbps <= 10; mbps++)
+        {
+            movies.Add(await AddMovieAsync(bitrate: mbps * 1_000_000L));
+        }
+
+        var away = Client(Away);
+        await StartAsync(away, movies[0], new { MeasuredBitrate = 6_000_000L });
+        await StartAsync(away, movies[0], new { MeasuredBitrate = 9_000_000L });
+        await StartAsync(away, movies[0], new { MeasuredBitrate = 7_000_000L });
+        // At home, a reading says nothing about the upload.
+        await StartAsync(home, movies[0], new { MeasuredBitrate = 500_000_000L });
+
+        var speed = (await home.GetFromJsonAsync<JsonElement>(new Uri("/api/v1/remote", UriKind.Relative))).GetProperty("remoteSpeed");
+        Assert.Equal(9_000_000, speed.GetProperty("bestBitrate").GetInt64());
+        Assert.Equal(10_000_000, speed.GetProperty("busiestBitrate").GetInt64());
+        Assert.True(DateTime.UtcNow - speed.GetProperty("measuredAt").GetDateTime().ToUniversalTime() < TimeSpan.FromMinutes(5));
+    }
+
+    [Fact]
+    public void RemoteSpeeds_AreKeptAcrossARestart_For30Days()
+    {
+        var data = Directory.CreateTempSubdirectory("flexarr-speeds-").FullName;
+        try
+        {
+            var options = new StaticOptions(new Flexarr.Api.Configuration.FlexarrOptions { DataDirectory = data });
+            var clock = new TestClock(new DateTimeOffset(2026, 11, 1, 12, 0, 0, TimeSpan.Zero));
+            var speeds = new Flexarr.Api.Playback.RemoteSpeeds(options, clock);
+            speeds.Note(12_000_000);
+            clock.Advance(TimeSpan.FromDays(10));
+            speeds.Note(5_000_000);
+
+            var restarted = new Flexarr.Api.Playback.RemoteSpeeds(options, clock);
+            Assert.Equal(12_000_000, restarted.Best()!.Value.Bitrate);
+
+            // A month on, only the later reading counts.
+            clock.Advance(TimeSpan.FromDays(25));
+            Assert.Equal(5_000_000, new Flexarr.Api.Playback.RemoteSpeeds(options, clock).Best()!.Value.Bitrate);
+            clock.Advance(TimeSpan.FromDays(10));
+            Assert.Null(restarted.Best());
+        }
+        finally
+        {
+            Directory.Delete(data, recursive: true);
+        }
+    }
+
+    private sealed class StaticOptions(Flexarr.Api.Configuration.FlexarrOptions value) : Microsoft.Extensions.Options.IOptionsMonitor<Flexarr.Api.Configuration.FlexarrOptions>
+    {
+        public Flexarr.Api.Configuration.FlexarrOptions CurrentValue => value;
+
+        public Flexarr.Api.Configuration.FlexarrOptions Get(string? name) => value;
+
+        public IDisposable? OnChange(Action<Flexarr.Api.Configuration.FlexarrOptions, string?> listener) => null;
+    }
 }

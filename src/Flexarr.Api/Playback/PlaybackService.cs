@@ -27,7 +27,8 @@ public sealed partial class PlaybackService(
     Authentication.SignIns? signIns = null,
     Books.BookFileConverter? bookConverter = null,
     IHttpContextAccessor? http = null,
-    ILogger<PlaybackService>? logger = null)
+    ILogger<PlaybackService>? logger = null,
+    RemoteSpeeds? remoteSpeeds = null)
 {
     /// <summary>Within this distance of the end (or once the credits start) an item counts as watched.</summary>
     internal const double WatchedThreshold = 0.92;
@@ -78,6 +79,10 @@ public sealed partial class PlaybackService(
         var slowLink = await guestLinks.CapAsync(ct) ?? 0;
         var teletext = FfmpegFilters.HasDecoder(PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue).FfmpegPath, "libzvbi_teletextdec");
         var remote = http?.HttpContext is { } context && AwayFromHome.IsRemote(context);
+        if (remote && request.MeasuredBitrate is { } measured)
+        {
+            remoteSpeeds?.Note(measured); // for Settings › Remote access's upload warning
+        }
 
         // What playing a given file would take. Versions differ, so it's asked for each before choosing one. Subtitle files
         // beside a file only change that when one would be shown, and looking for them can wake a sleeping drive holding a

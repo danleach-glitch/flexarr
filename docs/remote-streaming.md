@@ -80,7 +80,9 @@ segments (2 seconds at home).
 - Response `fileBitrate`: the file's average bitrate in bits per second. Absent before 0.67.
 - `GET /api/v1/remote` (admin) gains `remoteSpeed`: `{bestBitrate, measuredAt, busiestBitrate}`, the best
   `measuredBitrate` a remote device sent in the last 30 days and the bitrate of the library's busiest tenth of files,
-  for Settings › Remote access's upload warning. Absent with no remote reading.
+  for Settings › Remote access's upload warning. Null with no remote reading (absent before 0.67). The server keeps
+  each day's best reading for 30 days in `remote-speeds.json` in its data folder; `busiestBitrate` is the least
+  bitrate among the busiest tenth of films and episodes (null with none known).
 
 ## The players
 

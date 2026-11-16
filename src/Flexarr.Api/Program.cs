@@ -326,6 +326,7 @@ builder.Services.AddSingleton(sp => new TranscodeManager(
     () => sp.GetRequiredService<Flexarr.Streaming.Live.LiveStreams>().ConvertingCount,
     transcodeSlots));
 builder.Services.AddSingleton<PlaybackSessions>();
+builder.Services.AddSingleton<RemoteSpeeds>();
 builder.Services.AddSingleton<MarkerQueue>();
 builder.Services.AddSingleton<TrickplayQueue>();
 builder.Services.AddSingleton<SubtitleCache>();
