@@ -220,4 +220,29 @@ public sealed class RemoteStreamingTests : IAsyncLifetime
 
         Assert.Equal(["720 main.m3u8"], await QualitiesAsync(away, started));
     }
+
+    [Fact]
+    public async Task TheLadder_SaysItsAdaptive_AndActivityShowsTheQualityLastFetched()
+    {
+        await UseEncoderAsync("VideoToolbox");
+        var movie = await AddMovieAsync();
+        var client = Client(Away);
+
+        var started = await StartAsync(client, movie);
+
+        Assert.True(started.GetProperty("adaptive").GetBoolean());
+        Assert.Equal(20_000_000, started.GetProperty("fileBitrate").GetInt64());
+        Assert.Equal(480, started.GetProperty("stream").GetProperty("height").GetInt32());
+
+        // The player moves to 720p (there's no real film here, so the segment itself fails).
+        var sid = started.GetProperty("sessionId").GetString();
+        await client.GetAsync(new Uri($"/api/v1/playback/{sid}/v/1/0.ts", UriKind.Relative));
+        var activity = await client.GetFromJsonAsync<JsonElement>(new Uri("/api/v1/system/activity", UriKind.Relative));
+        var stream = activity.GetProperty("streams").EnumerateArray().Single(s => s.GetProperty("sessionId").GetString() == sid);
+        Assert.StartsWith("720p at 3.7 Mbps", stream.GetProperty("transcode").GetString(), StringComparison.Ordinal);
+
+        // One stream isn't adaptive.
+        var single = await StartAsync(Client(Away), movie, new { MaxHeight = 720, MaxBitrate = 4_000_000L });
+        Assert.False(single.GetProperty("adaptive").GetBoolean());
+    }
 }

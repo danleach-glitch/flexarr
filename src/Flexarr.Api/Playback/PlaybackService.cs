@@ -383,6 +383,8 @@ public sealed partial class PlaybackService(
         var summary = summaries[item.Id];
         var ancestors = trail.TakeWhile(summaries.ContainsKey).Select(id => summaries[id]).Reverse().ToList();
         var basePath = $"/api/v1/playback/{id}";
+        // What's sent: for the ladder, the quality a player starts on (and Activity follows the one it fetches).
+        var sent = transcode?.Ladder?.Current.Plan ?? decision.Transcode;
         var burned = decision.Transcode?.BurnSubtitle is not null;
         var series = ancestors.FirstOrDefault(a => a.Kind == MediaKind.Series)?.Id;
         var speed = speedRead ? keptSpeed : series is { } seriesId ? await TitleVersions.ShowSpeedAsync(db, seriesId, profile.Id, ct) : null;
@@ -410,7 +412,7 @@ public sealed partial class PlaybackService(
             summary,
             ancestors,
             next is { } nextId ? summaries[nextId] : null,
-            decision.Transcode is { } t ? Summary(t, file) : null,
+            sent is { } t ? Summary(t, file) : null,
             shuffling,
             watching,
             subtitleDelay,
@@ -422,7 +424,9 @@ public sealed partial class PlaybackService(
             options.CurrentValue.Bazarr?.Instance is not null && !db.ServesKids && !profile.IsGuest && item.Kind is (MediaKind.Movie or MediaKind.Episode) && item.ArrId is not null,
             subtitles.Any(s => s.IsStyled && s.ExternalPath is null) ? $"{basePath}/fonts.json" : null,
             decision.Transcode is { Sound: not null },
-            Stream: decision.Transcode is { } stream ? StreamOf(stream, file) : null);
+            Stream: sent is { } stream ? StreamOf(stream, file) : null,
+            Adaptive: transcode?.Ladder is not null,
+            FileBitrate: file.Bitrate is > 0 ? file.Bitrate : null);
     }
 
     /// <summary>

@@ -527,7 +527,8 @@ public static class SettingsEndpoints
                 var series = item.Kind == MediaKind.Episode
                     ? await db.MediaItems.Where(i => i.Id == item.ParentId).Select(s => s.Parent!.Title).FirstOrDefaultAsync(ct)
                     : null;
-                var plan = session.Transcode?.Plan;
+                // A ladder's: the quality the player fetched last.
+                var plan = session.Transcode?.Ladder?.Current.Plan ?? session.Transcode?.Plan;
                 streams.Add(new StreamActivityDto(session.Id, item, series, session.Method,
                     plan is null ? null : $"{plan.TargetHeight}p at {plan.VideoBitrate / 1_000_000.0:0.#} Mbps",
                     session.LastPosition, session.DurationSeconds, session.Paused, session.Warming));

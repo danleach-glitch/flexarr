@@ -93,8 +93,13 @@ public sealed record PlaybackInfoDto(
     // A book's files on its timeline, chapters, bookmarks and place. Absent from servers before 0.58.
     Books.BookManifestDto? Book = null,
     // What a converted or repackaged stream is, for the apps to word in their language (TranscodeSummary is English).
-    // Null when the file plays as it is. Absent from servers before 0.66.
-    StreamSummaryDto? Stream = null)
+    // Null when the file plays as it is. Absent from servers before 0.66. For the ladder, the quality sent first (its lowest).
+    StreamSummaryDto? Stream = null,
+    // The stream is the ladder of qualities (docs/remote-streaming.md), which the player moves between by itself: the
+    // apps don't step down themselves. Absent from servers before 0.67.
+    bool Adaptive = false,
+    // The file's average bitrate, in bits per second, where known. Absent from servers before 0.67.
+    long? FileBitrate = null)
 {
     /// <summary>
     /// Names this playback in logs without giving away <see cref="SessionId"/>, which works as a password for the

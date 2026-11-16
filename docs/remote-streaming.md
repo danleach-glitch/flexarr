@@ -75,6 +75,8 @@ segments (2 seconds at home).
 - Request `original: true`: the file as it is (the Quality menu's *Original*): no away cap, no ladder.
 - Request `maxHeight`/`maxBitrate` (existing): the menu's 1080p, 720p and 480p, the same values as the table; no ladder.
 - Response `adaptive: true` when the stream is the ladder, so the apps don't step down themselves. Absent before 0.67.
+  For the ladder, `stream` and `transcodeSummary` describe the quality sent first (the lowest); Settings › Activity
+  shows the quality the player fetched last.
 - Response `fileBitrate`: the file's average bitrate in bits per second. Absent before 0.67.
 - `GET /api/v1/remote` (admin) gains `remoteSpeed`: `{bestBitrate, measuredAt, busiestBitrate}`, the best
   `measuredBitrate` a remote device sent in the last 30 days and the bitrate of the library's busiest tenth of files,
