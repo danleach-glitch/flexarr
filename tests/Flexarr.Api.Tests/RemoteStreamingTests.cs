@@ -32,7 +32,20 @@ public sealed class RemoteStreamingTests : IAsyncLifetime
             await _server.DisposeAsync();
         }
 
-        _server = _factory.WithWebHostBuilder(b => b.UseSetting("Flexarr:Transcoding:HardwareAcceleration", encoder));
+        // Stands in for ffmpeg, which CI's runners don't have: there's no real film here, so a segment fails either way.
+        var ffmpeg = Path.Combine(_factory.DataDirectory, "no-ffmpeg");
+        if (!File.Exists(ffmpeg))
+        {
+            await File.WriteAllTextAsync(ffmpeg, "#!/bin/sh\nexit 1\n");
+            if (!OperatingSystem.IsWindows())
+            {
+                File.SetUnixFileMode(ffmpeg, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            }
+        }
+
+        _server = _factory.WithWebHostBuilder(b => b
+            .UseSetting("Flexarr:Transcoding:HardwareAcceleration", encoder)
+            .UseSetting("Flexarr:FfmpegPath", ffmpeg));
     }
 
     public async Task DisposeAsync()
