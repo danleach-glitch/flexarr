@@ -82,6 +82,9 @@ stop the warm-up (best effort; the web uses a keepalive request).
 
 ## Away from home quality
 
+The speed test, the ladder of qualities, stepping down and up and the Quality menu are in
+[remote-streaming.md](remote-streaming.md); this section is the cap they build on.
+
 A server setting, `Transcoding.AwayFromHome` (Settings › Streaming › *Away from home*): `Automatic` (the default) or
 `Original`.
 
