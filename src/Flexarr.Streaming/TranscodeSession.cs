@@ -132,19 +132,59 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     /// Got ready ahead of Play (a page being looked at, the next episode during the credits) and not yet asked for by a
     /// player: it gives way to any real stream that needs its slot (see <see cref="TranscodeManager.CreateAsync"/>).
     /// </summary>
-    public bool Warming { get; set; }
+    public bool Warming
+    {
+        get => _warming;
+        set
+        {
+            foreach (var each in Together)
+            {
+                each._warming = value;
+            }
+        }
+    }
+
+    private bool _warming;
+
+    /// <summary>The ladder of qualities this is one of (docs/remote-streaming.md); null for a stream of one quality.</summary>
+    public TranscodeLadder? Ladder { get; internal set; }
+
+    /// <summary>This session and the other qualities of its ladder, which share a viewer's speed, start and warm-up.</summary>
+    private IEnumerable<TranscodeSession> Together => Ladder?.Variants ?? [this];
+
     public DateTime LastAccess { get; internal set; } = DateTime.UtcNow;
     public int LastRequested { get; private set; }
+
+    /// <summary>When a segment of it was last asked for; null until one has been.</summary>
+    public DateTime? LastFetched { get; private set; }
     public bool IsRunning => _process is { } process && IsAlive(process);
 
     /// <summary>When ffmpeg was last (about to be) started, or the session created.</summary>
     internal DateTime StartedAt { get; set; } = DateTime.UtcNow;
 
-    /// <summary>Counts towards the server's transcode limit: ffmpeg is running, or is about to.</summary>
-    public bool IsActive => IsRunning || DateTime.UtcNow - StartedAt < StartingWindow;
+    /// <summary>
+    /// Counts towards the server's transcode limit: ffmpeg is running, or is about to. A ladder's qualities count as
+    /// one: it's active while any of them is.
+    /// </summary>
+    public bool IsActive => Ladder?.AnyRunsOrStarting ?? RunsOrStarting;
 
-    /// <summary>Where playback opens (a resume point), written into the playlist.</summary>
-    public double StartSeconds { get; set; }
+    /// <summary>This session's own ffmpeg is running, or is about to.</summary>
+    internal bool RunsOrStarting => IsRunning || DateTime.UtcNow - StartedAt < StartingWindow;
+
+    /// <summary>Where playback opens (a resume point), written into the playlist. Set on one quality of a ladder, it's set on all.</summary>
+    public double StartSeconds
+    {
+        get => _startSeconds;
+        set
+        {
+            foreach (var each in Together)
+            {
+                each._startSeconds = value;
+            }
+        }
+    }
+
+    private double _startSeconds;
 
     /// <summary>
     /// The speed it's being watched at, where the player has said (1 otherwise). Past its head start ffmpeg makes the
@@ -155,7 +195,13 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     public double Speed
     {
         get => Volatile.Read(ref _speed);
-        set => Volatile.Write(ref _speed, FfmpegCommand.Pace(value));
+        set
+        {
+            foreach (var each in Together)
+            {
+                Volatile.Write(ref each._speed, FfmpegCommand.Pace(value));
+            }
+        }
     }
 
     public string MediaPlaylist() => Plan.Repackage is { } repackage
@@ -326,7 +372,8 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     {
         // A fragmented-MP4 player holds the init segment it was sent and never asks again, and software's wouldn't
         // match the hardware run's: once it's gone out, the segment fails and the player's recovery starts afresh.
-        if (!_settings.SoftwareFallback || _settings.Resolved == HardwareAcceleration.None || Plan.Repackage is not null
+        // A ladder's qualities must cut where the others do, and three software conversions would swamp the processor.
+        if (!_settings.SoftwareFallback || _settings.Resolved == HardwareAcceleration.None || Plan.Repackage is not null || Ladder is not null
             || (Plan.Fmp4 && _init is not null)
             || DateTime.UtcNow - StartedAt > TimeSpan.FromSeconds(20) || HighestComplete() >= _startSegment)
         {
@@ -692,6 +739,7 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     private void Touch(int index)
     {
         LastAccess = DateTime.UtcNow;
+        LastFetched = LastAccess;
         LastRequested = index;
     }
 

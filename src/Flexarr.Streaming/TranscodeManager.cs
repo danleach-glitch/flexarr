@@ -35,6 +35,9 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
 
     public IEnumerable<TranscodeSession> Sessions => _sessions.Values;
 
+    /// <summary>Every conversion, each quality of a ladder on its own (<see cref="Sessions"/> has only a ladder's lead).</summary>
+    private IEnumerable<TranscodeSession> Runs => _sessions.Values.SelectMany(s => s.Ladder?.Variants ?? [s]);
+
     /// <summary>Raised with a session's id when it's ended to make way for another (see <see cref="CreateAsync"/>).</summary>
     public event Action<string>? TakenOver;
 
@@ -69,6 +72,9 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
         }
     }
 
+    /// <summary>The cache's disk is below <see cref="MinFreeBytes"/>: a new stream would be refused.</summary>
+    public bool IsLowOnSpace => LowOnSpace();
+
     private bool LowOnSpace() => FreeBytes(Path.Combine(settings().CacheDirectory, "transcodes")) is { } free && free < MinFreeBytes;
 
     /// <summary>
@@ -77,7 +83,7 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
     /// </summary>
     private async Task FreeSpaceAsync()
     {
-        foreach (var session in _sessions.Values.Where(s => DateTime.UtcNow - s.LastAccess > StopAfterIdle).OrderBy(s => s.LastAccess).ToList())
+        foreach (var session in Runs.Where(s => DateTime.UtcNow - s.LastAccess > StopAfterIdle).OrderBy(s => s.LastAccess).ToList())
         {
             if (!LowOnSpace())
             {
@@ -125,9 +131,21 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
     /// and gives way to any other start that needs its slot.
     /// </param>
     /// <param name="openingSeconds">How long its opening segments are (see <see cref="TranscodeSession.OpeningSeconds"/>).</param>
+    /// <param name="ladder">
+    /// Several qualities of the same conversion, lowest first, for a player to move between (docs/remote-streaming.md):
+    /// made as one <see cref="TranscodeLadder"/> in one slot, and the session returned is its top quality, whose plan
+    /// <paramref name="plan"/> should be. It never takes anyone's place: with the server full, it's refused, and the
+    /// caller sends one quality instead.
+    /// </param>
     public async Task<TranscodeSession> CreateAsync(string profileId, string input, double durationSeconds, TranscodePlan plan, bool restarting = false,
-        bool preparing = false, int openingSeconds = FfmpegCommand.OpeningSegmentSeconds)
+        bool preparing = false, int openingSeconds = FfmpegCommand.OpeningSegmentSeconds, IReadOnlyList<TranscodePlan>? ladder = null)
     {
+        if (ladder is { Count: < 2 })
+        {
+            ladder = null;
+        }
+
+        plan = ladder?[^1] ?? plan;
         if (LowOnSpace())
         {
             await FreeSpaceAsync().ConfigureAwait(false);
@@ -176,6 +194,11 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
 
             if (limit > 0 && active.Count + others >= limit)
             {
+                if (ladder is not null)
+                {
+                    throw new TranscodeLimitException();
+                }
+
                 if (restarting)
                 {
                     throw new TranscodeLimitException(
@@ -207,7 +230,17 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
             }
 
             var id = NewId();
-            session = new TranscodeSession(id, input, durationSeconds, plan, current, _logger, Reserve, openingSeconds) { ProfileId = profileId, Warming = preparing };
+            session = new TranscodeSession(id, input, durationSeconds, plan, current, _logger, Reserve, openingSeconds) { ProfileId = profileId };
+            if (ladder is not null)
+            {
+                // The lower qualities' segments go in folders inside the top one's, so they go when it does and the
+                // cache janitor, which looks only at the top level, leaves them be.
+                var below = ladder.Take(ladder.Count - 1).Select((quality, k) => new TranscodeSession($"{id}.v{k}", input, durationSeconds, quality, current, _logger,
+                    Reserve, openingSeconds, Path.Combine(session.Directory, $"v{k}")) { ProfileId = profileId });
+                _ = new TranscodeLadder([.. below, session]);
+            }
+
+            session.Warming = preparing;
             _sessions[id] = session;
         }
 
@@ -217,7 +250,7 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
         {
             LogTakenOver(old.Id, old.ProfileId);
             TakenOver?.Invoke(old.Id);
-            await old.DisposeAsync().ConfigureAwait(false);
+            await EndAsync(old).ConfigureAwait(false);
         }
 
         return session;
@@ -240,7 +273,16 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
         {
             LogYielded(warm.Id);
             Yielded?.Invoke(warm.Id);
-            await warm.DisposeAsync().ConfigureAwait(false);
+            await EndAsync(warm).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Ends a stream and, for a ladder, each of its qualities: the lower ones first, as their folders are inside the top one's.</summary>
+    private static async Task EndAsync(TranscodeSession session)
+    {
+        foreach (var run in session.Ladder?.Variants ?? [session])
+        {
+            await run.DisposeAsync().ConfigureAwait(false);
         }
     }
 
@@ -256,11 +298,29 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
     {
         var limit = session.Plan.EncodesVideo ? settings().MaxConcurrentTranscodes : 0;
         List<TranscodeSession> yielded = [];
+        // A ladder's qualities share one slot: the one the manager holds is its lead.
+        var slot = session.Ladder?.Lead ?? session;
         lock (_createLock)
         {
-            var others = _sessions.Values.Where(s => s != session && s.IsActive && s.Plan.EncodesVideo).ToList();
+            if (session.Ladder is { } ladder)
+            {
+                // Each quality starts on its own, so the disk is looked at as each does.
+                if (LowOnSpace())
+                {
+                    throw new TranscodeLimitException(Loc.T("The server’s disk is nearly full, so this can’t be played right now."));
+                }
+
+                // Another of its qualities is converting: the ladder holds its slot already.
+                if (ladder.Variants.Any(v => v != session && v.RunsOrStarting))
+                {
+                    session.StartedAt = DateTime.UtcNow;
+                    return;
+                }
+            }
+
+            var others = _sessions.Values.Where(s => s != slot && s.IsActive && s.Plan.EncodesVideo).ToList();
             var outside = otherWork?.Invoke() ?? 0;
-            if (limit > 0 && others.Count + outside >= limit && !session.Warming)
+            if (limit > 0 && others.Count + outside >= limit && !slot.Warming)
             {
                 // A viewer coming back from a long pause comes before streams got ready ahead of Play.
                 foreach (var warm in others.Where(s => s.Warming).OrderBy(s => s.Created).Take(others.Count + outside - limit + 1).ToList())
@@ -291,7 +351,7 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
     {
         if (_sessions.TryRemove(id, out var session))
         {
-            await session.DisposeAsync().ConfigureAwait(false);
+            await EndAsync(session).ConfigureAwait(false);
         }
     }
 
@@ -319,7 +379,7 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
             }
         }
 
-        foreach (var session in _sessions.Values)
+        foreach (var session in Runs.ToList())
         {
             try
             {
@@ -329,15 +389,17 @@ public sealed partial class TranscodeManager(Func<TranscodeSettings> settings, I
                     await session.StopWarmRunAsync().ConfigureAwait(false);
                 }
 
+                // A quality of a ladder the player has moved away from stops sooner than the one it's watching.
+                var stopAfter = session.Ladder is { } ladder && ladder.Current != session ? TranscodeLadder.IdleQuality : StopAfterIdle;
                 var idle = now - session.LastAccess;
                 if (idle > ReleaseAfterIdle)
                 {
                     // Free the disk but keep the session, so a viewer back from a long pause carries on.
                     await session.ReleaseAsync(ReleaseAfterIdle).ConfigureAwait(false);
                 }
-                else if (idle > StopAfterIdle)
+                else if (idle > stopAfter)
                 {
-                    await session.StopProcessAsync(StopAfterIdle).ConfigureAwait(false);
+                    await session.StopProcessAsync(stopAfter).ConfigureAwait(false);
                 }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
