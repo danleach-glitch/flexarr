@@ -24,6 +24,33 @@ class StreamQualityTest {
     }
 
     @Test
+    fun `qualities at or above the file's own aren't offered`() {
+        val all = StreamQuality.menu
+        assertEquals(all, StreamQuality.choices(null))
+        assertEquals(all, StreamQuality.choices(2160))
+        assertEquals(listOf(StreamQuality.Automatic, StreamQuality.Original, StreamQuality.P720, StreamQuality.P480), StreamQuality.choices(1080))
+        // A wide 1080p film (1920 × 800) counts as 1080 high.
+        assertEquals(1080, StreamQuality.effectiveHeight(1920, 800))
+        assertEquals(listOf(StreamQuality.Automatic, StreamQuality.Original, StreamQuality.P480), StreamQuality.choices(720))
+        assertEquals(listOf(StreamQuality.Automatic, StreamQuality.Original), StreamQuality.choices(480))
+        assertNull(StreamQuality.effectiveHeight(null, null))
+    }
+
+    @Test
+    fun `names for what's playing and for the file`() {
+        assertEquals("1080p", StreamQuality.nameOf(1080))
+        assertEquals("1080p", StreamQuality.nameOf(1072))
+        assertEquals("720p", StreamQuality.nameOf(720))
+        assertEquals("480p", StreamQuality.nameOf(480))
+        assertEquals("360p", StreamQuality.nameOf(360))
+        assertEquals("4K HDR", StreamQuality.originalName(3840, 2160, VideoRange.Hdr10, null))
+        assertEquals("4K HDR", StreamQuality.originalName(3840, 1600, VideoRange.DolbyVision, null))
+        assertEquals("1080p", StreamQuality.originalName(1920, 800, VideoRange.Sdr, null))
+        assertEquals("720p", StreamQuality.originalName(null, null, VideoRange.Unknown, "720p"))
+        assertNull(StreamQuality.originalName(null, null, VideoRange.Unknown, null))
+    }
+
+    @Test
     fun `the remembered pick is for away from home`() {
         assertEquals(StreamQuality.P720, StreamQuality.forStart(StreamQuality.P720, away = true))
         assertEquals(StreamQuality.Automatic, StreamQuality.forStart(StreamQuality.P720, away = false))

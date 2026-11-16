@@ -47,6 +47,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -62,6 +63,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -90,7 +92,13 @@ import io.github.flexarr.ui.theme.Tokens
 
 /** The menus side by side on one glass pill, above the timeline at the right. A menu with nothing in it isn't there; Audio always has the sound settings. */
 @Composable
-internal fun MenuBar(controller: PlaybackController, onInteract: () -> Unit, onAudioSync: () -> Unit, modifier: Modifier = Modifier) {
+internal fun MenuBar(
+    controller: PlaybackController,
+    onInteract: () -> Unit,
+    onAudioSync: () -> Unit,
+    qualityOpen: MutableState<Boolean>,
+    modifier: Modifier = Modifier,
+) {
     val info = controller.info ?: return
     val hasSubtitles = info.subtitles.isNotEmpty() || controller.canSearchSubtitles
     Row(modifier.height(44.dp).glass(RoundedCornerShape(22.dp)).padding(horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -98,10 +106,20 @@ internal fun MenuBar(controller: PlaybackController, onInteract: () -> Unit, onA
         if (hasSubtitles) MenuButton(Icons.Filled.ClosedCaption, t(Words.subtitles), onInteract) { close -> SubtitlesMenu(controller, close) }
         val badge = if (controller.rate == 1f) null else PlaybackController.rateLabel(controller.rate)
         MenuButton(Icons.Filled.Speed, t("Speed"), onInteract, badge = badge) { close -> SpeedMenu(controller, close) }
-        // A download plays as it is: nothing to choose.
-        if (!controller.isOffline) {
-            val picked = controller.quality.takeIf { it != StreamQuality.Automatic }?.label
-            MenuButton(Icons.Filled.HighQuality, t(Words.quality), onInteract, badge = picked) { close -> QualityMenu(controller, close) }
+        // A download plays as it is, and music, books and podcasts aren't pictures: nothing to choose.
+        if (controller.offersQuality) {
+            val inUse = controller.qualityInUse
+            val playing = controller.playingName
+            val description = if (playing != null) t("Quality, {choice}, {playing}", "choice" to inUse.label, "playing" to playing)
+                else t("Quality, {choice}", "choice" to inUse.label)
+            MenuButton(
+                Icons.Filled.HighQuality, t(Words.quality), onInteract,
+                badge = inUse.takeIf { it != StreamQuality.Automatic }?.label,
+                description = description,
+                // While a new quality comes in, there's nothing to choose.
+                enabled = !controller.switchingQuality,
+                openState = qualityOpen,
+            ) { close -> QualityMenu(controller, close) }
         }
         SleepMenuButton(controller.sleep, controller.offersEndOfEpisode, onInteract)
     }
@@ -128,19 +146,24 @@ private fun MenuButton(
     label: String,
     onInteract: () -> Unit,
     badge: String? = null,
+    description: String = label,
+    enabled: Boolean = true,
+    openState: MutableState<Boolean> = remember { mutableStateOf(false) },
     content: @Composable MenuScope.(close: () -> Unit) -> Unit,
 ) {
-    var open by remember { mutableStateOf(false) }
+    var open by openState
     // A submenu (Timing, Size, Position) shows in place of the menu, with a way back.
     var page by remember { mutableStateOf<String?>(null) }
     Box {
         Row(
-            Modifier.height(44.dp).widthIn(min = 44.dp).clickableNoRipple({ open = true; page = null; onInteract() }).padding(horizontal = 10.dp),
+            Modifier.height(44.dp).widthIn(min = 44.dp).clickableNoRipple({ open = true; page = null; onInteract() }, enabled = enabled)
+                .semantics(mergeDescendants = true) {}.alpha(if (enabled) 1f else 0.4f).padding(horizontal = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(icon, contentDescription = label, tint = Flexarr.screen, modifier = Modifier.size(22.dp))
-            badge?.let { Text(it, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen) }
+            Icon(icon, contentDescription = description, tint = Flexarr.screen, modifier = Modifier.size(22.dp))
+            // Said by the description (TalkBack hears "Quality, 720p, 720p" once, not the badge again).
+            badge?.let { Text(it, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, maxLines = 1, softWrap = false, modifier = Modifier.clearAndSetSemantics {}) }
         }
         // A menu taller than the screen (Subtitles with several tracks, in landscape) scrolls: a fade at the edge
         // with more past it says so.
@@ -192,11 +215,17 @@ private fun MenuTitle(text: String) {
     Text(text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
 }
 
-/** A choice with a tick when it's the current one. */
+/** A choice with a tick when it's the current one, and a quiet second line ([detail]) when it has one. */
 @Composable
-private fun Choice(label: String, checked: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
+private fun Choice(label: String, checked: Boolean, enabled: Boolean = true, detail: String? = null, onClick: () -> Unit) {
     DropdownMenuItem(
-        text = { Text(label, color = Flexarr.screen) },
+        text = {
+            if (detail == null) Text(label, color = Flexarr.screen)
+            else Column {
+                Text(label, color = Flexarr.screen)
+                Text(detail, fontSize = 13.sp, color = Flexarr.usher, maxLines = 1)
+            }
+        },
         onClick = onClick,
         enabled = enabled,
         leadingIcon = { Box(Modifier.size(20.dp)) { if (checked) Icon(Icons.Filled.Check, contentDescription = t("Chosen"), tint = Flexarr.screen, modifier = Modifier.size(20.dp)) } },
@@ -396,12 +425,22 @@ private fun SpeedMenu(controller: PlaybackController, close: () -> Unit) {
     }
 }
 
-/** Automatic, Original, 1080p, 720p, 480p (docs/remote-streaming.md); picking one opens the stream again where it is. */
+/**
+ * Automatic, Original, 1080p, 720p, 480p (docs/remote-streaming.md), without the levels at or above the file's own.
+ * Automatic says what's playing now (kept current as a self-switching stream moves), Original names the file. Picking
+ * another opens the stream again where it is; picking the one in use just closes.
+ */
 @Composable
 private fun QualityMenu(controller: PlaybackController, close: () -> Unit) {
     MenuTitle(t(Words.quality))
-    StreamQuality.menu.forEach { quality ->
-        Choice(quality.label, quality == controller.quality) {
+    val inUse = controller.qualityInUse
+    controller.qualityChoices.forEach { quality ->
+        val detail = when (quality) {
+            StreamQuality.Automatic -> controller.playingName.takeIf { inUse == StreamQuality.Automatic }
+            StreamQuality.Original -> controller.originalName
+            else -> null
+        }
+        Choice(quality.label, quality == inUse, detail = detail) {
             close()
             controller.chooseQuality(quality)
         }

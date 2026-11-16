@@ -34,6 +34,38 @@ enum class StreamQuality(val raw: String, val height: Int?, val bitrate: Long?) 
 
         fun of(raw: String?): StreamQuality = entries.firstOrNull { it.raw == raw } ?: Automatic
 
+        /** A little under a level's height (a stream of 1072 lines, say) counts as that level. */
+        private const val SLACK = 16
+
+        /**
+         * The height a picture [width] × [height] counts as: a film wider than 16:9 (1920 × 800) is still 1080p. Null
+         * knowing neither.
+         */
+        fun effectiveHeight(width: Int?, height: Int?): Int? {
+            val h = maxOf(height ?: 0, ((width ?: 0) * 9 + 8) / 16)
+            return h.takeIf { it > 0 }
+        }
+
+        /**
+         * The menu for a file [fileHeight] high ([effectiveHeight]): a level at or above the file's own isn't offered
+         * (a 720p file offers Automatic, Original and 480p). Everything while the height isn't known.
+         */
+        fun choices(fileHeight: Int?): List<StreamQuality> =
+            menu.filter { !it.isLevel || fileHeight == null || it.height!! < fileHeight - SLACK }
+
+        /** What a converted picture [height] high ([effectiveHeight]) is called: its level ("720p"), or its lines. */
+        fun nameOf(height: Int): String = levels.firstOrNull { height >= it.height!! - SLACK }?.label ?: "${height}p"
+
+        /**
+         * What Original's second line calls the file: "4K HDR", "1080p", from its picture ([width], [height],
+         * [range]); [fallback] (the title's own resolution) when the file's size isn't known.
+         */
+        fun originalName(width: Int?, height: Int?, range: VideoRange, fallback: String?): String? {
+            val resolution = resolutionClass(width, height) ?: fallback?.takeIf { it.isNotBlank() } ?: return null
+            val hdr = range == VideoRange.Hdr10 || range == VideoRange.Hlg || range == VideoRange.DolbyVision
+            return if (hdr) t("{resolution} HDR", "resolution" to resolution) else resolution
+        }
+
         /** What a play starts on: the remembered pick away from home, Automatic at home. */
         fun forStart(remembered: StreamQuality, away: Boolean): StreamQuality = if (away) remembered else Automatic
 

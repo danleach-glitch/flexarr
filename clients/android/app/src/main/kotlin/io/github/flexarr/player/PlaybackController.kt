@@ -57,6 +57,8 @@ import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.ItemSummary
 import io.github.flexarr.core.QualitySteps
 import io.github.flexarr.core.StreamQuality
+import io.github.flexarr.core.MediaFile
+import io.github.flexarr.core.VideoRange
 import io.github.flexarr.core.withQuality
 import io.github.flexarr.core.startSubtitleSync
 import io.github.flexarr.core.subtitleSync
@@ -317,6 +319,60 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     private val stepsQuality: Boolean
         get() = quality == StreamQuality.Automatic && !isOffline && info?.let { it.adaptive != true } == true
 
+    /** The file playing, as the server knows it (its size and HDR), for Original's second line and the menu's levels. */
+    private var fileFacts by mutableStateOf<MediaFile?>(null)
+    /** A quality was chosen (or stepped to) and the new stream's picture hasn't come yet: the Quality button waits. */
+    var switchingQuality by mutableStateOf(false)
+        private set
+
+    /** The Quality menu is offered: a film or episode streamed from the server (not a download, music, a book or a podcast). */
+    val offersQuality: Boolean
+        get() {
+            val current = info ?: return false
+            return !isOffline && current.book == null && (current.item.kind == MediaKind.Movie || current.item.kind == MediaKind.Episode)
+        }
+
+    /** The file's own height ([StreamQuality.effectiveHeight]), from the server's facts or the title's resolution. */
+    private val fileHeight: Int?
+        get() = fileFacts?.let { StreamQuality.effectiveHeight(it.width, it.height) } ?: when (info?.item?.resolution) {
+            "4K" -> 2160
+            "1080p" -> 1080
+            "720p" -> 720
+            "SD" -> 480
+            else -> null
+        }
+
+    /** The menu's rows for this file: a level at or above its own height isn't offered. */
+    val qualityChoices: List<StreamQuality> get() = StreamQuality.choices(fileHeight)
+
+    /**
+     * The choice in use, as the menu ticks it and the button shows it: a level remembered from another title that this
+     * file is no taller than plays it as it is, so that's Original.
+     */
+    val qualityInUse: StreamQuality
+        get() = if (quality.isLevel && quality !in qualityChoices) StreamQuality.Original else quality
+
+    /** Original's second line: the file, "4K HDR" or "1080p". */
+    val originalName: String?
+        get() = StreamQuality.originalName(fileFacts?.width, fileFacts?.height, fileFacts?.videoRange ?: VideoRange.Unknown, info?.item?.resolution)
+
+    /**
+     * What's playing now, for Automatic's second line: "720p", "Original", or on the ladder the quality the player has
+     * moved to (from the picture's size, kept current as it changes). Null while it isn't known.
+     */
+    val playingName: String?
+        get() {
+            val current = info ?: return null
+            val size = StreamQuality.effectiveHeight(videoSize.width.takeIf { it > 0 }, videoSize.height.takeIf { it > 0 })
+            return when {
+                current.adaptive == true -> size?.let(StreamQuality::nameOf)
+                steps.lowered != null -> steps.lowered?.label
+                current.method == PlaybackMethod.DirectPlay || current.stream?.videoCopied == true ||
+                    current.transcodeSummary?.startsWith("Original") == true -> StreamQuality.Original.label
+                else -> (size ?: current.stream?.height)?.let(StreamQuality::nameOf)
+            }
+        }
+
     /** This title's start, timed until its first picture (see [StartTiming]). */
     private var timing: StartTiming? = null
     /** When the first picture came, where, and which playback, to note a stall soon after. */
@@ -326,6 +382,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     init {
         player.addListener(object : Player.Listener {
             override fun onRenderedFirstFrame() {
+                switchingQuality = false
                 val started = timing?.takeIf { it.isAnswered } ?: return
                 started.report(log, client.baseUrl.host, model.isGuest)
                 firstFrame = Triple(android.os.SystemClock.elapsedRealtime(), player.currentPosition, info?.playbackId)
@@ -511,6 +568,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         serverProfile = null
         steps.reset()
         longStall?.cancel()
+        switchingQuality = false
         viewerChoseSubtitle = debugSubtitleKey != null || subtitlesOff
         viewerSubtitleKey = debugSubtitleKey
         debugSubtitleKey = null
@@ -557,6 +615,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                 if (closed || mine != openGeneration) return@launch
                 // Opened again behind the scenes: the picture plays on as it was, unless its stream had stopped.
                 if (reopening && player.playerError == null) {
+                    switchingQuality = false
                     log.warning("Couldn't open the stream again", e)
                 } else {
                     val takenOver = e is FlexarrException.Http && e.status == 410
@@ -627,6 +686,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
      */
     private fun fail(message: String, retry: ((DeviceProfile) -> PlaybackRequest)?, takenOver: Boolean = false) {
         error = message
+        switchingQuality = false
         retryRequest = if (takenOver && retry != null) { profile -> retry(profile).copy(replacesSessionId = null) } else retry
         retryLabel = when {
             retry == null -> null
@@ -674,6 +734,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     private fun begin(started: PlaybackInfo) {
         if (closed) return
         val sameTitle = info?.item?.id == started.item.id
+        if (!sameTitle || (started.fileId != null && fileFacts?.id != started.fileId)) learnFile(started)
         previews?.close()
         previews = if (isOffline) null else TrickplayPreviews(client, started.sessionId, scope)
         info = started
@@ -1069,12 +1130,25 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
      * away from home, it's what plays there start on from now on.
      */
     fun chooseQuality(choice: StreamQuality) {
-        if (choice == quality && steps.lowered == null) return
-        if (info == null || isOffline || (isOpening && !isReopening)) return
+        // The one in use again: nothing changes (the menu just closes).
+        if (choice == qualityInUse || switchingQuality) return
+        if (info == null || !offersQuality || (isOpening && !isReopening)) return
         quality = choice
         steps.reset()
         if (model.isAway) PlayerSettings.setAwayQuality(appContext, choice)
+        switchingQuality = true
         reopen()
+    }
+
+    /** The file's size and HDR from the title's details, for the Quality menu (an older server's start says neither). */
+    private fun learnFile(started: PlaybackInfo) {
+        fileFacts = null
+        if (isOffline || started.item.kind.let { it != MediaKind.Movie && it != MediaKind.Episode }) return
+        scope.launch {
+            val files = runCatching { client.item(started.item.id).files }.getOrNull() ?: return@launch
+            if (info?.item?.id != started.item.id) return@launch
+            fileFacts = files.firstOrNull { it.id == started.fileId } ?: files.singleOrNull()
+        }
     }
 
     /** The picture's height now, to step down below. */
@@ -1083,6 +1157,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     private fun stepQuality(down: Boolean) {
         log.info(if (down) "Stepping down to ${steps.lowered?.raw} for the connection" else "Stepping up to ${steps.lowered?.raw ?: "automatic"}")
         if (down) qualityNotice++
+        switchingQuality = true
         reopen()
     }
 

@@ -176,7 +176,7 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
     LaunchedEffect(controller.qualityNotice) {
         if (controller.qualityNotice == 0) return@LaunchedEffect
         notice = true
-        delay(3_000)
+        delay(4_000)
         notice = false
     }
     LaunchedEffect(controller.flash) {
@@ -250,7 +250,10 @@ internal fun TvPlayerScreen(controller: PlaybackController, onClose: () -> Unit)
     ) {
         VideoSurface(controller.player, controller.keepsScreenOn, screenHolds = controller.screenHolds)
         SubtitleLayer(controller)
-        if ((controller.isBuffering || controller.isOpening || controller.screenSwitching) && controller.error == null) {
+        if (controller.switchingQuality && controller.error == null) {
+            // Another quality coming in: the last picture stays, with a small spinner over it.
+            CircularProgressIndicator(Modifier.align(Alignment.Center).size(32.dp), color = Flexarr.screen, strokeWidth = 3.dp)
+        } else if ((controller.isBuffering || controller.isOpening || controller.screenSwitching) && controller.error == null) {
             CircularProgressIndicator(Modifier.align(Alignment.Center), color = Flexarr.screen)
         }
         flash?.let {

@@ -83,6 +83,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -371,11 +372,15 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
         delay(if (shown.length <= 6) 700 else 2_500)
         flash = null
     }
-    // Stepped down for a slow link: said for a moment, without bringing the controls up.
+    // The Quality menu, open from its button or from the lowered-quality notice.
+    val qualityOpen = remember { mutableStateOf(false) }
+    // Stepped down for a slow link: said for 4 seconds, without bringing the controls up; tapping it opens the menu.
+    var notice by remember { mutableStateOf(false) }
     LaunchedEffect(controller.qualityNotice) {
         if (controller.qualityNotice == 0) return@LaunchedEffect
-        flash = t(Words.loweredQuality)
-        flashCount++
+        notice = true
+        delay(4_000)
+        notice = false
     }
     // The controller's own messages ("Re-syncing subtitles…"), with the controls up.
     LaunchedEffect(controller.flash) {
@@ -412,7 +417,10 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
                 )
             },
         )
-        if ((controller.isBuffering || controller.isOpening) && controller.error == null) {
+        if (controller.switchingQuality && controller.error == null) {
+            // Another quality coming in: the last picture stays, with a small spinner over it.
+            CircularProgressIndicator(Modifier.align(Alignment.Center).size(28.dp), color = Flexarr.screen, strokeWidth = 3.dp)
+        } else if ((controller.isBuffering || controller.isOpening) && controller.error == null) {
             CircularProgressIndicator(Modifier.align(Alignment.Center), color = Flexarr.screen)
         }
         flash?.let {
@@ -430,7 +438,7 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
 
         val asleep = controller.sleep.phase != VideoSleep.Phase.Off
         AnimatedVisibility(controlsVisible && !asleep && controller.error == null, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
-            Controls(controller, onClose, onPictureInPicture, onInteract = { interaction++ }, onAudioSync = {
+            Controls(controller, onClose, onPictureInPicture, qualityOpen, onInteract = { interaction++ }, onAudioSync = {
                 // The panel takes the controls' place until Done.
                 audioSyncOpen = true
                 controlsVisible = false
@@ -456,6 +464,21 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
             Modifier.align(Alignment.BottomEnd).safeDrawingPadding().padding(end = 24.dp, bottom = if (controlsVisible) 132.dp else 32.dp),
         ) { look ->
             PromptPill(look, controller.promptProgress, onTap = controller::promptTapped, onCancel = controller::cancelNext)
+        }
+        AnimatedVisibility(
+            notice && !asleep && controller.error == null && !qualityOpen.value,
+            enter = fadeIn(), exit = fadeOut(),
+            modifier = Modifier.align(Alignment.TopCenter).safeDrawingPadding().padding(top = 64.dp, start = 24.dp, end = 24.dp),
+        ) {
+            Text(
+                t(Words.loweredQuality), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.screen, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.glass(CircleShape).clickableNoRipple({
+                    notice = false
+                    controlsVisible = true
+                    interaction++
+                    qualityOpen.value = true
+                }).padding(horizontal = 18.dp, vertical = 10.dp),
+            )
         }
         SleepPrompt(controller.sleep)
         ShakeForSleep(controller.sleep)
@@ -503,7 +526,14 @@ internal fun VideoSurface(player: androidx.media3.common.Player, keepAwake: Bool
 }
 
 @Composable
-private fun Controls(controller: PlaybackController, onClose: () -> Unit, onPictureInPicture: () -> Unit, onInteract: () -> Unit, onAudioSync: () -> Unit) {
+private fun Controls(
+    controller: PlaybackController,
+    onClose: () -> Unit,
+    onPictureInPicture: () -> Unit,
+    qualityOpen: MutableState<Boolean>,
+    onInteract: () -> Unit,
+    onAudioSync: () -> Unit,
+) {
     val info = controller.info
     Box(Modifier.fillMaxSize()) {
         // Keep the title and times readable over bright pictures.
@@ -540,7 +570,7 @@ private fun Controls(controller: PlaybackController, onClose: () -> Unit, onPict
         }
 
         Column(Modifier.align(Alignment.BottomCenter), horizontalAlignment = Alignment.End) {
-            MenuBar(controller, onInteract, onAudioSync, Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)).padding(end = 24.dp))
+            MenuBar(controller, onInteract, onAudioSync, qualityOpen, Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)).padding(end = 24.dp))
             Timeline(controller, onInteract, Modifier)
         }
     }
