@@ -12,8 +12,11 @@ export const MIN_SAMPLE_BYTES = 200_000
 const KEPT = 12
 /** Fewer samples than this say nothing. */
 export const MIN_SAMPLES = 3
-/** A converted or repackaged stream's segment, which is what's sampled. */
-const SEGMENT = /\/api\/v1\/playback\/[^/]+\/\d+\.(ts|m4s)(\?|$)/
+/** A converted or repackaged stream's segment, which is what's sampled: a single stream's, or one of the ladder's (`/v/{k}/`). */
+const SEGMENT = /\/api\/v1\/playback\/[^/]+\/(v\/\d+\/)?\d+\.(ts|m4s)(\?|$)/
+
+/** Whether `path` (with its query) is a stream segment. */
+export const isSegment = (path: string) => SEGMENT.test(path)
 const FRESH_MS = 30 * 60_000
 const STORE = 'flexarr.linkSpeed'
 
@@ -64,7 +67,7 @@ export function watchLinkSpeed() {
   try {
     new PerformanceObserver((list) => {
       for (const entry of list.getEntries() as PerformanceResourceTiming[]) {
-        if (!entry.name.startsWith(location.origin) || !entry.transferSize || !SEGMENT.test(new URL(entry.name).pathname + new URL(entry.name).search)) continue
+        if (!entry.name.startsWith(location.origin) || !entry.transferSize || !isSegment(new URL(entry.name).pathname + new URL(entry.name).search)) continue
         sample(entry.transferSize, entry.responseEnd - entry.responseStart)
       }
     }).observe({ type: 'resource', buffered: true })

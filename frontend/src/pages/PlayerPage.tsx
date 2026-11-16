@@ -58,17 +58,13 @@ import { prepareVideo, rememberCopyingFailed, startVideo, streamBadge, wasCopyAs
 import { EARLY_STALL_MS, reportEarlyStall, reportStart, type StartTiming } from '../lib/startTiming'
 import { drop as dropPrepared, getReady, holds as holdsPrepared, take as takePrepared } from '../lib/preparedPlayback'
 import { extended, FADE_SECONDS, minutesLeft, secondsLeft, sleepChoices, sleepLabel, STILL_WATCHING_SECONDS, type SleepTimer } from '../lib/sleepTimer'
+import { linkSpeed } from '../lib/linkSpeed'
+import { QUALITIES, requestFor, type Quality } from '../lib/streamQuality'
 import { t, tk, Words } from '../i18n'
 import '../styles/player.lazy.css'
 
-type Quality = 'auto' | 1080 | 720 | 480
-const qualities: { value: Quality; label: string; bitrate?: number }[] = [
-  // Said through t(label) where shown; the rest are numbers.
-  { value: 'auto', label: tk('Best for this device') },
-  { value: 1080, label: '1080p', bitrate: 10_000_000 },
-  { value: 720, label: '720p', bitrate: 4_000_000 },
-  { value: 480, label: '480p', bitrate: 1_500_000 },
-]
+/** A Quality menu choice's name: Automatic keeps its label Best for this device on the web. */
+const qualityLabel = (q: Quality) => (q === 'auto' ? t('Best for this device') : q === 'original' ? t(Words.originalQuality) : `${q}p`)
 
 /** The speeds the player offers; an episode's is kept for its show. */
 const speeds = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const
@@ -370,9 +366,18 @@ export function PlayerPage() {
     setNativeHls(playback.method === 'Transcode' && !viaHlsJs)
     if (viaHlsJs) {
       // Subtitles are rendered as <track>s, so leave them out of the HLS manifest.
-      // The first segment is fetched while the playlists load (not once the video element is ready), and there's only
-      // ever one quality, so no bandwidth test first.
-      const player = new Hls({ startPosition: position, maxBufferLength: 60, backBufferLength: 90, startFragPrefetch: true, testBandwidth: false })
+      // The first segment is fetched while the playlists load (not once the video element is ready). A single stream
+      // has only one quality, so no bandwidth test first. The ladder (docs/remote-streaming.md) starts from the speed
+      // measured lately, tests it, and is kept to the player's size.
+      const ladder = playback.adaptive === true
+      const player = new Hls({
+        startPosition: position,
+        maxBufferLength: 60,
+        backBufferLength: 90,
+        startFragPrefetch: true,
+        testBandwidth: ladder,
+        ...(ladder ? { capLevelToPlayerSize: true, abrEwmaDefaultEstimate: linkSpeed() ?? 2_000_000 } : {}),
+      })
       // Media errors get hls.js's own recovery first; one that keeps coming back asks the server for a fresh stream.
       // A stream with its picture copied that this browser can't play after all is asked for again the old way.
       const onMediaError = mediaErrorRecovery(player, () => void copyFailedRef.current().then((done) => (done ? undefined : recoverRef.current())))
@@ -397,7 +402,6 @@ export function PlayerPage() {
     async (options: StartOptions = {}, quiet = false) => {
       setError(undefined)
       const q = options.quality ?? quality
-      const preset = qualities.find((x) => x.value === q)
       // Leaving for another title (or asking again, say for another quality) while this request is out makes its
       // answer stale: that session is stopped rather than played over the newer one.
       const life = lifetime.current
@@ -411,9 +415,8 @@ export function PlayerPage() {
           audioStreamIndex: options.audioStreamIndex,
           subtitleKey: options.subtitleKey,
           startPositionSeconds: options.startPositionSeconds,
-          maxHeight: q === 'auto' ? undefined : q,
-          maxBitrate: preset?.bitrate,
-          forceTranscode: options.forceTranscode || q !== 'auto' || undefined,
+          ...requestFor(q),
+          forceTranscode: options.forceTranscode || requestFor(q).forceTranscode || undefined,
         }
         // Got ready ahead of time (the next episode during the credits, or on the title's page) for exactly this
         // stream: it opens straight away. Anything else got ready is let go.
@@ -1182,15 +1185,11 @@ export function PlayerPage() {
     }
     // As the next episode's page will ask for it: from the start (see playNext). A busy server says no, and it starts
     // the usual way.
-    const q = quality
-    const preset = qualities.find((x) => x.value === q)
     getReady({
       itemId: next.id,
       profile: detectProfile(),
       startPositionSeconds: 0,
-      maxHeight: q === 'auto' ? undefined : q,
-      maxBitrate: preset?.bitrate,
-      forceTranscode: q !== 'auto' || undefined,
+      ...requestFor(quality),
       shuffle: shuffle || undefined,
     }, prepareVideo)
   }, [wantReady, info, ended, quality, shuffle])
@@ -1429,7 +1428,7 @@ export function PlayerPage() {
 
   // ---------- The secondary controls' menus: each beside its own button, or all in one ⋯ on a phone
 
-  const qualityName = quality === 'auto' ? (info?.method === 'DirectPlay' ? t(Words.originalQuality) : t('Auto')) : `${quality}p`
+  const qualityName = quality === 'auto' ? (info?.method === 'DirectPlay' ? t(Words.originalQuality) : t('Auto')) : qualityLabel(quality)
   const canPip = 'pictureInPictureEnabled' in document && document.pictureInPictureEnabled
   const canAirPlay = 'webkitShowPlaybackTargetPicker' in HTMLVideoElement.prototype
   const pictureInPicture = () => {
@@ -1455,9 +1454,9 @@ export function PlayerPage() {
     <>
       <div className="player-menu-column">
         <h3>{t(Words.quality)}</h3>
-        {qualities.map((q) => (
-          <MenuItem key={q.value} selected={q.value === quality} onClick={() => chooseQuality(q.value)}>
-            {q.value === 'auto' ? t(q.label) : q.label}
+        {QUALITIES.map((q) => (
+          <MenuItem key={q} selected={q === quality} onClick={() => chooseQuality(q)}>
+            {qualityLabel(q)}
           </MenuItem>
         ))}
       </div>
