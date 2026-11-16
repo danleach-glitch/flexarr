@@ -1,6 +1,7 @@
 package io.github.flexarr.core
 
 import io.github.flexarr.core.i18n.t
+import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.tk
 import kotlinx.serialization.Serializable
 import okhttp3.Request
@@ -12,7 +13,7 @@ import java.time.Instant
 
 @Serializable(with = DownloadQuality.Serializer::class)
 enum class DownloadQuality(override val raw: String, private val english: String) : ForwardCompatibleEnum {
-    Original("Original", tk("Original")),
+    Original("Original", tk(Words.originalQuality)),
     High("High", tk("High (1080p)")),
     Medium("Medium", tk("Medium (720p)")),
     Small("Small", tk("Small (480p)")),

@@ -207,6 +207,35 @@ final class EngineTransport: PlayerTransport {
         return CGSize(width: CGFloat(engine.sourceVideoWidth) * CGFloat(engine.sourceVideoPixelAspectRatio), height: CGFloat(engine.sourceVideoHeight))
     }
 
+    /// Where a window of buffer growth began: when, where the buffer reached, and where playing was.
+    private var growthFrom: (at: Date, buffered: Double, position: Double)?
+
+    /// The engine downloads the file itself, so its speed is read from its buffer (docs/remote-streaming.md): while it
+    /// fills (getting further ahead, not only keeping pace), seconds gained over seconds taken, times the file's
+    /// bitrate. Over windows of 5 seconds or more; a seek starts afresh.
+    private func noteBuffer(_ buffered: Double) {
+        guard !loading, let bitrate = info.fileBitrate, bitrate > 0 else { return }
+        let now = Date()
+        let position = currentTime
+        guard let from = growthFrom else {
+            growthFrom = (now, buffered, position)
+            return
+        }
+        let elapsed = now.timeIntervalSince(from.at)
+        let gained = buffered - from.buffered
+        // The buffer went back or leapt, or playing jumped: a seek, not downloading.
+        if gained < 0 || gained > elapsed * 100 || abs(position - from.position) > elapsed * 3 + 2 {
+            growthFrom = (now, buffered, position)
+            return
+        }
+        guard elapsed >= 5 else { return }
+        growthFrom = (now, buffered, position)
+        guard buffered - position > from.buffered - from.position + 1 else { return }
+        let bytes = gained * Double(bitrate) / 8
+        guard bytes >= Double(LinkSpeed.minSampleBytes) else { return }
+        LinkSpeed.shared.sample(bitsPerSecond: Int(gained / elapsed * Double(bitrate)))
+    }
+
     var avPlayer: AVPlayer? { engine.currentAVPlayer }
     var playerLayer: AVPlayerLayer? { engine.nativePlayerLayer }
 
@@ -629,6 +658,10 @@ final class EngineTransport: PlayerTransport {
                 self.showCues(at: seconds)
                 self.delegate?.transport(self, tick: seconds)
             }
+            .store(in: &cancellables)
+        engine.clock.$bufferedPosition
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] buffered in self?.noteBuffer(buffered) }
             .store(in: &cancellables)
         engine.$subtitleCues
             .receive(on: DispatchQueue.main)

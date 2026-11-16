@@ -18,7 +18,7 @@ export const PAGE_DELAY_MS = 2000
 /** What has to match for a warm-up to be the stream Play wants. */
 export type Wanted = Pick<
   PlaybackRequest,
-  'itemId' | 'fileId' | 'startPositionSeconds' | 'shuffle' | 'maxHeight' | 'maxBitrate' | 'forceTranscode' | 'audioStreamIndex' | 'subtitleKey'
+  'itemId' | 'fileId' | 'startPositionSeconds' | 'shuffle' | 'maxHeight' | 'maxBitrate' | 'forceTranscode' | 'original' | 'audioStreamIndex' | 'subtitleKey'
 >
 
 export function matchKey(r: Wanted): string {
@@ -30,6 +30,7 @@ export function matchKey(r: Wanted): string {
     r.maxHeight ?? null,
     r.maxBitrate ?? null,
     r.forceTranscode ?? false,
+    r.original ?? false,
     r.audioStreamIndex ?? null,
     r.subtitleKey ?? null,
   ])

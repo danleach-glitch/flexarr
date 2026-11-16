@@ -10,7 +10,7 @@ struct DownloadSettingsView: View {
             Section {
                 Picker(t("Size"), selection: Binding(get: { downloads.quality }, set: { downloads.quality = $0 })) {
                     Text(t("Automatic (720p)")).tag(DownloadQuality.medium)
-                    Text(t("Original")).tag(DownloadQuality.original)
+                    Text(t(Words.originalQuality)).tag(DownloadQuality.original)
                     Text(t("Small (480p)")).tag(DownloadQuality.small)
                 }
                 .listRowBackground(Color.seat)

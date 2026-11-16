@@ -462,6 +462,8 @@ export interface PlaybackRequest {
   maxHeight?: number
   startPositionSeconds?: number
   forceTranscode?: boolean
+  /** The file as it is (the Quality menu's Original): no away-from-home cap and no ladder. Ignored by servers before 0.67. */
+  original?: boolean
   /** This player's previous session, which the new one takes over from (only that one ends). */
   replacesSessionId?: string
   /** With a show's id, plays a random episode; with an episode's, Next is a random one. */
@@ -563,6 +565,10 @@ export interface PlaybackInfo {
   fontsUrl?: string | null
   /** A book's files on its timeline, chapters, bookmarks and place. Absent from servers before 0.58. */
   book?: BookManifest | null
+  /** The stream is the ladder of qualities, which the player moves between by itself. Absent from servers before 0.67. */
+  adaptive?: boolean
+  /** The file's average bit rate, in bits per second. Absent from servers before 0.67. */
+  fileBitrate?: number
 }
 
 export interface SubtitleFont {

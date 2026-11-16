@@ -36,6 +36,7 @@ final class PlayerControlsView: UIView {
     let audioButton: UIButton
     let subtitlesButton: UIButton
     let speedButton: UIButton
+    let qualityButton: UIButton
     let sleepButton: UIButton
     let channelsButton: UIButton
     let guideButton: UIButton
@@ -68,6 +69,11 @@ final class PlayerControlsView: UIView {
     #endif
     private let hud = UILabel()
     private var hudTask: Task<Void, Never>?
+    #if os(iOS)
+    /// "Lowered quality for your connection": tapping it opens the Quality menu (its menu is the Quality button's).
+    let noticeButton: UIButton
+    private var noticeTask: Task<Void, Never>?
+    #endif
 
     #if os(tvOS)
     private static let symbolSize: CGFloat = 40
@@ -98,6 +104,7 @@ final class PlayerControlsView: UIView {
         audioButton = Self.button("waveform", size: Self.symbolSize * 0.8, menu: true)
         subtitlesButton = Self.button("captions.bubble", size: Self.symbolSize * 0.8, menu: true)
         speedButton = Self.button("gauge.with.needle", size: Self.symbolSize * 0.8, menu: true)
+        qualityButton = Self.button("slider.horizontal.3", size: Self.symbolSize * 0.8, menu: true)
         // The bed is a wide symbol: drawn smaller, it sits as large as the others.
         sleepButton = Self.button("bed.double", size: Self.symbolSize * 0.62, menu: true)
         channelsButton = Self.button("list.bullet.rectangle", size: Self.symbolSize * 0.8)
@@ -107,6 +114,7 @@ final class PlayerControlsView: UIView {
         #if os(iOS)
         closeButton = Self.button("xmark", size: Self.symbolSize * 0.75)
         pictureInPictureButton = Self.button("pip.enter", size: Self.symbolSize * 0.8)
+        noticeButton = Self.noticePill()
         #endif
         super.init(frame: frame)
         build()
@@ -349,10 +357,108 @@ final class PlayerControlsView: UIView {
     /// whole view took the pill with it, so Next Episode only appeared with the controls.
     func setChromeVisible(_ visible: Bool) {
         // The HUD (the skip and seek flash) fades by itself; hiding takes it too.
-        for view in subviews where view !== promptRow && (view !== hud || !visible) {
+        for view in subviews where view !== promptRow && !isNotice(view) && (view !== hud || !visible) {
             view.alpha = visible ? 1 : 0
         }
     }
+
+    /// The quality notice comes and goes by itself, whatever the controls do.
+    private func isNotice(_ view: UIView) -> Bool {
+        #if os(iOS)
+        return view === noticeButton
+        #else
+        return false
+        #endif
+    }
+
+    /// "720p" or "Original" beside the Quality button's icon while the choice isn't Automatic, and what a screen
+    /// reader hears after "Quality" ("Automatic, 720p").
+    func setQualityBadge(_ text: String?, spoken: String) {
+        qualityButton.accessibilityValue = spoken
+        guard qualityButton.configuration?.title != text else { return }
+        qualityButton.configuration?.title = text
+    }
+
+    /// While another quality opens, the button can't be pressed. On Apple TV it keeps focus (a disabled button would
+    /// lose it), so its menu goes instead.
+    func setQualityBusy(_ busy: Bool) {
+        #if os(tvOS)
+        qualityButton.alpha = busy ? 0.45 : 1
+        qualityButton.accessibilityTraits = busy ? [.button, .notEnabled] : .button
+        #else
+        qualityButton.isEnabled = !busy
+        #endif
+    }
+
+    /// "Lowered quality for your connection" for 4 seconds, without moving focus. On the iPhone and iPad it's a pill
+    /// that opens `menu` (the Quality menu); on Apple TV, words that never take focus.
+    func flashNotice(_ message: String, menu: UIMenu?) {
+        #if os(iOS)
+        if let menu {
+            noticeButton.configuration?.title = message
+            noticeButton.menu = menu
+            noticeButton.accessibilityHint = t(Words.quality)
+            noticeTask?.cancel()
+            noticeButton.isHidden = false
+            UIView.animate(withDuration: 0.2) { self.noticeButton.alpha = 1 }
+            fadeNotice(after: .seconds(4))
+            return
+        }
+        #endif
+        hud.text = message
+        hudTask?.cancel()
+        hud.alpha = 1
+        hudTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled else { return }
+            UIView.animate(withDuration: 0.3) { self?.hud.alpha = 0 }
+        }
+    }
+
+    #if os(iOS)
+    /// The notice's menu follows the Quality button's.
+    func setNoticeMenu(_ menu: UIMenu?) {
+        guard !noticeButton.isHidden else { return }
+        noticeButton.menu = menu
+    }
+
+    private func fadeNotice(after delay: Duration) {
+        noticeTask?.cancel()
+        noticeTask = Task { [weak self] in
+            guard (try? await Task.sleep(for: delay)) != nil, let self, !self.noticeButton.isHeld else { return }
+            UIView.animate(withDuration: 0.3, animations: { self.noticeButton.alpha = 0 }) { _ in
+                if self.noticeButton.alpha == 0 { self.noticeButton.isHidden = true }
+            }
+        }
+    }
+
+    /// The notice's menu opened (it stays while it's open) or closed (it goes).
+    fileprivate func noticeMenu(visible: Bool) {
+        if visible { noticeTask?.cancel() } else { fadeNotice(after: .milliseconds(300)) }
+    }
+
+    /// A small dark pill with the Quality icon, so it reads as something to tap.
+    private static func noticePill() -> UIButton {
+        var configuration = UIButton.Configuration.filled()
+        configuration.baseBackgroundColor = UIColor.black.withAlphaComponent(0.6)
+        configuration.baseForegroundColor = .white
+        configuration.cornerStyle = .capsule
+        configuration.image = UIImage(systemName: "slider.horizontal.3")
+        configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 13, weight: .semibold)
+        configuration.imagePadding = 8
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 18)
+        configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
+            var attributes = attributes
+            attributes.font = .systemFont(ofSize: 15, weight: .semibold)
+            return attributes
+        }
+        let button = MenuButton(configuration: configuration)
+        button.showsMenuAsPrimaryAction = true
+        button.alpha = 0
+        button.isHidden = true
+        return button
+    }
+    #endif
 
     /// "1.25×" beside the speed button's gauge while it isn't playing at normal speed.
     func setSpeedBadge(_ text: String?) {
@@ -495,13 +601,14 @@ final class PlayerControlsView: UIView {
         guideButton.addAction(UIAction { [weak self] _ in self?.onGuide?() }, for: .primaryActionTriggered)
         guideButton.accessibilityLabel = t("Guide")
         guideButton.isHidden = true
-        for button in [audioButton, subtitlesButton, speedButton, sleepButton] {
+        for button in [audioButton, subtitlesButton, speedButton, qualityButton, sleepButton] {
             button.showsMenuAsPrimaryAction = true
             button.isHidden = true
         }
         audioButton.accessibilityLabel = t("Audio")
         subtitlesButton.accessibilityLabel = t(Words.subtitles)
         speedButton.accessibilityLabel = t("Speed")
+        qualityButton.accessibilityLabel = t(Words.quality)
         sleepButton.accessibilityLabel = t("Sleep timer")
         // The speed's badge: small type beside the gauge.
         speedButton.configuration?.imagePadding = 6
@@ -511,12 +618,18 @@ final class PlayerControlsView: UIView {
             attributes.font = badgeFont
             return attributes
         }
+        // The rows read Automatic, Original, then the levels down, top to bottom, wherever the menu opens.
+        qualityButton.preferredMenuElementOrder = .fixed
+        // The quality's badge too ("720p", "Original"), in the same small type.
+        qualityButton.configuration?.imagePadding = 6
+        qualityButton.configuration?.titleTextAttributesTransformer = speedButton.configuration?.titleTextAttributesTransformer
+        qualityButton.configuration?.titleLineBreakMode = .byClipping
         skipSeconds = 30
         #if os(tvOS)
         scrubber.onSwipeUp = { [weak self] in
             guard let self else { return }
             // Live: up to the buttons just above the timeline (the first of them); otherwise up to play.
-            let menu = [channelsButton, guideButton, audioButton, subtitlesButton, speedButton, sleepButton].first { !$0.isHidden }
+            let menu = [channelsButton, guideButton, audioButton, subtitlesButton, speedButton, qualityButton, sleepButton].first { !$0.isHidden }
             focusNext = isLive ? menu ?? playButton : playButton
             setNeedsFocusUpdate()
             updateFocusIfNeeded()
@@ -553,7 +666,7 @@ final class PlayerControlsView: UIView {
         transport.axis = .horizontal
         transport.alignment = .center
         transport.spacing = 36
-        let menus = UIStackView(arrangedSubviews: [channelsButton, guideButton, audioButton, subtitlesButton, speedButton, sleepButton])
+        let menus = UIStackView(arrangedSubviews: [channelsButton, guideButton, audioButton, subtitlesButton, speedButton, qualityButton, sleepButton])
         menus.axis = .horizontal
         menus.alignment = .center
         menus.spacing = 8
@@ -635,15 +748,17 @@ final class PlayerControlsView: UIView {
         transport.axis = .horizontal
         transport.alignment = .center
         transport.spacing = 18
-        let menus = UIStackView(arrangedSubviews: [channelsButton, guideButton, audioButton, subtitlesButton, speedButton, sleepButton])
+        let menus = UIStackView(arrangedSubviews: [channelsButton, guideButton, audioButton, subtitlesButton, speedButton, qualityButton, sleepButton])
         menus.axis = .horizontal
         menus.alignment = .center
         menus.spacing = 0
-        // The same slot for each, however wide its symbol, so they sit evenly; the speed's widens for its badge.
+        // The same slot for each, however wide its symbol, so they sit evenly; the speed's and quality's widen for
+        // their badges.
         for button in [channelsButton, guideButton, audioButton, subtitlesButton, sleepButton] {
             button.widthAnchor.constraint(equalToConstant: 44).isActive = true
         }
         speedButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        qualityButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
         let menuBar = GlassView(cornerRadius: 22, content: menus, size: nil)
         for view in [top, transport, menuBar, scrubber, elapsedLabel, remainingLabel, detailLabel] as [UIView] {
             view.translatesAutoresizingMaskIntoConstraints = false
@@ -672,6 +787,14 @@ final class PlayerControlsView: UIView {
             detailLabel.trailingAnchor.constraint(lessThanOrEqualTo: menuBar.leadingAnchor, constant: -12),
             prompts.trailingAnchor.constraint(equalTo: safeAreaLayoutGuide.trailingAnchor, constant: -margin),
             prompts.bottomAnchor.constraint(equalTo: menuBar.topAnchor, constant: -10),
+        ])
+        // The quality notice: above the transport's circles, clear of the play button.
+        noticeButton.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(noticeButton)
+        NSLayoutConstraint.activate([
+            noticeButton.centerXAnchor.constraint(equalTo: centerXAnchor),
+            noticeButton.bottomAnchor.constraint(equalTo: transport.topAnchor, constant: -24),
+            noticeButton.leadingAnchor.constraint(greaterThanOrEqualTo: safeAreaLayoutGuide.leadingAnchor, constant: margin),
         ])
         #endif
     }
@@ -709,7 +832,7 @@ final class PlayerControlsView: UIView {
         super.didUpdateFocus(in: context, with: coordinator)
         if context.nextFocusedItem as? UIView === promptButton { onPromptFocused?() }
         let next = context.nextFocusedItem as? UIView
-        upFromMenus.isEnabled = next.map { next in [channelsButton, guideButton, audioButton, subtitlesButton, speedButton, sleepButton].contains { next.isDescendant(of: $0) } } ?? false
+        upFromMenus.isEnabled = next.map { next in [channelsButton, guideButton, audioButton, subtitlesButton, speedButton, qualityButton, sleepButton].contains { next.isDescendant(of: $0) } } ?? false
     }
     #endif
 
@@ -761,12 +884,15 @@ final class PlayerControlsView: UIView {
 
     /// Says when its menu opens and closes, so the controls stay up meanwhile and focus comes straight back to it.
     final class MenuButton: FocusButton {
-        var controls: PlayerControlsView? { superview?.superview as? PlayerControlsView ?? superview?.superview?.superview as? PlayerControlsView ?? superview?.superview?.superview?.superview as? PlayerControlsView }
+        var controls: PlayerControlsView? { superview as? PlayerControlsView ?? superview?.superview as? PlayerControlsView ?? superview?.superview?.superview as? PlayerControlsView ?? superview?.superview?.superview?.superview as? PlayerControlsView }
 
         override func contextMenuInteraction(_ interaction: UIContextMenuInteraction, willDisplayMenuFor configuration: UIContextMenuConfiguration, animator: (any UIContextMenuInteractionAnimating)?) {
             super.contextMenuInteraction(interaction, willDisplayMenuFor: configuration, animator: animator)
             #if os(tvOS)
             controls?.setMenuScrim(true, animator: animator)
+            #endif
+            #if os(iOS)
+            if self === controls?.noticeButton { return controls?.noticeMenu(visible: true) ?? () }
             #endif
             controls?.onMenuVisibility?(self, true)
         }
@@ -775,6 +901,9 @@ final class PlayerControlsView: UIView {
             super.contextMenuInteraction(interaction, willEndFor: configuration, animator: animator)
             #if os(tvOS)
             controls?.setMenuScrim(false, animator: animator)
+            #endif
+            #if os(iOS)
+            if self === controls?.noticeButton { return controls?.noticeMenu(visible: false) ?? () }
             #endif
             controls?.onMenuVisibility?(self, false)
         }

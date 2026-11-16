@@ -31,6 +31,12 @@ final class PlayerViewController: UIViewController {
     private var holdTask: Task<Void, Never>?
     #endif
     private var subtitleSize: SubtitleSize = .standard
+    /// The Quality menu (nil: none, as for a download).
+    private var quality: QualityMenu?
+    /// Another quality is opening: the stream it replaces (whose picture stays), and when to give up waiting.
+    private var qualitySwitch: (from: PlayerTransport?, timeout: Task<Void, Never>)?
+    /// The menu button whose menu is open.
+    private weak var openMenuButton: UIButton?
     private var subtitlePlacement = SubtitlePlacement()
     /// The file's audio offset (nil: not adjustable here).
     private var audioSync: Double?
@@ -80,11 +86,19 @@ final class PlayerViewController: UIViewController {
     static let rateChoices: [Float] = [0.5, 0.75, 1, 1.25, 1.5, 2]
 
     /// Swapped when a session is replaced (the next episode, a recovered stream, the engine's fallback).
+    private let heldPicture = HeldPicture()
+
+    /// The stream about to be replaced in place: paused, silent and left on screen until its replacement plays.
+    func holdPicture(of transport: PlayerTransport) {
+        heldPicture.hold(transport)
+    }
+
     var transport: PlayerTransport? {
         didSet {
             oldValue?.delegate = nil
-            oldValue?.view.removeFromSuperview()
-            guard let transport else { return }
+            // A stream being replaced in place keeps its picture up until the new one plays.
+            if !heldPicture.holds(oldValue) { oldValue?.view.removeFromSuperview() }
+            guard let transport else { return heldPicture.release() }
             transport.delegate = self
             transport.subtitleSize = subtitleSize
             transport.subtitlePlacement = subtitlePlacement
@@ -248,7 +262,10 @@ final class PlayerViewController: UIViewController {
             video.topAnchor.constraint(equalTo: view.topAnchor),
             video.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
-        controls.setTime(position: transport.currentTime, duration: transport.duration, buffered: transport.bufferedTime)
+        // Over a held picture the timeline stays where it was until the new stream plays from there.
+        if !heldPicture.isHolding {
+            controls.setTime(position: transport.currentTime, duration: transport.duration, buffered: transport.bufferedTime)
+        }
         rebuildMenus()
         #if os(iOS)
         pictureInPicture = nil
@@ -418,6 +435,35 @@ final class PlayerViewController: UIViewController {
         rebuildMenus()
     }
 
+    /// The Quality menu (nil: none, as for a download).
+    func setQuality(_ menu: QualityMenu?) {
+        guard menu != quality else { return }
+        quality = menu
+        guard isViewLoaded else { return }
+        rebuildQualityMenu()
+    }
+
+    /// Another quality is opening (true) until its stream plays: the picture stays with a small spinner, and the
+    /// Quality button waits.
+    func setQualitySwitching(_ switching: Bool) {
+        qualitySwitch?.timeout.cancel()
+        qualitySwitch = switching ? (transport, Task { [weak self] in
+            guard (try? await Task.sleep(for: HeldPicture.longest)) != nil else { return }
+            self?.setQualitySwitching(false)
+        }) : nil
+        guard isViewLoaded else { return }
+        controls.setQualityBusy(switching)
+        rebuildQualityMenu()
+        phaseChanged(transport?.phase ?? .loading)
+    }
+
+    /// "Lowered quality for your connection" for 4 seconds, without bringing the controls up or moving focus; on the
+    /// iPhone and iPad, tapping it opens the Quality menu.
+    func noticeLoweredQuality() {
+        guard isViewLoaded else { return }
+        controls.flashNotice(t(Words.loweredQuality), menu: quality == nil ? nil : controls.qualityButton.menu)
+    }
+
     /// A moment's message in the middle of the picture ("Re-syncing subtitles…"), with the controls up.
     func flash(_ message: String) {
         guard isViewLoaded else { return }
@@ -472,6 +518,7 @@ final class PlayerViewController: UIViewController {
         controls.onMenuVisibility = { [weak self] button, visible in
             guard let self else { return }
             menuOpen = visible
+            openMenuButton = visible ? button : nil
             if visible {
                 hideTask?.cancel()
             } else {
@@ -534,6 +581,7 @@ final class PlayerViewController: UIViewController {
     /// Closes the screen when it's done: the controller asks, having stopped the session.
     func finish(completion: (() -> Void)? = nil) {
         finished = true
+        heldPicture.release()
         sleepWatch?.cancel()
         sleepWatch = nil
         sleep.set(nil)
@@ -1023,7 +1071,47 @@ final class PlayerViewController: UIViewController {
             }
         })
         controls.setSpeedBadge(controls.speedButton.isHidden || transport.rate == 1 ? nil : Self.rateLabel(transport.rate))
+        rebuildQualityMenu()
         rebuildSleepMenu()
+    }
+
+    /// Automatic, Original, then the levels below the file; Automatic says what's playing now and Original names the
+    /// file. The choice in use is ticked, and choosing it again just closes the menu.
+    private func rebuildQualityMenu() {
+        let button = controls.qualityButton
+        guard let quality else {
+            button.isHidden = true
+            button.menu = nil
+            #if os(iOS)
+            controls.setNoticeMenu(nil)
+            #endif
+            return
+        }
+        button.isHidden = false
+        controls.setQualityBadge(quality.badge, spoken: quality.spokenValue)
+        let menu = UIMenu(title: t(Words.quality), options: .singleSelection, children: quality.choices.map { choice in
+            let action = UIAction(title: choice.label, state: choice == quality.selected ? .on : .off) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self, choice != self.quality?.selected, self.qualitySwitch == nil else { return }
+                    self.delegate?.playerScreen(self, choseQuality: choice)
+                }
+            }
+            action.subtitle = quality.detail(for: choice)
+            return action
+        })
+        #if os(iOS)
+        controls.setNoticeMenu(menu)
+        // Open, it changes in place (Automatic's line follows the stream as it moves between qualities).
+        if button.isHeld || openMenuButton === button, let interaction = button.contextMenuInteraction {
+            interaction.updateVisibleMenu { _ in menu }
+        }
+        #endif
+        #if os(tvOS)
+        // While another quality opens the button keeps focus but has no menu.
+        button.menu = qualitySwitch == nil ? menu : nil
+        #else
+        button.menu = menu
+        #endif
     }
 
     /// Off, 15 to 60 minutes, End of episode (episodes only); with the minutes left while one runs.
@@ -1084,9 +1172,12 @@ final class PlayerViewController: UIViewController {
 
     private func phaseChanged(_ phase: TransportPhase) {
         guard isViewLoaded else { return }
-        switch phase {
-        case .loading, .buffering: spinner.startAnimating()
-        default: spinner.stopAnimating()
+        // Another quality opening: a small spinner over the picture that stays (docs/design.md).
+        spinner.style = qualitySwitch == nil ? .large : .medium
+        if qualitySwitch != nil || phase == .loading || phase == .buffering {
+            spinner.startAnimating()
+        } else {
+            spinner.stopAnimating()
         }
         controls.setPlaying(phase == .playing || phase == .buffering)
         updateIdleTimer(phase)
@@ -1297,6 +1388,9 @@ final class PlayerViewController: UIViewController {
 
 extension PlayerViewController: PlayerTransportDelegate {
     func transport(_ transport: PlayerTransport, phaseChanged phase: TransportPhase) {
+        if phase == .playing, transport === self.transport { heldPicture.release() }
+        // The new quality plays.
+        if phase == .playing, transport === self.transport, let qualitySwitch, qualitySwitch.from !== transport { setQualitySwitching(false) }
         #if os(iOS)
         if isViewLoaded { preparePictureInPicture(transport) }
         #endif

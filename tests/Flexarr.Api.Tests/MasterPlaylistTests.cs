@@ -110,4 +110,36 @@ public class MasterPlaylistTests
             Directory.Delete(cache, recursive: true);
         }
     }
+
+    [Fact]
+    public async Task ALadder_ListsEachQuality_LowestFirst_WithBusyAndAverageBandwidth_AndKeepsTheSubtitles()
+    {
+        var cache = Directory.CreateTempSubdirectory("flexarr-playlist-").FullName;
+        var top = new TranscodePlan(0, 1, 1920, 1080, 7_744_000, ToneMap: false, CopyAudio: false, AudioChannels: 2, BurnSubtitle: null, Fmp4: true) { FrameRate = 24000.0 / 1001 };
+        await using var manager = new TranscodeManager(() => new TranscodeSettings { CacheDirectory = cache, HardwareAcceleration = HardwareAcceleration.VideoToolbox },
+            NullLoggerFactory.Instance);
+        var lead = await manager.CreateAsync("main", "/in.mkv", 600, top, ladder:
+        [
+            top with { TargetWidth = 854, TargetHeight = 480, VideoBitrate = 1_244_000 },
+            top with { TargetWidth = 1280, TargetHeight = 720, VideoBitrate = 3_744_000 },
+            top,
+        ]);
+        var session = new PlaybackSession
+        {
+            Id = lead.Id, ItemId = Guid.NewGuid(), ProfileId = "main", FileId = Guid.NewGuid(), FilePath = "/in.mkv", Container = "mkv",
+            DurationSeconds = 600, Method = PlaybackMethod.Transcode, CreditsStart = null, Transcode = lead,
+            Subtitles = [new SubtitleTrack("e2", 2, null, "subrip", "eng", null, false, false)],
+        };
+
+        var playlist = PlaybackService.MasterPlaylist(session, includeSubtitles: true);
+
+        var lines = playlist.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.Single(lines, l => l.StartsWith("#EXT-X-MEDIA:TYPE=SUBTITLES", StringComparison.Ordinal));
+        var variants = lines.Select((line, i) => (line, i)).Where(x => x.line.StartsWith("#EXT-X-STREAM-INF:", StringComparison.Ordinal)).ToList();
+        Assert.Equal(["v/0/main.m3u8", "v/1/main.m3u8", "v/2/main.m3u8"], variants.Select(v => lines[v.i + 1]));
+        Assert.Equal(
+            "#EXT-X-STREAM-INF:BANDWIDTH=1809200,AVERAGE-BANDWIDTH=1436000,RESOLUTION=854x480,CODECS=\"avc1.640028,mp4a.40.2\",FRAME-RATE=23.976,SUBTITLES=\"subs\"",
+            variants[0].line);
+        Assert.Contains("BANDWIDTH=10259200,AVERAGE-BANDWIDTH=7936000,RESOLUTION=1920x1080", variants[2].line, StringComparison.Ordinal);
+    }
 }

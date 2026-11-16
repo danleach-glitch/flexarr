@@ -1038,6 +1038,41 @@ public struct FlexarrClient: Sendable {
         _ = try? await requests.data(for: request)
     }
 
+    /// How fast the server's answers reach this device now, in bits per second: `bytes` of the server's speed test
+    /// (`GET /api/v1/speedtest`), timed from the first byte to the last. Nil from a server before 0.67, which hasn't
+    /// one (404), or an answer too small to say. Sent to the address in use only.
+    public func speedTest(bytes: Int) async throws -> Int? {
+        let base = addresses.current
+        if Self.simulatesOffline { throw URLError(.notConnectedToInternet) }
+        guard await provesItself(base) else { throw URLError(Task.isCancelled ? .cancelled : .cannotConnectToHost) }
+        var asking = self.request("GET", "speedtest", query: [URLQueryItem(name: "bytes", value: String(bytes))], bodyData: nil,
+                                  at: base, timeout: 30)
+        asking.cachePolicy = .reloadIgnoringLocalCacheData
+        asking.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
+        let (stream, response) = try await requests.bytes(for: asking)
+        guard let http = response as? HTTPURLResponse else { throw FlexarrClientError.invalidResponse }
+        switch http.statusCode {
+        case 404: return nil
+        case 401:
+            onUnauthorized?()
+            throw FlexarrClientError.unauthorized
+        case 200..<300:
+            if http.value(forHTTPHeaderField: "Content-Type")?.contains("text/html") == true { return nil }
+        default:
+            throw FlexarrClientError.http(status: http.statusCode, message: nil)
+        }
+        var count: Int64 = 0
+        var first: Date?
+        for try await _ in stream {
+            if first == nil { first = Date() }
+            count += 1
+        }
+        let last = Date()
+        addresses.answered(from: base)
+        guard let first else { return nil }
+        return SpeedTest.bitsPerSecond(bytes: count, seconds: last.timeIntervalSince(first))
+    }
+
     /// Artwork URL with a width hint for the server's image cache. Image endpoints are anonymous.
     public func imageURL(_ relative: String?, width: Int) -> URL? {
         guard let relative, !relative.isEmpty else { return nil }

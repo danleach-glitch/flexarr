@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { linkSpeed, MIN_SAMPLE_BYTES, resetLinkSpeed, sample } from './linkSpeed'
+import { isSegment, linkSpeed, MIN_SAMPLE_BYTES, resetLinkSpeed, sample } from './linkSpeed'
 
 describe('link speed', () => {
   beforeEach(() => resetLinkSpeed())
@@ -21,5 +21,13 @@ describe('link speed', () => {
     expect(linkSpeed(1)).toBeUndefined()
     for (let i = 0; i < 3; i++) sample(1_000_000, 1000, 0)
     expect(linkSpeed(31 * 60_000)).toBeUndefined()
+  })
+
+  it('samples single-stream and ladder segments, not playlists', () => {
+    expect(isSegment('/api/v1/playback/abc/12.ts')).toBe(true)
+    expect(isSegment('/api/v1/playback/abc/12.m4s?subtitles=false')).toBe(true)
+    expect(isSegment('/api/v1/playback/abc/v/1/12.m4s')).toBe(true)
+    expect(isSegment('/api/v1/playback/abc/v/1/main.m3u8')).toBe(false)
+    expect(isSegment('/api/v1/playback/abc/v/1/init.mp4')).toBe(false)
   })
 })

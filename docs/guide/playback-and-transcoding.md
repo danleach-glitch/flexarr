@@ -60,7 +60,7 @@ Use it when your home internet's upload is slow and people watch [away from home
 > **Note**
 > Live TV is different: away from home, channels automatically come in a reduced version. See [Live TV and recording](live-tv.md).
 
-In the web player, the quality button in the corner chooses **Best for this device**, **1080p**, **720p** or **480p** for what you're watching now.
+Every player has a **Quality** menu: **Automatic**, **Original**, **1080p**, **720p** or **480p**. Away from home, each device remembers its choice. See [Quality away from home](away-from-home.md#quality-away-from-home).
 
 ## In the player
 

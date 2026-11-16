@@ -36,6 +36,9 @@ final class PlayerViewController: NSViewController {
     /// When the pointer last moved over the picture, for the controls' three seconds.
     private var lastActivity = Date()
     private var flashTask: Task<Void, Never>?
+    private var noticeTask: Task<Void, Never>?
+    /// Another quality is opening: the stream it replaces, and when to give up waiting.
+    private var qualitySwitch: (from: PlayerTransport?, timeout: Task<Void, Never>)?
     private var sleepWatch: Task<Void, Never>?
     private var isScrubbing = false
     private var seekTarget: (seconds: Double, at: Date)?
@@ -51,11 +54,19 @@ final class PlayerViewController: NSViewController {
     var presentedViewController: NSViewController? { presentedViewControllers?.first }
 
     /// Swapped when a session is replaced (the next episode, a recovered stream, the engine's fallback).
+    private let heldPicture = HeldPicture()
+
+    /// The stream about to be replaced in place: paused, silent and left on screen until its replacement plays.
+    func holdPicture(of transport: PlayerTransport) {
+        heldPicture.hold(transport)
+    }
+
     var transport: PlayerTransport? {
         didSet {
             oldValue?.delegate = nil
-            oldValue?.view.removeFromSuperview()
-            guard let transport else { return }
+            // A stream being replaced in place keeps its picture up until the new one plays.
+            if !heldPicture.holds(oldValue) { oldValue?.view.removeFromSuperview() }
+            guard let transport else { return heldPicture.release() }
             transport.delegate = self
             transport.subtitleSize = state.subtitleSize
             transport.subtitlePlacement = state.subtitlePlacement
@@ -222,6 +233,34 @@ final class PlayerViewController: NSViewController {
         state.subtitleSearch = (available, files, resyncing)
     }
 
+    /// The Quality menu (nil: none, as for a download).
+    func setQuality(_ menu: QualityMenu?) {
+        guard state.quality != menu else { return }
+        state.quality = menu
+    }
+
+    /// Another quality is opening (true) until its stream plays: the picture stays with a small spinner, and the
+    /// Quality button waits.
+    func setQualitySwitching(_ switching: Bool) {
+        qualitySwitch?.timeout.cancel()
+        qualitySwitch = switching ? (transport, Task { [weak self] in
+            guard (try? await Task.sleep(for: HeldPicture.longest)) != nil else { return }
+            self?.setQualitySwitching(false)
+        }) : nil
+        state.switchingQuality = switching
+    }
+
+    /// "Lowered quality for your connection" for 4 seconds over the picture, leaving the controls as they are;
+    /// clicking it opens the Quality menu.
+    func noticeLoweredQuality() {
+        noticeTask?.cancel()
+        withAnimation { state.qualityNotice = t(Words.loweredQuality) }
+        noticeTask = Task { [weak self] in
+            guard (try? await Task.sleep(for: .seconds(4))) != nil else { return }
+            withAnimation { self?.state.qualityNotice = nil }
+        }
+    }
+
     /// A moment's message in the middle of the picture ("Re-syncing subtitles…").
     func flash(_ message: String) {
         flashTask?.cancel()
@@ -308,6 +347,10 @@ final class PlayerViewController: NSViewController {
         delegate?.playerScreen(self, choseRate: transport.rate)
     }
 
+    func chooseQuality(_ quality: StreamQuality) {
+        delegate?.playerScreen(self, choseQuality: quality)
+    }
+
     func searchSubtitles() { delegate?.playerScreenSearchSubtitles(self) }
     func resyncSubtitle(_ key: String) { delegate?.playerScreen(self, resyncSubtitle: key) }
 
@@ -382,6 +425,7 @@ final class PlayerViewController: NSViewController {
     /// Closes the screen: the controller asks, having stopped the session.
     func finish(completion: (() -> Void)? = nil) {
         finished = true
+        heldPicture.release()
         sleepWatch?.cancel()
         sleepWatch = nil
         sleep.set(nil)
@@ -711,6 +755,9 @@ final class PlayerViewController: NSViewController {
 
 extension PlayerViewController: PlayerTransportDelegate {
     func transport(_ transport: PlayerTransport, phaseChanged phase: TransportPhase) {
+        if phase == .playing, transport === self.transport { heldPicture.release() }
+        // The new quality plays.
+        if phase == .playing, transport === self.transport, let qualitySwitch, qualitySwitch.from !== transport { setQualitySwitching(false) }
         if isViewLoaded { preparePictureInPicture(transport) }
         phaseChanged(phase)
         delegate?.playerScreen(self, phaseChanged: phase)

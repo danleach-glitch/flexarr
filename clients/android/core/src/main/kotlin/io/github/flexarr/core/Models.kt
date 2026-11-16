@@ -616,6 +616,11 @@ data class PlaybackRequest(
     val deviceName: String? = null,
     /** How fast media reaches this device lately, in bits per second (docs/fast-start.md). Servers before 0.59 ignore it. */
     val measuredBitrate: Long? = null,
+    /** The file as it is (the Quality menu's Original): no away-from-home limit, no ladder. Servers before 0.67 ignore it. */
+    val original: Boolean? = null,
+    /** At most this tall a picture and this many bits per second (the Quality menu's 1080p, 720p, 480p, or a step down). */
+    val maxHeight: Int? = null,
+    val maxBitrate: Long? = null,
 )
 
 @Serializable
@@ -725,6 +730,13 @@ data class PlaybackInfo(
      * server's English). Null when the file plays as it is. Absent from servers before 0.66.
      */
     val stream: StreamSummary? = null,
+    /**
+     * The stream holds several qualities the player moves between by itself (the ladder), so it isn't stepped down by
+     * the app. Absent from servers before 0.67.
+     */
+    val adaptive: Boolean? = null,
+    /** The file's average bitrate in bits per second. Absent from servers before 0.67. */
+    val fileBitrate: Long? = null,
 ) {
     /** The server keeps audio offsets and show speeds (0.53 and later). */
     val hasPlayerControls: Boolean get() = audioDelaySeconds != null

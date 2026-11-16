@@ -4,6 +4,14 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ## Unreleased
 
+### Watching away from home
+
+- Away from home, films and episodes start straight away and stop buffering. Each app checks your connection when it opens away from home and remembers it. When your connection easily carries a file, it plays as it is; otherwise it comes in 1080p, 720p and 480p at once, starts on a light one, and the player moves between them every few seconds to suit your connection.
+- If a stream still keeps stopping, the player steps down a quality by itself and says *Lowered quality for your connection*, and steps back up once things have been steady for a few minutes. Switching keeps the picture on screen rather than going black.
+- The players on iPhone, iPad, Apple TV, the Mac, Android phones and Android TV have a Quality menu: Automatic, Original, 1080p, 720p or 480p. The web player's menu gains Original. Away from home, each device remembers its choice.
+- A stream converted to a lower bitrate also lowers its resolution to suit, so it looks sharper.
+- Settings › Remote access says when the best speed your remote devices have measured is less than your busiest files need, so you know it's your home internet's upload.
+
 ### Apps
 
 - On iPhone, iPad, the Mac and Android, a download that failed can be tried again straight from Downloads: each failed film, episode, show, album, playlist, audiobook or podcast episode has a small Try again button at the end of its row (and Try again in its swipe or long-press menu beside Delete), asking for it again at the same size, as on its own page. When more than one has failed, Try all again in the top bar asks for them all.

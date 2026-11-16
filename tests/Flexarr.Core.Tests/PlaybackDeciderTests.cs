@@ -313,6 +313,32 @@ public class PlaybackDeciderTests
         Assert.True(decision.Transcode.VideoBitrate <= 4_000_000);
     }
 
+    [Theory]
+    // A cap with no height of its own makes the picture what the bitrate suits (BitrateFor read backwards).
+    [InlineData(3_000_000L, 540)]
+    [InlineData(4_000_000L, 720)]
+    [InlineData(1_500_000L, 480)]
+    [InlineData(8_000_000L, 1080)]
+    [InlineData(40_000_000L, 2160)]
+    public void ABitrateCap_LowersTheResolutionToWhatItSuits(long cap, int height)
+    {
+        var file = File("mkv", "hevc", "aac", 2, height: 2160, bitrate: 60_000_000);
+
+        var decision = PlaybackDecider.Decide(file, Chrome, [], new PlaybackOptions(MaxBitrate: cap));
+
+        Assert.Equal(height, decision.Transcode!.TargetHeight);
+        Assert.True(decision.Transcode.VideoBitrate < cap);
+    }
+
+    [Fact]
+    public void ABitrateCap_DoesntConvertAFileThatFitsIt_ForItsSizeAlone()
+    {
+        // 4K at 6 Mbps under an 8 Mbps cap plays as it is: the height a cap suits only shapes a conversion.
+        var file = File("mp4", "h264", "aac", 2, height: 2160, bitrate: 6_000_000);
+
+        Assert.Equal(PlaybackMethod.DirectPlay, PlaybackDecider.Decide(file, Chrome, [], new PlaybackOptions(MaxBitrate: 8_000_000)).Method);
+    }
+
     [Fact]
     public void PictureSubtitles_AreBurnedIn_TextSubtitlesAreNot()
     {

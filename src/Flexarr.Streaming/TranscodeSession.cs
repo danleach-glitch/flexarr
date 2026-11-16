@@ -73,8 +73,13 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     /// Called before ffmpeg starts again in a session where it isn't running; throws <see cref="TranscodeLimitException"/>
     /// when that would go over the server's limit.
     /// </param>
+    /// <param name="openingSeconds">
+    /// How long the opening segments are, when the plan and encoder have them (<see cref="FfmpegCommand.HasOpening"/>):
+    /// shorter for a viewer away from home. Every quality of a ladder has the same.
+    /// </param>
+    /// <param name="directory">Where its segments go; by default its own folder under the cache's transcodes.</param>
     public TranscodeSession(string id, string input, double durationSeconds, TranscodePlan plan, TranscodeSettings settings, ILogger logger,
-        Action<TranscodeSession>? reserve = null)
+        Action<TranscodeSession>? reserve = null, int openingSeconds = FfmpegCommand.OpeningSegmentSeconds, string? directory = null)
     {
         Id = id;
         Input = input;
@@ -83,13 +88,16 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         _settings = settings;
         _logger = logger;
         _reserve = reserve;
-        Directory = System.IO.Directory.CreateDirectory(Path.Combine(settings.CacheDirectory, "transcodes", id)).FullName;
+        Directory = System.IO.Directory.CreateDirectory(directory ?? Path.Combine(settings.CacheDirectory, "transcodes", id)).FullName;
         // Settled once: a fall back to software mid-session mustn't change where the segments start.
-        Opening = FfmpegCommand.HasOpening(plan, settings);
+        OpeningSeconds = FfmpegCommand.HasOpening(plan, settings) ? Math.Max(1, openingSeconds) : 0;
     }
 
     /// <summary>The segments start with short ones (<see cref="FfmpegCommand.OpeningSegments"/>), for the whole session.</summary>
-    public bool Opening { get; }
+    public bool Opening => OpeningSeconds > 0;
+
+    /// <summary>How long each of the opening segments is (0: there are none), for the whole session.</summary>
+    public int OpeningSeconds { get; }
 
     public string Id { get; }
 
@@ -99,14 +107,14 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     public double DurationSeconds { get; }
     public TranscodePlan Plan { get; }
     public string Directory { get; }
-    public int SegmentCount => Plan.Repackage?.SegmentStarts.Count ?? FfmpegCommand.SegmentCount(DurationSeconds, Opening);
+    public int SegmentCount => Plan.Repackage?.SegmentStarts.Count ?? FfmpegCommand.SegmentCount(DurationSeconds, OpeningSeconds);
 
     /// <summary>The segment playing at <paramref name="seconds"/>.</summary>
     public int SegmentAt(double seconds)
     {
         if (Plan.Repackage is not { } repackage)
         {
-            return Math.Clamp(FfmpegCommand.SegmentAtSeconds(seconds, Opening), 0, SegmentCount - 1);
+            return Math.Clamp(FfmpegCommand.SegmentAtSeconds(seconds, OpeningSeconds), 0, SegmentCount - 1);
         }
 
         var starts = repackage.SegmentStarts;
@@ -124,19 +132,59 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     /// Got ready ahead of Play (a page being looked at, the next episode during the credits) and not yet asked for by a
     /// player: it gives way to any real stream that needs its slot (see <see cref="TranscodeManager.CreateAsync"/>).
     /// </summary>
-    public bool Warming { get; set; }
+    public bool Warming
+    {
+        get => _warming;
+        set
+        {
+            foreach (var each in Together)
+            {
+                each._warming = value;
+            }
+        }
+    }
+
+    private bool _warming;
+
+    /// <summary>The ladder of qualities this is one of (docs/remote-streaming.md); null for a stream of one quality.</summary>
+    public TranscodeLadder? Ladder { get; internal set; }
+
+    /// <summary>This session and the other qualities of its ladder, which share a viewer's speed, start and warm-up.</summary>
+    private IEnumerable<TranscodeSession> Together => Ladder?.Variants ?? [this];
+
     public DateTime LastAccess { get; internal set; } = DateTime.UtcNow;
     public int LastRequested { get; private set; }
+
+    /// <summary>When a segment of it was last asked for; null until one has been.</summary>
+    public DateTime? LastFetched { get; private set; }
     public bool IsRunning => _process is { } process && IsAlive(process);
 
     /// <summary>When ffmpeg was last (about to be) started, or the session created.</summary>
     internal DateTime StartedAt { get; set; } = DateTime.UtcNow;
 
-    /// <summary>Counts towards the server's transcode limit: ffmpeg is running, or is about to.</summary>
-    public bool IsActive => IsRunning || DateTime.UtcNow - StartedAt < StartingWindow;
+    /// <summary>
+    /// Counts towards the server's transcode limit: ffmpeg is running, or is about to. A ladder's qualities count as
+    /// one: it's active while any of them is.
+    /// </summary>
+    public bool IsActive => Ladder?.AnyRunsOrStarting ?? RunsOrStarting;
 
-    /// <summary>Where playback opens (a resume point), written into the playlist.</summary>
-    public double StartSeconds { get; set; }
+    /// <summary>This session's own ffmpeg is running, or is about to.</summary>
+    internal bool RunsOrStarting => IsRunning || DateTime.UtcNow - StartedAt < StartingWindow;
+
+    /// <summary>Where playback opens (a resume point), written into the playlist. Set on one quality of a ladder, it's set on all.</summary>
+    public double StartSeconds
+    {
+        get => _startSeconds;
+        set
+        {
+            foreach (var each in Together)
+            {
+                each._startSeconds = value;
+            }
+        }
+    }
+
+    private double _startSeconds;
 
     /// <summary>
     /// The speed it's being watched at, where the player has said (1 otherwise). Past its head start ffmpeg makes the
@@ -147,12 +195,18 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     public double Speed
     {
         get => Volatile.Read(ref _speed);
-        set => Volatile.Write(ref _speed, FfmpegCommand.Pace(value));
+        set
+        {
+            foreach (var each in Together)
+            {
+                Volatile.Write(ref each._speed, FfmpegCommand.Pace(value));
+            }
+        }
     }
 
     public string MediaPlaylist() => Plan.Repackage is { } repackage
         ? FfmpegCommand.MediaPlaylist(repackage.SegmentStarts, DurationSeconds, StartSeconds)
-        : FfmpegCommand.MediaPlaylist(DurationSeconds, StartSeconds, Plan.Fmp4, Opening);
+        : FfmpegCommand.MediaPlaylist(DurationSeconds, StartSeconds, Plan.Fmp4, OpeningSeconds);
 
     private string SegmentExtension => Plan.Fmp4 ? ".m4s" : ".ts";
 
@@ -194,7 +248,12 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         Task<string?>? opening = null;
         if (!File.Exists(path))
         {
-            opening = GetSegmentAsync(SegmentAt(StartSeconds), ct);
+            // A player moving to another quality of a ladder asks for its init segment first, then the segment after
+            // the last it fetched of the one it's leaving: this quality starts there rather than at the opening.
+            var from = Ladder?.Current is { LastFetched: not null } current && current != this
+                ? Math.Max(0, current.LastRequested - 1)
+                : SegmentAt(StartSeconds);
+            opening = GetSegmentAsync(from, ct);
         }
 
         // Written in one go once ffmpeg has its codecs; done when its size stops changing.
@@ -318,7 +377,8 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     {
         // A fragmented-MP4 player holds the init segment it was sent and never asks again, and software's wouldn't
         // match the hardware run's: once it's gone out, the segment fails and the player's recovery starts afresh.
-        if (!_settings.SoftwareFallback || _settings.Resolved == HardwareAcceleration.None || Plan.Repackage is not null
+        // A ladder's qualities must cut where the others do, and three software conversions would swamp the processor.
+        if (!_settings.SoftwareFallback || _settings.Resolved == HardwareAcceleration.None || Plan.Repackage is not null || Ladder is not null
             || (Plan.Fmp4 && _init is not null)
             || DateTime.UtcNow - StartedAt > TimeSpan.FromSeconds(20) || HighestComplete() >= _startSegment)
         {
@@ -568,7 +628,7 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         // segment it hasn't made, with the full burst at normal priority (see GetSegmentAsync).
         var pace = Speed;
         var burst = Warming ? FfmpegCommand.WarmingRunAheadSeconds : FfmpegCommand.RunAheadSeconds;
-        foreach (var arg in FfmpegCommand.Hls(Input, Plan, segment, Directory, _settings, Opening, burst, pace))
+        foreach (var arg in FfmpegCommand.Hls(Input, Plan, segment, Directory, _settings, Opening, burst, pace, Math.Max(1, OpeningSeconds), sourceTimes: Ladder is not null))
         {
             start.ArgumentList.Add(arg);
         }
@@ -627,7 +687,7 @@ public sealed partial class TranscodeSession : IAsyncDisposable
 
     /// <summary>When segment <paramref name="index"/> starts in the film.</summary>
     private double SegmentStart(int index) =>
-        Plan.Repackage is { } repackage ? repackage.SegmentStarts[index] : FfmpegCommand.SegmentStartSeconds(index, Opening);
+        Plan.Repackage is { } repackage ? repackage.SegmentStarts[index] : FfmpegCommand.SegmentStartSeconds(index, OpeningSeconds);
 
     /// <summary>Deletes the segments more than <see cref="KeptBehind"/> before <paramref name="watching"/>.</summary>
     private async Task PruneAsync(int watching, CancellationToken ct)
@@ -684,6 +744,7 @@ public sealed partial class TranscodeSession : IAsyncDisposable
     private void Touch(int index)
     {
         LastAccess = DateTime.UtcNow;
+        LastFetched = LastAccess;
         LastRequested = index;
     }
 

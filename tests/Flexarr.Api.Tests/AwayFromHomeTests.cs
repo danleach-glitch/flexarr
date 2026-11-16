@@ -66,4 +66,18 @@ public class AwayFromHomeTests
         Assert.Null(AwayFromHome.Cap(AwayFromHomeQuality.Automatic, remote: true, null, 40_000_000));
         Assert.Null(AwayFromHome.Cap(AwayFromHomeQuality.Automatic, remote: true, 0, 40_000_000));
     }
+
+    [Fact]
+    public void WithNoReading_ARemoteStartIsHeldTo4Mbps_WhenTheFileNeedsMore()
+    {
+        // Taken to carry 8 Mbps: busy stretches within 6, so 4 Mbps (720p).
+        Assert.Equal(4_000_000, AwayFromHome.StartCap(AwayFromHomeQuality.Automatic, remote: true, null, 20_000_000));
+        // A file that fits that plays as it is.
+        Assert.Null(AwayFromHome.StartCap(AwayFromHomeQuality.Automatic, remote: true, null, 3_500_000));
+        // A reading wins over the guess.
+        Assert.Null(AwayFromHome.StartCap(AwayFromHomeQuality.Automatic, remote: true, 100_000_000, 20_000_000));
+        // At home or on Original, never.
+        Assert.Null(AwayFromHome.StartCap(AwayFromHomeQuality.Automatic, remote: false, null, 20_000_000));
+        Assert.Null(AwayFromHome.StartCap(AwayFromHomeQuality.Original, remote: true, null, 20_000_000));
+    }
 }

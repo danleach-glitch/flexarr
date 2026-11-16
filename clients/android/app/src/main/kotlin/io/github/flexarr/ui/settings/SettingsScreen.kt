@@ -383,7 +383,7 @@ fun DownloadSettingsScreen(model: AppModel) {
                     header = t("Movies and episodes"),
                     footer = t("The size Download starts with; a title’s page offers the others too. Original keeps the full picture and sound but takes the most space. Podcasts always come as their files are."),
                 ) {
-                    listOf(DownloadQuality.Medium to t("Automatic (720p)"), DownloadQuality.Original to t("Original"), DownloadQuality.Small to t("Small (480p)")).forEachIndexed { index, (quality, label) ->
+                    listOf(DownloadQuality.Medium to t("Automatic (720p)"), DownloadQuality.Original to t(Words.originalQuality), DownloadQuality.Small to t("Small (480p)")).forEachIndexed { index, (quality, label) ->
                         if (index > 0) Divider()
                         Choice(label, downloads.quality == quality) { downloads.chooseQuality(quality) }
                     }

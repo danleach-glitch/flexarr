@@ -22,7 +22,10 @@ public sealed record RemoteAccessDto(
     // The Mac app's sandbox can't run the tailscale command, so the page explains instead of offering Turn on.
     bool InMacApp = false,
     // There, the address this Mac has on a tailnet, if it's on one: plain HTTP on the server's own port.
-    string? TailnetAddress = null);
+    string? TailnetAddress = null,
+    // The best speed remote devices measured lately against what the library's busiest files need, for the upload
+    // warning (docs/remote-streaming.md). Null with no remote reading; absent from servers before 0.67.
+    Playback.RemoteSpeedDto? RemoteSpeed = null);
 
 public sealed record TailnetLinkDto(string Login, string Name, string? ProfileId);
 
@@ -177,7 +180,8 @@ public static class RemoteAccessEndpoints
             // A container can't see the host's tailscale command, so Turn on can't work there: the page says so.
             Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true",
             macApp,
-            macApp && TailnetIp() is { } ip ? $"http://{ip}:{port}" : null);
+            macApp && TailnetIp() is { } ip ? $"http://{ip}:{port}" : null,
+            http.RequestServices.GetService<Playback.RemoteSpeeds>() is { } speeds ? await speeds.DescribeAsync(db, ct) : null);
     }
 
     /// <summary>This computer's address in Tailscale's range (100.64.0.0/10), read from its network interfaces.</summary>

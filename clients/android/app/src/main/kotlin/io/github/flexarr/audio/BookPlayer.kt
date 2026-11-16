@@ -263,7 +263,7 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
     )
 
     private fun request(book: ItemSummary, from: Double?) =
-        PlaybackRequest(itemId = book.id, profile = profile, startPositionSeconds = from, deviceName = model.deviceName, measuredBitrate = model.linkSpeed.current())
+        PlaybackRequest(itemId = book.id, profile = profile, startPositionSeconds = from, deviceName = model.deviceName, measuredBitrate = model.measuredBitrate())
 
     /** Gets [book] ready as Play would start it (from its place). Not a book loaded already, or one on this phone. */
     fun getReady(book: ItemSummary) {

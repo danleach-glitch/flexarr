@@ -7,6 +7,8 @@ import { useLocation, useNavigate, useParams, useSearchParams } from 'react-rout
 import {
   ApiError,
   beaconProgress,
+  getItem,
+  getMe,
   getSubtitleSync,
   imageUrl,
   reportProgress,
@@ -18,6 +20,7 @@ import {
   startPlayback,
   startSubtitleSync,
   stopPlayback,
+  type MediaFile,
   type PlaybackInfo,
   type PlaybackPreferences,
 } from '../api/client'
@@ -58,17 +61,37 @@ import { prepareVideo, rememberCopyingFailed, startVideo, streamBadge, wasCopyAs
 import { EARLY_STALL_MS, reportEarlyStall, reportStart, type StartTiming } from '../lib/startTiming'
 import { drop as dropPrepared, getReady, holds as holdsPrepared, take as takePrepared } from '../lib/preparedPlayback'
 import { extended, FADE_SECONDS, minutesLeft, secondsLeft, sleepChoices, sleepLabel, STILL_WATCHING_SECONDS, type SleepTimer } from '../lib/sleepTimer'
+import { linkSpeed } from '../lib/linkSpeed'
+import {
+  heightClass,
+  isAway,
+  LONG_STALL_MS,
+  qualitiesFor,
+  rememberedQuality,
+  rememberQuality,
+  requestFor,
+  resolutionName,
+  STALL_WINDOW_MS,
+  stallCounts,
+  stepBelow,
+  stepDownDue,
+  stepUp,
+  type Quality,
+  type Step,
+} from '../lib/streamQuality'
 import { t, tk, Words } from '../i18n'
 import '../styles/player.lazy.css'
 
-type Quality = 'auto' | 1080 | 720 | 480
-const qualities: { value: Quality; label: string; bitrate?: number }[] = [
-  // Said through t(label) where shown; the rest are numbers.
-  { value: 'auto', label: tk('Best for this device') },
-  { value: 1080, label: '1080p', bitrate: 10_000_000 },
-  { value: 720, label: '720p', bitrate: 4_000_000 },
-  { value: 480, label: '480p', bitrate: 1_500_000 },
-]
+/** A Quality menu row's name (docs/design.md, Words). */
+const qualityLabel = (q: Quality) => (q === 'auto' ? t(Words.automatic) : q === 'original' ? t(Words.originalQuality) : `${q}p`)
+/** The Quality button's own text: Auto, Original, 720p. */
+const qualityShort = (q: Quality) => (q === 'auto' ? t('Auto') : qualityLabel(q))
+/** A file's quality as Original's second line names it: 4K HDR, 1080p. */
+function fileQualityName(file: Pick<MediaFile, 'width' | 'height' | 'videoRange'> | undefined): string | null {
+  const name = file && resolutionName(file.width, file.height)
+  if (!name) return null
+  return file.videoRange && file.videoRange !== 'Sdr' ? t('{quality} HDR', { quality: name }) : name
+}
 
 /** The speeds the player offers; an episode's is kept for its show. */
 const speeds = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const
@@ -184,6 +207,15 @@ async function takenOverReason(sessionId: string): Promise<string | undefined> {
   return problem?.detail ?? t(TAKEN_OVER)
 }
 
+/** Whether this browser reaches the server from away from home (the server says; else the address tells). */
+async function whetherAway(): Promise<boolean> {
+  const zone = await Promise.race([
+    getMe().then((me) => me.zone, () => undefined),
+    new Promise<undefined>((resolve) => setTimeout(resolve, 1500, undefined)),
+  ])
+  return isAway(zone, window.location.hostname)
+}
+
 /** Whether the server still serves this stream: one that stopped (a server restart, another screen) isn't the browser's fault. */
 async function streamAnswers(sessionId: string): Promise<boolean> {
   const response = await fetch(`/api/v1/playback/${sessionId}/main.m3u8`, { signal: AbortSignal.timeout(REASON_TIMEOUT_MS) }).catch(() => null)
@@ -232,6 +264,18 @@ export function PlayerPage() {
   const started = useRef<{ at: number; id?: string } | null>(null)
 
   const [info, setInfo] = useState<PlaybackInfo>()
+  /** The last picture, drawn over the video while a restart opens the new stream, so the screen doesn't go black. */
+  const heldFrame = useRef<HTMLCanvasElement>(null)
+  const [held, setHeld] = useState(false)
+  const heldTimer = useRef(0)
+  /** A quality was chosen and its stream hasn't played yet: the Quality button waits. */
+  const [switching, setSwitching] = useState(false)
+  /** The file playing, for its size and HDR (Original's second line, and which caps it offers). */
+  const [file, setFile] = useState<MediaFile>()
+  /** The picture's size as it plays, which a self-switching stream changes as it moves. */
+  const [picture, setPicture] = useState<{ width: number; height: number } | null>(null)
+  /** Lowered quality for your connection is showing (4 seconds); it opens the Quality menu. */
+  const [loweredNotice, setLoweredNotice] = useState(false)
   // How the attached stream is played, set as it's attached: an error can come before the render that brings `info`.
   const method = useRef<PlaybackInfo['method']>(undefined)
   const [error, setError] = useState<PlayerError>()
@@ -253,6 +297,24 @@ export function PlayerPage() {
   const [chrome, setChrome] = useState(true)
   const [menu, setMenu] = useState<'subtitles' | 'audio' | 'quality' | 'speed' | 'sleep' | 'more' | null>(null)
   const [quality, setQuality] = useState<Quality>('auto')
+  const qualityRef = useRef<Quality>('auto')
+  qualityRef.current = quality
+  // Automatic stepped down after stalls (docs/remote-streaming.md), for this title only; null as the server sends it.
+  const [lowered, setLoweredState] = useState<Step | null>(null)
+  const loweredRef = useRef<Step | null>(null)
+  const setLowered = (step: Step | null) => {
+    loweredRef.current = step
+    setLoweredState(step)
+  }
+  /** Away from home, once the first start has asked (null before). */
+  const away = useRef<boolean | null>(null)
+  /**
+   * Stalls on this stream, in performance.now() time: when it settled (first played, or seeked), the counted stalls'
+   * beginnings, the one going on, the last one and the last change of quality.
+   */
+  const stalls = useRef({ fresh: true, settledFrom: 0, counted: [] as number[], since: undefined as number | undefined, last: 0, lastChange: 0, timer: 0 })
+  const stallEvent = useRef<(kind: 'waiting' | 'playing' | 'seeking') => void>(() => undefined)
+  const stepUpCheck = useRef<() => void>(() => undefined)
   const [subtitleKey, setSubtitleKey] = useState<string | null>(null)
   // Embedded subtitles are extracted on first use, which can take a little while for large files.
   const [subtitleStatus, setSubtitleStatus] = useState<'idle' | 'loading' | 'failed'>('idle')
@@ -357,6 +419,9 @@ export function PlayerPage() {
     hls.current?.destroy()
     hls.current = null
     setWaiting(true)
+    // A new stream fills its buffer before its stalls count.
+    window.clearTimeout(stalls.current.timer)
+    Object.assign(stalls.current, { fresh: true, counted: [], since: undefined })
 
     const seekOnLoad = () => {
       if (position > 0) el.currentTime = position
@@ -370,9 +435,18 @@ export function PlayerPage() {
     setNativeHls(playback.method === 'Transcode' && !viaHlsJs)
     if (viaHlsJs) {
       // Subtitles are rendered as <track>s, so leave them out of the HLS manifest.
-      // The first segment is fetched while the playlists load (not once the video element is ready), and there's only
-      // ever one quality, so no bandwidth test first.
-      const player = new Hls({ startPosition: position, maxBufferLength: 60, backBufferLength: 90, startFragPrefetch: true, testBandwidth: false })
+      // The first segment is fetched while the playlists load (not once the video element is ready). A single stream
+      // has only one quality, so no bandwidth test first. The ladder (docs/remote-streaming.md) starts from the speed
+      // measured lately, tests it, and is kept to the player's size.
+      const ladder = playback.adaptive === true
+      const player = new Hls({
+        startPosition: position,
+        maxBufferLength: 60,
+        backBufferLength: 90,
+        startFragPrefetch: true,
+        testBandwidth: ladder,
+        ...(ladder ? { capLevelToPlayerSize: true, abrEwmaDefaultEstimate: linkSpeed() ?? 2_000_000 } : {}),
+      })
       // Media errors get hls.js's own recovery first; one that keeps coming back asks the server for a fresh stream.
       // A stream with its picture copied that this browser can't play after all is asked for again the old way.
       const onMediaError = mediaErrorRecovery(player, () => void copyFailedRef.current().then((done) => (done ? undefined : recoverRef.current())))
@@ -396,8 +470,17 @@ export function PlayerPage() {
   const start = useCallback(
     async (options: StartOptions = {}, quiet = false) => {
       setError(undefined)
-      const q = options.quality ?? quality
-      const preset = qualities.find((x) => x.value === q)
+      let q = options.quality ?? (quality === 'auto' && loweredRef.current ? loweredRef.current : quality)
+      // The first play here: away from home, it starts on the Quality last picked away.
+      if (away.current === null) {
+        away.current = await whetherAway()
+        const kept = rememberedQuality(away.current)
+        if (options.quality === undefined && kept !== 'auto') {
+          setQuality(kept)
+          qualityRef.current = kept
+          q = kept
+        }
+      }
       // Leaving for another title (or asking again, say for another quality) while this request is out makes its
       // answer stale: that session is stopped rather than played over the newer one.
       const life = lifetime.current
@@ -411,9 +494,8 @@ export function PlayerPage() {
           audioStreamIndex: options.audioStreamIndex,
           subtitleKey: options.subtitleKey,
           startPositionSeconds: options.startPositionSeconds,
-          maxHeight: q === 'auto' ? undefined : q,
-          maxBitrate: preset?.bitrate,
-          forceTranscode: options.forceTranscode || q !== 'auto' || undefined,
+          ...requestFor(q),
+          forceTranscode: options.forceTranscode || requestFor(q).forceTranscode || undefined,
         }
         // Got ready ahead of time (the next episode during the credits, or on the title's page) for exactly this
         // stream: it opens straight away. Anything else got ready is let go.
@@ -526,10 +608,64 @@ export function PlayerPage() {
     void restartHere({ noCopy: true, audioStreamIndex: info?.selectedAudioIndex ?? undefined, subtitleKey: subtitleKey ?? 'off' })
     return true
   }
+  // Automatic on a single stream steps down after stalls, and back up once it's been smooth a while
+  // (docs/remote-streaming.md). The ladder moves by itself, and a quality picked by hand stays.
+  const stepsHere = () => qualityRef.current === 'auto' && !!info && !info.adaptive && !error && !recovering.current
+  const stepDown = () => {
+    if (!stepsHere() || !info) return
+    const from = loweredRef.current
+    const step = stepBelow(from ? { height: from } : { height: info.stream?.height, bitrate: info.stream?.videoBitrate ?? info.fileBitrate })
+    if (!step) return
+    Object.assign(stalls.current, { lastChange: performance.now(), counted: [], since: undefined })
+    setLowered(step)
+    setLoweredNotice(true)
+    void restartHere({ quality: step, audioStreamIndex: info.selectedAudioIndex ?? undefined, subtitleKey: subtitleKey ?? 'off' })
+  }
+  const onStallEvent = (kind: 'waiting' | 'playing' | 'seeking') => {
+    const s = stalls.current
+    const now = performance.now()
+    if (kind !== 'waiting') {
+      // Played (the first time: it has settled now) or seeked: whatever stall there was is over.
+      if (kind === 'seeking' || s.fresh) s.settledFrom = now
+      if (kind === 'playing') s.fresh = false
+      s.since = undefined
+      window.clearTimeout(s.timer)
+      return
+    }
+    if (video.current?.seeking || s.fresh || s.since !== undefined || !stallCounts(now, s.settledFrom)) return
+    s.since = now
+    s.last = now
+    s.counted = [...s.counted.filter((at) => now - at <= STALL_WINDOW_MS), now]
+    if (stepDownDue(s.counted, now)) return stepDown()
+    s.timer = window.setTimeout(() => {
+      if (s.since !== undefined && stepDownDue([], performance.now(), s.since)) stepDownRef.current()
+    }, LONG_STALL_MS + 100)
+  }
+  const stepDownRef = useRef(stepDown)
+  const checkStepUp = () => {
+    const from = loweredRef.current
+    const el = video.current
+    if (!from || !stepsHere() || !info || !el || el.paused || waiting) return
+    const s = stalls.current
+    const now = performance.now()
+    const up = stepUp(from, { now, lastStall: s.last, lastChange: s.lastChange, speed: linkSpeed(), fileBitrate: info.fileBitrate })
+    if (!up) return
+    s.lastChange = now
+    setLowered(up === 'auto' ? null : up)
+    void restartHere({ quality: up, audioStreamIndex: info.selectedAudioIndex ?? undefined, subtitleKey: subtitleKey ?? 'off' })
+  }
+  useEffect(() => {
+    const timer = window.setInterval(() => stepUpCheck.current(), 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
+
   useEffect(() => {
     recoverRef.current = recover
     convertInsteadRef.current = convertInstead
     copyFailedRef.current = copyFailed
+    stallEvent.current = onStallEvent
+    stepDownRef.current = stepDown
+    stepUpCheck.current = checkStepUp
   })
 
   useEffect(() => {
@@ -549,6 +685,9 @@ export function PlayerPage() {
     skipState.current = skipFresh
     setSkipShown({})
     playingItem.current = undefined
+    setLowered(null)
+    window.clearTimeout(stalls.current.timer)
+    stalls.current = { fresh: true, settledFrom: 0, counted: [], since: undefined, last: 0, lastChange: 0, timer: 0 }
     // Come back to with Forward after closing: the title's page, not the episode again from the top.
     if (playState?.closed) {
       navigate(`/item/${id}`, { replace: true })
@@ -586,8 +725,30 @@ export function PlayerPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
+  /** Keeps the picture showing on screen, silently, until the next stream plays (or 20 seconds at most). */
+  const holdFrame = () => {
+    const el = video.current
+    const canvas = heldFrame.current
+    if (!el || !canvas || el.readyState < 2 || !el.videoWidth) return
+    try {
+      canvas.width = el.videoWidth
+      canvas.height = el.videoHeight
+      canvas.getContext('2d')?.drawImage(el, 0, 0)
+    } catch {
+      return // Nothing drawn: the switch shows the spinner on black, as before.
+    }
+    el.pause()
+    setHeld(true)
+    window.clearTimeout(heldTimer.current)
+    heldTimer.current = window.setTimeout(() => setHeld(false), 20_000)
+  }
+
   /** Re-request playback at the current position with different options. */
-  const restartHere = (options: StartOptions) => start({ startPositionSeconds: video.current?.currentTime ?? 0, fileId: info?.fileId, ...options })
+  const restartHere = (options: StartOptions) => {
+    const at = video.current?.currentTime ?? 0
+    holdFrame()
+    return start({ startPositionSeconds: at, fileId: info?.fileId, ...options })
+  }
 
   /** The error's main button: from where it stopped, or (refused before anything played) from where the title was asked for. */
   const retry = (options: StartOptions = {}) => {
@@ -599,7 +760,72 @@ export function PlayerPage() {
   // Nothing behind the error can be used, so the stream that stopped doesn't play on from what it had buffered.
   useEffect(() => {
     if (error) video.current?.pause()
+    if (error) setHeld(false)
   }, [error])
+  // The held picture goes once the new stream plays, or when the title changes.
+  useEffect(() => {
+    const el = video.current
+    if (!held || !el) return
+    const release = () => setHeld(false)
+    el.addEventListener('playing', release)
+    return () => {
+      el.removeEventListener('playing', release)
+      window.clearTimeout(heldTimer.current)
+    }
+  }, [held])
+  useEffect(() => setHeld(false), [id])
+
+  // A quality chosen waits for its own stream (a new session) to play; the button comes back then, on an error, or
+  // after 20 seconds at most.
+  const switchFrom = useRef<string>(undefined)
+  const playingSession = info?.sessionId
+  useEffect(() => {
+    const el = video.current
+    if (!switching || !el) return
+    if (error) return setSwitching(false)
+    const timer = window.setTimeout(() => setSwitching(false), 20_000)
+    if (playingSession === switchFrom.current) return () => window.clearTimeout(timer)
+    const done = () => setSwitching(false)
+    el.addEventListener('playing', done)
+    return () => {
+      window.clearTimeout(timer)
+      el.removeEventListener('playing', done)
+    }
+  }, [switching, playingSession, error])
+  useEffect(() => setSwitching(false), [id])
+
+  // The file's size and HDR, from the title (servers don't send them with the stream).
+  const titleId = info?.item.id
+  const playingFile = info?.fileId
+  useEffect(() => {
+    setFile(undefined)
+    if (!titleId || !playingFile) return
+    const abort = new AbortController()
+    getItem(titleId, abort.signal)
+      .then((detail) => setFile(detail.files.find((f) => f.id === playingFile)))
+      .catch(() => undefined)
+    return () => abort.abort()
+  }, [titleId, playingFile])
+
+  // The picture's size as it plays: Automatic's second line follows a self-switching stream as it moves.
+  useEffect(() => {
+    const el = video.current
+    if (!el) return
+    const measure = () => setPicture(el.videoWidth && el.videoHeight ? { width: el.videoWidth, height: el.videoHeight } : null)
+    el.addEventListener('resize', measure)
+    el.addEventListener('loadedmetadata', measure)
+    return () => {
+      el.removeEventListener('resize', measure)
+      el.removeEventListener('loadedmetadata', measure)
+    }
+  }, [])
+
+  // Lowered quality for your connection shows for 4 seconds.
+  useEffect(() => {
+    if (!loweredNotice) return
+    const timer = window.setTimeout(() => setLoweredNotice(false), 4000)
+    return () => window.clearTimeout(timer)
+  }, [loweredNotice])
 
   // ---------- Progress reporting
 
@@ -664,6 +890,9 @@ export function PlayerPage() {
       if (first && performance.now() - first.at < EARLY_STALL_MS) reportEarlyStall(first.id, performance.now() - first.at)
       started.current = null
     }
+    const onWaitingStall = () => stallEvent.current('waiting')
+    const onPlayingStall = () => stallEvent.current('playing')
+    const onSeekingStall = () => stallEvent.current('seeking')
     const onPlaying = () => setWaiting(false)
     const onFirstPicture = () => {
       if (timing.current?.answeredAt === undefined) return
@@ -710,7 +939,13 @@ export function PlayerPage() {
     el.addEventListener('error', onError)
     el.addEventListener('ended', onEnded)
     el.addEventListener('seeking', onSeeking)
+    el.addEventListener('waiting', onWaitingStall)
+    el.addEventListener('playing', onPlayingStall)
+    el.addEventListener('seeking', onSeekingStall)
     return () => {
+      el.removeEventListener('waiting', onWaitingStall)
+      el.removeEventListener('playing', onPlayingStall)
+      el.removeEventListener('seeking', onSeekingStall)
       el.removeEventListener('timeupdate', onTime)
       el.removeEventListener('play', onPlay)
       el.removeEventListener('pause', onPause)
@@ -1022,7 +1257,14 @@ export function PlayerPage() {
 
   function chooseQuality(q: Quality) {
     setMenu(null)
+    if (q === quality) return
+    switchFrom.current = info?.sessionId
+    setSwitching(true)
+    setLoweredNotice(false)
     setQuality(q)
+    qualityRef.current = q
+    setLowered(null)
+    rememberQuality(q, away.current ?? false)
     void restartHere({ quality: q, audioStreamIndex: info?.selectedAudioIndex ?? undefined, subtitleKey: subtitleKey ?? 'off' })
   }
 
@@ -1182,15 +1424,11 @@ export function PlayerPage() {
     }
     // As the next episode's page will ask for it: from the start (see playNext). A busy server says no, and it starts
     // the usual way.
-    const q = quality
-    const preset = qualities.find((x) => x.value === q)
     getReady({
       itemId: next.id,
       profile: detectProfile(),
       startPositionSeconds: 0,
-      maxHeight: q === 'auto' ? undefined : q,
-      maxBitrate: preset?.bitrate,
-      forceTranscode: q !== 'auto' || undefined,
+      ...requestFor(quality),
       shuffle: shuffle || undefined,
     }, prepareVideo)
   }, [wantReady, info, ended, quality, shuffle])
@@ -1429,7 +1667,28 @@ export function PlayerPage() {
 
   // ---------- The secondary controls' menus: each beside its own button, or all in one ⋯ on a phone
 
-  const qualityName = quality === 'auto' ? (info?.method === 'DirectPlay' ? t('Original') : t('Auto')) : `${quality}p`
+  // The Quality menu (docs/design.md): only for a video file's own stream, not a book's.
+  const qualityOffered = !!info && !info.book && !(file && !file.streams.some((s) => s.type === 'Video'))
+  /** What's playing now, as Automatic's second line and the button's spoken label say it: 720p, Original. */
+  const playingNow = (() => {
+    if (!info) return null
+    const seen = picture && resolutionName(picture.width, picture.height)
+    if (info.adaptive) return seen || (info.stream?.height ? `${heightClass(null, info.stream.height)}p` : null)
+    if (info.method === 'DirectPlay' || info.stream?.videoCopied) return t(Words.originalQuality)
+    return seen || (lowered ? `${lowered}p` : info.stream?.height ? `${heightClass(null, info.stream.height)}p` : null)
+  })()
+  const originalName = fileQualityName(file)
+  // Caps at or above the file's own aren't offered; one already chosen (remembered from another title) stays, ticked.
+  const offered = qualitiesFor(file ? heightClass(file.width, file.height) : null)
+  const qualities = offered.includes(quality) ? offered : [...offered, quality]
+  const qualitySpoken = playingNow
+    ? t('Quality, {choice}, {playing}', { choice: qualityLabel(quality), playing: playingNow })
+    : t('Quality, {choice}', { choice: qualityLabel(quality) })
+  /** Lowered quality's notice opens the menu: beside its button, or in the ⋯ on a phone. */
+  const openQualityMenu = () => {
+    setLoweredNotice(false)
+    setMenu(window.matchMedia('(max-width: 680px)').matches ? 'more' : 'quality')
+  }
   const canPip = 'pictureInPictureEnabled' in document && document.pictureInPictureEnabled
   const canAirPlay = 'webkitShowPlaybackTargetPicker' in HTMLVideoElement.prototype
   const pictureInPicture = () => {
@@ -1451,16 +1710,25 @@ export function PlayerPage() {
       {info?.item.kind === 'Episode' && <p className="player-menu-note muted">{t('Kept for this show.')}</p>}
     </div>
   )
+  const qualityColumn = qualityOffered && (
+    <div className="player-menu-column">
+      <h3>{t(Words.quality)}</h3>
+      {qualities.map((q) => (
+        <MenuItem
+          key={q}
+          selected={q === quality}
+          onClick={() => chooseQuality(q)}
+          detail={q === 'auto' ? playingNow : q === 'original' ? originalName : null}
+        >
+          {qualityLabel(q)}
+        </MenuItem>
+      ))}
+    </div>
+  )
+  // On the web the playback settings go beside Quality (and with it in the phone's ⋯).
   const qualityColumns = (
     <>
-      <div className="player-menu-column">
-        <h3>{t('Quality')}</h3>
-        {qualities.map((q) => (
-          <MenuItem key={q.value} selected={q.value === quality} onClick={() => chooseQuality(q.value)}>
-            {q.value === 'auto' ? t(q.label) : q.label}
-          </MenuItem>
-        ))}
-      </div>
+      {qualityColumn}
       <div className="player-menu-column">
         <h3>{t('While watching')}</h3>
         <MenuItem toggle selected={preferences.autoPlayNext} onClick={() => togglePreference('autoPlayNext')}>
@@ -1577,12 +1845,13 @@ export function PlayerPage() {
           />
         )}
       </video>
+      <canvas ref={heldFrame} className="player-held-frame" hidden={!held} aria-hidden="true" />
 
       {/* The sleep timer's last minute dims the picture little by little; stopped, it stays dim until the viewer's back. */}
       {(stillWatching || asleep) && (
         <div className="player-sleep-dim" aria-hidden="true" style={{ opacity: asleep ? 1 : Math.min(1, 1 - (sleepLeft ?? 0) / STILL_WATCHING_SECONDS) }} />
       )}
-      {waiting && !error && <div className="player-spinner" role="status" aria-label={t('Loading')} />}
+      {(waiting || held) && !error && <div className={held ? 'player-spinner small' : 'player-spinner'} role="status" aria-label={t('Loading')} />}
       {subtitleStatus !== 'idle' && (
         <p className="player-toast" role="status">
           {subtitleStatus === 'loading' ? t('Preparing subtitles. They’ll appear in a moment.') : t('These subtitles couldn’t be loaded. Try another track.')}
@@ -1646,6 +1915,12 @@ export function PlayerPage() {
         <p className="player-notice" role="status">
           {notice}
         </p>
+      )}
+      {/* Stepping down says so; a click opens the Quality menu. Stepping back up is quiet. */}
+      {loweredNotice && !notice && !error && (
+        <button className="player-notice actionable" role="status" onClick={openQualityMenu}>
+          {t(Words.loweredQuality)}
+        </button>
       )}
 
       {stillWatching && (
@@ -1936,21 +2211,24 @@ export function PlayerPage() {
             )}
           </div>
 
-          <div className="menu-anchor player-wide-only">
-            <button
-              className="player-quality"
-              aria-expanded={menu === 'quality'}
-              aria-label={t('Quality: {quality}', { quality: qualityName })}
-              onClick={() => setMenu(menu === 'quality' ? null : 'quality')}
-            >
-              {qualityName}
-            </button>
-            {menu === 'quality' && (
-              <div className="player-menu" role="menu">
-                {qualityColumns}
-              </div>
-            )}
-          </div>
+          {qualityOffered && (
+            <div className="menu-anchor player-wide-only">
+              <button
+                className="player-quality"
+                aria-expanded={menu === 'quality'}
+                aria-label={qualitySpoken}
+                disabled={switching}
+                onClick={() => setMenu(menu === 'quality' ? null : 'quality')}
+              >
+                {qualityShort(quality)}
+              </button>
+              {menu === 'quality' && (
+                <div className="player-menu" role="menu">
+                  {qualityColumns}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="menu-anchor player-wide-only">
             <button
@@ -2068,10 +2346,24 @@ function Segments<T extends string>({ labelledBy, choices, value, onChoose }: { 
   )
 }
 
-function MenuItem({ selected, onClick, children, toggle = false }: { selected: boolean; onClick: () => void; children: React.ReactNode; toggle?: boolean }) {
+function MenuItem({
+  selected,
+  onClick,
+  children,
+  toggle = false,
+  detail,
+}: {
+  selected: boolean
+  onClick: () => void
+  children: React.ReactNode
+  toggle?: boolean
+  /** A quieter second line (what's playing now, the file's own quality). */
+  detail?: string | null
+}) {
   return (
     <button role={toggle ? 'menuitemcheckbox' : 'menuitemradio'} aria-checked={selected} className={selected ? 'player-menu-item selected' : 'player-menu-item'} onClick={onClick}>
       {children}
+      {detail && <span className="player-menu-detail">{detail}</span>}
     </button>
   )
 }

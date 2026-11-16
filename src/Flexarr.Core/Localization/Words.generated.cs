@@ -42,6 +42,7 @@ public static class Words
     public const string Length = "Length";
     public const string Libraries = "Libraries";
     public const string LiveTv = "Live TV";
+    public const string LoweredQuality = "Lowered quality for your connection";
     public const string MarkAsFinished = "Mark as finished";
     public const string MarkAsPlayed = "Mark as played";
     public const string MarkAsUnread = "Mark as unread";
@@ -55,10 +56,12 @@ public static class Words
     public const string NextEpisodeIn = "Next episode in {seconds}";
     public const string NotInYourLibrary = "Not in your library";
     public const string NowPlaying = "Now playing";
+    public const string OriginalQuality = "Original";
     public const string PartlyInYourLibrary = "Partly in your library";
     public const string Play = "Play";
     public const string PlayNext = "Play next";
     public const string Podcasts = "Podcasts";
+    public const string Quality = "Quality";
     public const string Radio = "Radio";
     public const string Rating = "Rating";
     public const string RecentlyAdded = "Recently added";

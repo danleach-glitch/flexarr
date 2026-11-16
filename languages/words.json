@@ -91,6 +91,9 @@
   "automatic": "Automatic",
   "updateYourServer": "Update your Flexarr server",
   "seasonEpisodeShort": "S{season}E{episode}",
-  "seasonEpisodeHeading": "Season {season}, Episode {episode}"
+  "seasonEpisodeHeading": "Season {season}, Episode {episode}",
+  "quality": "Quality",
+  "originalQuality": "Original",
+  "loweredQuality": "Lowered quality for your connection"
  }
 }

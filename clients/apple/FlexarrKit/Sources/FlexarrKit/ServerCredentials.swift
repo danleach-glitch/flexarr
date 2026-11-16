@@ -51,7 +51,7 @@ public struct ServerCredentials: Sendable, Equatable {
     /// which address is answering (see `ServerAddresses`).
     public func client(onUnauthorized: (@Sendable () -> Void)? = nil) -> FlexarrClient {
         FlexarrClient(addresses: ServerAddresses.shared(home: address, remote: remoteAddress, serverId: isGuest ? nil : serverId,
-                                                        remoteConfirmed: remoteConfirmed),
+                                                        remoteConfirmed: remoteConfirmed, guest: guest?.target),
                       apiKey: apiKey.isEmpty ? nil : apiKey, profileToken: profileToken, onUnauthorized: onUnauthorized)
     }
 }

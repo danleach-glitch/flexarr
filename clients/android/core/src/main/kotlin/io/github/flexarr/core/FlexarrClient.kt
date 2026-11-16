@@ -139,6 +139,35 @@ class FlexarrClient(
         }
     }
 
+    /**
+     * Downloads [bytes] the server makes up (`GET speedtest`) and gives how fast they came, in bits per second, timed
+     * from the first byte to the last so the wait for the server to answer isn't counted (docs/remote-streaming.md).
+     * Null from a server before 0.67, which doesn't have it, or when too little came to say.
+     */
+    suspend fun speedTest(bytes: Int): Long? = withContext(Dispatchers.IO) {
+        val base = signInBase()
+        val url = base.newBuilder().addEncodedPathSegments("api/v1/speedtest").addQueryParameter("bytes", bytes.toString()).build()
+        val request = Request.Builder().url(url).header("Accept-Encoding", "identity").signIn().build()
+        val slow = http.newBuilder().callTimeout(60, TimeUnit.SECONDS).build()
+        slow.newCall(request).await().use { response ->
+            if (response.code == 404) return@withContext null
+            if (!response.isSuccessful) throw FlexarrException.Http(response.code, null)
+            val source = response.body.byteStream()
+            val buffer = ByteArray(64 * 1024)
+            val first = source.read(buffer)
+            if (first <= 0) return@withContext null
+            val started = System.nanoTime()
+            var counted = 0L
+            while (true) {
+                val read = source.read(buffer)
+                if (read < 0) break
+                counted += read
+            }
+            val nanos = System.nanoTime() - started
+            if (counted < LinkSpeed.MIN_SAMPLE_BYTES / 2 || nanos <= 0) null else counted * 8 * 1_000_000_000 / nanos
+        }
+    }
+
     // Libraries and items
 
     suspend fun libraries(): List<Library> = get("libraries")

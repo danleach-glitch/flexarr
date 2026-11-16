@@ -123,11 +123,7 @@ final class AVPlayerTransport: NSObject, PlayerTransport {
     }
 
     func stop() {
-        // How fast the stream came, for the next start's measured speed (docs/fast-start.md): AVPlayer's own measure of
-        // its downloads' throughput, not bytes over the time spent, which includes waiting for the server to convert.
-        for event in item.accessLog()?.events.suffix(3) ?? [] where event.observedBitrate > 0 && event.numberOfBytesTransferred >= LinkSpeed.minSampleBytes {
-            LinkSpeed.shared.sample(bitsPerSecond: Int(event.observedBitrate))
-        }
+        sampleSpeed()
         player.pause()
         if let timeObserver { player.removeTimeObserver(timeObserver) }
         timeObserver = nil
@@ -139,6 +135,28 @@ final class AVPlayerTransport: NSObject, PlayerTransport {
         #endif
         player.replaceCurrentItem(with: nil)
     }
+
+    /// How fast the stream comes, for the next start's measured speed and stepping quality up or down (docs/fast-start.md,
+    /// docs/remote-streaming.md): AVPlayer's own measure of its downloads' throughput, not bytes over the time spent,
+    /// which includes waiting for the server to convert. Taken as each new access log entry comes (a switch of
+    /// variant, a seek), every half minute while playing, and at the end; each entry once it has grown enough to say.
+    private func sampleSpeed() {
+        guard !info.isOffline else { return }
+        let events = item.accessLog()?.events ?? []
+        for key in events.indices.suffix(3) {
+            let event = events[key]
+            guard event.observedBitrate > 0, event.numberOfBytesTransferred >= LinkSpeed.minSampleBytes else { continue }
+            // The same entry again only once it has moved on by as much again (or by 50 MB): a long play isn't one
+            // reading many times over.
+            let bytes = event.numberOfBytesTransferred
+            if let noted = sampledBytes[key], bytes - noted < min(noted, 50_000_000) { continue }
+            sampledBytes[key] = bytes
+            LinkSpeed.shared.sample(bitsPerSecond: Int(event.observedBitrate))
+        }
+    }
+    /// The bytes each access log entry had when it was last noted.
+    private var sampledBytes: [Int: Int64] = [:]
+    private var lastSpeedSample = Date()
 
     // MARK: Tracks
 
@@ -217,6 +235,10 @@ final class AVPlayerTransport: NSObject, PlayerTransport {
             MainActor.assumeIsolated {
                 guard let self, time.seconds.isFinite else { return }
                 self.delegate?.transport(self, tick: time.seconds)
+                if Date().timeIntervalSince(self.lastSpeedSample) > 30 {
+                    self.lastSpeedSample = Date()
+                    self.sampleSpeed()
+                }
             }
         }
         notificationObservers = [
@@ -229,6 +251,9 @@ final class AVPlayerTransport: NSObject, PlayerTransport {
             },
             NotificationCenter.default.addObserver(forName: AVPlayerItem.mediaSelectionDidChangeNotification, object: item, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.selectionChanged() }
+            },
+            NotificationCenter.default.addObserver(forName: AVPlayerItem.newAccessLogEntryNotification, object: item, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.sampleSpeed() }
             },
         ]
     }

@@ -2266,6 +2266,11 @@ export interface RemoteAccess {
   inMacApp?: boolean
   /** In the Mac app: this Mac's address on a tailnet, if it's on one. */
   tailnetAddress?: string | null
+  /**
+   * The best speed a device away from home measured in the last 30 days, and the bit rate of the library's busiest
+   * tenth of files, both in bits per second. Absent with no remote reading, and from servers before 0.67.
+   */
+  remoteSpeed?: { bestBitrate: number; measuredAt: string; busiestBitrate: number } | null
 }
 
 export const getMe = (signal?: AbortSignal) => cachedGet<Me>('/me', signal, 5 * 60_000)

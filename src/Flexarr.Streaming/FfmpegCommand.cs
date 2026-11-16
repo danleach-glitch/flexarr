@@ -17,6 +17,27 @@ public static class FfmpegCommand
     public const int OpeningSegmentSeconds = 2;
 
     /// <summary>
+    /// The opening segments' length for a viewer away from home (docs/remote-streaming.md): a slower link gets its first
+    /// picture from half as much.
+    /// </summary>
+    public const int RemoteOpeningSegmentSeconds = 1;
+
+    /// <summary>
+    /// Keeps each picture at the file's own time. By default the encoder counts in frames from wherever a run starts, so
+    /// a run started at 15 s puts the picture the file shows at 15.015 s at 15.000, and its segments sit a fraction of a
+    /// frame off another quality's made from the start; a fine clock and no frame-rate conversion keep them together.
+    /// </summary>
+    public static readonly string[] SourceTimes = ["-fps_mode", "passthrough", "-enc_time_base:v", "1/90000"];
+
+    /// <summary>
+    /// Whether <paramref name="encoder"/> can make a ladder of qualities (docs/remote-streaming.md): every quality must
+    /// cut at the same moments for players to switch between them, so only encoders that keyframe exactly where told
+    /// and nowhere else, in hardware (VideoToolbox, NVENC). Software would take three conversions' worth of processor,
+    /// and VA-API and Quick Sync may add keyframes of their own.
+    /// </summary>
+    public static bool LadderIsSafe(HardwareAcceleration encoder) => encoder is HardwareAcceleration.VideoToolbox or HardwareAcceleration.Nvenc;
+
+    /// <summary>
     /// Whether <paramref name="plan"/>'s segments start with <see cref="OpeningSegments"/> short ones: a converted video
     /// (not repackaged, not sound alone), from an encoder that keyframes only where told (<see cref="OpeningIsSafe"/>).
     /// </summary>
@@ -28,19 +49,28 @@ public static class FfmpegCommand
     }
 
     /// <summary>Where segment <paramref name="index"/> starts, in seconds from the start of the file.</summary>
-    public static double SegmentStartSeconds(int index, bool opening)
+    public static double SegmentStartSeconds(int index, bool opening) => SegmentStartSeconds(index, opening ? OpeningSegmentSeconds : 0);
+
+    /// <summary>
+    /// Where segment <paramref name="index"/> starts, with opening segments <paramref name="openingSeconds"/> long (0:
+    /// none). Every quality of a playback uses the same, so each cuts at the same moments.
+    /// </summary>
+    public static double SegmentStartSeconds(int index, int openingSeconds)
     {
-        var shortOnes = opening ? OpeningSegments : 0;
-        return index <= shortOnes ? index * OpeningSegmentSeconds : (shortOnes * OpeningSegmentSeconds) + ((index - shortOnes) * SegmentSeconds);
+        var shortOnes = openingSeconds > 0 ? OpeningSegments : 0;
+        return index <= shortOnes ? index * openingSeconds : (shortOnes * openingSeconds) + ((index - shortOnes) * SegmentSeconds);
     }
 
     /// <summary>The segment playing at <paramref name="seconds"/> (not clamped to the file's length).</summary>
-    public static int SegmentAtSeconds(double seconds, bool opening)
+    public static int SegmentAtSeconds(double seconds, bool opening) => SegmentAtSeconds(seconds, opening ? OpeningSegmentSeconds : 0);
+
+    /// <summary>The segment playing at <paramref name="seconds"/>, with opening segments <paramref name="openingSeconds"/> long.</summary>
+    public static int SegmentAtSeconds(double seconds, int openingSeconds)
     {
         seconds = Math.Max(0, seconds);
-        var shortOnes = opening ? OpeningSegments : 0;
-        var openingEnd = shortOnes * OpeningSegmentSeconds;
-        return seconds < openingEnd ? (int)(seconds / OpeningSegmentSeconds) : shortOnes + (int)((seconds - openingEnd) / SegmentSeconds);
+        var shortOnes = openingSeconds > 0 ? OpeningSegments : 0;
+        var openingEnd = shortOnes * openingSeconds;
+        return seconds < openingEnd ? (int)(seconds / openingSeconds) : shortOnes + (int)((seconds - openingEnd) / SegmentSeconds);
     }
 
     /// <summary>
@@ -108,8 +138,16 @@ public static class FfmpegCommand
     /// <param name="opening">Whether the segments start with short ones (see <see cref="HasOpening"/>); by default, when the plan and encoder allow.</param>
     /// <param name="burstSeconds">How far ahead to make in the first burst (<see cref="RunAheadSeconds"/> by default).</param>
     /// <param name="speed">The speed it's being watched at (see <see cref="Pace"/>).</param>
+    /// <param name="openingSeconds">
+    /// How long the opening segments are when there are any (<see cref="OpeningSegmentSeconds"/> by default,
+    /// <see cref="RemoteOpeningSegmentSeconds"/> away from home).
+    /// </param>
+    /// <param name="sourceTimes">
+    /// Every picture keeps the file's own time (a ladder's quality, see <see cref="SourceTimes"/>), so a run started part
+    /// way through lines up with the other qualities' to the frame.
+    /// </param>
     public static IReadOnlyList<string> Hls(string input, TranscodePlan plan, int startSegment, string outputDirectory, TranscodeSettings settings,
-        bool? opening = null, int burstSeconds = RunAheadSeconds, double speed = 1)
+        bool? opening = null, int burstSeconds = RunAheadSeconds, double speed = 1, int openingSeconds = OpeningSegmentSeconds, bool sourceTimes = false)
     {
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(settings);
@@ -128,7 +166,8 @@ public static class FfmpegCommand
             startSegment = 0; // Within the short opening segments: they're quickest made again from the start.
         }
 
-        var startSeconds = SegmentStartSeconds(startSegment, shortStart);
+        var openingLength = shortStart ? Math.Max(1, openingSeconds) : 0;
+        var startSeconds = SegmentStartSeconds(startSegment, openingLength);
         var start = startSeconds.ToString(CultureInfo.InvariantCulture);
         var fromOpening = shortStart && startSegment == 0;
         var burn = plan.BurnSubtitle;
@@ -186,10 +225,14 @@ public static class FfmpegCommand
         // ---- Video
         if (!audioOnly)
         {
-            AddVideo(args, plan, burn, hw, settings, fromOpening);
+            AddVideo(args, plan, burn, hw, settings, fromOpening ? openingLength : 0);
+            if (sourceTimes)
+            {
+                args.AddRange(SourceTimes);
+            }
         }
 
-        AddAudioAndOutput(args, plan, audioInput, start, startSegment, outputDirectory, fromOpening ? OpeningSegmentSeconds : SegmentSeconds);
+        AddAudioAndOutput(args, plan, audioInput, start, startSegment, outputDirectory, fromOpening ? openingLength : SegmentSeconds);
         return args;
     }
 
@@ -302,7 +345,7 @@ public static class FfmpegCommand
         {
             if (plan.VideoStreamIndex >= 0)
             {
-                AddVideo(args, plan, null, hw, settings, fromOpening: false);
+                AddVideo(args, plan, null, hw, settings, openingSeconds: 0);
             }
 
             if (plan.AudioStreamIndex is { } audioIndex)
@@ -495,7 +538,8 @@ public static class FfmpegCommand
             ? $"zscale=w={width}:h={height}:filter=bicubic:{toneMap["zscale=".Length..]}"
             : "";
 
-    private static void AddVideo(List<string> args, TranscodePlan plan, SubtitleTrack? burn, HardwareAcceleration hw, TranscodeSettings settings, bool fromOpening)
+    /// <param name="openingSeconds">The run starts at the beginning, with opening segments this long; 0 when it doesn't.</param>
+    private static void AddVideo(List<string> args, TranscodePlan plan, SubtitleTrack? burn, HardwareAcceleration hw, TranscodeSettings settings, int openingSeconds)
     {
         var height = plan.TargetHeight.ToString(CultureInfo.InvariantCulture);
         var width = plan.TargetWidth.ToString(CultureInfo.InvariantCulture);
@@ -558,8 +602,9 @@ public static class FfmpegCommand
         // VideoToolbox makes none of its own; others get no short opening, see OpeningIsSafe): from the
         // beginning that's the short opening segments, then every SegmentSeconds; a run started later starts on a
         // SegmentSeconds boundary. The segmenter cuts at the first keyframe a segment's length after the last cut.
-        var keyframes = fromOpening
-            ? $"expr:if(lt(n_forced,{OpeningSegments}),gte(t,n_forced*{OpeningSegmentSeconds}),gte(t,{OpeningSegments * OpeningSegmentSeconds}+(n_forced-{OpeningSegments})*{SegmentSeconds}))"
+        // Every quality of a ladder is made with the same grid, so all of them cut at the same moments.
+        var keyframes = openingSeconds > 0
+            ? $"expr:if(lt(n_forced,{OpeningSegments}),gte(t,n_forced*{openingSeconds}),gte(t,{OpeningSegments * openingSeconds}+(n_forced-{OpeningSegments})*{SegmentSeconds}))"
             : $"expr:gte(t,n_forced*{SegmentSeconds})";
         args.AddRange(["-force_key_frames", keyframes, "-g", "1000", "-keyint_min", "1"]);
     }
@@ -682,9 +727,13 @@ public static class FfmpegCommand
     /// seek anywhere immediately. With <paramref name="startSeconds"/>, it says where to open (EXT-X-START), so a player
     /// resuming partway fetches from there rather than from the beginning first.
     /// </summary>
-    public static string MediaPlaylist(double durationSeconds, double startSeconds = 0, bool fmp4 = false, bool opening = false)
+    public static string MediaPlaylist(double durationSeconds, double startSeconds = 0, bool fmp4 = false, bool opening = false) =>
+        MediaPlaylist(durationSeconds, startSeconds, fmp4, opening ? OpeningSegmentSeconds : 0);
+
+    /// <summary>The same, with opening segments <paramref name="openingSeconds"/> long (0: none).</summary>
+    public static string MediaPlaylist(double durationSeconds, double startSeconds, bool fmp4, int openingSeconds)
     {
-        var count = SegmentCount(durationSeconds, opening);
+        var count = SegmentCount(durationSeconds, openingSeconds);
         var builder = new System.Text.StringBuilder();
         builder.Append(fmp4 ? "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:" : "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:")
             .Append(SegmentSeconds + 1)
@@ -701,7 +750,7 @@ public static class FfmpegCommand
 
         for (var i = 0; i < count; i++)
         {
-            var length = Math.Min(SegmentStartSeconds(i + 1, opening), durationSeconds) - SegmentStartSeconds(i, opening);
+            var length = Math.Min(SegmentStartSeconds(i + 1, openingSeconds), durationSeconds) - SegmentStartSeconds(i, openingSeconds);
             builder.Append(CultureInfo.InvariantCulture, $"#EXTINF:{length:F3},\n{i}.{(fmp4 ? "m4s" : "ts")}\n");
         }
 
@@ -729,11 +778,15 @@ public static class FfmpegCommand
         return builder.Append("#EXT-X-ENDLIST\n").ToString();
     }
 
-    public static int SegmentCount(double durationSeconds, bool opening = false)
+    public static int SegmentCount(double durationSeconds, bool opening = false) => SegmentCount(durationSeconds, opening ? OpeningSegmentSeconds : 0);
+
+    /// <summary>How many segments a film of <paramref name="durationSeconds"/> has, with opening segments <paramref name="openingSeconds"/> long.</summary>
+    public static int SegmentCount(double durationSeconds, int openingSeconds)
     {
-        var openingEnd = (opening ? OpeningSegments : 0) * OpeningSegmentSeconds;
+        var shortOnes = openingSeconds > 0 ? OpeningSegments : 0;
+        var openingEnd = shortOnes * openingSeconds;
         return Math.Max(1, durationSeconds <= openingEnd
-            ? (int)Math.Ceiling(durationSeconds / OpeningSegmentSeconds)
-            : (opening ? OpeningSegments : 0) + (int)Math.Ceiling((durationSeconds - openingEnd) / SegmentSeconds));
+            ? (int)Math.Ceiling(durationSeconds / openingSeconds)
+            : shortOnes + (int)Math.Ceiling((durationSeconds - openingEnd) / SegmentSeconds));
     }
 }

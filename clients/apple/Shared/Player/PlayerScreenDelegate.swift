@@ -29,6 +29,8 @@ protocol PlayerScreenDelegate: AnyObject {
     func playerScreen(_ screen: PlayerViewController, audioDelay seconds: Double)
     /// The viewer chose a speed in the menu.
     func playerScreen(_ screen: PlayerViewController, choseRate rate: Float)
+    /// The viewer chose a quality in the Quality menu.
+    func playerScreen(_ screen: PlayerViewController, choseQuality quality: StreamQuality)
     /// The sleep timer was set, changed, asked, ran out or was woken from (`sleepHoldsEpisode` may have changed).
     func playerScreenSleepChanged(_ screen: PlayerViewController)
     /// "Search for subtitles…" in the subtitles menu.
@@ -41,6 +43,7 @@ extension PlayerScreenDelegate {
     func playerScreenHoldCountdown(_ screen: PlayerViewController) {}
     func playerScreen(_ screen: PlayerViewController, audioDelay seconds: Double) {}
     func playerScreen(_ screen: PlayerViewController, choseRate rate: Float) {}
+    func playerScreen(_ screen: PlayerViewController, choseQuality quality: StreamQuality) {}
     func playerScreenSleepChanged(_ screen: PlayerViewController) {}
     func playerScreenSearchSubtitles(_ screen: PlayerViewController) {}
     func playerScreen(_ screen: PlayerViewController, resyncSubtitle key: String) {}

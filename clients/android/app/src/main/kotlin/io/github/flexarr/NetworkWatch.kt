@@ -15,6 +15,7 @@ import io.github.flexarr.core.ServerAddresses
 class NetworkWatch(context: Context) {
     private val connectivity = context.getSystemService(ConnectivityManager::class.java)
     private val listeners = mutableListOf<(offline: Boolean) -> Unit>()
+    private val movedListeners = mutableListOf<() -> Unit>()
 
     /** The network in use, so moving to another one is noticed (see [ServerAddresses.networkChangedEverywhere]). */
     private var current: Network? = connectivity.activeNetwork
@@ -44,6 +45,14 @@ class NetworkWatch(context: Context) {
         listeners += listener
     }
 
+    /** Hears every move to another network from then on. On the main thread. */
+    fun onMoved(listener: () -> Unit) {
+        movedListeners += listener
+    }
+
+    /** The network in use counts what it carries (mobile data, a phone's hotspot): the speed test is kept small there. */
+    val isMetered: Boolean get() = runCatching { connectivity.isActiveNetworkMetered }.getOrDefault(true)
+
     /**
      * Another network (another Wi-Fi, or mobile data): the server's home address may be something else there, so it has
      * to show it's the server again before it's sent the sign-in.
@@ -52,6 +61,7 @@ class NetworkWatch(context: Context) {
         if (network == current) return
         current = network
         ServerAddresses.networkChangedEverywhere()
+        movedListeners.forEach { it() }
     }
 
     private fun changed(offline: Boolean) {

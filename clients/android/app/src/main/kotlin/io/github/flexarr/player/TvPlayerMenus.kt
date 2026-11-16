@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.runtime.Composable
@@ -53,12 +54,13 @@ import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.tv.TakeFocus
 import io.github.flexarr.ui.tv.TvActionButton
 import io.github.flexarr.ui.theme.Tokens
+import io.github.flexarr.core.StreamQuality
 
 // The player's menus for the remote, as the Apple TV's: a button for each beneath the timeline, opening a panel down
 // the right of the picture, with a page for each submenu. The same choices as the phone's dropdowns (PlayerMenus.kt).
 
 internal enum class TvMenu(private val english: String) {
-    Audio(tk("Audio")), Subtitles(tk(Words.subtitles)), Speed(tk("Speed")), Sleep(tk("Sleep timer"));
+    Audio(tk("Audio")), Subtitles(tk(Words.subtitles)), Speed(tk("Speed")), Quality(tk(Words.quality)), Sleep(tk("Sleep timer"));
 
     val title: String get() = t(english)
 }
@@ -72,28 +74,42 @@ internal fun TvMenuButtons(controller: PlaybackController?, sleep: VideoSleep, m
                 TvMenu.Audio -> Icons.Filled.GraphicEq
                 TvMenu.Subtitles -> Icons.Filled.ClosedCaption
                 TvMenu.Speed -> Icons.Filled.Speed
+                TvMenu.Quality -> Icons.Filled.HighQuality
                 TvMenu.Sleep -> if (sleep.setting != null) Icons.Filled.Bedtime else Icons.Outlined.Bedtime
             }
             val label = when (menu) {
                 TvMenu.Speed -> controller?.rate?.takeIf { it != 1f }?.let(PlaybackController::rateLabel) ?: menu.title
+                TvMenu.Quality -> controller?.qualityInUse?.takeIf { it != StreamQuality.Automatic }?.label ?: menu.title
                 TvMenu.Sleep -> sleep.setting?.label ?: menu.title
                 else -> menu.title
             }
-            TvActionButton(label, onClick = { onOpen(menu) }, icon = icon, modifier = Modifier.focusRequester(requesters.getValue(menu)))
+            // Quality says what's chosen and playing to TalkBack, and waits while a new quality comes in.
+            val quality = menu == TvMenu.Quality && controller != null
+            val description = if (quality) controller!!.let { c ->
+                val playing = c.playingName
+                if (playing != null) t("Quality, {choice}, {playing}", "choice" to c.qualityInUse.label, "playing" to playing)
+                else t("Quality, {choice}", "choice" to c.qualityInUse.label)
+            } else null
+            TvActionButton(
+                label, onClick = { onOpen(menu) }, icon = icon, modifier = Modifier.focusRequester(requesters.getValue(menu)),
+                enabled = !(quality && controller!!.switchingQuality), contentDescription = description,
+            )
         }
     }
 }
 
-/** Which menus a film or episode has: Subtitles only when there are some, or some to search for. */
+/** Which menus a film or episode has: Subtitles only when there are some, or some to search for; Quality not for a download. */
 internal fun PlaybackController.tvMenus(): List<TvMenu> {
     val info = info ?: return emptyList()
-    return listOfNotNull(TvMenu.Audio, TvMenu.Subtitles.takeIf { info.subtitles.isNotEmpty() || canSearchSubtitles }, TvMenu.Speed, TvMenu.Sleep)
+    return listOfNotNull(TvMenu.Audio, TvMenu.Subtitles.takeIf { info.subtitles.isNotEmpty() || canSearchSubtitles }, TvMenu.Speed, TvMenu.Quality.takeIf { offersQuality }, TvMenu.Sleep)
 }
 
 /** One row of a menu's page. */
 private data class PanelItem(
     val label: String,
     val value: String? = null,
+    /** A quiet second line under the label (what's playing, the file's own quality). */
+    val detail: String? = null,
     val checked: Boolean = false,
     val opens: Boolean = false,
     val enabled: Boolean = true,
@@ -131,7 +147,7 @@ internal fun TvMenuPanel(
         LazyColumn(contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             itemsIndexed(rows) { index, row ->
                 PanelRow(
-                    row.label, value = row.value, checked = row.checked, opens = row.opens, enabled = row.enabled,
+                    row.label, value = row.value, detail = row.detail, checked = row.checked, opens = row.opens, enabled = row.enabled,
                     modifier = Modifier.padding(top = if (row.gapBefore) 10.dp else 0.dp).then(if (index == focusIndex) Modifier.focusRequester(focus) else Modifier),
                     onClick = row.onClick,
                 )
@@ -251,6 +267,19 @@ private fun panelItems(
         TvMenu.Speed -> (PlaybackController.rateChoices + controller.rate).distinct().sorted().filter { it <= PlaybackController.MAX_RATE }.forEach { rate ->
             add(PanelItem(PlaybackController.rateLabel(rate), checked = rate == controller.rate) { close(); controller.chooseRate(rate) })
         }
+        // Without the levels at or above the file's own. Automatic says what's playing now, Original names the file;
+        // the one in use again just closes.
+        TvMenu.Quality -> {
+            val inUse = controller.qualityInUse
+            controller.qualityChoices.forEach { quality ->
+                val detail = when (quality) {
+                    StreamQuality.Automatic -> controller.playingName.takeIf { inUse == StreamQuality.Automatic }
+                    StreamQuality.Original -> controller.originalName
+                    else -> null
+                }
+                add(PanelItem(quality.label, detail = detail, checked = quality == inUse, enabled = !controller.switchingQuality) { close(); controller.chooseQuality(quality) })
+            }
+        }
         TvMenu.Sleep -> Unit
     }
 }
@@ -260,6 +289,7 @@ private fun PanelRow(
     label: String,
     modifier: Modifier = Modifier,
     value: String? = null,
+    detail: String? = null,
     checked: Boolean = false,
     opens: Boolean = false,
     enabled: Boolean = true,
@@ -284,7 +314,14 @@ private fun PanelRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.size(16.dp)) { if (checked) Icon(Icons.Filled.Check, contentDescription = t("Chosen"), modifier = Modifier.size(16.dp)) }
-            Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            if (detail == null) {
+                Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            } else {
+                Column(Modifier.weight(1f).padding(vertical = 6.dp)) {
+                    Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(detail, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.alpha(0.7f))
+                }
+            }
             value?.let { Text(it, fontSize = 13.sp, maxLines = 1, modifier = Modifier.alpha(0.7f)) }
             if (opens) Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(16.dp).alpha(0.6f))
         }

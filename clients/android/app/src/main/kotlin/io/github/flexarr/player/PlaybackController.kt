@@ -26,9 +26,6 @@ import androidx.media3.common.text.CueGroup
 import androidx.media3.exoplayer.ExoPlayer
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.PreparedStreams
-import androidx.media3.exoplayer.analytics.AnalyticsListener
-import androidx.media3.exoplayer.source.LoadEventInfo
-import androidx.media3.exoplayer.source.MediaLoadData
 import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import io.github.flexarr.logging.FlexarrLog
@@ -58,6 +55,11 @@ import io.github.flexarr.core.DownloadedSubtitles
 import io.github.flexarr.player.subtitles.StyledSubtitles
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.ItemSummary
+import io.github.flexarr.core.QualitySteps
+import io.github.flexarr.core.StreamQuality
+import io.github.flexarr.core.MediaFile
+import io.github.flexarr.core.VideoRange
+import io.github.flexarr.core.withQuality
 import io.github.flexarr.core.startSubtitleSync
 import io.github.flexarr.core.subtitleSync
 import kotlinx.coroutines.Job
@@ -86,8 +88,11 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     private val shaper = SoundShaper()
 
     val player: ExoPlayer = ExoPlayer.Builder(context, shaper.renderers(context))
-        .setMediaSourceFactory(mediaSources(context))
+        // How fast the server's data flows while playing, converted or as it is, for the next start's measured speed.
+        .setMediaSourceFactory(mediaSources(context, LinkSpeedListener { bytes, millis -> if (!isOffline) model.linkSpeed.sample(model.linkKey(client), bytes, millis) }))
         .setLoadControl(StartBuffer.loadControl())
+        // Starting a stream of several qualities on the one the saved speed carries, not a guess (docs/remote-streaming.md).
+        .setBandwidthMeter(bandwidthMeter(context, model.measuredBitrate(client)))
         .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
         .setHandleAudioBecomingNoisy(true)
         .setSeekBackIncrementMs(skipSeconds * 1000L)
@@ -294,6 +299,84 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     /** The last progress report or stop sent: each waits for the one before, so the server hears them in order. */
     private var reporting: Job? = null
 
+    // Quality (docs/remote-streaming.md).
+
+    /** The Quality menu's pick: Automatic unless the viewer chose another. */
+    var quality by mutableStateOf(StreamQuality.Automatic)
+        private set
+    /** On Automatic, the steps down (and back up) this title has taken for a link that couldn't keep up. */
+    private val steps = QualitySteps()
+    /** "Lowered quality for your connection", counted so a second step shows it again; shown briefly, never focused. */
+    var qualityNotice by mutableStateOf(0)
+        private set
+    private var longStall: Job? = null
+    private var lastStepUpCheck = 0L
+
+    /** What the stream is asked for: the pick, or on Automatic the quality stepped down to. */
+    private val askedQuality: StreamQuality get() = if (quality != StreamQuality.Automatic) quality else steps.lowered ?: StreamQuality.Automatic
+
+    /** Whether this stream is stepped down and up by the app: on Automatic, from the server, and not its ladder. */
+    private val stepsQuality: Boolean
+        get() = quality == StreamQuality.Automatic && !isOffline && info?.let { it.adaptive != true } == true
+
+    /** The file playing, as the server knows it (its size and HDR), for Original's second line and the menu's levels. */
+    private var fileFacts by mutableStateOf<MediaFile?>(null)
+    /** A quality was chosen (or stepped to) and the new stream's picture hasn't come yet: the Quality button waits. */
+    var switchingQuality by mutableStateOf(false)
+        private set
+    /** The quality was chosen while paused: the new stream comes in paused too. */
+    private var pausedForQuality = false
+    /** The session playing when the quality changed: the button waits until another one plays. */
+    private var switchingFrom: String? = null
+
+    /** The Quality menu is offered: a film or episode streamed from the server (not a download, music, a book or a podcast). */
+    val offersQuality: Boolean
+        get() {
+            val current = info ?: return false
+            return !isOffline && current.book == null && (current.item.kind == MediaKind.Movie || current.item.kind == MediaKind.Episode)
+        }
+
+    /** The file's own height ([StreamQuality.effectiveHeight]), from the server's facts or the title's resolution. */
+    private val fileHeight: Int?
+        get() = fileFacts?.let { StreamQuality.effectiveHeight(it.width, it.height) } ?: when (info?.item?.resolution) {
+            "4K" -> 2160
+            "1080p" -> 1080
+            "720p" -> 720
+            "SD" -> 480
+            else -> null
+        }
+
+    /** The menu's rows for this file: a level at or above its own height isn't offered. */
+    val qualityChoices: List<StreamQuality> get() = StreamQuality.choices(fileHeight)
+
+    /**
+     * The choice in use, as the menu ticks it and the button shows it: a level remembered from another title that this
+     * file is no taller than plays it as it is, so that's Original.
+     */
+    val qualityInUse: StreamQuality
+        get() = if (quality.isLevel && quality !in qualityChoices) StreamQuality.Original else quality
+
+    /** Original's second line: the file, "4K HDR" or "1080p". */
+    val originalName: String?
+        get() = StreamQuality.originalName(fileFacts?.width, fileFacts?.height, fileFacts?.videoRange ?: VideoRange.Unknown, info?.item?.resolution)
+
+    /**
+     * What's playing now, for Automatic's second line: "720p", "Original", or on the ladder the quality the player has
+     * moved to (from the picture's size, kept current as it changes). Null while it isn't known.
+     */
+    val playingName: String?
+        get() {
+            val current = info ?: return null
+            val size = StreamQuality.effectiveHeight(videoSize.width.takeIf { it > 0 }, videoSize.height.takeIf { it > 0 })
+            return when {
+                current.adaptive == true -> size?.let(StreamQuality::nameOf)
+                steps.lowered != null -> steps.lowered?.label
+                current.method == PlaybackMethod.DirectPlay || current.stream?.videoCopied == true ||
+                    current.transcodeSummary?.startsWith("Original") == true -> StreamQuality.Original.label
+                else -> (size ?: current.stream?.height)?.let(StreamQuality::nameOf)
+            }
+        }
+
     /** This title's start, timed until its first picture (see [StartTiming]). */
     private var timing: StartTiming? = null
     /** When the first picture came, where, and which playback, to note a stall soon after. */
@@ -301,16 +384,9 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     private val log = FlexarrLog("playback")
 
     init {
-        // How fast this stream's segments arrive, for the next start's measured speed (docs/fast-start.md). Only a
-        // converted or repackaged stream's: a file played as it is is one long download paced by the player.
-        player.addAnalyticsListener(object : AnalyticsListener {
-            override fun onLoadCompleted(eventTime: AnalyticsListener.EventTime, loadEventInfo: LoadEventInfo, mediaLoadData: MediaLoadData) {
-                if (mediaLoadData.dataType != C.DATA_TYPE_MEDIA || info?.method != PlaybackMethod.Transcode || isOffline) return
-                model.linkSpeed.sample(loadEventInfo.bytesLoaded, loadEventInfo.loadDurationMs)
-            }
-        })
         player.addListener(object : Player.Listener {
             override fun onRenderedFirstFrame() {
+                if (info?.sessionId != switchingFrom) switchingQuality = false
                 val started = timing?.takeIf { it.isAnswered } ?: return
                 started.report(log, client.baseUrl.host, model.isGuest)
                 firstFrame = Triple(android.os.SystemClock.elapsedRealtime(), player.currentPosition, info?.playbackId)
@@ -332,7 +408,10 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
             override fun onPlaybackStateChanged(state: Int) {
                 isBuffering = state == Player.STATE_BUFFERING
                 hasEnded = state == Player.STATE_ENDED
+                // The new quality is in (its first frame says so too; this covers a stream whose picture came first).
+                if (state == Player.STATE_READY && !isOpening && info?.sessionId != switchingFrom) switchingQuality = false
                 watchSeekStall(state)
+                watchQuality(state)
                 // A stall soon after the first picture: its own entry beside the start's. Not a seek (Skip intro, say),
                 // which moves the place well past where playing alone would have got to.
                 if (state == Player.STATE_BUFFERING) firstFrame?.let { (at, position, playbackId) ->
@@ -403,6 +482,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         trail.clear()
         origin = from to (startedWith ?: itemId)
         model.videoStarted()
+        // Away from home, the quality last picked there; at home, Automatic.
+        quality = StreamQuality.forStart(PlayerSettings.awayQuality(appContext), model.isAway)
         play(itemId, fromBeginning, shuffle, startAt)
     }
 
@@ -428,8 +509,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                 replacesSessionId = info?.sessionId,
                 shuffle = if (shuffle) true else null,
                 subtitleKey = if (subtitlesOff) "off" else viewerSubtitleKey,
-                measuredBitrate = model.linkSpeed.current(),
-            )
+                measuredBitrate = model.measuredBitrate(client),
+            ).withQuality(askedQuality)
         }
     }
 
@@ -491,6 +572,9 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         forcedTranscode = false
         reaskedForSound = false
         serverProfile = null
+        steps.reset()
+        longStall?.cancel()
+        switchingQuality = false
         viewerChoseSubtitle = debugSubtitleKey != null || subtitlesOff
         viewerSubtitleKey = debugSubtitleKey
         debugSubtitleKey = null
@@ -537,6 +621,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                 if (closed || mine != openGeneration) return@launch
                 // Opened again behind the scenes: the picture plays on as it was, unless its stream had stopped.
                 if (reopening && player.playerError == null) {
+                    switchingQuality = false
                     log.warning("Couldn't open the stream again", e)
                 } else {
                     val takenOver = e is FlexarrException.Http && e.status == 410
@@ -607,6 +692,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
      */
     private fun fail(message: String, retry: ((DeviceProfile) -> PlaybackRequest)?, takenOver: Boolean = false) {
         error = message
+        switchingQuality = false
         retryRequest = if (takenOver && retry != null) { profile -> retry(profile).copy(replacesSessionId = null) } else retry
         retryLabel = when {
             retry == null -> null
@@ -647,12 +733,14 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
             // The viewer's pick ("off" included) wins; otherwise what's showing, and the server decides.
             subtitleKey = if (viewerChoseSubtitle) viewerSubtitleKey ?: "off" else current.selectedSubtitleKey,
             forceTranscode = if (forcedTranscode) true else null,
-        )
+            measuredBitrate = model.measuredBitrate(client),
+        ).withQuality(askedQuality)
     }
 
     private fun begin(started: PlaybackInfo) {
         if (closed) return
         val sameTitle = info?.item?.id == started.item.id
+        if (!sameTitle || (started.fileId != null && fileFacts?.id != started.fileId)) learnFile(started)
         previews?.close()
         previews = if (isOffline) null else TrickplayPreviews(client, started.sessionId, scope)
         info = started
@@ -727,14 +815,18 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
         player.setMediaItem(media, (started.startPositionSeconds * 1000).toLong())
         player.prepare()
+        steps.started()
         // The speed it was at before its stream was opened again, or the show's remembered one.
         val startRate = (if (sameTitle) carriedRate else null) ?: started.speed?.toFloat() ?: 1f
         carriedRate = null
         setPlayerRate(startRate)
         // Opened again at a speed the new stream wasn't started at (a converted film sped up before): the server hears it.
         tellSpeed(started, rate, known = started.speed ?: 1.0)
-        // Asleep (End of episode stopped the last one): stay paused under the dim.
-        if (sleep.phase != VideoSleep.Phase.Asleep && onScreen()) player.play()
+        // Asleep (End of episode stopped the last one): stay paused under the dim. Another quality chosen while
+        // paused comes in paused.
+        val stayPaused = pausedForQuality && sameTitle
+        pausedForQuality = false
+        if (sleep.phase != VideoSleep.Phase.Asleep && onScreen() && !stayPaused) player.play()
         lastReport = System.currentTimeMillis()
         ticker?.cancel()
         keepTicking()
@@ -757,6 +849,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
     private fun tick() {
         val info = info ?: return
+        checkStepUp()
         val seconds = player.currentPosition / 1000.0
         position = seconds
         if (player.duration > 0) duration = player.duration / 1000.0
@@ -1000,7 +1093,85 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         player.seekTo((seconds * 1000).toLong())
         position = seconds
         lastSeekAt = android.os.SystemClock.elapsedRealtime()
+        steps.started()
         keepTicking()
+    }
+
+    /**
+     * On Automatic, a stream that keeps stalling steps down a quality (two stalls within a minute, or one over 10
+     * seconds), reopened where it is with the same sound, subtitles and speed (docs/remote-streaming.md).
+     */
+    private fun watchQuality(state: Int) {
+        if (!stepsQuality || !hasPlayed || isOpening) return
+        when (state) {
+            Player.STATE_BUFFERING -> {
+                if (!player.playWhenReady) return
+                steps.stalled()
+                if (longStall?.isActive == true) return
+                val session = info?.sessionId
+                longStall = scope.launch {
+                    while (isActive && player.playbackState == Player.STATE_BUFFERING && info?.sessionId == session) {
+                        delay(1_000)
+                        if (closed || isOpening || info?.sessionId != session) return@launch
+                        if (steps.stillStalled(playingHeight())) return@launch stepQuality(down = true)
+                    }
+                }
+            }
+            Player.STATE_READY -> {
+                longStall?.cancel()
+                if (steps.resumed(playingHeight())) stepQuality(down = true)
+            }
+            else -> longStall?.cancel()
+        }
+    }
+
+    /** Lowered for a while: back up a quality once the link has carried it smoothly for 5 minutes and fits the next. */
+    private fun checkStepUp() {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastStepUpCheck < STEP_UP_CHECK_MS) return
+        lastStepUpCheck = now
+        if (steps.lowered == null || !stepsQuality || isOpening || !player.isPlaying) return
+        if (steps.stepUp(model.linkSpeed.fresh(model.linkKey(client)), info?.fileBitrate)) stepQuality(down = false)
+    }
+
+    /**
+     * A quality picked in the menu: the stream opened again where it is, keeping sound, subtitles and speed. Picked
+     * away from home, it's what plays there start on from now on.
+     */
+    fun chooseQuality(choice: StreamQuality) {
+        // The one in use again: nothing changes (the menu just closes).
+        if (choice == qualityInUse || switchingQuality) return
+        if (info == null || !offersQuality || (isOpening && !isReopening)) return
+        quality = choice
+        steps.reset()
+        if (model.isAway) PlayerSettings.setAwayQuality(appContext, choice)
+        log.info("Quality chosen: ${choice.raw}")
+        switchingQuality = true
+        switchingFrom = info?.sessionId
+        pausedForQuality = !player.playWhenReady
+        reopen()
+    }
+
+    /** The file's size and HDR from the title's details, for the Quality menu (an older server's start says neither). */
+    private fun learnFile(started: PlaybackInfo) {
+        fileFacts = null
+        if (isOffline || started.item.kind.let { it != MediaKind.Movie && it != MediaKind.Episode }) return
+        scope.launch {
+            val files = runCatching { client.item(started.item.id).files }.getOrNull() ?: return@launch
+            if (info?.item?.id != started.item.id) return@launch
+            fileFacts = files.firstOrNull { it.id == started.fileId } ?: files.singleOrNull()
+        }
+    }
+
+    /** The picture's height now, to step down below. */
+    private fun playingHeight(): Int? = videoSize.height.takeIf { it > 0 } ?: info?.stream?.height
+
+    private fun stepQuality(down: Boolean) {
+        log.info(if (down) "Stepping down to ${steps.lowered?.raw} for the connection" else "Stepping up to ${steps.lowered?.raw ?: "automatic"}")
+        if (down) qualityNotice++
+        switchingQuality = true
+        switchingFrom = info?.sessionId
+        reopen()
     }
 
     /**
@@ -1553,6 +1724,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     fun close() {
         closed = true
         ticker?.cancel()
+        longStall?.cancel()
         resync?.cancel()
         previews?.close()
         dropPrepared()
@@ -1603,6 +1775,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         private const val SEEK_STALL_MS = 20_000L
         private const val RECOVERY_ATTEMPTS = 6
         private const val RECOVERY_RETRY_MS = 3_000L
+        /** How often a lowered stream checks whether it can go back up. */
+        private const val STEP_UP_CHECK_MS = 30_000L
         /** Past this, Previous starts the title again before going to the one before. */
         private const val RESTART_AFTER_SECONDS = 3.0
 

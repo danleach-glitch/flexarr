@@ -123,6 +123,13 @@ The same words on every client and in the guide. The ones every client shares ar
 - **Update your Flexarr server**, alone, when the server is older than the apps support (on the connect screen, and as the platform's notice after signing in). How to update is in the guide.
 - Live TV: **Refresh guide**, then **Refreshing…** while it runs (spoken as well as shown: where there’s only an icon, only the icon changes) and **Guide refreshed** when it’s done. Its result is a line on the page on the web; on the TVs, **Guide refreshed** shows in the button and a failure is a line beside it, where a toast or snackbar could be missed from across the room and an alert would take focus from the guide.
 - Facts sit side by side with space between them, never joined with middle dots.
+- The player's **Quality** menu (every client, beside Speed; see [remote-streaming.md](remote-streaming.md)):
+  - **The button** says what's chosen without opening it: the web's text button reads **Auto**, **Original** or **720p**; the apps' icon carries a small badge (**720p**, **Original**) only when the choice isn't Automatic. Screen readers hear "Quality, Automatic, 720p".
+  - **The rows**, in this order: **Automatic**, **Original**, **1080p**, **720p**, **480p**. A quality at or above the file's own height isn't offered (a 720p file offers Automatic, Original and 480p). Each row has a quiet second line: Automatic's says what's playing now (**720p**, **Original**, or the quality the player has moved to on a self-switching stream, kept current while the menu is open); Original's names the file (**4K HDR**, **1080p**).
+  - **The choice in use** is ticked, and the menu opens on it (focus on TVs and from the keyboard). Choosing it again just closes the menu.
+  - **Choosing another** closes the menu; the picture stays where it was, with a small spinner, until the new quality plays, and the button can't be pressed meanwhile. The quality comes in where you were, with the same audio, subtitles and speed.
+  - **Lowered quality for your connection** shows for 4 seconds when the player steps down by itself; tapping or clicking it opens the Quality menu (on TVs it never takes focus). Stepping back up is quiet.
+  - Not offered for downloads played offline, music, audiobooks, podcasts or Live TV.
 
 ## What each client has
 
@@ -133,6 +140,7 @@ What's on each client today. The gaps are for future briefs. How the four kinds 
 | Home, libraries, detail, search, player | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Trailer | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Choosing a version (4K, 1080p, a director’s cut) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Quality menu in the player | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | IMDb and Rotten Tomatoes scores | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Coming soon page | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Watchlist | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
