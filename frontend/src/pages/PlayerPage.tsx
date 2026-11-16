@@ -7,6 +7,7 @@ import { useLocation, useNavigate, useParams, useSearchParams } from 'react-rout
 import {
   ApiError,
   beaconProgress,
+  getMe,
   getSubtitleSync,
   imageUrl,
   reportProgress,
@@ -59,7 +60,21 @@ import { EARLY_STALL_MS, reportEarlyStall, reportStart, type StartTiming } from 
 import { drop as dropPrepared, getReady, holds as holdsPrepared, take as takePrepared } from '../lib/preparedPlayback'
 import { extended, FADE_SECONDS, minutesLeft, secondsLeft, sleepChoices, sleepLabel, STILL_WATCHING_SECONDS, type SleepTimer } from '../lib/sleepTimer'
 import { linkSpeed } from '../lib/linkSpeed'
-import { QUALITIES, requestFor, type Quality } from '../lib/streamQuality'
+import {
+  isAway,
+  LONG_STALL_MS,
+  QUALITIES,
+  rememberedQuality,
+  rememberQuality,
+  requestFor,
+  STALL_WINDOW_MS,
+  stallCounts,
+  stepBelow,
+  stepDownDue,
+  stepUp,
+  type Quality,
+  type Step,
+} from '../lib/streamQuality'
 import { t, tk, Words } from '../i18n'
 import '../styles/player.lazy.css'
 
@@ -180,6 +195,15 @@ async function takenOverReason(sessionId: string): Promise<string | undefined> {
   return problem?.detail ?? t(TAKEN_OVER)
 }
 
+/** Whether this browser reaches the server from away from home (the server says; else the address tells). */
+async function whetherAway(): Promise<boolean> {
+  const zone = await Promise.race([
+    getMe().then((me) => me.zone, () => undefined),
+    new Promise<undefined>((resolve) => setTimeout(resolve, 1500, undefined)),
+  ])
+  return isAway(zone, window.location.hostname)
+}
+
 /** Whether the server still serves this stream: one that stopped (a server restart, another screen) isn't the browser's fault. */
 async function streamAnswers(sessionId: string): Promise<boolean> {
   const response = await fetch(`/api/v1/playback/${sessionId}/main.m3u8`, { signal: AbortSignal.timeout(REASON_TIMEOUT_MS) }).catch(() => null)
@@ -249,6 +273,24 @@ export function PlayerPage() {
   const [chrome, setChrome] = useState(true)
   const [menu, setMenu] = useState<'subtitles' | 'audio' | 'quality' | 'speed' | 'sleep' | 'more' | null>(null)
   const [quality, setQuality] = useState<Quality>('auto')
+  const qualityRef = useRef<Quality>('auto')
+  qualityRef.current = quality
+  // Automatic stepped down after stalls (docs/remote-streaming.md), for this title only; null as the server sends it.
+  const [lowered, setLoweredState] = useState<Step | null>(null)
+  const loweredRef = useRef<Step | null>(null)
+  const setLowered = (step: Step | null) => {
+    loweredRef.current = step
+    setLoweredState(step)
+  }
+  /** Away from home, once the first start has asked (null before). */
+  const away = useRef<boolean | null>(null)
+  /**
+   * Stalls on this stream, in performance.now() time: when it settled (first played, or seeked), the counted stalls'
+   * beginnings, the one going on, the last one and the last change of quality.
+   */
+  const stalls = useRef({ fresh: true, settledFrom: 0, counted: [] as number[], since: undefined as number | undefined, last: 0, lastChange: 0, timer: 0 })
+  const stallEvent = useRef<(kind: 'waiting' | 'playing' | 'seeking') => void>(() => undefined)
+  const stepUpCheck = useRef<() => void>(() => undefined)
   const [subtitleKey, setSubtitleKey] = useState<string | null>(null)
   // Embedded subtitles are extracted on first use, which can take a little while for large files.
   const [subtitleStatus, setSubtitleStatus] = useState<'idle' | 'loading' | 'failed'>('idle')
@@ -353,6 +395,9 @@ export function PlayerPage() {
     hls.current?.destroy()
     hls.current = null
     setWaiting(true)
+    // A new stream fills its buffer before its stalls count.
+    window.clearTimeout(stalls.current.timer)
+    Object.assign(stalls.current, { fresh: true, counted: [], since: undefined })
 
     const seekOnLoad = () => {
       if (position > 0) el.currentTime = position
@@ -401,7 +446,17 @@ export function PlayerPage() {
   const start = useCallback(
     async (options: StartOptions = {}, quiet = false) => {
       setError(undefined)
-      const q = options.quality ?? quality
+      let q = options.quality ?? (quality === 'auto' && loweredRef.current ? loweredRef.current : quality)
+      // The first play here: away from home, it starts on the Quality last picked away.
+      if (away.current === null) {
+        away.current = await whetherAway()
+        const kept = rememberedQuality(away.current)
+        if (options.quality === undefined && kept !== 'auto') {
+          setQuality(kept)
+          qualityRef.current = kept
+          q = kept
+        }
+      }
       // Leaving for another title (or asking again, say for another quality) while this request is out makes its
       // answer stale: that session is stopped rather than played over the newer one.
       const life = lifetime.current
@@ -529,10 +584,64 @@ export function PlayerPage() {
     void restartHere({ noCopy: true, audioStreamIndex: info?.selectedAudioIndex ?? undefined, subtitleKey: subtitleKey ?? 'off' })
     return true
   }
+  // Automatic on a single stream steps down after stalls, and back up once it's been smooth a while
+  // (docs/remote-streaming.md). The ladder moves by itself, and a quality picked by hand stays.
+  const stepsHere = () => qualityRef.current === 'auto' && !!info && !info.adaptive && !error && !recovering.current
+  const stepDown = () => {
+    if (!stepsHere() || !info) return
+    const from = loweredRef.current
+    const step = stepBelow(from ? { height: from } : { height: info.stream?.height, bitrate: info.stream?.videoBitrate ?? info.fileBitrate })
+    if (!step) return
+    Object.assign(stalls.current, { lastChange: performance.now(), counted: [], since: undefined })
+    setLowered(step)
+    setNotice(t(Words.loweredQuality))
+    void restartHere({ quality: step, audioStreamIndex: info.selectedAudioIndex ?? undefined, subtitleKey: subtitleKey ?? 'off' })
+  }
+  const onStallEvent = (kind: 'waiting' | 'playing' | 'seeking') => {
+    const s = stalls.current
+    const now = performance.now()
+    if (kind !== 'waiting') {
+      // Played (the first time: it has settled now) or seeked: whatever stall there was is over.
+      if (kind === 'seeking' || s.fresh) s.settledFrom = now
+      if (kind === 'playing') s.fresh = false
+      s.since = undefined
+      window.clearTimeout(s.timer)
+      return
+    }
+    if (video.current?.seeking || s.fresh || s.since !== undefined || !stallCounts(now, s.settledFrom)) return
+    s.since = now
+    s.last = now
+    s.counted = [...s.counted.filter((at) => now - at <= STALL_WINDOW_MS), now]
+    if (stepDownDue(s.counted, now)) return stepDown()
+    s.timer = window.setTimeout(() => {
+      if (s.since !== undefined && stepDownDue([], performance.now(), s.since)) stepDownRef.current()
+    }, LONG_STALL_MS + 100)
+  }
+  const stepDownRef = useRef(stepDown)
+  const checkStepUp = () => {
+    const from = loweredRef.current
+    const el = video.current
+    if (!from || !stepsHere() || !info || !el || el.paused || waiting) return
+    const s = stalls.current
+    const now = performance.now()
+    const up = stepUp(from, { now, lastStall: s.last, lastChange: s.lastChange, speed: linkSpeed(), fileBitrate: info.fileBitrate })
+    if (!up) return
+    s.lastChange = now
+    setLowered(up === 'auto' ? null : up)
+    void restartHere({ quality: up, audioStreamIndex: info.selectedAudioIndex ?? undefined, subtitleKey: subtitleKey ?? 'off' })
+  }
+  useEffect(() => {
+    const timer = window.setInterval(() => stepUpCheck.current(), 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
+
   useEffect(() => {
     recoverRef.current = recover
     convertInsteadRef.current = convertInstead
     copyFailedRef.current = copyFailed
+    stallEvent.current = onStallEvent
+    stepDownRef.current = stepDown
+    stepUpCheck.current = checkStepUp
   })
 
   useEffect(() => {
@@ -552,6 +661,9 @@ export function PlayerPage() {
     skipState.current = skipFresh
     setSkipShown({})
     playingItem.current = undefined
+    setLowered(null)
+    window.clearTimeout(stalls.current.timer)
+    stalls.current = { fresh: true, settledFrom: 0, counted: [], since: undefined, last: 0, lastChange: 0, timer: 0 }
     // Come back to with Forward after closing: the title's page, not the episode again from the top.
     if (playState?.closed) {
       navigate(`/item/${id}`, { replace: true })
@@ -667,6 +779,9 @@ export function PlayerPage() {
       if (first && performance.now() - first.at < EARLY_STALL_MS) reportEarlyStall(first.id, performance.now() - first.at)
       started.current = null
     }
+    const onWaitingStall = () => stallEvent.current('waiting')
+    const onPlayingStall = () => stallEvent.current('playing')
+    const onSeekingStall = () => stallEvent.current('seeking')
     const onPlaying = () => setWaiting(false)
     const onFirstPicture = () => {
       if (timing.current?.answeredAt === undefined) return
@@ -713,7 +828,13 @@ export function PlayerPage() {
     el.addEventListener('error', onError)
     el.addEventListener('ended', onEnded)
     el.addEventListener('seeking', onSeeking)
+    el.addEventListener('waiting', onWaitingStall)
+    el.addEventListener('playing', onPlayingStall)
+    el.addEventListener('seeking', onSeekingStall)
     return () => {
+      el.removeEventListener('waiting', onWaitingStall)
+      el.removeEventListener('playing', onPlayingStall)
+      el.removeEventListener('seeking', onSeekingStall)
       el.removeEventListener('timeupdate', onTime)
       el.removeEventListener('play', onPlay)
       el.removeEventListener('pause', onPause)
@@ -1026,6 +1147,9 @@ export function PlayerPage() {
   function chooseQuality(q: Quality) {
     setMenu(null)
     setQuality(q)
+    qualityRef.current = q
+    setLowered(null)
+    rememberQuality(q, away.current ?? false)
     void restartHere({ quality: q, audioStreamIndex: info?.selectedAudioIndex ?? undefined, subtitleKey: subtitleKey ?? 'off' })
   }
 
@@ -1428,7 +1552,8 @@ export function PlayerPage() {
 
   // ---------- The secondary controls' menus: each beside its own button, or all in one ⋯ on a phone
 
-  const qualityName = quality === 'auto' ? (info?.method === 'DirectPlay' ? t(Words.originalQuality) : t('Auto')) : qualityLabel(quality)
+  const qualityName =
+    quality !== 'auto' ? qualityLabel(quality) : lowered ? qualityLabel(lowered) : info?.method === 'DirectPlay' ? t(Words.originalQuality) : t('Auto')
   const canPip = 'pictureInPictureEnabled' in document && document.pictureInPictureEnabled
   const canAirPlay = 'webkitShowPlaybackTargetPicker' in HTMLVideoElement.prototype
   const pictureInPicture = () => {
