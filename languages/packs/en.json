@@ -1422,6 +1422,7 @@
  "Lost the connection to the server. Make sure this phone is online and Flexarr is running, then try again.": "Lost the connection to the server. Make sure this phone is online and Flexarr is running, then try again.",
  "Lost the connection to the server. Make sure this tablet is online and Flexarr is running, then try again.": "Lost the connection to the server. Make sure this tablet is online and Flexarr is running, then try again.",
  "Low": "Low",
+ "Lowered quality for your connection": "Lowered quality for your connection",
  "Lyrics": "Lyrics",
  "Lyrics for {title}": "Lyrics for {title}",
  "Mac App Store apps can’t turn Tailscale on. Install {tailscale} on this Mac and your devices with the same account, and they’ll reach Flexarr at this Mac’s Tailscale address. See {guide}.": "Mac App Store apps can’t turn Tailscale on. Install {tailscale} on this Mac and your devices with the same account, and they’ll reach Flexarr at this Mac’s Tailscale address. See {guide}.",

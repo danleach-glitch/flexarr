@@ -1295,7 +1295,7 @@ public enum DownloadQuality: String, ForwardCompatibleEnum, Identifiable {
     /// "Original", "High (1080p)".
     public var label: String {
         switch self {
-        case .original: t("Original")
+        case .original: t(Words.originalQuality)
         case .high: t("High (1080p)")
         case .medium: t("Medium (720p)")
         case .small: t("Small (480p)")

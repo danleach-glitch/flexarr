@@ -1710,7 +1710,7 @@ final class PlaybackController: NSObject {
             }
             return [codec, channels].filter { !$0.isEmpty }.joined(separator: " ")
         }
-        let parts = [info.item.resolution, sound, info.isOffline ? t("Downloaded") : info.method == .directPlay ? t("Original") : nil].compactMap { $0 }.filter { !$0.isEmpty }
+        let parts = [info.item.resolution, sound, info.isOffline ? t("Downloaded") : info.method == .directPlay ? t(Words.originalQuality) : nil].compactMap { $0 }.filter { !$0.isEmpty }
         return parts.isEmpty ? nil : parts.joined(separator: "   ")
     }
 

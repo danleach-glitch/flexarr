@@ -1429,7 +1429,7 @@ export function PlayerPage() {
 
   // ---------- The secondary controls' menus: each beside its own button, or all in one ⋯ on a phone
 
-  const qualityName = quality === 'auto' ? (info?.method === 'DirectPlay' ? t('Original') : t('Auto')) : `${quality}p`
+  const qualityName = quality === 'auto' ? (info?.method === 'DirectPlay' ? t(Words.originalQuality) : t('Auto')) : `${quality}p`
   const canPip = 'pictureInPictureEnabled' in document && document.pictureInPictureEnabled
   const canAirPlay = 'webkitShowPlaybackTargetPicker' in HTMLVideoElement.prototype
   const pictureInPicture = () => {
@@ -1454,7 +1454,7 @@ export function PlayerPage() {
   const qualityColumns = (
     <>
       <div className="player-menu-column">
-        <h3>{t('Quality')}</h3>
+        <h3>{t(Words.quality)}</h3>
         {qualities.map((q) => (
           <MenuItem key={q.value} selected={q.value === quality} onClick={() => chooseQuality(q.value)}>
             {q.value === 'auto' ? t(q.label) : q.label}
