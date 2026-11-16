@@ -88,6 +88,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     val player: ExoPlayer = ExoPlayer.Builder(context, shaper.renderers(context))
         .setMediaSourceFactory(mediaSources(context))
         .setLoadControl(StartBuffer.loadControl())
+        // Starting a stream of several qualities on the one the saved speed carries, not a guess (docs/remote-streaming.md).
+        .setBandwidthMeter(bandwidthMeter(context, model.measuredBitrate(client)))
         .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
         .setHandleAudioBecomingNoisy(true)
         .setSeekBackIncrementMs(skipSeconds * 1000L)
@@ -306,7 +308,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         player.addAnalyticsListener(object : AnalyticsListener {
             override fun onLoadCompleted(eventTime: AnalyticsListener.EventTime, loadEventInfo: LoadEventInfo, mediaLoadData: MediaLoadData) {
                 if (mediaLoadData.dataType != C.DATA_TYPE_MEDIA || info?.method != PlaybackMethod.Transcode || isOffline) return
-                model.linkSpeed.sample(loadEventInfo.bytesLoaded, loadEventInfo.loadDurationMs)
+                model.linkSpeed.sample(model.linkKey(client), loadEventInfo.bytesLoaded, loadEventInfo.loadDurationMs)
             }
         })
         player.addListener(object : Player.Listener {
@@ -428,7 +430,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                 replacesSessionId = info?.sessionId,
                 shuffle = if (shuffle) true else null,
                 subtitleKey = if (subtitlesOff) "off" else viewerSubtitleKey,
-                measuredBitrate = model.linkSpeed.current(),
+                measuredBitrate = model.measuredBitrate(client),
             )
         }
     }

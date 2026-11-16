@@ -33,3 +33,14 @@ fun sessionBitmapLoader(context: Context): BitmapLoader =
         .setDataSourceFactory(DefaultDataSource.Factory(context, OkHttpDataSource.Factory(FlexarrClient.sharedHttp)))
         .setMaximumOutputDimension(MediaSession.getBitmapDimensionLimit(context) * 2 - 1)
         .build()
+
+/**
+ * The video player's own bandwidth meter, starting from [measured] (the saved link speed, bits per second) when there
+ * is one, so a stream of several qualities opens on the one the link carries rather than ExoPlayer's guess for the
+ * network type (docs/remote-streaming.md).
+ */
+@OptIn(UnstableApi::class)
+fun bandwidthMeter(context: Context, measured: Long?): androidx.media3.exoplayer.upstream.DefaultBandwidthMeter =
+    androidx.media3.exoplayer.upstream.DefaultBandwidthMeter.Builder(context)
+        .apply { if (measured != null && measured > 0) setInitialBitrateEstimate(measured) }
+        .build()

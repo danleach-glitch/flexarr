@@ -100,6 +100,7 @@ import io.github.flexarr.ui.connect.PairingSession
 import okhttp3.HttpUrl
 
 private val flexarrLog = FlexarrLog("signin")
+private val speedLog = FlexarrLog("playback")
 
 /**
  * Signed in or not, who's watching, and what every screen needs to reach the server. One for the app, starting from
@@ -368,8 +369,46 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         stop = { sessionId -> client?.stopPlayback(sessionId) },
     )
 
-    /** How fast the video player's stream segments have come lately, sent with each start (docs/fast-start.md). */
-    val linkSpeed = LinkSpeed()
+    /**
+     * How fast the server's data has come lately (the video player's segments, the speed test), per server and address,
+     * kept between launches and sent with each start (docs/remote-streaming.md).
+     */
+    val linkSpeed = LinkSpeed(memory = object : LinkSpeed.Memory {
+        private val prefs = context.getSharedPreferences("linkSpeed", Context.MODE_PRIVATE)
+        override fun read(): String? = prefs.getString("readings", null)
+        override fun write(text: String) = prefs.edit().putString("readings", text).apply()
+    })
+
+    /** Where [client]'s speed readings belong now: its server and the address in use (a guest's, its tunnel). */
+    fun linkKey(client: FlexarrClient): String = LinkSpeed.key(client, credentials?.guest?.target)
+
+    /** The speed to send with a start for [client] (null: nothing to go on). */
+    fun measuredBitrate(client: FlexarrClient? = this.client): Long? = client?.let { linkSpeed.current(linkKey(it)) }
+
+    /** Reaching the server away from home: by its away address, or a guest's tunnel. */
+    val isAway: Boolean get() = credentials?.isGuest == true || client?.addresses?.isAway == true
+
+    private var speedTesting: Job? = null
+
+    /**
+     * Away from home, measures the link with the server's speed test (4 MB, or 1 MB on mobile data), at most every 10
+     * minutes unless the network changed; [onlyIfStale] (the title page), only with no fresh reading. A server before
+     * 0.67 has no speed test, and nothing comes of it.
+     */
+    fun speedTest(onlyIfStale: Boolean = false) {
+        val client = client ?: return
+        if (!isAway || serverUnreachable || network.isOffline || speedTesting?.isActive == true) return
+        val key = linkKey(client)
+        if (!linkSpeed.testDue(key, onlyIfStale)) return
+        linkSpeed.testStarted(key)
+        val bytes = if (network.isMetered) LinkSpeed.TEST_BYTES_METERED else LinkSpeed.TEST_BYTES_UNMETERED
+        speedTesting = scope.launch {
+            val measured = runCatching { client.speedTest(bytes) }.getOrNull() ?: return@launch
+            // The address may have changed meanwhile (home answered again): the reading is the one it was taken at.
+            linkSpeed.tested(key, measured)
+            speedLog.info("Speed test: ${measured / 1000} kbps over ${bytes / 1000} kB")
+        }
+    }
 
     /**
      * The server's status, asked once for everything that wants it around the same time: starting up, that's the
@@ -419,6 +458,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     fun getReady(item: ItemSummary) {
         if (item.kind != MediaKind.Movie && item.kind != MediaKind.Episode && item.kind != MediaKind.Audiobook) return
         if (client == null || serverUnreachable || downloads.entry(item.id)?.isDownloaded == true) return
+        // A title page away from home with no fresh reading: measured now, for Play's start.
+        if (item.kind != MediaKind.Audiobook) speedTest(onlyIfStale = true)
         warmJob?.second?.cancel()
         warmJob = item.id to scope.launch {
             // A server before 0.59 would show the warm-up as playing and give it a transcode slot.
@@ -427,7 +468,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             if (item.kind == MediaKind.Audiobook) {
                 books.getReady(item)
             } else {
-                warmUps.getReady(PlaybackRequest(itemId = item.id, profile = profile, measuredBitrate = linkSpeed.current()), owner = client?.profileToken)
+                warmUps.getReady(PlaybackRequest(itemId = item.id, profile = profile, measuredBitrate = measuredBitrate()), owner = client?.profileToken)
             }
         }
     }
@@ -1992,6 +2033,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         signInChanged()
         // Offline mode follows the network, and any request that can't reach the server has it checked.
         network.onChange(::networkChanged)
+        network.onMoved { linkSpeed.networkChanged() }
         FlexarrClient.onCouldNotConnect = { scope.launch { connectionTrouble() } }
         FlexarrClient.onAnswered = { scope.launch { serverAnswered() } }
         // Kept as confirmed as soon as a request proves it, so Settings › Server stops saying it hasn't been reached.
@@ -2014,7 +2056,13 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         if (credentials?.isGuest == true) scope.launch(Dispatchers.IO) { tunnel.ensureRunning() }
         // One request does both: the connection to the server is set up again before Play needs it, and the server's
         // name follows if it was renamed on the web while the app was away. Starting up, it's the status already asked for.
-        credentials?.let { now -> scope.launch { serverStatus(now)?.let { status -> noteServerName(status, now.address, now.isGuest) } } }
+        // Then, away from home, the link is measured, so the first play starts on a quality it carries.
+        credentials?.let { now ->
+            scope.launch {
+                serverStatus(now)?.let { status -> noteServerName(status, now.address, now.isGuest) }
+                speedTest()
+            }
+        }
         // Offline mode ends (or starts) as soon as it's known whether the server answers now, and tries again while
         // the app's in front.
         scheduleRetry()
