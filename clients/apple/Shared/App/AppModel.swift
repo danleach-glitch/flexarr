@@ -39,6 +39,8 @@ final class AppModel {
         didSet {
             guard phase != oldValue else { return }
             GuestMode.isActive = credentials?.isGuest == true
+            // Speed readings follow the server signed in to, and the address it's reached at.
+            LinkSpeed.shared.follow(client?.addresses)
             ConnectionError.server = serverNaming
             LogHub.shared.signedIn(client)
             // Error reports follow the server signed in to: none signed out, the last answer for a new one.
@@ -1660,9 +1662,22 @@ final class AppModel {
     #endif
 
     /// Back in front: the connection to the server is set up again before Play needs it (docs/fast-start.md).
+    /// Away from home, the speed is measured too, so the first play starts on a quality the connection carries
+    /// (docs/remote-streaming.md).
     func warmConnection() {
         guard let client, !isOffline else { return }
-        Task { await client.warmConnection() }
+        Task {
+            await client.warmConnection()
+            await measureSpeed(client)
+        }
+    }
+
+    private func measureSpeed(_ client: FlexarrClient, onlyIfStale: Bool = false) async {
+        LinkSpeed.shared.follow(client.addresses)
+        let expensive = NetworkWatch.shared.isExpensive
+        _ = await Task.detached(priority: .utility) {
+            await SpeedTest.shared.runIfDue(client, expensive: expensive, onlyIfStale: onlyIfStale)
+        }.value
     }
 
     /// Gets what Play would start for `item` ready, so it opens at once (docs/fast-start.md): a film or episode as a
@@ -1680,6 +1695,14 @@ final class AppModel {
             return
         }
         guard supported else { return }
+        // A title's page away from home with no fresh reading: the speed first, so what's got ready fits it.
+        if item.kind == .movie || item.kind == .episode, prewarmBytes, client.addresses.awayFromHome, LinkSpeed.shared.fresh() == nil {
+            Task {
+                await measureSpeed(client, onlyIfStale: true)
+                player.getReady(itemId: item.id, client: client, prewarmBytes: prewarmBytes)
+            }
+            return
+        }
         switch item.kind {
         case .movie, .episode: player.getReady(itemId: item.id, client: client, prewarmBytes: prewarmBytes)
         case .audiobook: music.getReadyBook(item, client: client)

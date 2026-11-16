@@ -1,3 +1,4 @@
+import FlexarrKit
 import Foundation
 import Network
 
@@ -8,6 +9,11 @@ final class NetworkWatch {
     static let shared = NetworkWatch()
     private let monitor = NWPathMonitor()
     private(set) var isOffline = false
+    /// On mobile data, or a network that says it's expensive or limited (Low Data Mode, a phone's hotspot): the speed
+    /// test fetches less (see `SpeedTest`).
+    private(set) var isExpensive = false
+    /// The interfaces of the last reading, to tell another network from the same one read again.
+    private var interfaces: [String] = []
     /// The first reading has come in (it does within moments of starting).
     private var known = false
     private var waiting: [CheckedContinuation<Void, Never>] = []
@@ -16,7 +22,16 @@ final class NetworkWatch {
     private init() {
         monitor.pathUpdateHandler = { path in
             let offline = path.status != .satisfied
-            Task { @MainActor in NetworkWatch.shared.changed(offline: offline) }
+            let expensive = path.isExpensive || path.isConstrained || path.usesInterfaceType(.cellular)
+            let interfaces = path.availableInterfaces.map(\.name)
+            Task { @MainActor in
+                let watch = NetworkWatch.shared
+                watch.isExpensive = expensive
+                // Another network (Wi-Fi to mobile data, another Wi-Fi): the speed it had says nothing of this one.
+                if watch.known, interfaces != watch.interfaces || offline != watch.isOffline { SpeedTest.shared.networkChanged() }
+                watch.interfaces = interfaces
+                watch.changed(offline: offline)
+            }
         }
         monitor.start(queue: .main)
     }

@@ -31,6 +31,9 @@ public final class ServerAddresses: @unchecked Sendable {
     /// The id the server at `home` must give before it's sent the sign-in (`SystemStatus.serverId`); nil while the
     /// app doesn't know it (a server before 0.55, a guest's own tunnel), and home is then trusted as it always was.
     public let serverId: String?
+    /// A family guest's sign-in: the host's server its tunnel leads to (`GuestTunnelInfo.target`). `home` is then the
+    /// tunnel's own address on this device, and every request travels over the internet.
+    public let guest: String?
     /// False while `remote` hasn't yet given the server's id to this device: it's asked before it's sent the sign-in.
     /// Only ever goes from false to true (see `shared`).
     public var remoteConfirmed: Bool { lock.withLock { _remoteConfirmed } }
@@ -66,8 +69,10 @@ public final class ServerAddresses: @unchecked Sendable {
     static let memoryKey = "io.github.flexarr.server.lastReached"
 
     /// `memory`: where the address that answered last is kept, to start there next launch (nil: always starts at home).
-    public init(home: URL, remote: URL?, serverId: String? = nil, remoteConfirmed: Bool = true, memory: UserDefaults? = nil) {
+    public init(home: URL, remote: URL?, serverId: String? = nil, remoteConfirmed: Bool = true, guest: String? = nil,
+                memory: UserDefaults? = nil) {
         self.home = home
+        self.guest = guest?.isEmpty == false ? guest : nil
         self.remote = remote == home ? nil : remote
         self.serverId = serverId?.isEmpty == false ? serverId : nil
         self._remoteConfirmed = remoteConfirmed
@@ -87,6 +92,17 @@ public final class ServerAddresses: @unchecked Sendable {
 
     /// Away from home: reaching the server by its remote address.
     public var isAway: Bool { lock.withLock { _current != home } }
+
+    /// Away from home now: the address in use is the away one, or this is a family guest's tunnel. Streams then come
+    /// over the internet, so the apps measure the speed and stream to fit (docs/remote-streaming.md).
+    public var awayFromHome: Bool { guest != nil || isAway }
+
+    /// Which link readings of the speed belong to (`LinkSpeed`): the server (its id, else its home address) and the
+    /// address in use (home, away, or a guest's tunnel).
+    public var linkKey: String {
+        if let guest { return "\(guest)|guest" }
+        return "\(serverId ?? home.absoluteString)|\(isAway ? "remote" : "home")"
+    }
 
     /// The other address, if there is one.
     public func alternate(to url: URL) -> URL? {
@@ -234,15 +250,16 @@ public final class ServerAddresses: @unchecked Sendable {
     /// times share what they've learnt. The away address being confirmed carries over to the one instance rather than
     /// making another, so what it knows of home isn't lost; it's never taken back, as the same away address of the same
     /// server can't stop being that server's.
-    public static func shared(home: URL, remote: URL?, serverId: String? = nil, remoteConfirmed: Bool = true) -> ServerAddresses {
-        let key = "\(home.absoluteString)|\(remote?.absoluteString ?? "")|\(serverId ?? "")"
+    public static func shared(home: URL, remote: URL?, serverId: String? = nil, remoteConfirmed: Bool = true,
+                              guest: String? = nil) -> ServerAddresses {
+        let key = "\(home.absoluteString)|\(remote?.absoluteString ?? "")|\(serverId ?? "")|\(guest ?? "")"
         return registryLock.withLock {
             if let existing = registry[key] {
                 if remoteConfirmed { existing.lock.withLock { existing._remoteConfirmed = true } }
                 return existing
             }
             let made = ServerAddresses(home: home, remote: remote, serverId: serverId, remoteConfirmed: remoteConfirmed,
-                                       memory: .standard)
+                                       guest: guest, memory: .standard)
             registry[key] = made
             return made
         }
