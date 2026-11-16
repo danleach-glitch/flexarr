@@ -239,6 +239,8 @@ describe('Player on a phone', () => {
     const page = renderPlayer()
     // The phone's ⋯ (shown by the CSS below 680 px) and the separate buttons it stands in for.
     const more = await waitFor(() => page.getByRole('button', { name: 'More options' }))
+    // Quality is only offered once the stream's details are in, which can come a moment after the controls.
+    await waitFor(() => page.getByRole('button', { name: /^Quality/ }))
     expect(more.closest('.player-narrow-only')).not.toBeNull()
     for (const name of [/^Speed/, /^Quality/, 'Back 10 seconds']) expect(page.getByRole('button', { name }).closest('.player-wide-only')).not.toBeNull()
 
