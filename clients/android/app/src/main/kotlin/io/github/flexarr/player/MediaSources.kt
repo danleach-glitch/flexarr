@@ -4,7 +4,10 @@ import android.content.Context
 import androidx.annotation.OptIn
 import androidx.media3.common.util.BitmapLoader
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSourceBitmapLoader
+import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.TransferListener
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -18,8 +21,31 @@ import io.github.flexarr.core.FlexarrClient
  * their files.
  */
 @OptIn(UnstableApi::class)
-fun mediaSources(context: Context): MediaSource.Factory =
-    DefaultMediaSourceFactory(DefaultDataSource.Factory(context, OkHttpDataSource.Factory(FlexarrClient.sharedHttp)))
+fun mediaSources(context: Context, transfers: TransferListener? = null): MediaSource.Factory =
+    DefaultMediaSourceFactory(DefaultDataSource.Factory(context, OkHttpDataSource.Factory(FlexarrClient.sharedHttp).setTransferListener(transfers)))
+
+/**
+ * Hears every download from the server (segments, a file played as it is) and gives how fast each flows to [sample]
+ * ([TransferMeter]: not the wait for the first byte, nor pauses), for the link speed (docs/remote-streaming.md).
+ */
+@OptIn(UnstableApi::class)
+class LinkSpeedListener(private val sample: (bytes: Long, millis: Long) -> Unit) : TransferListener {
+    private val meters = java.util.Collections.synchronizedMap(java.util.IdentityHashMap<DataSource, io.github.flexarr.core.TransferMeter>())
+
+    override fun onTransferInitializing(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) = Unit
+
+    override fun onTransferStart(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) {
+        if (isNetwork) meters[source] = io.github.flexarr.core.TransferMeter(android.os.SystemClock::elapsedRealtime, sample)
+    }
+
+    override fun onBytesTransferred(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean, bytesTransferred: Int) {
+        meters[source]?.transferred(bytesTransferred)
+    }
+
+    override fun onTransferEnd(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) {
+        meters.remove(source)?.ended()
+    }
+}
 
 /**
  * How a media session loads the artwork it shows (the notification, the lock screen): over the app's own connections

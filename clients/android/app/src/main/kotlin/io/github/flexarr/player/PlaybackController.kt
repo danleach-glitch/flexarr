@@ -26,9 +26,6 @@ import androidx.media3.common.text.CueGroup
 import androidx.media3.exoplayer.ExoPlayer
 import io.github.flexarr.AppModel
 import io.github.flexarr.core.PreparedStreams
-import androidx.media3.exoplayer.analytics.AnalyticsListener
-import androidx.media3.exoplayer.source.LoadEventInfo
-import androidx.media3.exoplayer.source.MediaLoadData
 import io.github.flexarr.core.i18n.Words
 import io.github.flexarr.core.i18n.t
 import io.github.flexarr.logging.FlexarrLog
@@ -89,7 +86,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     private val shaper = SoundShaper()
 
     val player: ExoPlayer = ExoPlayer.Builder(context, shaper.renderers(context))
-        .setMediaSourceFactory(mediaSources(context))
+        // How fast the server's data flows while playing, converted or as it is, for the next start's measured speed.
+        .setMediaSourceFactory(mediaSources(context, LinkSpeedListener { bytes, millis -> if (!isOffline) model.linkSpeed.sample(model.linkKey(client), bytes, millis) }))
         .setLoadControl(StartBuffer.loadControl())
         // Starting a stream of several qualities on the one the saved speed carries, not a guess (docs/remote-streaming.md).
         .setBandwidthMeter(bandwidthMeter(context, model.measuredBitrate(client)))
@@ -326,14 +324,6 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     private val log = FlexarrLog("playback")
 
     init {
-        // How fast this stream's segments arrive, for the next start's measured speed (docs/fast-start.md). Only a
-        // converted or repackaged stream's: a file played as it is is one long download paced by the player.
-        player.addAnalyticsListener(object : AnalyticsListener {
-            override fun onLoadCompleted(eventTime: AnalyticsListener.EventTime, loadEventInfo: LoadEventInfo, mediaLoadData: MediaLoadData) {
-                if (mediaLoadData.dataType != C.DATA_TYPE_MEDIA || info?.method != PlaybackMethod.Transcode || isOffline) return
-                model.linkSpeed.sample(model.linkKey(client), loadEventInfo.bytesLoaded, loadEventInfo.loadDurationMs)
-            }
-        })
         player.addListener(object : Player.Listener {
             override fun onRenderedFirstFrame() {
                 val started = timing?.takeIf { it.isAnswered } ?: return
