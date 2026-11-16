@@ -88,7 +88,7 @@ segments (2 seconds at home).
 
 - **Quality menu** in every player (iPhone, iPad, Apple TV, Mac, Android phone and TV, web): *Automatic*, *Original*,
   *1080p*, *720p*, *480p*. A pick is remembered on that device for plays away from home; at home every play starts on
-  Automatic. On the web, Automatic keeps its label *Best for this device*.
+  Automatic.
 - **Step down** (Automatic, not on the ladder): two stalls within a minute, or one over 10 seconds, not counting the
   first 3 seconds after a start or seek, reopen at the same place on the first quality below what's playing, keeping
   audio, subtitles and speed, and show *Lowered quality for your connection* briefly. The lowered quality lasts for that
