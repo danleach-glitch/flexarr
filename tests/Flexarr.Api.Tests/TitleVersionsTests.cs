@@ -53,6 +53,8 @@ public sealed class TitleVersionsTests : IAsyncLifetime
     {
         var client = _factory.CreateClient();
         client.DefaultRequestHeaders.Add("X-Api-Key", FlexarrApiFactory.ApiKey);
+        // At home: away, with no speed reading, these films would be converted to start low (docs/remote-streaming.md).
+        client.DefaultRequestHeaders.Add("X-Test-Peer", "192.168.1.20");
         return client;
     }
 
