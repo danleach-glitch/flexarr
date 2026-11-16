@@ -47,8 +47,10 @@ With *Away from home* on Automatic (Settings › Streaming) and no quality asked
 3. **No ladder** (software encoding, the server full, the disk low): one converted stream, capped by the speed as
    before, or at 720p 4 Mbps with no reading.
 
-A capped stream also lowers its resolution to what the bitrate suits (`PlaybackDecider.BitrateFor` read backwards),
-so a 4K file capped to 2 Mbps is 720p, not 4K at 2 Mbps. A conversion started for a remote viewer opens with 1-second
+A capped stream also lowers its resolution to what the bitrate suits (`PlaybackDecider.HeightFor`, `BitrateFor` read
+backwards at the table's points): 8 Mbps and up 1080p (12 Mbps 1440p, 20 Mbps any size), 4 Mbps 720p, 2.5 Mbps 540p,
+below that 480p. So a 4K file capped to 3 Mbps is 540p, not 4K at 3 Mbps. Only a cap without a height of its own does
+this (the connection's, the server's limit, a guest's link); a height asked for (the menu, a download) is kept. A conversion started for a remote viewer opens with 1-second
 segments (2 seconds at home).
 
 ### How the ladder works

@@ -364,7 +364,11 @@ public static class PlaybackDecider
         var sourceWidth = file.Width ?? 1920;
         var sourceHeight = file.Height ?? 1080;
         var equivalent = Math.Max(sourceHeight, sourceWidth * 9 / 16);
-        var scale = Math.Min(1.0, (double)Math.Min(maxHeight, options.MaxConvertedHeight ?? int.MaxValue) / equivalent);
+        // A cap with no height of its own (the connection's, the server's limit) also makes the picture no bigger than
+        // that bitrate suits: 4K squeezed into 3 Mbps looks worse than 540p given it. A height asked for (the Quality
+        // menu, a download's size) is kept as asked.
+        var suits = options.MaxHeight is null && maxBitrate > 0 ? HeightFor(maxBitrate) : int.MaxValue;
+        var scale = Math.Min(1.0, (double)Math.Min(Math.Min(maxHeight, suits), options.MaxConvertedHeight ?? int.MaxValue) / equivalent);
         var targetHeight = Even(sourceHeight * scale);
         var targetWidth = Even(sourceWidth * scale);
         var bitrate = BitrateFor(Math.Max(targetHeight, targetWidth * 9 / 16));
@@ -427,6 +431,21 @@ public static class PlaybackDecider
         >= 700 => 5_000_000,
         >= 500 => 2_500_000,
         _ => 1_500_000,
+    };
+
+    /// <summary>
+    /// The tallest picture a stream capped at <paramref name="maxBitrate"/> (bits per second, sound included) is made:
+    /// <see cref="BitrateFor"/> read backwards, at the Quality menu's points (1080p 8 Mbps, 720p 4 Mbps, 480p 1.5 Mbps;
+    /// docs/remote-streaming.md). Int.MaxValue when the cap leaves room for any size.
+    /// </summary>
+    public static int HeightFor(long maxBitrate) => maxBitrate switch
+    {
+        >= 20_000_000 => int.MaxValue,
+        >= 12_000_000 => 1440,
+        >= 8_000_000 => 1080,
+        >= 4_000_000 => 720,
+        >= 2_500_000 => 540,
+        _ => 480,
     };
 
     private static string ContainerName(string? container) => container switch
