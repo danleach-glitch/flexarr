@@ -33,9 +33,12 @@ final class MacPlayerState {
     var audioSync: Double?
     var audioSyncOpen = false
     var rate: Float = 1
-    /// The quality asked for (nil: no Quality menu, as for a download) and the level Automatic stepped down to.
-    var quality: StreamQuality?
-    var loweredQuality: StreamQuality?
+    /// The Quality menu (nil: none, as for a download).
+    var quality: QualityMenu?
+    /// Another quality is opening: a small spinner over the picture that stays, and the Quality button waits.
+    var switchingQuality = false
+    /// "Lowered quality for your connection": clicking it opens the Quality menu.
+    var qualityNotice: String?
     var maxRate: Float = 2
     var sleepSetting: SleepTimer.Setting?
     var sleepMinutesLeft: Int?
@@ -51,6 +54,7 @@ final class MacPlayerState {
 
     var isPlaying: Bool { phase == .playing || phase == .buffering }
     var isLoading: Bool { phase == .loading || phase == .buffering }
+    var showsSpinner: Bool { (isLoading || switchingQuality) && !asleep }
 }
 
 /// The Mac's player controls, over the picture: the title and Close at the top; the timeline, transport and menus at
@@ -62,8 +66,25 @@ struct MacPlayerControls: View {
 
     var body: some View {
         ZStack {
-            if state.isLoading && !state.asleep {
-                ProgressView().controlSize(.large).tint(Color.screen)
+            if state.showsSpinner {
+                ProgressView().controlSize(state.switchingQuality ? .regular : .large).tint(Color.screen)
+            }
+            if let notice = state.qualityNotice, let quality = state.quality {
+                Menu { qualityItems(quality) } label: {
+                    Label(notice, systemImage: "slider.horizontal.3")
+                        .labelStyle(.titleAndIcon)
+                        .font(.title3.weight(.semibold))
+                        .padding(.horizontal, 18).padding(.vertical, 10)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .contentShape(Capsule())
+                }
+                .menuStyle(.button)
+                .buttonStyle(.plain)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help(t(Words.quality))
+                .offset(y: -90)
+                .transition(.opacity)
             }
             if let flash = state.flash {
                 Text(flash)
@@ -292,21 +313,21 @@ struct MacPlayerControls: View {
                 .accessibilityValue(PlayerViewController.rateLabel(state.rate))
             }
             if !state.isLive, let quality = state.quality {
-                Menu {
-                    Picker(t(Words.quality), selection: Binding(get: { quality }, set: { screen?.chooseQuality($0) })) {
-                        ForEach([StreamQuality.automatic, .original] + StreamQuality.levels, id: \.self) { choice in
-                            if choice == .automatic, quality == .automatic, let lowered = state.loweredQuality {
-                                Text("\(choice.label) (\(lowered.label))").tag(choice)
-                            } else {
-                                Text(choice.label).tag(choice)
-                            }
+                Menu { qualityItems(quality) } label: {
+                    // The choice beside the icon while it isn't Automatic, as the speed's.
+                    if let badge = quality.badge {
+                        HStack(spacing: 4) {
+                            Image(systemName: "slider.horizontal.3")
+                            Text(badge).font(.system(size: 13, weight: .bold)).monospacedDigit()
                         }
+                    } else {
+                        Image(systemName: "slider.horizontal.3")
                     }
-                    .pickerStyle(.inline)
-                } label: { Image(systemName: "slider.horizontal.3") }
+                }
+                .disabled(state.switchingQuality)
                 .help(t(Words.quality))
                 .accessibilityLabel(t(Words.quality))
-                .accessibilityValue(quality.label)
+                .accessibilityValue(quality.spokenValue)
             }
             if !state.isLive {
                 Menu {
@@ -337,6 +358,22 @@ struct MacPlayerControls: View {
         .fixedSize()
         .font(.system(size: 19, weight: .semibold))
         .labelStyle(.iconOnly)
+    }
+
+    /// Automatic, Original, then the levels below the file, the one in use ticked; Automatic's second line says
+    /// what's playing now and Original's names the file. Choosing the one in use again just closes the menu.
+    @ViewBuilder
+    private func qualityItems(_ quality: QualityMenu) -> some View {
+        Section(t(Words.quality)) {
+            ForEach(quality.choices, id: \.self) { choice in
+                Toggle(isOn: Binding(get: { choice == quality.selected }, set: { _ in
+                    if choice != quality.selected { screen?.chooseQuality(choice) }
+                })) {
+                    Text(choice.label)
+                    if let detail = quality.detail(for: choice) { Text(detail) }
+                }
+            }
+        }
     }
 
     @ViewBuilder

@@ -22,6 +22,9 @@ final class HeldPicture {
         }
     }
 
+    /// Whether a picture is held now.
+    var isHolding: Bool { held != nil }
+
     /// Whether `transport` is the one held (its view stays up when it's swapped out).
     func holds(_ transport: PlayerTransport?) -> Bool {
         guard let transport, let held else { return false }

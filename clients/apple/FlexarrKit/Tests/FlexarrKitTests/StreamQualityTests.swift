@@ -112,4 +112,35 @@ import Testing
         watch.resumed(at: at(27))
         do { let stepped = watch.stalled(at: at(40)); #expect(!stepped) }
     }
+
+    @Test func menuOffersOnlyLevelsBelowTheFile() {
+        #expect(StreamQuality.choices(fileHeight: 720, selected: .automatic) == [.automatic, .original, .p480])
+        #expect(StreamQuality.choices(fileHeight: 1080, selected: .automatic) == [.automatic, .original, .p720, .p480])
+        #expect(StreamQuality.choices(fileHeight: 2160, selected: .automatic) == [.automatic, .original, .p1080, .p720, .p480])
+        #expect(StreamQuality.choices(fileHeight: nil, selected: .automatic) == [.automatic, .original, .p1080, .p720, .p480])
+        #expect(StreamQuality.choices(fileHeight: 480, selected: .automatic) == [.automatic, .original])
+        // A level remembered from another title stays, ticked.
+        #expect(StreamQuality.choices(fileHeight: 720, selected: .p1080) == [.automatic, .original, .p1080, .p480])
+    }
+
+    @Test func namesHeights() {
+        #expect(StreamQuality.label(forHeight: 2160) == "4K")
+        #expect(StreamQuality.label(forHeight: 1072) == "1080p")
+        #expect(StreamQuality.label(forHeight: 720) == "720p")
+        #expect(StreamQuality.label(forHeight: 540) == "540p")
+        #expect(StreamQuality.height(resolutionLabel: "1080p") == 1080)
+        #expect(StreamQuality.height(resolutionLabel: nil) == nil)
+    }
+
+    @Test func menuSaysWhatsPlaying() {
+        let automatic = QualityMenu(selected: .automatic, fileHeight: 2160, playing: "720p", file: "4K HDR")
+        #expect(automatic.badge == nil)
+        #expect(automatic.detail(for: .automatic) == "720p")
+        #expect(automatic.detail(for: .original) == "4K HDR")
+        #expect(automatic.detail(for: .p720) == nil)
+        #expect(automatic.spokenValue == "Automatic, 720p")
+        let chosen = QualityMenu(selected: .p720, fileHeight: 1080, playing: "720p", file: "1080p")
+        #expect(chosen.badge == "720p")
+        #expect(chosen.spokenValue == "720p")
+    }
 }

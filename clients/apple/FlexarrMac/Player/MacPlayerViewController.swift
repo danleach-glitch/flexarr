@@ -36,6 +36,9 @@ final class PlayerViewController: NSViewController {
     /// When the pointer last moved over the picture, for the controls' three seconds.
     private var lastActivity = Date()
     private var flashTask: Task<Void, Never>?
+    private var noticeTask: Task<Void, Never>?
+    /// Another quality is opening: the stream it replaces, and when to give up waiting.
+    private var qualitySwitch: (from: PlayerTransport?, timeout: Task<Void, Never>)?
     private var sleepWatch: Task<Void, Never>?
     private var isScrubbing = false
     private var seekTarget: (seconds: Double, at: Date)?
@@ -230,14 +233,33 @@ final class PlayerViewController: NSViewController {
         state.subtitleSearch = (available, files, resyncing)
     }
 
-    /// The Quality menu: what's asked for (nil: no menu, as for a download) and the level Automatic stepped down to.
-    func setQuality(_ selected: StreamQuality?, lowered: StreamQuality?) {
-        state.quality = selected
-        state.loweredQuality = lowered
+    /// The Quality menu (nil: none, as for a download).
+    func setQuality(_ menu: QualityMenu?) {
+        guard state.quality != menu else { return }
+        state.quality = menu
     }
 
-    /// A moment's message over the picture ("Lowered quality for your connection"), leaving the controls as they are.
-    func notice(_ message: String) { flash(message) }
+    /// Another quality is opening (true) until its stream plays: the picture stays with a small spinner, and the
+    /// Quality button waits.
+    func setQualitySwitching(_ switching: Bool) {
+        qualitySwitch?.timeout.cancel()
+        qualitySwitch = switching ? (transport, Task { [weak self] in
+            guard (try? await Task.sleep(for: HeldPicture.longest)) != nil else { return }
+            self?.setQualitySwitching(false)
+        }) : nil
+        state.switchingQuality = switching
+    }
+
+    /// "Lowered quality for your connection" for 4 seconds over the picture, leaving the controls as they are;
+    /// clicking it opens the Quality menu.
+    func noticeLoweredQuality() {
+        noticeTask?.cancel()
+        withAnimation { state.qualityNotice = t(Words.loweredQuality) }
+        noticeTask = Task { [weak self] in
+            guard (try? await Task.sleep(for: .seconds(4))) != nil else { return }
+            withAnimation { self?.state.qualityNotice = nil }
+        }
+    }
 
     /// A moment's message in the middle of the picture ("Re-syncing subtitles…").
     func flash(_ message: String) {
@@ -734,6 +756,8 @@ final class PlayerViewController: NSViewController {
 extension PlayerViewController: PlayerTransportDelegate {
     func transport(_ transport: PlayerTransport, phaseChanged phase: TransportPhase) {
         if phase == .playing, transport === self.transport { heldPicture.release() }
+        // The new quality plays.
+        if phase == .playing, transport === self.transport, let qualitySwitch, qualitySwitch.from !== transport { setQualitySwitching(false) }
         if isViewLoaded { preparePictureInPicture(transport) }
         phaseChanged(phase)
         delegate?.playerScreen(self, phaseChanged: phase)

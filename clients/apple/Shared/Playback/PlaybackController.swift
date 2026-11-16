@@ -211,6 +211,9 @@ final class PlaybackController: NSObject {
     @ObservationIgnored private var qualityWatch = QualityWatch()
     @ObservationIgnored private var longStallCheck: Task<Void, Never>?
     @ObservationIgnored private var lastStepUpCheck = Date.distantPast
+    /// The file playing, for the Quality menu: its height (which levels are below it) and its picture ("4K HDR").
+    @ObservationIgnored private var fileFacts: (itemId: String, fileId: String, height: Int?, label: String?)?
+    @ObservationIgnored private var fileFactsTask: Task<Void, Never>?
     private static let countdownSeconds = Int(NextEpisodeTiming.countdownSeconds)
     private static let reportInterval: TimeInterval = 10
     private static var takenOverMessage: String { t("Someone started watching on another screen, so this one had to stop.") }
@@ -545,6 +548,7 @@ final class PlaybackController: NSObject {
         updateSubtitleSearch()
         updateEpisodeNavigation()
         updateQualityMenu()
+        loadFileFacts(info)
         loadArtwork(for: info, into: screen)
     }
 
@@ -733,6 +737,7 @@ final class PlaybackController: NSObject {
                 info = try await serverStreamIfEngineWontKeepUp(info, asked: request)
                 guard self.info?.sessionId == current.sessionId else {
                     try? await client.stopPlayback(sessionId: info.sessionId)
+                    screen.setQualitySwitching(false)
                     return
                 }
                 // The old picture stays, paused and silent, until the new stream plays.
@@ -758,18 +763,46 @@ final class PlaybackController: NSObject {
         return selectedQuality
     }
 
-    /// The Quality menu: streamed titles only (a download plays as it was made).
+    /// The Quality menu: streamed films and episodes only (a download plays as it was made; music, books, podcasts
+    /// and Live TV have none).
     private func updateQualityMenu() {
         guard let screen else { return }
-        guard let info, !info.isOffline else { return screen.setQuality(nil, lowered: nil) }
-        let lowered = loweredQuality.flatMap { $0.itemId == info.item.id ? $0.level : nil }
-        screen.setQuality(selectedQuality, lowered: lowered)
+        guard let info, !info.isOffline, [.movie, .episode].contains(info.item.kind) else { return screen.setQuality(nil) }
+        let facts = fileFacts.flatMap { $0.itemId == info.item.id && $0.fileId == info.fileId ? $0 : nil }
+        let height = facts?.height ?? StreamQuality.height(resolutionLabel: info.item.resolution)
+        let file = facts?.label ?? info.item.resolution
+        screen.setQuality(QualityMenu(selected: selectedQuality, fileHeight: height, playing: playingQuality(info), file: file))
+    }
+
+    /// What's playing now, for Automatic's second line: the level it stepped down to, the original, or on a stream
+    /// that converts (the server's ladder moving by itself included) the picture's height as it comes.
+    private func playingQuality(_ info: PlaybackInfo) -> String? {
+        if let loweredQuality, loweredQuality.itemId == info.item.id { return loweredQuality.level.label }
+        if info.method == .directPlay { return StreamQuality.original.label }
+        guard let size = transport?.videoSize, size.width > 0, size.height > 0 else { return nil }
+        return StreamQuality.label(forHeight: StreamQuality.effectiveHeight(width: Double(size.width), height: Double(size.height)))
+    }
+
+    /// The file's height and picture, read once per file from the title (the play's answer only names the title's
+    /// resolution, which may be another version's).
+    private func loadFileFacts(_ info: PlaybackInfo) {
+        guard let client, !info.isOffline, [.movie, .episode].contains(info.item.kind),
+              fileFacts.map({ $0.itemId != info.item.id || $0.fileId != info.fileId }) ?? true else { return }
+        fileFacts = (info.item.id, info.fileId, nil, nil)
+        fileFactsTask?.cancel()
+        fileFactsTask = Task { [weak self] in
+            guard let detail = try? await client.item(info.item.id), !Task.isCancelled,
+                  let file = detail.files.first(where: { $0.id == info.fileId }) else { return }
+            guard let self, self.fileFacts?.itemId == info.item.id, self.fileFacts?.fileId == info.fileId else { return }
+            self.fileFacts = (info.item.id, info.fileId, file.effectiveHeight, file.qualityLabel)
+            self.updateQualityMenu()
+        }
     }
 
     /// A quality picked in the menu: kept for this sitting, and for plays away from home on this device, and the title
     /// opened again at it where it is.
     private func chooseQuality(_ quality: StreamQuality) {
-        guard let current = info, !current.isOffline, !isRecovering else { return }
+        guard let current = info, !current.isOffline, !isRecovering, quality != selectedQuality else { return }
         let was = self.quality(for: current.item.id)
         chosenQuality = quality
         if awayFromHome { StreamQuality.remember(quality) }
@@ -778,6 +811,8 @@ final class PlaybackController: NSObject {
         updateQualityMenu()
         guard quality != was else { return }
         log.info("Quality chosen: \(quality.rawValue)", ["playbackId": current.playbackId])
+        // The picture stays, with a small spinner, until the new quality plays; the button waits meanwhile.
+        screen?.setQualitySwitching(true)
         reopen(reopenRequest(current), replacing: current)
     }
 
@@ -818,7 +853,7 @@ final class PlaybackController: NSObject {
             log.warning("The engine keeps buffering away from home: the server's stream instead", ["playbackId": current.playbackId])
             engineSuppressedItem = current.item.id
             qualityWatch.stepped(up: false)
-            screen?.notice(t(Words.loweredQuality))
+            screen?.noticeLoweredQuality()
             reopen(reopenRequest(current), replacing: current)
             return
         }
@@ -829,7 +864,7 @@ final class PlaybackController: NSObject {
         log.warning("Stalling: stepping down to \(level.rawValue)", ["playbackId": current.playbackId])
         loweredQuality = (current.item.id, level)
         qualityWatch.stepped(up: false)
-        screen?.notice(t(Words.loweredQuality))
+        screen?.noticeLoweredQuality()
         reopen(reopenRequest(current), replacing: current)
     }
 
@@ -1930,6 +1965,8 @@ extension PlaybackController: PlayerScreenDelegate {
 
     func playerScreenTracksChanged(_ screen: PlayerViewController) {
         if screen.remoteTracks != reportedTracks { reportForRemotes() }
+        // The picture's size changes as the stream moves between qualities: Automatic's second line follows it.
+        updateQualityMenu()
     }
 
     func playerScreen(_ screen: PlayerViewController, didSeekTo seconds: Double) {

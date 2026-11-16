@@ -90,6 +90,37 @@ public enum StreamQuality: String, Codable, Sendable, CaseIterable {
         Double(bitrate) * peak <= Double(speed) * headroom
     }
 
+    // MARK: The menu
+
+    /// What a picture `height` lines tall is called: "4K", a level's name within a few lines of it (a stream of 1072
+    /// lines is 1080p), else its own "540p".
+    public static func label(forHeight height: Int) -> String {
+        if height >= 1800 { return "4K" }
+        if let level = levels.first(where: { abs(($0.height ?? 0) - height) <= 16 }) { return level.label }
+        return "\(height)p"
+    }
+
+    /// The height a file of the server's resolution label ("4K", "1080p", "720p", "SD") counts as.
+    public static func height(resolutionLabel label: String?) -> Int? {
+        switch label {
+        case "4K": 2160
+        case "1080p": 1080
+        case "720p": 720
+        case "SD": 480
+        default: nil
+        }
+    }
+
+    /// The menu's rows: Automatic, Original, then the levels below the file's own height (all of them while that
+    /// isn't known). A level asked for that the file doesn't reach stays, so the tick is never lost.
+    public static func choices(fileHeight: Int?, selected: StreamQuality) -> [StreamQuality] {
+        let levels = levels.filter { level in
+            guard let fileHeight, fileHeight > 0, let height = level.height else { return true }
+            return height < fileHeight - 16 || level == selected
+        }
+        return [.automatic, .original] + levels
+    }
+
     // MARK: The remembered choice
 
     static let memoryKey = "io.github.flexarr.streamQuality.away"
@@ -185,5 +216,59 @@ public struct QualityWatch: Sendable {
         if now.timeIntervalSince(calmSince) < Self.smoothFor { return false }
         if let lastStepUp, now.timeIntervalSince(lastStepUp) < Self.stepUpEvery { return false }
         return true
+    }
+}
+
+/// What the player's Quality menu shows (docs/design.md, Words › the Quality menu): the rows, the one ticked, and
+/// the quiet second lines.
+public struct QualityMenu: Equatable, Sendable {
+    /// The quality asked for: the one ticked.
+    public var selected: StreamQuality
+    /// The rows, in order.
+    public var choices: [StreamQuality]
+    /// What's playing now ("720p", "Original"): Automatic's second line.
+    public var playing: String?
+    /// The file's picture ("4K HDR", "1080p"): Original's second line.
+    public var file: String?
+
+    public init(selected: StreamQuality, fileHeight: Int?, playing: String?, file: String?) {
+        self.selected = selected
+        choices = StreamQuality.choices(fileHeight: fileHeight, selected: selected)
+        self.playing = playing
+        self.file = file
+    }
+
+    /// A row's second line: what Automatic plays now, the file Original plays.
+    public func detail(for choice: StreamQuality) -> String? {
+        switch choice {
+        case .automatic: playing
+        case .original: file
+        default: nil
+        }
+    }
+
+    /// The button's badge: the choice, unless it's Automatic.
+    public var badge: String? { selected == .automatic ? nil : selected.label }
+
+    /// What a screen reader hears after "Quality": the choice, then what's playing when that says more ("Automatic,
+    /// 720p").
+    public var spokenValue: String {
+        guard let playing, playing != selected.label else { return selected.label }
+        return [selected.label, playing].joined(separator: ", ")
+    }
+}
+
+extension MediaFile {
+    /// The file's picture for the Quality menu: "4K HDR", "1080p". Nil when the file wasn't probed.
+    public var qualityLabel: String? {
+        guard let resolution = resolutionLabel else { return nil }
+        let hdr = hdr10Plus == true || [.hdr10, .hlg, .dolbyVision].contains(videoRange)
+        return hdr ? [resolution, "HDR"].joined(separator: " ") : resolution
+    }
+
+    /// The height the file counts as (a film wider than 16:9 by its width). Nil when it wasn't probed.
+    public var effectiveHeight: Int? {
+        guard let width, let height, width > 0, height > 0 else { return nil }
+        return StreamQuality.effectiveHeight(width: Double(width), height: Double(height))
     }
 }
