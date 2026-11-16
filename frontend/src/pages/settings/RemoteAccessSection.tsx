@@ -4,6 +4,8 @@ import { getProfiles, getRemoteAccess, linkTailscale, setTailscaleAccess, type R
 import { AsyncButton } from '../../components/AsyncButton'
 import { CopyButton } from '../../components/CopyButton'
 import { useApi } from '../../hooks/useApi'
+import { formatBitrate } from '../../lib/format'
+import { fits } from '../../lib/streamQuality'
 import { FamilyInvites } from './FamilyInvites'
 import { SettingRow, SettingsGroup, SettingsHeader } from './shared'
 import { errorText } from './useSettings'
@@ -126,6 +128,7 @@ export function RemoteAccessGroups() {
             <CopyButton text={ts.url} what={t('the address')} />
           </SettingRow>
         )}
+        <UploadSpeedNote speed={remote.data.remoteSpeed} />
         {error && (
           <p className="error" role="alert">
             {error}
@@ -169,4 +172,13 @@ export function RemoteAccessGroups() {
       )}
     </>
   )
+}
+
+/**
+ * When the best speed a device away from home has measured can't carry the library's busiest files (with the usual
+ * headroom): the home connection's upload, not Flexarr, is the limit. Nothing without a reading.
+ */
+export function UploadSpeedNote({ speed }: { speed?: RemoteAccess['remoteSpeed'] }) {
+  if (!speed || !(speed.bestBitrate > 0) || !(speed.busiestBitrate > 0) || fits(speed.bestBitrate, speed.busiestBitrate)) return null
+  return <p className="muted">{t('Away from home, devices get at most {speed}, too slow for your biggest files. Your home upload is the limit.', { speed: formatBitrate(speed.bestBitrate) })}</p>
 }
