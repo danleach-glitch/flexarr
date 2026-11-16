@@ -324,6 +324,10 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     /** A quality was chosen (or stepped to) and the new stream's picture hasn't come yet: the Quality button waits. */
     var switchingQuality by mutableStateOf(false)
         private set
+    /** The quality was chosen while paused: the new stream comes in paused too. */
+    private var pausedForQuality = false
+    /** The session playing when the quality changed: the button waits until another one plays. */
+    private var switchingFrom: String? = null
 
     /** The Quality menu is offered: a film or episode streamed from the server (not a download, music, a book or a podcast). */
     val offersQuality: Boolean
@@ -382,7 +386,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     init {
         player.addListener(object : Player.Listener {
             override fun onRenderedFirstFrame() {
-                switchingQuality = false
+                if (info?.sessionId != switchingFrom) switchingQuality = false
                 val started = timing?.takeIf { it.isAnswered } ?: return
                 started.report(log, client.baseUrl.host, model.isGuest)
                 firstFrame = Triple(android.os.SystemClock.elapsedRealtime(), player.currentPosition, info?.playbackId)
@@ -404,6 +408,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
             override fun onPlaybackStateChanged(state: Int) {
                 isBuffering = state == Player.STATE_BUFFERING
                 hasEnded = state == Player.STATE_ENDED
+                // The new quality is in (its first frame says so too; this covers a stream whose picture came first).
+                if (state == Player.STATE_READY && !isOpening && info?.sessionId != switchingFrom) switchingQuality = false
                 watchSeekStall(state)
                 watchQuality(state)
                 // A stall soon after the first picture: its own entry beside the start's. Not a seek (Skip intro, say),
@@ -816,8 +822,11 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         setPlayerRate(startRate)
         // Opened again at a speed the new stream wasn't started at (a converted film sped up before): the server hears it.
         tellSpeed(started, rate, known = started.speed ?: 1.0)
-        // Asleep (End of episode stopped the last one): stay paused under the dim.
-        if (sleep.phase != VideoSleep.Phase.Asleep && onScreen()) player.play()
+        // Asleep (End of episode stopped the last one): stay paused under the dim. Another quality chosen while
+        // paused comes in paused.
+        val stayPaused = pausedForQuality && sameTitle
+        pausedForQuality = false
+        if (sleep.phase != VideoSleep.Phase.Asleep && onScreen() && !stayPaused) player.play()
         lastReport = System.currentTimeMillis()
         ticker?.cancel()
         keepTicking()
@@ -1136,7 +1145,10 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         quality = choice
         steps.reset()
         if (model.isAway) PlayerSettings.setAwayQuality(appContext, choice)
+        log.info("Quality chosen: ${choice.raw}")
         switchingQuality = true
+        switchingFrom = info?.sessionId
+        pausedForQuality = !player.playWhenReady
         reopen()
     }
 
@@ -1158,6 +1170,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         log.info(if (down) "Stepping down to ${steps.lowered?.raw} for the connection" else "Stepping up to ${steps.lowered?.raw ?: "automatic"}")
         if (down) qualityNotice++
         switchingQuality = true
+        switchingFrom = info?.sessionId
         reopen()
     }
 
