@@ -36,6 +36,12 @@ public sealed partial class PlaybackService(
     /// <summary>A copied Dolby track whose first frame is later than this into the file is converted (see StartAsync).</summary>
     private const double LateAudioSeconds = 0.5;
 
+    /// <summary>
+    /// The ladder's qualities away from home (docs/remote-streaming.md), tallest first: the same as the players' Quality
+    /// menu offers, so a pick there matches a step of the ladder.
+    /// </summary>
+    internal static readonly (int Height, long Bitrate)[] LadderQualities = [(1080, 8_000_000), (720, 4_000_000), (480, 1_500_000)];
+
     private sealed record Plan(IReadOnlyList<SubtitleTrack> Subtitles, List<MediaStream> AudioStreams, int? AudioIndex, string? SubtitleKey, long Away, long OtherCaps,
         PlaybackOptions Options, PlaybackDecision Decision);
 
@@ -110,7 +116,7 @@ public sealed partial class PlaybackService(
 
             // Away from home, a file that needs more than the viewer's connection carries is converted to fit, unless the
             // viewer chose a quality themselves (the players' Quality menu). With no reading yet, it starts at 720p 4 Mbps.
-            var awayCap = request.MaxBitrate is null && request.MaxHeight is null
+            var awayCap = request.MaxBitrate is null && request.MaxHeight is null && !request.Original
                 ? AwayFromHome.StartCap(transcoding.AwayFromHome, remote, request.MeasuredBitrate, candidate.Bitrate) ?? 0
                 : 0;
             var caps = new[] { request.MaxBitrate ?? 0, transcoding.MaxStreamingBitrate, slowLink }.Where(b => b > 0).DefaultIfEmpty(0).Min();
@@ -188,6 +194,7 @@ public sealed partial class PlaybackService(
         // indexes; others are scanned in the background and repackaged from next time.
         // The copied Dolby track's first packet (asked about below) is read alongside the video's facts, not after them.
         Task<double?>? firstPacket = null;
+        double? frameRate = null;
         if (decision.Transcode is { } converting && request.Profile.Fmp4 && file.VideoCodec is "h264" or "hevc")
         {
             firstPacket = converting is { CopyAudio: true, SourceAudioCodec: "ac3" or "eac3", AudioStreamIndex: { } track }
@@ -196,8 +203,9 @@ public sealed partial class PlaybackService(
             // Not needed after all (the stream isn't repackaged), its answer is still kept for next time and a failure
             // isn't this request's; when it is needed, awaiting it below still throws.
             _ = firstPacket?.ContinueWith(static t => _ = t.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
-            if (await remuxIndex.GetAsync(file.Path, ct) is { } index
-                && PlaybackDecider.Repackaged(converting, file, request.Profile, playbackOptions, index) is { } repackaged)
+            var index = await remuxIndex.GetAsync(file.Path, ct);
+            frameRate = index?.Video.FrameRate;
+            if (index is not null && PlaybackDecider.Repackaged(converting, file, request.Profile, playbackOptions, index) is { } repackaged)
             {
                 decision = decision with { Transcode = repackaged };
             }
@@ -237,13 +245,32 @@ public sealed partial class PlaybackService(
         var duration = file.DurationSeconds ?? (item.RuntimeMinutes ?? 0) * 60;
         var id = TranscodeManager.NewId();
         TranscodeSession? transcode = null;
-        if (decision is { Method: PlaybackMethod.Transcode, Transcode: { } plan })
+        var opening = remote ? FfmpegCommand.RemoteOpeningSegmentSeconds : FfmpegCommand.OpeningSegmentSeconds;
+
+        // Away from home and slower than the file needs (or not measured yet): the ladder, several qualities a player
+        // moves between by itself, where the encoder, the server's slots and its disk allow. Otherwise one stream.
+        if (away > 0 && decision is { Method: PlaybackMethod.Transcode, Transcode: { EncodesVideo: true } single }
+            && Ladder(file, request.Profile, subtitles, playbackOptions, otherCaps, single, frameRate) is { } ladder)
+        {
+            try
+            {
+                transcode = await transcodes.CreateAsync(profile.Id, file.Path, duration, ladder[^1], restarting, request.Prepare, opening, ladder);
+                id = transcode.Id;
+                decision = decision with { Transcode = transcode.Plan };
+            }
+            catch (TranscodeLimitException)
+            {
+                // The server is full (or its disk low): one stream instead, which may still find room.
+            }
+        }
+
+        if (transcode is null && decision is { Method: PlaybackMethod.Transcode, Transcode: { } plan })
         {
             try
             {
                 // Away from home the opening segments are shorter, so a slower link has a picture sooner.
-                transcode = await transcodes.CreateAsync(profile.Id, file.Path, duration, plan, restarting, request.Prepare,
-                    remote ? FfmpegCommand.RemoteOpeningSegmentSeconds : FfmpegCommand.OpeningSegmentSeconds);
+                transcode = await transcodes.CreateAsync(profile.Id, file.Path, duration, plan with { FrameRate = plan.FrameRate ?? frameRate }, restarting,
+                    request.Prepare, opening);
                 id = transcode.Id;
             }
             catch (TranscodeLimitException) when (asItIs is not null && !request.Prepare)
@@ -297,7 +324,8 @@ public sealed partial class PlaybackService(
             }
         }
 
-        if (transcode is { } warming)
+        // A ladder's lowest quality, where AVPlayer starts (it's listed first).
+        if ((transcode?.Ladder?.Variants[0] ?? transcode) is { } warming)
         {
             // ffmpeg starts with the first segment asked for: ask now for the one playback opens at, so it's ready
             // when the player is. Any start, not only a prepared one: the player first reads two playlists (and an
@@ -1075,6 +1103,60 @@ public sealed partial class PlaybackService(
 
         return previous ?? episodes.Where(e => e.SeasonNumber < current.SeasonNumber && e.SeasonNumber > 0)
             .OrderByDescending(e => e.SeasonNumber).ThenByDescending(e => e.SortTitle, StringComparer.Ordinal).FirstOrDefault();
+    }
+
+    /// <summary>
+    /// The ladder's qualities for <paramref name="file"/>, lowest first, or null for one stream: only with an encoder
+    /// that keyframes exactly where told (<see cref="FfmpegCommand.LadderIsSafe"/>) and room on the disk; only qualities
+    /// at or below the file's own height and the player's, each at no more than the file's own bitrate (nor the server's
+    /// or a guest's limit), each smaller than the one above; and at least two of them. Each is <paramref name="single"/>
+    /// at its size and bitrate, so the sound, subtitles and colour are the same in all.
+    /// </summary>
+    private List<TranscodePlan>? Ladder(MediaFile file, DeviceProfile device, IReadOnlyList<SubtitleTrack> subtitles, PlaybackOptions playback,
+        long otherCaps, TranscodePlan single, double? frameRate)
+    {
+        if (!FfmpegCommand.LadderIsSafe(PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue).Resolved) || transcodes.IsLowOnSpace)
+        {
+            return null;
+        }
+
+        var tallest = Math.Min(Math.Max(file.Height ?? 0, (file.Width ?? 0) * 9 / 16), device.MaxHeight);
+        var qualities = new List<TranscodePlan>();
+        foreach (var (height, bitrate) in LadderQualities)
+        {
+            if (height > tallest)
+            {
+                continue;
+            }
+
+            var cap = otherCaps > 0 ? Math.Min(bitrate, otherCaps) : bitrate;
+            if (PlaybackDecider.Decide(file, device, subtitles, playback with { MaxBitrate = cap, MaxHeight = height, ForceTranscode = true }).Transcode is not
+                { EncodesVideo: true } sized)
+            {
+                continue;
+            }
+
+            var videoBitrate = file.Bitrate is > 0 and var own ? Math.Min(sized.VideoBitrate, own) : sized.VideoBitrate;
+            if (qualities.Count > 0 && videoBitrate >= qualities[^1].VideoBitrate)
+            {
+                continue; // No smaller than the quality above it: nothing to move down to.
+            }
+
+            qualities.Add(single with
+            {
+                TargetWidth = sized.TargetWidth,
+                TargetHeight = sized.TargetHeight,
+                VideoBitrate = videoBitrate,
+                // Lossless sound only fits the biggest caps; every quality has the same, AAC or the file's own.
+                LosslessAudio = false,
+                HighResolutionAudio = false,
+                AudioChannels = single.LosslessAudio ? sized.AudioChannels : single.AudioChannels,
+                FrameRate = frameRate,
+            });
+        }
+
+        qualities.Reverse();
+        return qualities.Count >= 2 ? qualities : null;
     }
 
     /// <summary>What the player's info panel says about the stream: "Original HEVC (Dolby Vision), FLAC 7.1 sound".</summary>

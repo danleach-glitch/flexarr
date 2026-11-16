@@ -57,10 +57,15 @@ segments (2 seconds at home).
 ### How the ladder works
 
 - One playback session holds one conversion per quality, each started by the first request for one of its segments
-  (playlists are written from the duration, so fetching a playlist starts nothing). Every quality uses the same
+  or its init segment (playlists are written from the duration, so fetching a playlist starts nothing). The start
+  itself gets the lowest quality's opening going, as it does a single stream's; a quality's init segment, fetched as a
+  player moves to it, starts it where the player was in the quality it leaves. Every quality uses the same
   segment grid, opening and forced keyframes, so a player can switch at any segment.
-- The session counts as **one** converting slot and one viewer, whatever it holds. A quality not fetched for 30
-  seconds stops. The low-disk guard is checked as each one starts.
+- The session counts as **one** converting slot and one viewer, whatever it holds. It never takes another screen's
+  place: with the server full it's one stream, which may. A quality not fetched for 30 seconds stops (the one being
+  watched keeps the usual two minutes, for pauses). The low-disk guard is checked as each one starts. Each quality is
+  the single stream's plan at its size and bitrate, so sound, subtitles and colour are the same in all (sound is AAC
+  or the file's own, never lossless, in a ladder).
 - Routes: `/api/v1/playback/{sid}/v/{k}/main.m3u8`, `init.mp4` and `{n}.m4s`, beside the single-quality ones, which
   stay. `master.m3u8` lists one `EXT-X-STREAM-INF` per quality with `BANDWIDTH` (busy stretches), `AVERAGE-BANDWIDTH`,
   `RESOLUTION`, `CODECS` and `FRAME-RATE`.

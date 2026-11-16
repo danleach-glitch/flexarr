@@ -29,7 +29,10 @@ public sealed record PlaybackRequest(
     string? DeviceName = null,
     // How fast media reaches this device lately, in bits per second, as the app measured it. Away from home, with the
     // Away from home setting on Automatic, a file that needs more is converted to fit. Absent from apps before 0.59.
-    long? MeasuredBitrate = null);
+    long? MeasuredBitrate = null,
+    // The file as it is (the Quality menu's Original): no cap for the connection and no ladder away from home
+    // (docs/remote-streaming.md). Absent from apps before 0.67.
+    bool Original = false);
 
 public sealed record AudioTrackDto(int Index, string Label, string Codec, string? Language, int? Channels, bool IsDefault);
 

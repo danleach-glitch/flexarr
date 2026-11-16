@@ -135,4 +135,89 @@ public sealed class RemoteStreamingTests : IAsyncLifetime
         Assert.Equal("#EXTINF:1.000,", await FirstSegmentAsync(Away));
         Assert.Equal("#EXTINF:2.000,", await FirstSegmentAsync(Home));
     }
+
+    private static async Task<List<string>> QualitiesAsync(HttpClient client, JsonElement started)
+    {
+        var master = await client.GetStringAsync(new Uri($"/api/v1/playback/{started.GetProperty("sessionId").GetString()}/master.m3u8", UriKind.Relative));
+        var lines = master.Split('\n');
+        return lines.Select((line, i) => (line, i)).Where(x => x.line.StartsWith("#EXT-X-STREAM-INF:", StringComparison.Ordinal))
+            .Select(x => System.Text.RegularExpressions.Regex.Match(x.line, "RESOLUTION=\\d+x(\\d+)").Groups[1].Value + " " + lines[x.i + 1]).ToList();
+    }
+
+    [Fact]
+    public async Task WithNoReading_AFileOver4Mbps_GetsTheLadder_ServedUnderTheSameSession()
+    {
+        await UseEncoderAsync("VideoToolbox");
+        var movie = await AddMovieAsync();
+        var client = Client(Away);
+
+        var started = await StartAsync(client, movie);
+
+        Assert.Equal(["480 v/0/main.m3u8", "720 v/1/main.m3u8", "1080 v/2/main.m3u8"], await QualitiesAsync(client, started));
+        var sid = started.GetProperty("sessionId").GetString();
+        var low = await client.GetStringAsync(new Uri($"/api/v1/playback/{sid}/v/0/main.m3u8", UriKind.Relative));
+        Assert.Contains("#EXTINF:1.000,\n0.ts", low, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync(new Uri($"/api/v1/playback/{sid}/v/3/main.m3u8", UriKind.Relative))).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync(new Uri($"/api/v1/playback/{sid}/v/1/99999.ts", UriKind.Relative))).StatusCode);
+        // The single-quality routes still answer, with the top quality.
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync(new Uri($"/api/v1/playback/{sid}/main.m3u8", UriKind.Relative))).StatusCode);
+    }
+
+    [Fact]
+    public async Task ASpeedThatFitsTheFile_GetsTheOriginal_ASlowOneTheLadder_AndOriginalAlwaysTheFile()
+    {
+        await UseEncoderAsync("VideoToolbox");
+        var movie = await AddMovieAsync();
+        var client = Client(Away);
+
+        Assert.Equal("DirectPlay", (await StartAsync(client, movie, new { MeasuredBitrate = 100_000_000L })).GetProperty("method").GetString());
+        var slow = await StartAsync(client, movie, new { MeasuredBitrate = 6_000_000L });
+        Assert.Equal(3, (await QualitiesAsync(client, slow)).Count);
+        Assert.Equal("DirectPlay", (await StartAsync(client, movie, new { MeasuredBitrate = 2_000_000L, Original = true })).GetProperty("method").GetString());
+
+        // A quality asked for (the menu's 720p): that one stream, no ladder.
+        var asked = await StartAsync(client, movie, new { MaxHeight = 720, MaxBitrate = 4_000_000L });
+        Assert.Equal(["720 main.m3u8"], await QualitiesAsync(client, asked));
+    }
+
+    [Theory]
+    [InlineData(720, new[] { 480, 720 })]
+    [InlineData(480, new[] { 480 })]
+    public async Task OnlyQualitiesAtOrBelowTheFilesOwn_AndFewerThanTwoIsOneStream(int height, int[] expected)
+    {
+        await UseEncoderAsync("VideoToolbox");
+        var movie = await AddMovieAsync(height: height, bitrate: 12_000_000);
+        var client = Client(Away);
+
+        var started = await StartAsync(client, movie);
+
+        Assert.Equal(expected, (await QualitiesAsync(client, started)).Select(q => int.Parse(q.Split(' ')[0], System.Globalization.CultureInfo.InvariantCulture)));
+    }
+
+    [Fact]
+    public async Task ConvertingInSoftware_IsOneStream_HeldTo720p()
+    {
+        await UseEncoderAsync("None");
+        var movie = await AddMovieAsync();
+        var client = Client(Away);
+
+        Assert.Equal(["720 main.m3u8"], await QualitiesAsync(client, await StartAsync(client, movie)));
+    }
+
+    [Fact]
+    public async Task WithTheServerFull_ItsOneStream_NotTheLadder()
+    {
+        await UseEncoderAsync("VideoToolbox");
+        var movie = await AddMovieAsync();
+        var home = Client(Home);
+        for (var i = 0; i < 3; i++)
+        {
+            await StartAsync(home, movie, new { ForceTranscode = true });
+        }
+
+        var away = Client(Away);
+        var started = await StartAsync(away, movie);
+
+        Assert.Equal(["720 main.m3u8"], await QualitiesAsync(away, started));
+    }
 }
