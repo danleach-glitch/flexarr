@@ -761,6 +761,8 @@ public struct PlaybackRequest: Codable, Sendable, Hashable {
     /// How fast media reaches this device lately, in bits per second: away from home the server converts a file that
     /// needs more to fit (docs/fast-start.md). Servers before 0.59 ignore it.
     public var measuredBitrate: Int? = nil
+    /// The file as it is (the Quality menu's Original): no cap away from home, no ladder. Servers before 0.67 ignore it.
+    public var original: Bool? = nil
 
     public init(itemId: String, profile: DeviceProfile, fileId: String? = nil, audioStreamIndex: Int? = nil,
                 subtitleKey: String? = nil, maxBitrate: Int? = nil, maxHeight: Int? = nil,
@@ -880,6 +882,11 @@ public struct PlaybackInfo: Codable, Sendable {
     public var soundShaped: Bool? = nil
     /// A book's files on its timeline, chapters, bookmarks and place. Absent from servers before 0.58.
     public var book: BookManifest? = nil
+    /// The stream is the ladder (several qualities the player moves between by itself), so the app doesn't step
+    /// down or up itself. Absent from servers before 0.67.
+    public var adaptive: Bool? = nil
+    /// The file's average bitrate in bits per second. Absent from servers before 0.67.
+    public var fileBitrate: Int? = nil
 }
 
 /// A file's scrubbing previews: sheets of `columns` × `rows` thumbnails, one every `interval` seconds.
