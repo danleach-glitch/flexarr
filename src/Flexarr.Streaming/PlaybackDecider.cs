@@ -84,6 +84,9 @@ public sealed record TranscodePlan(
     /// <summary>How many channels the source track has, which the dialogue lift needs to find the centre channel.</summary>
     public int SourceAudioChannels { get; init; }
 
+    /// <summary>The source's frame rate, where known, for the master playlist's FRAME-RATE.</summary>
+    public double? FrameRate { get; init; }
+
     /// <summary>The video is copied as it is (repackaged), cut at <see cref="Repackage.SegmentStarts"/>; null when it's converted.</summary>
     public Repackage? Repackage { get; init; }
 

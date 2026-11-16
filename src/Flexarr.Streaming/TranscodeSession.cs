@@ -248,7 +248,12 @@ public sealed partial class TranscodeSession : IAsyncDisposable
         Task<string?>? opening = null;
         if (!File.Exists(path))
         {
-            opening = GetSegmentAsync(SegmentAt(StartSeconds), ct);
+            // A player moving to another quality of a ladder asks for its init segment first, then the segment after
+            // the last it fetched of the one it's leaving: this quality starts there rather than at the opening.
+            var from = Ladder?.Current is { LastFetched: not null } current && current != this
+                ? Math.Max(0, current.LastRequested - 1)
+                : SegmentAt(StartSeconds);
+            opening = GetSegmentAsync(from, ct);
         }
 
         // Written in one go once ffmpeg has its codecs; done when its size stops changing.

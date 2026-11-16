@@ -357,27 +357,25 @@ public static partial class PlaybackEndpoints
                 : Missing(transcodes, sid));
 
         // Fragmented MP4 (Apple's players): the initialisation segment, then .m4s segments served like .ts ones.
-        group.MapGet("/init.mp4", async (string sid, PlaybackSessions sessions, TranscodeManager transcodes, CancellationToken ct) =>
-        {
-            if (sessions.Get(sid) is not { Transcode: { } transcode } session)
-            {
-                return Missing(transcodes, sid);
-            }
-
-            sessions.Used(session);
-            try
-            {
-                return await transcode.GetInitBytesAsync(ct) is { } init ? Results.Bytes(init, "video/mp4") : Results.NotFound();
-            }
-            catch (TranscodeLimitException ex)
-            {
-                return Results.Problem(ex.Message, statusCode: StatusCodes.Status503ServiceUnavailable, title: Loc.T("The server is busy"));
-            }
-        });
+        group.MapGet("/init.mp4", (string sid, PlaybackSessions sessions, TranscodeManager transcodes, CancellationToken ct) =>
+            Init(sid, null, sessions, transcodes, ct));
         group.MapGet("/{segment:int}.m4s", (string sid, int segment, PlaybackSessions sessions, TranscodeManager transcodes, CancellationToken ct) =>
-            Segment(sid, segment, "video/iso.segment", sessions, transcodes, ct));
+            Segment(sid, null, segment, "video/iso.segment", sessions, transcodes, ct));
         group.MapGet("/{segment:int}.ts", (string sid, int segment, PlaybackSessions sessions, TranscodeManager transcodes, CancellationToken ct) =>
-            Segment(sid, segment, "video/mp2t", sessions, transcodes, ct));
+            Segment(sid, null, segment, "video/mp2t", sessions, transcodes, ct));
+
+        // The ladder's qualities (docs/remote-streaming.md), k as the master playlist lists them, lowest first. A
+        // playlist starts nothing; a quality's conversion starts with the first of its segments asked for.
+        group.MapGet("/v/{k:int}/main.m3u8", (string sid, int k, PlaybackSessions sessions, TranscodeManager transcodes, HttpContext http) =>
+            sessions.Get(sid) is { Transcode: not null } session
+                ? Quality(Used(sessions, session), k) is { } quality ? Playlist(http, quality.MediaPlaylist()) : Results.NotFound()
+                : Missing(transcodes, sid));
+        group.MapGet("/v/{k:int}/init.mp4", (string sid, int k, PlaybackSessions sessions, TranscodeManager transcodes, CancellationToken ct) =>
+            Init(sid, k, sessions, transcodes, ct));
+        group.MapGet("/v/{k:int}/{segment:int}.m4s", (string sid, int k, int segment, PlaybackSessions sessions, TranscodeManager transcodes, CancellationToken ct) =>
+            Segment(sid, k, segment, "video/iso.segment", sessions, transcodes, ct));
+        group.MapGet("/v/{k:int}/{segment:int}.ts", (string sid, int k, int segment, PlaybackSessions sessions, TranscodeManager transcodes, CancellationToken ct) =>
+            Segment(sid, k, segment, "video/mp2t", sessions, transcodes, ct));
 
         // page: teletext's page to read (100–899), for a broadcast whose subtitles aren't on the page it marks as subtitles.
         group.MapGet("/subtitles/{key}.vtt", async (string sid, string key, bool? hls, int? page, PlaybackSessions sessions, FlexarrDbContext db, SubtitleCache subtitles,
@@ -570,12 +568,46 @@ public static partial class PlaybackEndpoints
         };
     }
 
-    /// <summary>A transcode segment (.ts or fragmented MP4 .m4s), converted if it hasn't been yet.</summary>
-    private static async Task<IResult> Segment(string sid, int segment, string contentType, PlaybackSessions sessions, TranscodeManager transcodes, CancellationToken ct)
+    /// <summary>Quality <paramref name="k"/> of a playback's ladder; null when it has no ladder or no such quality.</summary>
+    private static TranscodeSession? Quality(PlaybackSession session, int k) =>
+        session.Transcode?.Ladder is { } ladder && k >= 0 && k < ladder.Variants.Count ? ladder.Variants[k] : null;
+
+    /// <summary>A fragmented MP4 stream's init segment: the single stream's, or quality <paramref name="k"/>'s of a ladder.</summary>
+    private static async Task<IResult> Init(string sid, int? k, PlaybackSessions sessions, TranscodeManager transcodes, CancellationToken ct)
     {
-        if (sessions.Get(sid) is not { Transcode: { } transcode } session)
+        if (sessions.Get(sid) is not { Transcode: { } single } session)
         {
             return Missing(transcodes, sid);
+        }
+
+        if ((k is { } index ? Quality(session, index) : single) is not { } transcode)
+        {
+            return Results.NotFound();
+        }
+
+        sessions.Used(session);
+        try
+        {
+            return await transcode.GetInitBytesAsync(ct) is { } init ? Results.Bytes(init, "video/mp4") : Results.NotFound();
+        }
+        catch (TranscodeLimitException ex)
+        {
+            return Results.Problem(ex.Message, statusCode: StatusCodes.Status503ServiceUnavailable, title: Loc.T("The server is busy"));
+        }
+    }
+
+    /// <summary>A transcode segment (.ts or fragmented MP4 .m4s), converted if it hasn't been yet: of quality <paramref name="k"/> for a ladder's.</summary>
+    private static async Task<IResult> Segment(string sid, int? k, int segment, string contentType, PlaybackSessions sessions, TranscodeManager transcodes,
+        CancellationToken ct)
+    {
+        if (sessions.Get(sid) is not { Transcode: { } single } session)
+        {
+            return Missing(transcodes, sid);
+        }
+
+        if ((k is { } index ? Quality(session, index) : single) is not { } transcode)
+        {
+            return Results.NotFound();
         }
 
         if (segment < 0 || segment >= transcode.SegmentCount)

@@ -1124,6 +1124,7 @@ public sealed partial class PlaybackService(
     public static string MasterPlaylist(PlaybackSession session, bool includeSubtitles)
     {
         var plan = session.Transcode!.Plan;
+        var ladder = session.Transcode.Ladder;
         var builder = new StringBuilder(plan.Fmp4 ? "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-INDEPENDENT-SEGMENTS\n" : "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-INDEPENDENT-SEGMENTS\n");
         var text = includeSubtitles ? session.Subtitles.Where(s => s.IsText).ToList() : [];
         var used = new HashSet<string>(StringComparer.Ordinal);
@@ -1172,6 +1173,22 @@ public sealed partial class PlaybackService(
             }
 
             range = $",AVERAGE-BANDWIDTH={bandwidth}" + range + audioGroup + ",CLOSED-CAPTIONS=NONE";
+        }
+
+        if (ladder is not null)
+        {
+            // The ladder (docs/remote-streaming.md): each quality, lowest first (where AVPlayer starts), with its busy
+            // stretches (FFmpeg's maxrate) as BANDWIDTH and its average beside, for the players to move between.
+            for (var k = 0; k < ladder.Variants.Count; k++)
+            {
+                var quality = ladder.Variants[k].Plan;
+                var qualityCodecs = string.Join(',', new[] { $"avc1.{(quality.TargetHeight > 1080 ? "640033" : "640028")}", quality.AudioCodecTag }.OfType<string>());
+                var frameRate = quality.FrameRate is { } fps && double.IsFinite(fps) && fps > 0 ? string.Create(CultureInfo.InvariantCulture, $",FRAME-RATE={fps:0.000}") : "";
+                builder.Append(CultureInfo.InvariantCulture,
+                    $"#EXT-X-STREAM-INF:BANDWIDTH={(long)(quality.VideoBitrate * 1.3) + quality.AudioBitrate},AVERAGE-BANDWIDTH={quality.VideoBitrate + quality.AudioBitrate},RESOLUTION={quality.TargetWidth}x{quality.TargetHeight},CODECS=\"{qualityCodecs}\"{frameRate}{(text.Count > 0 ? ",SUBTITLES=\"subs\"" : "")}\nv/{k}/main.m3u8\n");
+            }
+
+            return builder.ToString();
         }
 
         builder.Append(CultureInfo.InvariantCulture, $"#EXT-X-STREAM-INF:BANDWIDTH={bandwidth}{resolution},CODECS=\"{codecs}\"{range}{(text.Count > 0 ? ",SUBTITLES=\"subs\"" : "")}\nmain.m3u8\n");
