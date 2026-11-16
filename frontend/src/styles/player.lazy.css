@@ -835,3 +835,14 @@
     bottom: 136px;
   }
 }
+
+/* The last picture, kept on screen while the stream changes (another quality, audio track or subtitles). */
+.player-held-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: var(--black);
+  pointer-events: none;
+}

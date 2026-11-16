@@ -252,6 +252,10 @@ export function PlayerPage() {
   const started = useRef<{ at: number; id?: string } | null>(null)
 
   const [info, setInfo] = useState<PlaybackInfo>()
+  /** The last picture, drawn over the video while a restart opens the new stream, so the screen doesn't go black. */
+  const heldFrame = useRef<HTMLCanvasElement>(null)
+  const [held, setHeld] = useState(false)
+  const heldTimer = useRef(0)
   // How the attached stream is played, set as it's attached: an error can come before the render that brings `info`.
   const method = useRef<PlaybackInfo['method']>(undefined)
   const [error, setError] = useState<PlayerError>()
@@ -701,8 +705,30 @@ export function PlayerPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
+  /** Keeps the picture showing on screen, silently, until the next stream plays (or 20 seconds at most). */
+  const holdFrame = () => {
+    const el = video.current
+    const canvas = heldFrame.current
+    if (!el || !canvas || el.readyState < 2 || !el.videoWidth) return
+    try {
+      canvas.width = el.videoWidth
+      canvas.height = el.videoHeight
+      canvas.getContext('2d')?.drawImage(el, 0, 0)
+    } catch {
+      return // Nothing drawn: the switch shows the spinner on black, as before.
+    }
+    el.pause()
+    setHeld(true)
+    window.clearTimeout(heldTimer.current)
+    heldTimer.current = window.setTimeout(() => setHeld(false), 20_000)
+  }
+
   /** Re-request playback at the current position with different options. */
-  const restartHere = (options: StartOptions) => start({ startPositionSeconds: video.current?.currentTime ?? 0, fileId: info?.fileId, ...options })
+  const restartHere = (options: StartOptions) => {
+    const at = video.current?.currentTime ?? 0
+    holdFrame()
+    return start({ startPositionSeconds: at, fileId: info?.fileId, ...options })
+  }
 
   /** The error's main button: from where it stopped, or (refused before anything played) from where the title was asked for. */
   const retry = (options: StartOptions = {}) => {
@@ -714,7 +740,20 @@ export function PlayerPage() {
   // Nothing behind the error can be used, so the stream that stopped doesn't play on from what it had buffered.
   useEffect(() => {
     if (error) video.current?.pause()
+    if (error) setHeld(false)
   }, [error])
+  // The held picture goes once the new stream plays, or when the title changes.
+  useEffect(() => {
+    const el = video.current
+    if (!held || !el) return
+    const release = () => setHeld(false)
+    el.addEventListener('playing', release)
+    return () => {
+      el.removeEventListener('playing', release)
+      window.clearTimeout(heldTimer.current)
+    }
+  }, [held])
+  useEffect(() => setHeld(false), [id])
 
   // ---------- Progress reporting
 
@@ -1701,6 +1740,7 @@ export function PlayerPage() {
           />
         )}
       </video>
+      <canvas ref={heldFrame} className="player-held-frame" hidden={!held} aria-hidden="true" />
 
       {/* The sleep timer's last minute dims the picture little by little; stopped, it stays dim until the viewer's back. */}
       {(stillWatching || asleep) && (
