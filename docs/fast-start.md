@@ -103,9 +103,10 @@ below the file's own bitrate unless that floor is reached, so it's converted. Th
 the server doesn't have, and the cap was the only reason, the file plays as it is. Home viewing never changes.
 Audiobooks and podcasts are below the floor, so they always play as they are.
 
-The first start away from home has no measurement yet, and plays as at home: capping on a guess would convert streams
-for everyone whose connection is fast. Once a stream has been sampled, the next start (a retry after buffering
-included) uses the measurement.
+A start away from home with no measurement yet (the apps' speed test hadn't run) takes the connection to carry 8 Mbps:
+a file over 4 Mbps starts at 4 Mbps, 720p, rather than buffering, and smaller files play as they are
+(`AwayFromHome.StartCap`). Once a stream has been sampled, the next start (a retry after buffering included) uses the
+measurement. Where the server can, the ladder of qualities replaces that single stream (remote-streaming.md).
 
 Remote means anything the server's network rules (`NetworkZones`) don't count as the home network: Tailscale and
 relayed requests (Cloudflare Tunnel, Funnel, untrusted proxies) included.

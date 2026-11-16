@@ -49,6 +49,20 @@ public static class AwayFromHome
             : null;
     }
 
+    /// <summary>
+    /// What a remote viewer's connection is taken to carry before their app has measured it (docs/remote-streaming.md):
+    /// enough for a 4 Mbps stream (720p, see <see cref="Flexarr.Streaming.PlaybackDecider.HeightFor"/>) with the usual
+    /// room for busy stretches, so a first play away from home starts on what surely arrives rather than buffering.
+    /// </summary>
+    public const long AssumedBitrate = 8_000_000;
+
+    /// <summary>
+    /// <see cref="Cap"/>, with a remote viewer whose app sent no reading taken to have <see cref="AssumedBitrate"/>:
+    /// a file over 4 Mbps then starts at 4 Mbps (720p). Home viewing and Original are never capped.
+    /// </summary>
+    public static long? StartCap(AwayFromHomeQuality quality, bool remote, long? measuredBitrate, long? fileBitrate) =>
+        Cap(quality, remote, measuredBitrate is > 0 ? measuredBitrate : AssumedBitrate, fileBitrate);
+
     /// <summary>Why a file was converted when only the connection was too slow for it.</summary>
     public static readonly string Reason = Loc.Mark("Your connection is slower than this file needs");
 

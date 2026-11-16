@@ -109,9 +109,9 @@ public sealed partial class PlaybackService(
             };
 
             // Away from home, a file that needs more than the viewer's connection carries is converted to fit, unless the
-            // viewer chose a quality themselves (the web player's menu).
+            // viewer chose a quality themselves (the players' Quality menu). With no reading yet, it starts at 720p 4 Mbps.
             var awayCap = request.MaxBitrate is null && request.MaxHeight is null
-                ? AwayFromHome.Cap(transcoding.AwayFromHome, remote, request.MeasuredBitrate, candidate.Bitrate) ?? 0
+                ? AwayFromHome.StartCap(transcoding.AwayFromHome, remote, request.MeasuredBitrate, candidate.Bitrate) ?? 0
                 : 0;
             var caps = new[] { request.MaxBitrate ?? 0, transcoding.MaxStreamingBitrate, slowLink }.Where(b => b > 0).DefaultIfEmpty(0).Min();
             var cap = new[] { caps, awayCap }.Where(b => b > 0).DefaultIfEmpty(0).Min();

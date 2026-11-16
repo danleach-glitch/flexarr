@@ -32,7 +32,8 @@ With *Away from home* on Automatic (Settings › Streaming) and no quality asked
 
 1. **The speed comfortably fits the original** (its busy stretches, 1.5 × its bitrate, within three quarters of the
    speed: `AwayFromHome.Cap` returns nothing): the original, as at home. HDR and Dolby Vision are kept.
-2. **Otherwise, or with no reading yet: the ladder.** One stream with several qualities, lowest listed first, which
+2. **Otherwise: the ladder.** With no reading yet the speed is taken as 8 Mbps (`AwayFromHome.StartCap`), so a file
+   over 4 Mbps gets the ladder and a smaller one plays as it is. One stream with several qualities, lowest listed first, which
    AVPlayer, ExoPlayer and hls.js move between by themselves every few seconds:
 
    | Quality | Height | Bitrate |
