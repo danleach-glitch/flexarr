@@ -371,6 +371,12 @@ private fun PlayerScreen(controller: PlaybackController, onClose: () -> Unit, in
         delay(if (shown.length <= 6) 700 else 2_500)
         flash = null
     }
+    // Stepped down for a slow link: said for a moment, without bringing the controls up.
+    LaunchedEffect(controller.qualityNotice) {
+        if (controller.qualityNotice == 0) return@LaunchedEffect
+        flash = t(Words.loweredQuality)
+        flashCount++
+    }
     // The controller's own messages ("Re-syncing subtitles…"), with the controls up.
     LaunchedEffect(controller.flash) {
         val (text, _) = controller.flash ?: return@LaunchedEffect

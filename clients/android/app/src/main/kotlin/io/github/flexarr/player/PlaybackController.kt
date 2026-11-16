@@ -58,6 +58,9 @@ import io.github.flexarr.core.DownloadedSubtitles
 import io.github.flexarr.player.subtitles.StyledSubtitles
 import io.github.flexarr.core.FlexarrException
 import io.github.flexarr.core.ItemSummary
+import io.github.flexarr.core.QualitySteps
+import io.github.flexarr.core.StreamQuality
+import io.github.flexarr.core.withQuality
 import io.github.flexarr.core.startSubtitleSync
 import io.github.flexarr.core.subtitleSync
 import kotlinx.coroutines.Job
@@ -296,6 +299,26 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     /** The last progress report or stop sent: each waits for the one before, so the server hears them in order. */
     private var reporting: Job? = null
 
+    // Quality (docs/remote-streaming.md).
+
+    /** The Quality menu's pick: Automatic unless the viewer chose another. */
+    var quality by mutableStateOf(StreamQuality.Automatic)
+        private set
+    /** On Automatic, the steps down (and back up) this title has taken for a link that couldn't keep up. */
+    private val steps = QualitySteps()
+    /** "Lowered quality for your connection", counted so a second step shows it again; shown briefly, never focused. */
+    var qualityNotice by mutableStateOf(0)
+        private set
+    private var longStall: Job? = null
+    private var lastStepUpCheck = 0L
+
+    /** What the stream is asked for: the pick, or on Automatic the quality stepped down to. */
+    private val askedQuality: StreamQuality get() = if (quality != StreamQuality.Automatic) quality else steps.lowered ?: StreamQuality.Automatic
+
+    /** Whether this stream is stepped down and up by the app: on Automatic, from the server, and not its ladder. */
+    private val stepsQuality: Boolean
+        get() = quality == StreamQuality.Automatic && !isOffline && info?.let { it.adaptive != true } == true
+
     /** This title's start, timed until its first picture (see [StartTiming]). */
     private var timing: StartTiming? = null
     /** When the first picture came, where, and which playback, to note a stall soon after. */
@@ -335,6 +358,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                 isBuffering = state == Player.STATE_BUFFERING
                 hasEnded = state == Player.STATE_ENDED
                 watchSeekStall(state)
+                watchQuality(state)
                 // A stall soon after the first picture: its own entry beside the start's. Not a seek (Skip intro, say),
                 // which moves the place well past where playing alone would have got to.
                 if (state == Player.STATE_BUFFERING) firstFrame?.let { (at, position, playbackId) ->
@@ -431,7 +455,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                 shuffle = if (shuffle) true else null,
                 subtitleKey = if (subtitlesOff) "off" else viewerSubtitleKey,
                 measuredBitrate = model.measuredBitrate(client),
-            )
+            ).withQuality(askedQuality)
         }
     }
 
@@ -493,6 +517,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         forcedTranscode = false
         reaskedForSound = false
         serverProfile = null
+        steps.reset()
+        longStall?.cancel()
         viewerChoseSubtitle = debugSubtitleKey != null || subtitlesOff
         viewerSubtitleKey = debugSubtitleKey
         debugSubtitleKey = null
@@ -649,7 +675,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
             // The viewer's pick ("off" included) wins; otherwise what's showing, and the server decides.
             subtitleKey = if (viewerChoseSubtitle) viewerSubtitleKey ?: "off" else current.selectedSubtitleKey,
             forceTranscode = if (forcedTranscode) true else null,
-        )
+            measuredBitrate = model.measuredBitrate(client),
+        ).withQuality(askedQuality)
     }
 
     private fun begin(started: PlaybackInfo) {
@@ -729,6 +756,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
         player.setMediaItem(media, (started.startPositionSeconds * 1000).toLong())
         player.prepare()
+        steps.started()
         // The speed it was at before its stream was opened again, or the show's remembered one.
         val startRate = (if (sameTitle) carriedRate else null) ?: started.speed?.toFloat() ?: 1f
         carriedRate = null
@@ -759,6 +787,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
     private fun tick() {
         val info = info ?: return
+        checkStepUp()
         val seconds = player.currentPosition / 1000.0
         position = seconds
         if (player.duration > 0) duration = player.duration / 1000.0
@@ -1002,7 +1031,54 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         player.seekTo((seconds * 1000).toLong())
         position = seconds
         lastSeekAt = android.os.SystemClock.elapsedRealtime()
+        steps.started()
         keepTicking()
+    }
+
+    /**
+     * On Automatic, a stream that keeps stalling steps down a quality (two stalls within a minute, or one over 10
+     * seconds), reopened where it is with the same sound, subtitles and speed (docs/remote-streaming.md).
+     */
+    private fun watchQuality(state: Int) {
+        if (!stepsQuality || !hasPlayed || isOpening) return
+        when (state) {
+            Player.STATE_BUFFERING -> {
+                if (!player.playWhenReady) return
+                steps.stalled()
+                if (longStall?.isActive == true) return
+                val session = info?.sessionId
+                longStall = scope.launch {
+                    while (isActive && player.playbackState == Player.STATE_BUFFERING && info?.sessionId == session) {
+                        delay(1_000)
+                        if (closed || isOpening || info?.sessionId != session) return@launch
+                        if (steps.stillStalled(playingHeight())) return@launch stepQuality(down = true)
+                    }
+                }
+            }
+            Player.STATE_READY -> {
+                longStall?.cancel()
+                if (steps.resumed(playingHeight())) stepQuality(down = true)
+            }
+            else -> longStall?.cancel()
+        }
+    }
+
+    /** Lowered for a while: back up a quality once the link has carried it smoothly for 5 minutes and fits the next. */
+    private fun checkStepUp() {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastStepUpCheck < STEP_UP_CHECK_MS) return
+        lastStepUpCheck = now
+        if (steps.lowered == null || !stepsQuality || isOpening || !player.isPlaying) return
+        if (steps.stepUp(model.linkSpeed.fresh(model.linkKey(client)), info?.fileBitrate)) stepQuality(down = false)
+    }
+
+    /** The picture's height now, to step down below. */
+    private fun playingHeight(): Int? = videoSize.height.takeIf { it > 0 } ?: info?.stream?.height
+
+    private fun stepQuality(down: Boolean) {
+        log.info(if (down) "Stepping down to ${steps.lowered?.raw} for the connection" else "Stepping up to ${steps.lowered?.raw ?: "automatic"}")
+        if (down) qualityNotice++
+        reopen()
     }
 
     /**
@@ -1555,6 +1631,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     fun close() {
         closed = true
         ticker?.cancel()
+        longStall?.cancel()
         resync?.cancel()
         previews?.close()
         dropPrepared()
@@ -1605,6 +1682,8 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         private const val SEEK_STALL_MS = 20_000L
         private const val RECOVERY_ATTEMPTS = 6
         private const val RECOVERY_RETRY_MS = 3_000L
+        /** How often a lowered stream checks whether it can go back up. */
+        private const val STEP_UP_CHECK_MS = 30_000L
         /** Past this, Previous starts the title again before going to the one before. */
         private const val RESTART_AFTER_SECONDS = 3.0
 
