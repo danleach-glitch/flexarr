@@ -12,6 +12,10 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - A stream converted to a lower bitrate also lowers its resolution to suit, so it looks sharper.
 - Settings › Remote access says when the best speed your remote devices have measured is less than your busiest files need, so you know it's your home internet's upload.
 
+### Libraries
+
+- A title logo kept beside your files (clearlogo.png) now keeps its transparent background, rather than showing on a black box.
+
 ### Apps
 
 - On iPhone, iPad, the Mac and Android, a download that failed can be tried again straight from Downloads: each failed film, episode, show, album, playlist, audiobook or podcast episode has a small Try again button at the end of its row (and Try again in its swipe or long-press menu beside Delete), asking for it again at the same size, as on its own page. When more than one has failed, Try all again in the top bar asks for them all.
