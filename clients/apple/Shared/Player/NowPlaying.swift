@@ -126,6 +126,38 @@ final class NowPlaying {
         #endif
     }
 
+    /// The player closed because the title couldn't play while the app was out of sight (the phone locked, the picture on
+    /// AirPlay): the lock screen keeps the title, stopped, with `message` beneath it, rather than going blank or still
+    /// looking as if it plays. It goes when the app comes back to the front, where the full message waits.
+    func leaveProblem(_ message: String) {
+        let center = MPRemoteCommandCenter.shared()
+        for (command, target) in targets { command.removeTarget(target) }
+        targets = []
+        for command in [center.playCommand, center.pauseCommand, center.togglePlayPauseCommand, center.skipForwardCommand,
+                        center.skipBackwardCommand, center.changePlaybackPositionCommand, center.nextTrackCommand, center.previousTrackCommand] {
+            command.isEnabled = false
+        }
+        info[MPMediaItemPropertyArtist] = message
+        info[MPNowPlayingInfoPropertyPlaybackRate] = 0.0
+        push()
+        #if os(iOS)
+        if let observer = Self.problemObserver { NotificationCenter.default.removeObserver(observer) }
+        Self.problemObserver = NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated {
+                if let observer = NowPlaying.problemObserver { NotificationCenter.default.removeObserver(observer) }
+                NowPlaying.problemObserver = nil
+                // Unless something has played since and put its own there.
+                let center = MPNowPlayingInfoCenter.default()
+                if center.nowPlayingInfo?[MPMediaItemPropertyArtist] as? String == message { center.nowPlayingInfo = nil }
+            }
+        }
+        #endif
+    }
+
+    #if os(iOS)
+    private static var problemObserver: (any NSObjectProtocol)?
+    #endif
+
     func setTitle(_ title: String, subtitle: String?, artwork: PlatformImage?) {
         info[MPMediaItemPropertyTitle] = title
         info[MPMediaItemPropertyArtist] = subtitle

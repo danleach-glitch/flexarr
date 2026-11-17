@@ -258,7 +258,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Playback
 
-- Episodes and films with HE-AAC sound now play over AirPlay. Before, the TV could sit on a black screen with a still spinner, often when moving on to the next episode, while the iPhone looked as if it was playing.
+- Episodes and films with HE-AAC sound now play over AirPlay. Before, the TV could sit on a black screen with a still spinner, often when moving on to the next episode, while the iPhone looked as if it was playing. And if anything stops a title playing while the iPhone is locked, its lock screen now says *Couldn’t play this* instead of looking as if it’s still playing.
 - Converting a 4K HDR film for a screen that can't show HDR is several times lighter on the server's processor: the picture is shrunk before its colours are converted, not after.
 - The limit on videos converted at once now counts only streams whose picture is converted: films played as they are and music no longer fill it, so nobody is told Flexarr is busy while the server is barely working.
 - With Intel Quick Sync, a converted picture is now shrunk on the graphics chip rather than the processor, so a low-power Intel NAS can convert 4K to 1080p.
