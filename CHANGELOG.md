@@ -170,6 +170,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Trakt
 
+- Trakt works out of the box: Settings › Trakt lets anyone sign in with their Trakt account and a code shown on screen, with no Trakt app of your own to set up.
 - Signing in to Trakt now goes from your server straight to Trakt, with nothing passing through flexarr.io.
 - Using your own Trakt app needs only its Client ID: Trakt no longer needs a Client secret.
 
