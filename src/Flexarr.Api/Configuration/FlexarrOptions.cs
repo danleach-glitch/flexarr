@@ -360,10 +360,10 @@ public sealed class NotificationOptions
 public sealed class TraktOptions
 {
     /// <summary>
-    /// Flexarr's Trakt app. Public: Trakt shows it to anyone who looks, and every request carries it. Empty until Trakt
-    /// grants the app production access; Trakt stays hidden until then unless the admin uses their own app.
+    /// Flexarr's Trakt app (production access granted 17 November 2026). Public: Trakt shows it to anyone who looks, and
+    /// every request carries it. It has no secret: Trakt signs people in with a device code, which needs only this.
     /// </summary>
-    public const string FlexarrClientId = "";
+    public const string FlexarrClientId = "MT-27G20kctg9BgFQpczyGGOQmpFW7cnN1aiKVA_txs";
 
     /// <summary>The admin's own Trakt app, used instead of Flexarr's.</summary>
     public string ClientId { get; set; } = "";
