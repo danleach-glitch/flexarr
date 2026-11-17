@@ -300,6 +300,12 @@ public sealed partial class ImageCache(HttpClient http, IMetadataSettings settin
                 return null;
             }
 
+            // A clearlogo.png beside the files keeps its transparency, as a downloaded one does.
+            if (format == "png_pipe")
+            {
+                target = Path.ChangeExtension(target, ".png");
+            }
+
             return await ResizeAsync(local, format, embedded, snapped, target, ct).ConfigureAwait(false) ? Written(target) : null;
         }
 

@@ -129,6 +129,41 @@ public class ImageEndpointTests(FlexarrApiFactory factory) : IClassFixture<Flexa
     }
 
     [Fact]
+    public async Task ALocalClearLogo_KeepsItsTransparency()
+    {
+        if (!await HasFfmpegAsync())
+        {
+            return; // CI without ffmpeg: nothing to make the logo with
+        }
+
+        var root = Directory.CreateTempSubdirectory("flexarr-logo-").FullName;
+        try
+        {
+            var logo = Path.Combine(root, "Film (2024)", "clearlogo.png");
+            Directory.CreateDirectory(Path.GetDirectoryName(logo)!);
+            await RunAsync("ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=white@0.0:s=200x50,format=rgba", "-frames:v", "1", logo);
+            Guid id;
+            using (var scope = factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+                var library = new Library { Name = $"Films {Guid.NewGuid():N}", Type = LibraryType.Movies, Folders = [new LibraryFolder { Path = root }] };
+                var item = new MediaItem { LibraryId = library.Id, Kind = MediaKind.Movie, Title = "Film", SortTitle = "film", LogoUrl = $"file://{logo}" };
+                db.AddRange(library, item);
+                await db.SaveChangesAsync();
+                id = item.Id;
+            }
+
+            using var response = await factory.CreateClient().GetAsync(new Uri($"/api/v1/images/items/{id}/logo", UriKind.Relative));
+            response.EnsureSuccessStatusCode();
+            Assert.Equal("image/png", response.Content.Headers.ContentType?.MediaType);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task AReplacedCover_IsServedAnew()
     {
         if (!await HasFfmpegAsync())
