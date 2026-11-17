@@ -422,8 +422,9 @@ final class PlayerViewController: NSViewController {
         delegate?.playerScreenDidClose(self)
     }
 
-    /// Closes the screen: the controller asks, having stopped the session.
-    func finish(completion: (() -> Void)? = nil) {
+    /// Closes the screen: the controller asks, having stopped the session. `failed` (it couldn't play) changes nothing
+    /// here: a Mac has no lock screen to say so on, and the window shows the problem.
+    func finish(failed: Bool = false, completion: (() -> Void)? = nil) {
         finished = true
         heldPicture.release()
         sleepWatch?.cancel()
