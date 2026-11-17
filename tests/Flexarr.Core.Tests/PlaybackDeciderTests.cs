@@ -369,6 +369,19 @@ public class PlaybackDeciderTests
         Assert.Equal(2, decision.Transcode!.AudioStreamIndex);
     }
 
+    [Fact]
+    public void HeAac_IsMadePlainAac_WhenTheStreamIsConverted()
+    {
+        // The playlist names copied AAC as plain AAC; over AirPlay, HE-AAC under that name failed to play ("fmt?").
+        var he = PlaybackDecider.Decide(File("mkv", "h264", "aac", 2, audioProfile: "HE-AAC"), AppleTv, [], new PlaybackOptions());
+        var lc = PlaybackDecider.Decide(File("mkv", "h264", "aac", 2, audioProfile: "LC"), AppleTv, [], new PlaybackOptions());
+
+        Assert.Equal(PlaybackMethod.Transcode, he.Method);
+        Assert.False(he.Transcode!.CopyAudio);
+        Assert.Equal("mp4a.40.2", he.Transcode.AudioCodecTag);
+        Assert.True(lc.Transcode!.CopyAudio);
+    }
+
     private static MediaFile File(string container, string video, string audio, int channels, VideoRange range = VideoRange.Sdr, int height = 1080, long bitrate = 8_000_000,
         string? audioProfile = null) => new()
     {

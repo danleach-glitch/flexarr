@@ -390,7 +390,10 @@ public static class PlaybackDecider
         var fmp4 = profile.Fmp4;
         var channels = audio?.Channels ?? 2;
         var sound = audio is not null && options.Sound is { Shapes: true } shaping ? shaping : null;
+        // HE-AAC isn't copied: the playlist calls copied AAC "mp4a.40.2" (plain AAC), and an AirPlay receiver given HE-AAC
+        // under that name refuses the stream ("fmt?"). Stereo AAC costs next to nothing to make.
         var copyAudio = sound is null && audio is not null
+            && !(audio.Codec.Equals("aac", StringComparison.OrdinalIgnoreCase) && audio.Profile?.StartsWith("HE", StringComparison.OrdinalIgnoreCase) == true)
             && (fmp4 ? Fmp4AudioCodecs : HlsAudioCodecs).Contains(audio.Codec)
             && profile.AudioCodecs.Contains(audio.Codec, StringComparer.OrdinalIgnoreCase)
             && channels <= profile.MaxAudioChannels;
