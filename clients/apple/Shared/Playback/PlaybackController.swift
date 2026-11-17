@@ -1427,8 +1427,11 @@ final class PlaybackController: NSObject {
         log.warning("Stream stopped (\(reason)); recovering at \(Int(retry.startPositionSeconds ?? 0))s", ["playbackId": current.playbackId])
         isRecovering = true
         lastRecovery = Date()
+        // With the phone locked the app is let run only while something plays: the time to open the stream again (or
+        // say on the lock screen that it couldn't) is asked for, or it's paused halfway with the TV left spinning.
+        let background = BackgroundTime(named: "Recovering playback")
         Task {
-            defer { isRecovering = false }
+            defer { isRecovering = false; background.end() }
             var lastError: Error?
             attempts: for attempt in 0..<6 {
                 if attempt > 0 { try? await Task.sleep(for: .seconds(3)) }
@@ -1725,8 +1728,10 @@ final class PlaybackController: NSObject {
         let finished = current.sessionId
         carriedRate = nil
         timing = StartTiming(.video)
+        // The old picture has stopped, so with the phone locked nothing keeps the app running: time to open the next one.
+        let background = BackgroundTime(named: "Next episode")
         Task {
-            defer { isAdvancing = false }
+            defer { isAdvancing = false; background.end() }
             // Ended alongside asking for the next one, rather than first: one wait on the server instead of two. But after
             // the report above, in the same queue: a stop that overtook it would leave the report nothing to land on.
             send { try? await client.stopPlayback(sessionId: finished) }
@@ -1875,12 +1880,14 @@ final class PlaybackController: NSObject {
         if watchedToEnd { onWatchedToEnd?(true) }
     }
 
+    /// Closes the player. A `completion` is always the problem to show (it couldn't play), so the lock screen says so too
+    /// while the app is out of sight.
     private func dismissPlayer(then completion: (() -> Void)? = nil) {
         cancelSubtitleSync()
         stop()
         guard let screen else { completion?(); return }
         self.screen = nil
-        screen.finish(completion: completion)
+        screen.finish(failed: completion != nil, completion: completion)
     }
 
     // MARK: Artwork and detail

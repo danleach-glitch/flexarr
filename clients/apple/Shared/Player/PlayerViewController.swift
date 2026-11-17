@@ -578,15 +578,24 @@ final class PlayerViewController: UIViewController {
         delegate?.playerScreenDidClose(self)
     }
 
-    /// Closes the screen when it's done: the controller asks, having stopped the session.
-    func finish(completion: (() -> Void)? = nil) {
+    /// Closes the screen when it's done: the controller asks, having stopped the session. `failed`: because the title
+    /// couldn't play, which the lock screen says if the app is out of sight (the phone locked, the picture on AirPlay).
+    func finish(failed: Bool = false, completion: (() -> Void)? = nil) {
         finished = true
         heldPicture.release()
         sleepWatch?.cancel()
         sleepWatch = nil
         sleep.set(nil)
         UIApplication.shared.isIdleTimerDisabled = false
+        #if os(iOS)
+        if failed, UIApplication.shared.applicationState != .active {
+            nowPlaying.leaveProblem(t("Couldn’t play this"))
+        } else {
+            nowPlaying.deactivate()
+        }
+        #else
         nowPlaying.deactivate()
+        #endif
         hideTask?.cancel()
         #if os(iOS)
         if isInPictureInPicture { pictureInPicture?.stopPictureInPicture() }
