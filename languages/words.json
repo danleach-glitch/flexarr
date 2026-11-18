@@ -94,6 +94,7 @@
   "seasonEpisodeHeading": "Season {season}, Episode {episode}",
   "quality": "Quality",
   "originalQuality": "Original",
-  "loweredQuality": "Lowered quality for your connection"
+  "loweredQuality": "Lowered quality for your connection",
+  "connectionTooSlow": "Your connection is too slow to play this right now"
  }
 }

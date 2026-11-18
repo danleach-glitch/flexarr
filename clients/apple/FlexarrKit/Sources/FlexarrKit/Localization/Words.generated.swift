@@ -17,6 +17,7 @@ public enum Words {
     public static let castAndCrew = "Cast and crew"
     public static let collections = "Collections"
     public static let comingSoon = "Coming soon"
+    public static let connectionTooSlow = "Your connection is too slow to play this right now"
     public static let continueWatching = "Continue watching"
     public static let delete = "Delete"
     public static let details = "Details"

@@ -21,6 +21,7 @@ public static class Words
     public const string CastAndCrew = "Cast and crew";
     public const string Collections = "Collections";
     public const string ComingSoon = "Coming soon";
+    public const string ConnectionTooSlow = "Your connection is too slow to play this right now";
     public const string ContinueWatching = "Continue watching";
     public const string Delete = "Delete";
     public const string Details = "Details";

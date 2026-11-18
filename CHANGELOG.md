@@ -11,6 +11,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - The players on iPhone, iPad, Apple TV, the Mac, Android phones and Android TV have a Quality menu: Automatic, Original, 1080p, 720p or 480p. The web player's menu gains Original. Away from home, each device remembers its choice.
 - A stream converted to a lower bitrate also lowers its resolution to suit, so it looks sharper.
 - On a very slow connection (under about 3 Mbps, such as a hotel's or one far from home), films and episodes also come in 360p, so they play soft rather than not at all.
+- If a connection is too slow even for that, the player says *Your connection is too slow to play this right now* after 40 seconds, with Try again, instead of spinning.
 - Settings › Remote access says when the best speed your remote devices have measured is less than your busiest files need, so you know it's your home internet's upload.
 
 ### Libraries

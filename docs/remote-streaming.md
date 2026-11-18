@@ -100,6 +100,9 @@ segments (2 seconds at home).
   title only. On the iPad's engine, the first step goes to the server's stream instead.
 - **Step back up** (not on the ladder): after 5 minutes without a stall, when the speed fits the next quality up with
   the usual headroom; at most once every 5 minutes.
+- **Too slow.** Away from home, a stream with no picture 40 seconds after it reached the player is stopped with
+  *Your connection is too slow to play this right now* (`Words.connectionTooSlow`) and Try again, rather than a
+  spinner that never ends. The 360p step makes this rare; it's for a link too slow even for that.
 - **No black gap.** A switch keeps the last picture on screen (sound off) until the new stream plays.
 - On the ladder, the players start from the saved speed (ExoPlayer's bandwidth meter, hls.js's
   `abrEwmaDefaultEstimate`) and are capped to the screen's size.
