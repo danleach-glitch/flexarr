@@ -41,7 +41,13 @@ public sealed partial class PlaybackService(
     /// The ladder's qualities away from home (docs/remote-streaming.md), tallest first: the same as the players' Quality
     /// menu offers, so a pick there matches a step of the ladder.
     /// </summary>
-    internal static readonly (int Height, long Bitrate)[] LadderQualities = [(1080, 8_000_000), (720, 4_000_000), (480, 1_500_000)];
+    internal static readonly (int Height, long Bitrate)[] LadderQualities = [(1080, 8_000_000), (720, 4_000_000), (480, AwayFromHome.Bitrate480)];
+
+    /// <summary>
+    /// Below the menu's qualities, for a link measured too slow for 480p (<see cref="AwayFromHome.TooSlowFor480"/>):
+    /// 360p at <see cref="AwayFromHome.MinBitrate"/>, so it plays soft rather than not at all.
+    /// </summary>
+    internal static readonly (int Height, long Bitrate) LowestQuality = (360, AwayFromHome.MinBitrate);
 
     private sealed record Plan(IReadOnlyList<SubtitleTrack> Subtitles, List<MediaStream> AudioStreams, int? AudioIndex, string? SubtitleKey, long Away, long OtherCaps,
         PlaybackOptions Options, PlaybackDecision Decision);
@@ -255,7 +261,7 @@ public sealed partial class PlaybackService(
         // Away from home and slower than the file needs (or not measured yet): the ladder, several qualities a player
         // moves between by itself, where the encoder, the server's slots and its disk allow. Otherwise one stream.
         if (away > 0 && decision is { Method: PlaybackMethod.Transcode, Transcode: { EncodesVideo: true } single }
-            && Ladder(file, request.Profile, subtitles, playbackOptions, otherCaps, single, frameRate) is { } ladder)
+            && Ladder(file, request.Profile, subtitles, playbackOptions, otherCaps, single, frameRate, AwayFromHome.TooSlowFor480(request.MeasuredBitrate)) is { } ladder)
         {
             try
             {
@@ -1119,10 +1125,11 @@ public sealed partial class PlaybackService(
     /// that keyframes exactly where told (<see cref="FfmpegCommand.LadderIsSafe"/>) and room on the disk; only qualities
     /// at or below the file's own height and the player's, each at no more than the file's own bitrate (nor the server's
     /// or a guest's limit), each smaller than the one above; and at least two of them. Each is <paramref name="single"/>
-    /// at its size and bitrate, so the sound, subtitles and colour are the same in all.
+    /// at its size and bitrate, so the sound, subtitles and colour are the same in all. <paramref name="slow"/>: also
+    /// <see cref="LowestQuality"/>, for a link too slow for 480p.
     /// </summary>
     private List<TranscodePlan>? Ladder(MediaFile file, DeviceProfile device, IReadOnlyList<SubtitleTrack> subtitles, PlaybackOptions playback,
-        long otherCaps, TranscodePlan single, double? frameRate)
+        long otherCaps, TranscodePlan single, double? frameRate, bool slow = false)
     {
         if (!FfmpegCommand.LadderIsSafe(PlaybackEndpoints.TranscodeSettingsFor(options.CurrentValue).Resolved) || transcodes.IsLowOnSpace)
         {
@@ -1131,7 +1138,7 @@ public sealed partial class PlaybackService(
 
         var tallest = Math.Min(Math.Max(file.Height ?? 0, (file.Width ?? 0) * 9 / 16), device.MaxHeight);
         var qualities = new List<TranscodePlan>();
-        foreach (var (height, bitrate) in LadderQualities)
+        foreach (var (height, bitrate) in slow ? LadderQualities.Append(LowestQuality) : LadderQualities)
         {
             if (height > tallest)
             {

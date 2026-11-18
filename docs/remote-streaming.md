@@ -41,6 +41,11 @@ With *Away from home* on Automatic (Settings › Streaming) and no quality asked
    | 1080p | 1080 | 8 Mbps |
    | 720p | 720 | 4 Mbps |
    | 480p | 480 | 1.5 Mbps |
+   | 360p | 360 | 0.75 Mbps, only for a link measured under 3 Mbps |
+
+   360p is there for a link too slow for 480p's busy stretches (a hotel's, or one a long way from home, where the
+   round trip is slow): it plays soft rather than not at all. A link of unknown speed never starts on it, and the
+   Quality menu doesn't offer it.
 
    Only qualities at or below the file's own height are offered, each at no more than the file's own bitrate; with
    fewer than two left, it's one stream (3). The ladder needs a hardware encoder that puts keyframes only where told
@@ -50,7 +55,7 @@ With *Away from home* on Automatic (Settings › Streaming) and no quality asked
 
 A capped stream also lowers its resolution to what the bitrate suits (`PlaybackDecider.HeightFor`, `BitrateFor` read
 backwards at the table's points): 8 Mbps and up 1080p (12 Mbps 1440p, 20 Mbps any size), 4 Mbps 720p, 2.5 Mbps 540p,
-below that 480p. So a 4K file capped to 3 Mbps is 540p, not 4K at 3 Mbps. Only a cap without a height of its own does
+1.5 Mbps 480p, below that 360p. The connection's cap is never below 0.75 Mbps (`AwayFromHome.MinBitrate`). So a 4K file capped to 3 Mbps is 540p, not 4K at 3 Mbps. Only a cap without a height of its own does
 this (the connection's, the server's limit, a guest's link); a height asked for (the menu, a download) is kept. A conversion started for a remote viewer opens with 1-second
 segments (2 seconds at home).
 
