@@ -143,22 +143,15 @@ What guests lose:
 
 ## Turning it on
 
-Family invites stay hidden until the apps that carry the tunnel are in the stores: on the server
-(`RemoteGuests:Enabled` false) and in the apps' release builds (the Join button and invite links: debug builds always
-have them). When they're turned on by default:
+Family invites are on by default (they were hidden until the apps carrying the tunnel were in the stores):
 
-- the server: `RemoteGuests.Enabled` defaults to true in `FlexarrOptions`;
-- the Apple apps: `FLEXARR_GUEST_INVITES` defaults to `YES` in `clients/apple/project.yml` (or build with
-  `FLEXARR_GUEST_INVITES=YES`, or launch with `-FlexarrGuestInvites YES` to try one);
-- Android: `flexarr.guestInvites` defaults to true in `clients/android/app/build.gradle.kts` (or build with
-  `-Pflexarr.guestInvites=true`). The same switch packages the tunnel: a release build without it leaves the Go
-  library (`libgojni.so`, about 18 MB on each device) out and can't start a guest's tunnel, so the build in the
-  stores has to be one made with it on before invites are;
-
-- add `share-with-family` to `docs/guide/index.json` (after `away-from-home`), link it from `away-from-home.md` and the
-  FAQ, and run `make guide`;
-- add `ANDROID_CERT_SHA256` to the relay's environment, and Upstash, if they aren't there yet;
-- add the changelog entry (Settings › Remote access › Guests; Join someone’s Flexarr with a code on every app);
+- the server: `RemoteGuests.Enabled` is true in `FlexarrOptions` (`Flexarr:RemoteGuests:Enabled=false` hides them);
+- the Apple apps: `FLEXARR_GUEST_INVITES` is `YES` in `clients/apple/project.yml` (`NO` hides Join in a release
+  build; debug builds and `-FlexarrGuestInvites YES` always have it);
+- Android: `flexarr.guestInvites` is on in `clients/android/app/build.gradle.kts` (`-Pflexarr.guestInvites=false`
+  hides it). The same switch packages the tunnel: a release build without it leaves the Go library (`libgojni.so`,
+  about 18 MB on each device) out and can't start a guest's tunnel;
+- the relay has its store (`KV_REST_API_URL`/`KV_REST_API_TOKEN`) and `ANDROID_CERT_SHA256`;
 - export compliance is settled: the apps declare exempt encryption (`ITSAppUsesNonExemptEncryption` false, the reasoning
   beside it in `clients/apple/project.yml`).
 

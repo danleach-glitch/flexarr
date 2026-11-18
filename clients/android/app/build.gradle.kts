@@ -24,9 +24,9 @@ val serverVersion: String = providers.gradleProperty("flexarr.version").orNull
         .find(rootDir.resolve("../../Directory.Build.props").readText())!!.groupValues[1]
 val versionParts = serverVersion.split(".").map { it.toInt() }
 
-// Family invites ("Join someone’s Flexarr", invite links): debug builds, and release builds given
-// -Pflexarr.guestInvites=true, until servers have them on (docs/remote-guests.md).
-val guestInvites: Boolean = providers.gradleProperty("flexarr.guestInvites").orNull == "true"
+// Family invites ("Join someone’s Flexarr", invite links): on, unless a build is given -Pflexarr.guestInvites=false
+// (docs/remote-guests.md). Debug builds always have them.
+val guestInvites: Boolean = providers.gradleProperty("flexarr.guestInvites").orNull != "false"
 
 // Google Play builds are signed with the upload key, and Google signs what people download with the app's own key. The
 // keystore and its passwords stay out of the repo: ~/.flexarr-release/android-upload.properties (storeFile, storePassword,

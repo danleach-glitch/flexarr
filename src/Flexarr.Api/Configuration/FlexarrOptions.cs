@@ -431,8 +431,8 @@ public sealed class BazarrOptions
 /// </summary>
 public sealed class RemoteGuestOptions
 {
-    /// <summary>Shows family invites in Settings. Off until the apps that carry Tailscale are in the stores.</summary>
-    public bool Enabled { get; set; }
+    /// <summary>Shows family invites in Settings (on by default; <c>Flexarr:RemoteGuests:Enabled=false</c> hides them).</summary>
+    public bool Enabled { get; set; } = true;
 
     /// <summary>A Tailscale OAuth client limited to <c>auth_keys</c> for <see cref="Tag"/> and <c>policy_file:read</c>.</summary>
     public string ClientId { get; set; } = "";

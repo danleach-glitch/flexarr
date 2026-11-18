@@ -22,9 +22,9 @@ settings:
     # The Mac app's (the player; Flexarr Server is clients/macos). It ships under the iPhone app's bundle ID
     # (universal purchase, like the TV app); this one is for running it at home. `make mac-player-install` sets it.
     FLEXARR_MAC_PLAYER_BUNDLE_ID: io.github.flexarr.mac
-    # Joining someone's Flexarr (family invites) is offered: NO until servers have family invites switched on; a
-    # release turns it to YES. Debug builds and `-FlexarrGuestInvites YES` offer it anyway (GuestInvite.guestInvitesOffered).
-    FLEXARR_GUEST_INVITES: "NO"
+    # Joining someone's Flexarr (family invites) is offered. NO hides it from a release build; debug builds and
+    # `-FlexarrGuestInvites YES` offer it anyway (GuestInvite.guestInvitesOffered).
+    FLEXARR_GUEST_INVITES: "YES"
 packages:
   FlexarrKit:
     path: FlexarrKit

@@ -31,6 +31,8 @@ In a browser away from home, open the private address instead of the usual one.
 
 ### Who can get in
 
+To let family watch from their own homes without installing Tailscale, use [family invites](share-with-family.md): their app shows a code, you type it in, and they're watching.
+
 When you first turn it on, your own Tailscale account is linked to the main profile. Anyone else you invite to your tailnet appears under **People with their own Tailscale** in **Settings › Remote access**. Choose a profile for each person. Anyone set to **Not allowed** is turned away, even though Tailscale lets them reach the server.
 
 Over Tailscale, watching works as it does at home. Someone whose account is linked to another profile can only choose the main profile with the admin PIN, even if the main profile has a PIN of its own. That browser then stays signed in until it's signed out, or left unused for two weeks. Changing settings asks for the admin PIN, as it does at home: see [Unlocking settings](profiles.md#unlocking-settings).
