@@ -86,6 +86,16 @@ export function stepBelow(playing: { height?: number | null; bitrate?: number | 
   return STEPS.find((s) => (height == null || s.height < height) && (bitrate == null || s.bitrate < bitrate))?.height ?? null
 }
 
+/**
+ * Where a stream asked for at `asked` goes when it can't keep up and there's no step below: the lowest (480p, picked
+ * or stepped down to) back to Automatic, whose ladder goes on down to 360p for a link that slow
+ * (docs/remote-streaming.md). Null for any other quality.
+ */
+export const fallBack = (asked: Quality): 'auto' | null => (asked === STEPS[STEPS.length - 1].height ? 'auto' : null)
+
+/** How long a stream at the lowest step may show no picture, away from home, before it falls back to Automatic. */
+export const NO_PICTURE_FALL_BACK_MS = 15_000
+
 /** Whether a stream of `bitrate` fits a link of `speed` with the usual headroom. */
 export const fits = (speed: number, bitrate: number) => bitrate * PEAK <= speed * HEADROOM
 

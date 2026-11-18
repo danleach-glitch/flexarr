@@ -204,6 +204,9 @@ final class PlaybackController: NSObject {
     @ObservationIgnored private var chosenQuality: StreamQuality?
     /// A title stepped down after stalls on Automatic: the level it plays at now, for that title only.
     @ObservationIgnored private var loweredQuality: (itemId: String, level: StreamQuality)?
+    /// The title that fell back from 480p to Automatic after it couldn't keep up: only once, so a link too slow even for
+    /// Automatic's lowest ends with "too slow" rather than going round.
+    @ObservationIgnored private var fellBackItem: String?
     /// The height of the stream the title first played at, before any step down: a step up that would reach it goes
     /// back to Automatic.
     @ObservationIgnored private var originalHeight: Int?
@@ -240,6 +243,7 @@ final class PlaybackController: NSObject {
         viewerSubtitleKey = subtitleKey.map { .some($0) }
         chosenQuality = nil
         loweredQuality = nil
+        fellBackItem = nil
         var request = request(for: itemId, startAt: startAt)
         if let subtitleKey { request.subtitleKey = subtitleKey }
         timing = StartTiming(.video)
@@ -827,6 +831,33 @@ final class PlaybackController: NSObject {
         !info.isOffline && info.adaptive != true && awayFromHome && selectedQuality == .automatic && !isAdvancing
     }
 
+    /// Whether this stream, at the lowest level (picked or stepped down to) away from home, goes back to Automatic when it
+    /// can't keep up: a 480p pick on a link too slow for it would otherwise only ever buffer, as the server's 360p is
+    /// Automatic's (docs/remote-streaming.md). Once per title.
+    private func fallsBack(_ info: PlaybackInfo) -> Bool {
+        !info.isOffline && info.adaptive != true && awayFromHome && !isAdvancing && fellBackItem != info.item.id
+            && StreamQuality.fallBack(from: quality(for: info.item.id)) != nil
+    }
+
+    /// The stream at 480p can't keep up: opened again where it is on Automatic, which this device keeps for away from
+    /// home from now on (the pick can't play on this link).
+    private func fallBackToAutomatic(_ current: PlaybackInfo) {
+        guard !isRecovering, self.info?.sessionId == current.sessionId, fallsBack(current) else { return }
+        longStallCheck?.cancel()
+        log.warning("Can't keep up at 480p: Automatic instead", ["playbackId": current.playbackId,
+            "measuredBitrate": LinkSpeed.shared.current().map(String.init) ?? "none"])
+        fellBackItem = current.item.id
+        loweredQuality = nil
+        if selectedQuality != .automatic {
+            chosenQuality = .automatic
+            StreamQuality.remember(.automatic)
+        }
+        qualityWatch.stepped(up: false)
+        screen?.noticeLoweredQuality()
+        updateQualityMenu()
+        reopen(reopenRequest(current), replacing: current)
+    }
+
     /// The height of the stream the title first plays at (before it's stepped down).
     private func noteOriginalHeight() {
         guard originalHeight == nil, let info, loweredQuality?.itemId != info.item.id, let size = transport?.videoSize,
@@ -840,6 +871,15 @@ final class PlaybackController: NSObject {
         tooSlowCheck?.cancel()
         guard !info.isOffline, !hasPlayed, awayFromHome else { return }
         let sessionId = info.sessionId
+        if fallsBack(info) {
+            // At 480p, a while with no picture tries Automatic (and its 360p) first; that gets the full wait.
+            tooSlowCheck = Task { [weak self] in
+                guard (try? await Task.sleep(for: .seconds(StreamQuality.noPictureFallBackAfter))) != nil else { return }
+                guard let self, let current = self.info, current.sessionId == sessionId, !self.hasPlayed else { return }
+                self.fallBackToAutomatic(current)
+            }
+            return
+        }
         tooSlowCheck = Task { [weak self] in
             guard (try? await Task.sleep(for: .seconds(Self.tooSlowAfter))) != nil else { return }
             guard let self, self.info?.sessionId == sessionId, !self.hasPlayed else { return }
@@ -852,7 +892,7 @@ final class PlaybackController: NSObject {
 
     /// The picture stopped to wait for the stream: two stalls in a minute, or one over 10 seconds, step down.
     private func noteStall() {
-        guard let info, adaptsQuality(info) else { return }
+        guard let info, adaptsQuality(info) || fallsBack(info) else { return }
         if qualityWatch.stalled() { return stepDown(info) }
         longStallCheck?.cancel()
         let sessionId = info.sessionId
@@ -870,7 +910,7 @@ final class PlaybackController: NSObject {
         guard !isRecovering, self.info?.sessionId == current.sessionId else { return }
         longStallCheck?.cancel()
         #if canImport(AetherEngine)
-        if transport is EngineTransport {
+        if transport is EngineTransport, adaptsQuality(current) {
             log.warning("The engine keeps buffering away from home: the server's stream instead", ["playbackId": current.playbackId])
             engineSuppressedItem = current.item.id
             qualityWatch.stepped(up: false)
@@ -881,7 +921,10 @@ final class PlaybackController: NSObject {
         #endif
         let size = transport?.videoSize ?? .zero
         let playingHeight = size.width > 0 ? StreamQuality.effectiveHeight(width: Double(size.width), height: Double(size.height)) : nil
-        guard let level = StreamQuality.stepDown(from: quality(for: current.item.id), playingHeight: playingHeight) else { return }
+        let asked = quality(for: current.item.id)
+        // Nothing below 480p in the menu: Automatic, whose ladder has 360p for a link this slow.
+        if StreamQuality.fallBack(from: asked) != nil { return fallBackToAutomatic(current) }
+        guard adaptsQuality(current), let level = StreamQuality.stepDown(from: asked, playingHeight: playingHeight) else { return }
         log.warning("Stalling: stepping down to \(level.rawValue)", ["playbackId": current.playbackId])
         loweredQuality = (current.item.id, level)
         qualityWatch.stepped(up: false)

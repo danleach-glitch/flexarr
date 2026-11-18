@@ -98,6 +98,11 @@ segments (2 seconds at home).
   first 3 seconds after a start or seek, reopen at the same place on the first quality below what's playing, keeping
   audio, subtitles and speed, and show *Lowered quality for your connection* briefly. The lowered quality lasts for that
   title only. On the iPad's engine, the first step goes to the server's stream instead.
+- **480p falls back to Automatic.** 480p is the menu's lowest, and the server's 360p is only on Automatic's ladder, so
+  a 480p stream (picked, or stepped down to) on a link too slow for it would only ever buffer. Away from home, when it
+  stalls enough to step down, or shows no picture 15 seconds after it reached the player, it reopens where it is on
+  Automatic, with *Lowered quality for your connection*, and a 480p pick is replaced by Automatic for plays away from
+  home on that device. Once per title: if Automatic can't keep up either, *Too slow* follows.
 - **Step back up** (not on the ladder): after 5 minutes without a stall, when the speed fits the next quality up with
   the usual headroom; at most once every 5 minutes.
 - **Too slow.** Away from home, a stream with no picture 40 seconds after it reached the player is stopped with
