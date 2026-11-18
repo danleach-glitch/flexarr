@@ -69,6 +69,16 @@ public enum StreamQuality: String, Codable, Sendable, CaseIterable {
         return levels.first { ($0.height ?? 0) < height - 16 }
     }
 
+    /// Where a stream asked for at `asked` goes when it can't keep up and there's no level below it: the lowest level
+    /// (480p, picked in the menu or stepped down to) back to Automatic, whose ladder goes on down to 360p for a link that
+    /// slow (docs/remote-streaming.md). Nil for any other quality.
+    public static func fallBack(from asked: StreamQuality) -> StreamQuality? {
+        asked == levels.last ? .automatic : nil
+    }
+
+    /// How long a stream at the lowest level may show no picture, away from home, before it falls back to Automatic.
+    public static let noPictureFallBackAfter: TimeInterval = 15
+
     /// The next quality up from the lowered `level`: the level above, or Automatic (the server's choice, the original
     /// when the speed carries it) once the level above would be as tall as `originalHeight`, the stream the title first
     /// played at. Nil from Automatic or Original.

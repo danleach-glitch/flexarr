@@ -63,8 +63,10 @@ import { drop as dropPrepared, getReady, holds as holdsPrepared, take as takePre
 import { extended, FADE_SECONDS, minutesLeft, secondsLeft, sleepChoices, sleepLabel, STILL_WATCHING_SECONDS, type SleepTimer } from '../lib/sleepTimer'
 import { linkSpeed } from '../lib/linkSpeed'
 import {
+  fallBack,
   heightClass,
   isAway,
+  NO_PICTURE_FALL_BACK_MS,
   LONG_STALL_MS,
   qualitiesFor,
   rememberedQuality,
@@ -312,6 +314,11 @@ export function PlayerPage() {
   }
   /** Away from home, once the first start has asked (null before). */
   const away = useRef<boolean | null>(null)
+  /** The title that fell back from 480p to Automatic after it couldn't keep up: only once, so a link too slow even for
+   *  Automatic's lowest ends with "too slow" rather than going round. */
+  const fellBack = useRef<string | null>(null)
+  const fallBackRef = useRef<() => void>(() => {})
+  const fallsBackRef = useRef<(playback: PlaybackInfo | undefined) => boolean>(() => false)
   /** The too-slow check of the stream attached last (see TOO_SLOW_AFTER_MS). */
   const tooSlowTimer = useRef(0)
   /**
@@ -431,7 +438,13 @@ export function PlayerPage() {
     // Away from home, no first picture in TOO_SLOW_AFTER_MS: a link too slow even for the lowest quality, said so
     // rather than a spinner that never ends.
     window.clearTimeout(tooSlowTimer.current)
-    if (away.current) {
+    if (fallsBackRef.current(playback)) {
+      // At 480p, a while with no picture tries Automatic (and its 360p) first; that gets the full wait.
+      tooSlowTimer.current = window.setTimeout(() => {
+        if (video.current !== el || el.played.length > 0) return
+        fallBackRef.current()
+      }, NO_PICTURE_FALL_BACK_MS)
+    } else if (away.current) {
       tooSlowTimer.current = window.setTimeout(() => {
         if (video.current !== el || el.played.length > 0) return
         hls.current?.destroy()
@@ -630,7 +643,30 @@ export function PlayerPage() {
   // Automatic on a single stream steps down after stalls, and back up once it's been smooth a while
   // (docs/remote-streaming.md). The ladder moves by itself, and a quality picked by hand stays.
   const stepsHere = () => qualityRef.current === 'auto' && !!info && !info.adaptive && !error && !recovering.current
+  // A 480p stream (picked, or stepped down to) that can't keep up: Automatic instead, as there's no step below in the
+  // menu and the server's 360p is Automatic's. Kept for away from home from now on: the pick can't play on this link.
+  const fallsBack = (playback: PlaybackInfo | undefined) =>
+    !!playback &&
+    !playback.adaptive &&
+    !!away.current &&
+    fellBack.current !== playback.item.id &&
+    fallBack(qualityRef.current === 'auto' ? (loweredRef.current ?? 'auto') : qualityRef.current) !== null
+  const fallBackToAuto = () => {
+    if (!info || error || recovering.current || !fallsBack(info)) return
+    fellBack.current = info.item.id
+    window.clearTimeout(stalls.current.timer)
+    Object.assign(stalls.current, { lastChange: performance.now(), counted: [], since: undefined })
+    if (qualityRef.current !== 'auto') {
+      setQuality('auto')
+      qualityRef.current = 'auto'
+      rememberQuality('auto', true)
+    }
+    setLowered(null)
+    setLoweredNotice(true)
+    void restartHere({ quality: 'auto', audioStreamIndex: info.selectedAudioIndex ?? undefined, subtitleKey: subtitleKey ?? 'off' })
+  }
   const stepDown = () => {
+    if (fallsBack(info)) return fallBackToAuto()
     if (!stepsHere() || !info) return
     const from = loweredRef.current
     const step = stepBelow(from ? { height: from } : { height: info.stream?.height, bitrate: info.stream?.videoBitrate ?? info.fileBitrate })
@@ -684,6 +720,8 @@ export function PlayerPage() {
     copyFailedRef.current = copyFailed
     stallEvent.current = onStallEvent
     stepDownRef.current = stepDown
+    fallBackRef.current = fallBackToAuto
+    fallsBackRef.current = fallsBack
     stepUpCheck.current = checkStepUp
   })
 

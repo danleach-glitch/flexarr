@@ -28,6 +28,13 @@ import Testing
         #expect(StreamQuality.stepDown(from: .automatic, playingHeight: nil) == .p720)
     }
 
+    @Test func onlyTheLowestLevelFallsBackToAutomatic() {
+        #expect(StreamQuality.fallBack(from: .p480) == .automatic)
+        for quality in [StreamQuality.automatic, .original, .p1080, .p720] {
+            #expect(StreamQuality.fallBack(from: quality) == nil)
+        }
+    }
+
     @Test func stepsUpTowardsTheOriginal() {
         #expect(StreamQuality.stepUp(from: .p480, originalHeight: 2160) == .p720)
         #expect(StreamQuality.stepUp(from: .p720, originalHeight: 2160) == .p1080)

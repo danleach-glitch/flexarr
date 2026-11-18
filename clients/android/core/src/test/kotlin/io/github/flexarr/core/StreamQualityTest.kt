@@ -88,6 +88,29 @@ class StreamQualityTest {
     }
 
     @Test
+    fun `only 480p falls back to Automatic`() {
+        assertEquals(StreamQuality.Automatic, StreamQuality.fallBack(StreamQuality.P480))
+        for (q in listOf(StreamQuality.Automatic, StreamQuality.Original, StreamQuality.P1080, StreamQuality.P720)) {
+            assertNull(StreamQuality.fallBack(q))
+        }
+    }
+
+    @Test
+    fun `a step due with nothing below is stuck, until reset`() {
+        var clock = 0L
+        val steps = QualitySteps { clock }
+        steps.reset()
+        clock = 10_000
+        steps.stalled()
+        clock += 11_000
+        assertFalse(steps.stillStalled(480))
+        assertTrue(steps.stuck)
+        assertNull(steps.lowered)
+        steps.reset()
+        assertFalse(steps.stuck)
+    }
+
+    @Test
     fun `stalls a minute apart don't`() {
         var clock = 0L
         val steps = QualitySteps { clock }

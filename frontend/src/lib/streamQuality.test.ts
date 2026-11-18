@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fits, heightClass, isAway, isPrivateHost, rememberedQuality, rememberQuality, qualitiesFor, requestFor, resolutionName, SMOOTH_MS, stallCounts, stepBelow, stepDownDue, stepUp } from './streamQuality'
+import { fallBack, fits, heightClass, isAway, isPrivateHost, rememberedQuality, rememberQuality, qualitiesFor, requestFor, resolutionName, SMOOTH_MS, stallCounts, stepBelow, stepDownDue, stepUp } from './streamQuality'
 
 function memory() {
   const kept = new Map<string, string>()
@@ -11,6 +11,11 @@ function memory() {
 }
 
 describe('stream quality', () => {
+  it('falls back to Automatic only from 480p', () => {
+    expect(fallBack(480)).toBe('auto')
+    for (const q of ['auto', 'original', 1080, 720] as const) expect(fallBack(q)).toBeNull()
+  })
+
   it('asks for each choice as the doc says', () => {
     expect(requestFor('auto')).toEqual({})
     expect(requestFor('original')).toEqual({ original: true })

@@ -75,6 +75,16 @@ enum class StreamQuality(val raw: String, val height: Int?, val bitrate: Long?) 
             return levels.firstOrNull { it.height!! < height }
         }
 
+        /**
+         * Where a stream asked for at [asked] goes when it can't keep up and there's no level below: the lowest level
+         * (480p, picked in the menu or stepped down to) back to Automatic, whose ladder goes on down to 360p for a link
+         * that slow (docs/remote-streaming.md). Null for any other quality.
+         */
+        fun fallBack(asked: StreamQuality): StreamQuality? = if (asked == levels.last()) Automatic else null
+
+        /** How long a stream at the lowest level may show no picture, away from home, before it falls back to Automatic. */
+        const val NO_PICTURE_FALL_BACK_MS = 15_000L
+
         /** The quality above [level], or null for no limit (back to Automatic) from the top one. */
         fun above(level: StreamQuality): StreamQuality? = levels.indexOf(level).takeIf { it > 0 }?.let { levels[it - 1] }
 
@@ -105,6 +115,10 @@ class QualitySteps(private val now: () -> Long = System::currentTimeMillis) {
     var lowered: StreamQuality? = null
         private set
 
+    /** A step down was due with no quality below to go to: for [StreamQuality.fallBack]. Cleared by [reset]. */
+    var stuck = false
+        private set
+
     /** Stalls not counted before this (a start or seek a moment ago). */
     private var ignoreUntil = 0L
     private var stallStart: Long? = null
@@ -116,6 +130,7 @@ class QualitySteps(private val now: () -> Long = System::currentTimeMillis) {
     /** Another title: not lowered, nothing counted. */
     fun reset() {
         lowered = null
+        stuck = false
         stalls.clear()
         stallStart = null
         lastStall = 0L
@@ -165,7 +180,11 @@ class QualitySteps(private val now: () -> Long = System::currentTimeMillis) {
 
     private fun stepDown(playingHeight: Int?): Boolean {
         val below = StreamQuality.below(minOf(playingHeight ?: Int.MAX_VALUE, lowered?.height ?: Int.MAX_VALUE).takeIf { it != Int.MAX_VALUE })
-            ?: return false
+            ?: run {
+                stuck = true
+                stalls.clear()
+                return false
+            }
         lowered = below
         stalls.clear()
         lastStep = now()

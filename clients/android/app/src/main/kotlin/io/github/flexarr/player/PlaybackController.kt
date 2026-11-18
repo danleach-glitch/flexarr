@@ -317,6 +317,11 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         private set
     private var longStall: Job? = null
     private var lastStepUpCheck = 0L
+    /**
+     * The title that fell back from 480p to Automatic after it couldn't keep up: only once, so a link too slow even
+     * for Automatic's lowest ends with "too slow" rather than going round.
+     */
+    private var fellBackItem: String? = null
 
     /** What the stream is asked for: the pick, or on Automatic the quality stepped down to. */
     private val askedQuality: StreamQuality get() = if (quality != StreamQuality.Automatic) quality else steps.lowered ?: StreamQuality.Automatic
@@ -324,6 +329,36 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     /** Whether this stream is stepped down and up by the app: on Automatic, from the server, and not its ladder. */
     private val stepsQuality: Boolean
         get() = quality == StreamQuality.Automatic && !isOffline && info?.let { it.adaptive != true } == true
+
+    /**
+     * Whether [started], at the lowest level (picked or stepped down to) away from home, goes back to Automatic when it
+     * can't keep up: a 480p pick on a link too slow for it would otherwise only ever buffer, as the server's 360p is
+     * Automatic's (docs/remote-streaming.md). Once per title.
+     */
+    private fun fallsBack(started: PlaybackInfo?): Boolean =
+        started != null && !isOffline && started.adaptive != true && model.isAway && fellBackItem != started.item.id &&
+            StreamQuality.fallBack(askedQuality) != null
+
+    /**
+     * The stream at 480p can't keep up: opened again where it is on Automatic, which this phone keeps for away from
+     * home from now on (the pick can't play on this link).
+     */
+    private fun fallBackToAutomatic() {
+        val current = info ?: return
+        if (closed || isOpening || switchingQuality || !fallsBack(current)) return
+        log.warning("Can't keep up at 480p: Automatic instead")
+        fellBackItem = current.item.id
+        longStall?.cancel()
+        if (quality != StreamQuality.Automatic) {
+            quality = StreamQuality.Automatic
+            if (model.isAway) PlayerSettings.setAwayQuality(appContext, StreamQuality.Automatic)
+        }
+        steps.reset()
+        qualityNotice++
+        switchingQuality = true
+        switchingFrom = current.sessionId
+        reopen()
+    }
 
     /** The file playing, as the server knows it (its size and HDR), for Original's second line and the menu's levels. */
     private var fileFacts by mutableStateOf<MediaFile?>(null)
@@ -490,6 +525,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         model.videoStarted()
         // Away from home, the quality last picked there; at home, Automatic.
         quality = StreamQuality.forStart(PlayerSettings.awayQuality(appContext), model.isAway)
+        fellBackItem = null
         play(itemId, fromBeginning, shuffle, startAt)
     }
 
@@ -753,7 +789,15 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         hasPlayed = false
         error = null
         tooSlowCheck?.cancel()
-        if (!isOffline && model.isAway) {
+        if (fallsBack(started)) {
+            // At 480p, a while with no picture tries Automatic (and its 360p) first; that gets the full wait.
+            val session = started.sessionId
+            tooSlowCheck = scope.launch {
+                delay(StreamQuality.NO_PICTURE_FALL_BACK_MS)
+                if (closed || info?.sessionId != session || hasPlayed) return@launch
+                fallBackToAutomatic()
+            }
+        } else if (!isOffline && model.isAway) {
             val session = started.sessionId
             tooSlowCheck = scope.launch {
                 delay(TOO_SLOW_AFTER_MS)
@@ -1120,7 +1164,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
      * seconds), reopened where it is with the same sound, subtitles and speed (docs/remote-streaming.md).
      */
     private fun watchQuality(state: Int) {
-        if (!stepsQuality || !hasPlayed || isOpening) return
+        if (!(stepsQuality || fallsBack(info)) || !hasPlayed || isOpening) return
         when (state) {
             Player.STATE_BUFFERING -> {
                 if (!player.playWhenReady) return
@@ -1131,17 +1175,22 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                     while (isActive && player.playbackState == Player.STATE_BUFFERING && info?.sessionId == session) {
                         delay(1_000)
                         if (closed || isOpening || info?.sessionId != session) return@launch
-                        if (steps.stillStalled(playingHeight())) return@launch stepQuality(down = true)
+                        if (steps.stillStalled(playingHeight())) return@launch stepDownOrFallBack()
+                        if (steps.stuck && fallsBack(info)) return@launch fallBackToAutomatic()
                     }
                 }
             }
             Player.STATE_READY -> {
                 longStall?.cancel()
-                if (steps.resumed(playingHeight())) stepQuality(down = true)
+                if (steps.resumed(playingHeight())) stepDownOrFallBack()
+                else if (steps.stuck && fallsBack(info)) fallBackToAutomatic()
             }
             else -> longStall?.cancel()
         }
     }
+
+    /** A step down is due: on Automatic, the quality below; a 480p pick (which doesn't step) back to Automatic instead. */
+    private fun stepDownOrFallBack() = if (stepsQuality) stepQuality(down = true) else fallBackToAutomatic()
 
     /** Lowered for a while: back up a quality once the link has carried it smoothly for 5 minutes and fits the next. */
     private fun checkStepUp() {
