@@ -39,7 +39,11 @@ struct OfflineView: View {
                     checking = false
                 }
             } label: {
-                if checking { ProgressView() } else { Text(t("Try again")) }
+                // The words stay (hidden) so the button keeps its size, and the spinner takes the words' colour: a
+                // plain ProgressView is the default grey, unseen on the main button's light fill.
+                Text(t("Try again"))
+                    .opacity(checking ? 0 : 1)
+                    .overlay { if checking { ProgressView().tint(Color.room) } }
             }
             .buttonStyle(ActionButtonStyle(prominent: true))
             .accessibilityLabel(t("Try again"))
