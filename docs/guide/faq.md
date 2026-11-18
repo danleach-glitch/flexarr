@@ -61,7 +61,7 @@ Flexarr doesn't limit how many screens play at once. In practice the limit is yo
 
 ### Does it work away from home?
 
-Yes, through [Tailscale](https://tailscale.com), a free service that links your own devices privately. Nothing is opened on your router, and Flexarr isn't put on the public internet. Once remote access is on, the apps switch to it by themselves when you leave home, and back again when you return. You can share it by inviting someone to your tailnet and giving them a profile.
+Yes, through [Tailscale](https://tailscale.com), a free service that links your own devices privately. Nothing is opened on your router, and Flexarr isn't put on the public internet. Once remote access is on, the apps switch to it by themselves when you leave home, and back again when you return. To share it with family in their own homes, use [family invites](share-with-family.md): their app shows a code, you type it in, and they're watching, with no Tailscale for them.
 
 If you'd rather use your own HTTPS reverse proxy, that works too. See [Away from home](away-from-home.md).
 

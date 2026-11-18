@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Share with family · Flexarr guide</title>
+  <meta name="description" content="Let someone watch your Flexarr from their own home. Their app shows a code, you type it in, and they&#39;re watching. No Tailscale, no account, no sign-in for them.">
+  <meta name="theme-color" content="#1b1720">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-itunes-app" content="app-id=6826618084">
+  <link rel="canonical" href="https://flexarr.io/guide/share-with-family">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="Share with family · Flexarr guide">
+  <meta property="og:description" content="Let someone watch your Flexarr from their own home. Their app shows a code, you type it in, and they&#39;re watching. No Tailscale, no account, no sign-in for them.">
+  <meta property="og:image" content="https://flexarr.io/shots/og.jpg">
+  <meta property="og:url" content="https://flexarr.io/guide/share-with-family">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body class="guide">
+  <a class="skip" href="#main">Skip to the article</a>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/" aria-label="Flexarr home"><img src="/logo-mark.svg" alt="">flexarr</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a href="/why">Why Flexarr</a>
+        <a class="keep" href="/apps">The Apps</a>
+        <a class="keep" href="/guide" aria-current="page">Guide</a>
+        <a class="github keep" href="https://github.com/danleach-glitch/flexarr" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <div class="wrap layout">
+    <aside class="sidebar" aria-label="Guide">
+        <div class="search" role="search">
+          <label class="visually-hidden" for="guide-search">Search the guide</label>
+          <input id="guide-search" type="search" placeholder="Search the guide" autocomplete="off" spellcheck="false" aria-controls="guide-results">
+          <ol id="guide-results" class="results" hidden></ol>
+        </div>
+        <details class="contents">
+          <summary>Guide contents</summary>
+          <nav>
+            <details class="section">
+            <summary>Getting started</summary>
+            <ul>
+              <li><a href="/guide/what-you-need">What you need</a></li>
+              <li><a href="/guide/install-macos">Install on a Mac</a></li>
+              <li><a href="/guide/install-synology">Install on a Synology NAS</a></li>
+              <li><a href="/guide/install-unraid">Install on Unraid</a></li>
+              <li><a href="/guide/install-docker">Install with Docker on Linux or Windows</a></li>
+              <li><a href="/guide/first-setup">First setup</a></li>
+              <li><a href="/guide/without-arrs">Without Sonarr and Radarr</a></li>
+              <li><a href="/guide/connect-devices">Connect your devices</a></li>
+              <li><a href="/guide/apple-tv-xcode">Install the Apple TV app with Xcode</a></li>
+              <li><a href="/guide/updating">Updating Flexarr</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Your *arrs</summary>
+            <ul>
+              <li><a href="/guide/connect-arrs">Connect Sonarr, Radarr, Lidarr and Seerr</a></li>
+              <li><a href="/guide/media-paths">Media paths</a></li>
+              <li><a href="/guide/requests">Requests</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Watching and listening</summary>
+            <ul>
+              <li><a href="/guide/finding-things">Finding things</a></li>
+              <li><a href="/guide/playback-and-transcoding">Playback and transcoding</a></li>
+              <li><a href="/guide/versions">4K and 1080p versions</a></li>
+              <li><a href="/guide/hdr-and-atmos">HDR and Dolby Atmos</a></li>
+              <li><a href="/guide/subtitles-and-skipping">Subtitles, skipping and Up next</a></li>
+              <li><a href="/guide/music">Music</a></li>
+              <li><a href="/guide/podcasts">Podcasts</a></li>
+              <li><a href="/guide/audiobooks">Audiobooks</a></li>
+              <li><a href="/guide/watchlist">Watchlist</a></li>
+              <li><a href="/guide/trakt">Trakt</a></li>
+              <li><a href="/guide/downloads">Downloads</a></li>
+              <li><a href="/guide/iphone-remote">Your iPhone as a remote</a></li>
+              <li><a href="/guide/live-tv">Live TV and recording</a></li>
+            </ul>
+            </details>
+            <details class="section" open>
+            <summary>Around the house</summary>
+            <ul>
+              <li><a href="/guide/profiles">Profiles</a></li>
+              <li><a href="/guide/away-from-home">Watch away from home</a></li>
+              <li><a href="/guide/share-with-family" aria-current="page">Share with family</a></li>
+              <li><a href="/guide/siri-and-shortcuts">Siri and Shortcuts</a></li>
+              <li><a href="/guide/notifications-and-widgets">Notifications and widgets</a></li>
+              <li><a href="/guide/home-assistant">Home Assistant</a></li>
+              <li><a href="/guide/assistant-mcp">Use an AI assistant</a></li>
+            </ul>
+            </details>
+            <details class="section">
+            <summary>Looking after it</summary>
+            <ul>
+              <li><a href="/guide/import-from-plex">Bring your history over from Plex</a></li>
+              <li><a href="/guide/library-health">Library health</a></li>
+              <li><a href="/guide/backups">Backups</a></li>
+              <li><a href="/guide/logs-and-diagnostics">Logs and diagnostics</a></li>
+              <li><a href="/guide/troubleshooting">Troubleshooting</a></li>
+              <li><a href="/guide/faq">Frequently asked questions</a></li>
+            </ul>
+            </details>
+          </nav>
+        </details>
+      </aside>
+    <main id="main">
+      <article>
+        <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Around the house</p>
+        <h1>Share with family</h1>
+        <p class="lede">Let someone watch your Flexarr from their own home. Their app shows a code, you type it in, and they&#39;re watching. No Tailscale, no account, no sign-in for them.</p>
+        <p class="meta">4 min read</p>
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ol>
+            <li><a href="#set-it-up-once">Set it up, once</a></li>
+            <li><a href="#add-a-guest">Add a guest</a></li>
+            <li><a href="#guests">Guests</a></li>
+            <li><a href="#faster-relay">Faster relay</a></li>
+            <li><a href="#for-guests">For guests</a></li>
+          </ol>
+        </nav>
+        <div class="prose">
+<p><strong>Family invites</strong> let someone watch your Flexarr from their own home, a grandparent say, without installing Tailscale, making an account or signing in. Their app shows a code, you type it in, and their app connects.</p>
+<p>Their app has Tailscale built in and joins your tailnet as a <strong>Flexarr guest</strong>. A guest can reach Flexarr and nothing else on your network, and only as their own profile. Your server stays off the public internet.</p>
+<blockquote class="callout note"><p><strong>Note</strong> Family invites need Tailscale on the server, as in <a href="/guide/away-from-home">Watch away from home</a>. Flexarr in Docker and the Mac app can&#39;t do them yet.</p>
+</blockquote>
+<h2 id="set-it-up-once"><a class="anchor" href="#set-it-up-once" aria-hidden="true" tabindex="-1">#</a>Set it up, once</h2>
+<p>In Flexarr on the web, signed in as the main profile, go to <strong>Settings › Remote access</strong>. <strong>Tailscale setup</strong> has three steps:</p>
+<ol>
+<li><strong>Paste this into your tailnet policy.</strong> Flexarr shows a few lines with your server&#39;s tailnet address filled in. Copy them into your tailnet policy in Tailscale&#39;s admin console (<strong>Access controls</strong>). They create the <code>tag:flexarr-guest</code> tag and let guests reach Flexarr&#39;s port on your server, and nothing else.</li>
+<li><strong>Create an OAuth client.</strong> In Tailscale&#39;s admin console, under <strong>Settings › Trust credentials</strong>, make an OAuth client with two scopes: <strong>Auth Keys</strong> (write, with the tag <code>tag:flexarr-guest</code>) and <strong>Policy File</strong> (read). Nothing else: Flexarr refuses a client that can do more.</li>
+<li><strong>Paste its ID and secret</strong> into Flexarr and choose <strong>Save</strong>.</li>
+</ol>
+<p>Flexarr then checks your policy. When it&#39;s done, it says <strong>Guests can reach Flexarr and nothing else</strong>, and the steps fold away.</p>
+<blockquote class="callout important"><p><strong>Important</strong> A new tailnet lets every device reach every other one, and that rule would let guests in everywhere too. Flexarr won&#39;t add guests until your policy keeps them to Flexarr. If it says guests could reach more, it names the rules: change a rule whose source is <code>&quot;*&quot;</code> to <code>&quot;autogroup:member&quot;</code>, so your own devices keep their access and guests don&#39;t get it.</p>
+</blockquote>
+<p>Flexarr checks your policy again every hour. If it&#39;s ever changed so guests could reach more, adding guests pauses and your phone is told. Guests who&#39;ve already joined keep whatever the policy now allows them, so fix it straight away.</p>
+<h3 id="why-it-s-safe"><a class="anchor" href="#why-it-s-safe" aria-hidden="true" tabindex="-1">#</a>Why it&#39;s safe</h3>
+<ul>
+<li>Flexarr&#39;s OAuth client can only make guest keys and read your policy. It can&#39;t change your policy or touch your devices.</li>
+<li>Each guest key works once, is tagged as a guest, and is deleted once used.</li>
+<li>Flexarr reads your policy&#39;s rules as well as testing it, so a rule that lets guests into another device, your home network or an exit node is caught.</li>
+<li>A guest&#39;s device is refused everything on the server unless it has its own Flexarr sign-in, and that sign-in only works from that device.</li>
+<li>Guests can&#39;t switch profiles, change settings, use child lock, or see or control your household&#39;s TVs and phones.</li>
+</ul>
+<h2 id="add-a-guest"><a class="anchor" href="#add-a-guest" aria-hidden="true" tabindex="-1">#</a>Add a guest</h2>
+<p>Under <strong>Guests</strong>, choose <strong>Add new guest</strong> and type their name (&quot;Dad&quot;). Flexarr makes them a profile of their own, which they watch as and can&#39;t leave. You can set its age limit or hidden libraries later in <a href="/guide/profiles">Profiles</a>. Names are unique: if someone already has the name, Flexarr offers to add a device for them instead.</p>
+<p>Then add their device:</p>
+<ol>
+<li>On their iPhone, iPad, Apple TV, Android phone or Android TV, they install Flexarr, open it and choose <strong>Join someone’s Flexarr</strong>. It shows a code like <code>H42K-FM5W</code>.</li>
+<li>They read it to you over the phone, or send it.</li>
+<li>You type it in and choose <strong>Connect</strong>. Their app asks <strong>Join Dan’s Flexarr?</strong> and they choose <strong>Join</strong>.</li>
+</ol>
+<p>A code changes every 10 minutes, so use the one on their screen now. For someone with a phone and a TV, choose <strong>+ Add device</strong> under their name and do it again on the other. When a device joins, your phone tells you, so one you didn&#39;t expect shows up straight away.</p>
+<h2 id="guests"><a class="anchor" href="#guests" aria-hidden="true" tabindex="-1">#</a>Guests</h2>
+<p>Each guest has a card with their devices and how each is connected:</p>
+<ul>
+<li><strong>Direct:</strong> their device and your server connect straight to each other. The best.</li>
+<li><strong>Through your relay:</strong> the faster relay below is carrying it.</li>
+<li><strong>Slow relay:</strong> their network and yours can&#39;t connect directly, so the connection goes through Tailscale&#39;s shared relays, which slow to about 2 Mbps. Flexarr lowers their quality to fit, so it plays rather than buffers.</li>
+</ul>
+<p>The bin beside a device signs it out, and the server refuses everything from it from then on. Its app goes back to <strong>Join someone’s Flexarr</strong>. The bin beside a guest&#39;s name removes them: their devices, their profile and what they&#39;ve watched. A device stays listed in Tailscale until you delete it there, under <strong>Machines</strong>. Your free Tailscale plan has room for 50 guest devices.</p>
+<p>If your server&#39;s tailnet address or Flexarr&#39;s port changes (Tailscale reinstalled, say), guests&#39; devices can&#39;t reach it any more, and their rows say so: remove each and add it again.</p>
+<h2 id="faster-relay"><a class="anchor" href="#faster-relay" aria-hidden="true" tabindex="-1">#</a>Faster relay</h2>
+<p>In <strong>Tailscale setup</strong> (choose <strong>Show</strong>), turn on <strong>Faster relay</strong> to make your server relay its own guests&#39; connections, instead of Tailscale&#39;s shared relays. Then:</p>
+<ol>
+<li>On your router, forward the UDP port it shows to the server.</li>
+<li>Update your tailnet policy with the lines in setup, which now include the relay.</li>
+</ol>
+<h2 id="for-guests"><a class="anchor" href="#for-guests" aria-hidden="true" tabindex="-1">#</a>For guests</h2>
+<ul>
+<li><strong>Leave</strong> is in <strong>Settings</strong> in the app. Joining again takes a new code.</li>
+<li>If the app can&#39;t reach your Flexarr, it says so, with <strong>Try again</strong> and <strong>Leave</strong>. Downloads on an iPhone, iPad or Android phone still play from there.</li>
+<li><strong>AirPlay</strong> and <strong>Chromecast</strong> aren&#39;t offered: those devices can&#39;t reach the private connection inside the guest&#39;s phone.</li>
+<li><strong>Downloads</strong> on iPhone and iPad carry on only while Flexarr is open.</li>
+<li><strong>Top Shelf</strong> on a guest&#39;s Apple TV stays empty.</li>
+<li><strong>In a browser</strong>, guests can&#39;t join. Browsers still need Tailscale, as in <a href="/guide/away-from-home">Watch away from home</a>.</li>
+</ul>
+
+        </div>
+        <nav class="pager" aria-label="More of the guide">
+          <a class="prev" href="/guide/away-from-home"><span>Previous</span>Watch away from home</a>
+          <a class="next" href="/guide/siri-and-shortcuts"><span>Next</span>Siri and Shortcuts</a>
+        </nav>
+        <p class="edit"><a href="https://github.com/danleach-glitch/flexarr/blob/main/docs/guide/share-with-family.md">Edit this page on GitHub</a> <a href="https://github.com/danleach-glitch/flexarr/issues/new?title=Guide%3A%20Share%20with%20family">Report something wrong or missing</a></p>
+      </article>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div class="wrap bar">
+      <span>Flexarr is free for noncommercial use under the PolyForm Noncommercial License.<br>Not affiliated with the *arr projects.</span>
+      <nav aria-label="Project">
+        <a href="/guide">Guide</a>
+        <a href="/apps">Apps</a>
+        <a href="/why">Why Flexarr</a>
+        <a href="https://github.com/danleach-glitch/flexarr" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/danleach-glitch/flexarr/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="https://github.com/danleach-glitch/flexarr/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
+        <a href="https://github.com/danleach-glitch/flexarr/issues" target="_blank" rel="noopener">Report a problem</a>
+        <a href="/donate">Donate</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/guide/guide.js" defer></script>
+</body>
+</html>
