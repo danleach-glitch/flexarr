@@ -210,6 +210,10 @@ final class PlaybackController: NSObject {
     /// Counts stalls and smooth minutes, for stepping down and back up.
     @ObservationIgnored private var qualityWatch = QualityWatch()
     @ObservationIgnored private var longStallCheck: Task<Void, Never>?
+    /// Away from home, a stream with no picture yet after `tooSlowAfter`: closed with "too slow" rather than a spinner
+    /// that never ends (a link too slow even for the lowest quality).
+    @ObservationIgnored private var tooSlowCheck: Task<Void, Never>?
+    static let tooSlowAfter: TimeInterval = 40
     @ObservationIgnored private var lastStepUpCheck = Date.distantPast
     /// The file playing, for the Quality menu: its height (which levels are below it) and its picture ("4K HDR").
     @ObservationIgnored private var fileFacts: (itemId: String, fileId: String, height: Int?, label: String?)?
@@ -534,6 +538,7 @@ final class PlaybackController: NSObject {
         let transport = try makeTransport(for: info)
         self.transport = transport
         screen.transport = transport
+        watchForTooSlow(info)
         screen.setTitle(info.item.displayTitle, subtitle: info.item.episodeSubtitle)
         screen.markers = info.markers
         screen.setDetail(Self.detail(for: info))
@@ -827,6 +832,22 @@ final class PlaybackController: NSObject {
         guard originalHeight == nil, let info, loweredQuality?.itemId != info.item.id, let size = transport?.videoSize,
               size.width > 0, size.height > 0 else { return }
         originalHeight = StreamQuality.effectiveHeight(width: Double(size.width), height: Double(size.height))
+    }
+
+    /// Away from home: no picture `tooSlowAfter` seconds after the stream was given to the player closes it and says
+    /// the connection is too slow, so a link too slow for even the lowest quality doesn't spin for ever.
+    private func watchForTooSlow(_ info: PlaybackInfo) {
+        tooSlowCheck?.cancel()
+        guard !info.isOffline, !hasPlayed, awayFromHome else { return }
+        let sessionId = info.sessionId
+        tooSlowCheck = Task { [weak self] in
+            guard (try? await Task.sleep(for: .seconds(Self.tooSlowAfter))) != nil else { return }
+            guard let self, self.info?.sessionId == sessionId, !self.hasPlayed else { return }
+            log.warning("No picture after \(Int(Self.tooSlowAfter)) seconds away from home: too slow", ["playbackId": info.playbackId,
+                "measuredBitrate": LinkSpeed.shared.current().map(String.init) ?? "none"])
+            self.timing = nil
+            self.dismissPlayer { self.show(.other, message: t(Words.connectionTooSlow), retry: nil) }
+        }
     }
 
     /// The picture stopped to wait for the stream: two stalls in a minute, or one over 10 seconds, step down.
@@ -1844,6 +1865,7 @@ final class PlaybackController: NSObject {
     private func stop(reportingTo client: FlexarrClient?, recording: Bool = false) {
         if let info { lastClosed = (info.item.id, Date()) }
         firstPicture = nil
+        tooSlowCheck?.cancel()
         let watchedToEnd = recording && recordsHistory && info.map(isPastCredits) == true
         if recording, let info, let origin {
             // Watched as the server counts it, so the page moves on exactly when the server has it as watched.

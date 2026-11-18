@@ -181,10 +181,14 @@ const REASON_TIMEOUT_MS = 5000
  * What went wrong, and so what the viewer can do: take the stream back from the screen it was ended for
  * (takenOver), wait for the server to have room (busy), or try again.
  */
+/** Away from home, how long a stream may go without a first picture before it's called too slow. */
+const TOO_SLOW_AFTER_MS = 40_000
+
 interface PlayerError {
   message: string
   /** `gone`: the title isn't there any more (404), which trying again won't change. */
-  kind: 'takenOver' | 'busy' | 'gone' | 'other'
+  /** `slow`: away from home, no picture came (see TOO_SLOW_AFTER_MS). */
+  kind: 'takenOver' | 'busy' | 'gone' | 'slow' | 'other'
 }
 
 interface StartOptions {
@@ -308,6 +312,8 @@ export function PlayerPage() {
   }
   /** Away from home, once the first start has asked (null before). */
   const away = useRef<boolean | null>(null)
+  /** The too-slow check of the stream attached last (see TOO_SLOW_AFTER_MS). */
+  const tooSlowTimer = useRef(0)
   /**
    * Stalls on this stream, in performance.now() time: when it settled (first played, or seeked), the counted stalls'
    * beginnings, the one going on, the last one and the last change of quality.
@@ -422,6 +428,19 @@ export function PlayerPage() {
     // A new stream fills its buffer before its stalls count.
     window.clearTimeout(stalls.current.timer)
     Object.assign(stalls.current, { fresh: true, counted: [], since: undefined })
+    // Away from home, no first picture in TOO_SLOW_AFTER_MS: a link too slow even for the lowest quality, said so
+    // rather than a spinner that never ends.
+    window.clearTimeout(tooSlowTimer.current)
+    if (away.current) {
+      tooSlowTimer.current = window.setTimeout(() => {
+        if (video.current !== el || el.played.length > 0) return
+        hls.current?.destroy()
+        hls.current = null
+        el.removeAttribute('src')
+        el.load()
+        setError({ message: t(Words.connectionTooSlow), kind: 'slow' })
+      }, TOO_SLOW_AFTER_MS)
+    }
 
     const seekOnLoad = () => {
       if (position > 0) el.currentTime = position
@@ -1112,6 +1131,7 @@ export function PlayerPage() {
   const tapWoke = useRef(false)
   const clickTimer = useRef<number>(undefined)
   useEffect(() => () => window.clearTimeout(clickTimer.current), [])
+  useEffect(() => () => window.clearTimeout(tooSlowTimer.current), [])
   useEffect(() => {
     if (menu === null) return
     const onPress = (e: PointerEvent) => {

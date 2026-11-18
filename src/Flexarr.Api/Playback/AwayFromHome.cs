@@ -25,8 +25,21 @@ public static class AwayFromHome
     /// </summary>
     public const double PeakFactor = 1.5;
 
-    /// <summary>Never capped below this: lower than this looks worse than a short wait.</summary>
-    public const long MinBitrate = 1_500_000;
+    /// <summary>
+    /// Never capped below this: the ladder's lowest quality (360p). Lower would look worse than a wait, but a link
+    /// too slow for 480p (a hotel's, a long way from home) never catches up on it: a soft picture beats a spinner.
+    /// </summary>
+    public const long MinBitrate = 750_000;
+
+    /// <summary>What a 480p stream needs (the Quality menu's lowest), sound included.</summary>
+    public const long Bitrate480 = 1_500_000;
+
+    /// <summary>
+    /// A measured speed too slow for 480p's busy stretches (under 3 Mbps): the ladder then also has 360p. Not without a
+    /// reading, so a link of unknown speed doesn't start on it.
+    /// </summary>
+    public static bool TooSlowFor480(long? measuredBitrate) =>
+        measuredBitrate is > 0 and var measured && measured * Headroom < Bitrate480 * PeakFactor;
 
     /// <summary>
     /// The cap for a stream of a <paramref name="fileBitrate"/> file, or null for none: only with Automatic, a

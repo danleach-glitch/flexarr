@@ -318,6 +318,7 @@ public class PlaybackDeciderTests
     [InlineData(3_000_000L, 540)]
     [InlineData(4_000_000L, 720)]
     [InlineData(1_500_000L, 480)]
+    [InlineData(750_000L, 360)]
     [InlineData(8_000_000L, 1080)]
     [InlineData(40_000_000L, 2160)]
     public void ABitrateCap_LowersTheResolutionToWhatItSuits(long cap, int height)

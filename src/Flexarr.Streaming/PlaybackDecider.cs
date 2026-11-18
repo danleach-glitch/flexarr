@@ -442,7 +442,8 @@ public static class PlaybackDecider
     /// <summary>
     /// The tallest picture a stream capped at <paramref name="maxBitrate"/> (bits per second, sound included) is made:
     /// <see cref="BitrateFor"/> read backwards, at the Quality menu's points (1080p 8 Mbps, 720p 4 Mbps, 480p 1.5 Mbps;
-    /// docs/remote-streaming.md). Int.MaxValue when the cap leaves room for any size.
+    /// docs/remote-streaming.md), and 360p below 1.5 Mbps (a link too slow for 480p). Int.MaxValue when the cap leaves
+    /// room for any size.
     /// </summary>
     public static int HeightFor(long maxBitrate) => maxBitrate switch
     {
@@ -451,7 +452,8 @@ public static class PlaybackDecider
         >= 8_000_000 => 1080,
         >= 4_000_000 => 720,
         >= 2_500_000 => 540,
-        _ => 480,
+        >= 1_500_000 => 480,
+        _ => 360,
     };
 
     private static string ContainerName(string? container) => container switch

@@ -270,6 +270,12 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     private var audioDelaySave: Job? = null
     /** This session's stream has played, so its stopping is a stream that dropped (recovered) rather than one that never worked. */
     private var hasPlayed = false
+
+    /**
+     * Away from home, a stream with no picture yet [TOO_SLOW_AFTER_MS] after it was given to the player: stopped with
+     * "too slow" rather than a spinner that never ends (a link too slow even for the lowest quality).
+     */
+    private var tooSlowCheck: Job? = null
     private var lastRecovery = 0L
 
     /** When the last seek was asked for, and the wait for its stream to come: see [watchSeekStall]. */
@@ -746,6 +752,18 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
         info = started
         hasPlayed = false
         error = null
+        tooSlowCheck?.cancel()
+        if (!isOffline && model.isAway) {
+            val session = started.sessionId
+            tooSlowCheck = scope.launch {
+                delay(TOO_SLOW_AFTER_MS)
+                if (closed || info?.sessionId != session || hasPlayed) return@launch
+                log.warning("No picture after ${TOO_SLOW_AFTER_MS / 1000} seconds away from home: too slow")
+                val at = player.currentPosition / 1000.0
+                player.stop()
+                fail(t(Words.connectionTooSlow), retry = reopenRequest(started, at))
+            }
+        }
         retryRequest = null
         retryLabel = null
         preferences = started.preferences ?: PlaybackPreferences()
@@ -1723,6 +1741,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     /** The player closed: the last position, then the session ends (finishing even though the screen has gone). */
     fun close() {
         closed = true
+        tooSlowCheck?.cancel()
         ticker?.cancel()
         longStall?.cancel()
         resync?.cancel()
@@ -1764,6 +1783,9 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     companion object {
         /** How soon after the first picture a stall still counts as part of starting. */
         const val EARLY_STALL_MS = 30_000L
+
+        /** Away from home, how long a stream may go without a first picture before it's called too slow. */
+        const val TOO_SLOW_AFTER_MS = 40_000L
 
         private const val REPORT_INTERVAL_MS = 10_000L
         private const val COUNTDOWN_SECONDS = NextEpisodeTiming.COUNTDOWN_SECONDS

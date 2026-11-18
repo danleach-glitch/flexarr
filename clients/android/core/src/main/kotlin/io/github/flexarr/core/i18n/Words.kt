@@ -20,6 +20,7 @@ object Words {
     const val castAndCrew = "Cast and crew"
     const val collections = "Collections"
     const val comingSoon = "Coming soon"
+    const val connectionTooSlow = "Your connection is too slow to play this right now"
     const val continueWatching = "Continue watching"
     const val delete = "Delete"
     const val details = "Details"

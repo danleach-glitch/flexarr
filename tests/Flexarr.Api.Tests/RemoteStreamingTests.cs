@@ -193,6 +193,34 @@ public sealed class RemoteStreamingTests : IAsyncLifetime
         Assert.Equal(["720 main.m3u8"], await QualitiesAsync(client, asked));
     }
 
+    [Fact]
+    public async Task ALinkTooSlowFor480p_AlsoGets360p_AtTheBottom()
+    {
+        // A hotel's 0.5–1 Mbps link a long way from home: 480p (1.5 Mbps) never caught up, so it spun for ever.
+        await UseEncoderAsync("VideoToolbox");
+        var movie = await AddMovieAsync();
+        var client = Client(Away);
+
+        var slow = await StartAsync(client, movie, new { MeasuredBitrate = 552_000L });
+
+        Assert.Equal(["360 v/0/main.m3u8", "480 v/1/main.m3u8", "720 v/2/main.m3u8", "1080 v/3/main.m3u8"], await QualitiesAsync(client, slow));
+        Assert.Equal(360, slow.GetProperty("stream").GetProperty("height").GetInt32());
+        // 3 Mbps carries 480p's busy stretches: no 360p.
+        Assert.Equal(3, (await QualitiesAsync(client, await StartAsync(client, movie, new { MeasuredBitrate = 3_000_000L }))).Count);
+    }
+
+    [Fact]
+    public async Task ConvertingInSoftware_ALinkTooSlowFor480p_Gets360p()
+    {
+        await UseEncoderAsync("None");
+        var movie = await AddMovieAsync();
+        var client = Client(Away);
+
+        var started = await StartAsync(client, movie, new { MeasuredBitrate = 1_000_000L });
+
+        Assert.Equal(["360 main.m3u8"], await QualitiesAsync(client, started));
+    }
+
     [Theory]
     [InlineData(720, new[] { 480, 720 })]
     [InlineData(480, new[] { 480 })]

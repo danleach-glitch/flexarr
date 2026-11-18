@@ -16,6 +16,7 @@ export const Words = {
   castAndCrew: 'Cast and crew',
   collections: 'Collections',
   comingSoon: 'Coming soon',
+  connectionTooSlow: 'Your connection is too slow to play this right now',
   continueWatching: 'Continue watching',
   delete: 'Delete',
   details: 'Details',
