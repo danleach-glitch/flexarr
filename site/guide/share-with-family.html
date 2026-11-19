@@ -119,11 +119,12 @@
         <p class="crumbs"><a href="/guide">Guide</a> <span aria-hidden="true">›</span> Around the house</p>
         <h1>Share with family</h1>
         <p class="lede">Let someone watch your Flexarr from their own home. Their app shows a code, you type it in, and they&#39;re watching. No Tailscale, no account, no sign-in for them.</p>
-        <p class="meta">4 min read</p>
+        <p class="meta">6 min read</p>
         <nav class="toc" aria-label="On this page">
           <p>On this page</p>
           <ol>
             <li><a href="#set-it-up-once">Set it up, once</a></li>
+            <li><a href="#someone-who-lives-with-you">Someone who lives with you</a></li>
             <li><a href="#add-a-guest">Add a guest</a></li>
             <li><a href="#guests">Guests</a></li>
             <li><a href="#faster-relay">Faster relay</a></li>
@@ -154,8 +155,18 @@
 <li>A guest&#39;s device is refused everything on the server unless it has its own Flexarr sign-in, and that sign-in only works from that device.</li>
 <li>Guests can&#39;t switch profiles, change settings, use child lock, or see or control your household&#39;s TVs and phones.</li>
 </ul>
+<h2 id="someone-who-lives-with-you"><a class="anchor" href="#someone-who-lives-with-you" aria-hidden="true" tabindex="-1">#</a>Someone who lives with you</h2>
+<p>Someone in your household (a partner, a teenager) shouldn&#39;t have to be a guest to watch on their iPad on the train. Add their device under <strong>Your household</strong> instead, at the top of <strong>Settings › Remote access</strong>. It works like a guest&#39;s, with Tailscale built into the app and nothing for them to set up, but the device watches as <strong>their own profile</strong>, with what they&#39;ve already watched, and can do everything a device at home can: switch to another of your household&#39;s profiles, see and control your TVs, find subtitles.</p>
+<ol>
+<li><strong>Your household</strong> lists everyone with a profile except the main one. Not there? Add them in <a href="/guide/profiles">Profiles</a> first.</li>
+<li>Under their name, choose <strong>+ Add device</strong>.</li>
+<li>On their device, they open Flexarr and choose <strong>Join someone’s Flexarr</strong>. It shows a code like <code>H42K-FM5W</code>.</li>
+<li>They read it to you, you type it in and choose <strong>Connect</strong>. Their app asks <strong>Join Dan’s Flexarr?</strong> and they choose <strong>Join</strong>.</li>
+</ol>
+<p>That&#39;s it: from then on the app connects by itself, at home or away. The bin beside a device signs it out; their profile and what they&#39;ve watched stay. If you type someone who lives with you under <strong>Add new guest</strong>, Flexarr offers to add their device under <strong>Your household</strong> instead.</p>
+<p>The main profile isn&#39;t in <strong>Your household</strong>: away from home, it uses Tailscale, so the server&#39;s settings stay out of reach of a lost phone. AirPlay, background downloads and Top Shelf don&#39;t work over the built-in connection, for household devices as for guests.</p>
 <h2 id="add-a-guest"><a class="anchor" href="#add-a-guest" aria-hidden="true" tabindex="-1">#</a>Add a guest</h2>
-<p>Under <strong>Guests</strong>, choose <strong>Add new guest</strong> and type their name (&quot;Dad&quot;). Flexarr makes them a profile of their own, which they watch as and can&#39;t leave. You can set its age limit or hidden libraries later in <a href="/guide/profiles">Profiles</a>. Names are unique: if someone already has the name, Flexarr offers to add a device for them instead.</p>
+<p>Under <strong>Guests</strong>, choose <strong>Add new guest</strong> and type their name (&quot;Dad&quot;). Flexarr makes them a profile of their own, which they watch as and can&#39;t leave. Each guest&#39;s card says which libraries they see: choose <strong>Change</strong> to pick them, or set an age limit, in their profile in <a href="/guide/profiles">Profiles</a>. Names are unique: if someone already has the name, Flexarr offers to add a device for them instead.</p>
 <p>Then add their device:</p>
 <ol>
 <li>On their iPhone, iPad, Apple TV, Android phone or Android TV, they install Flexarr, open it and choose <strong>Join someone’s Flexarr</strong>. It shows a code like <code>H42K-FM5W</code>.</li>

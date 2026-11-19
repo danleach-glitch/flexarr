@@ -5,6 +5,9 @@ description: Reach your Flexarr server from anywhere with Tailscale, with no por
 
 At home, your devices find Flexarr on the Wi-Fi. Away from home, they need a safe way back to it. The easiest is **Tailscale**, and it's the one Flexarr is built around. If you already run an HTTPS reverse proxy, that works too.
 
+> **Tip**
+> **Someone who lives with you** doesn't need to install Tailscale. Once you've set up [family invites](share-with-family.md), add their phone, tablet or TV under **Your household** in **Settings › Remote access**: their app shows a code, you type it in, and it watches from anywhere as their own profile. See [Someone who lives with you](share-with-family.md#someone-who-lives-with-you). Tailscale, below, is for you (the main profile) and for anyone who'd rather use their own.
+
 ## Tailscale
 
 [Tailscale](https://tailscale.com) is a free app that puts your devices on a small private network of their own, called a tailnet. Your phone can then reach your server from a hotel or a train as if it were at home. The connection is encrypted, and nothing is opened on your router, so Flexarr isn't on the public internet.

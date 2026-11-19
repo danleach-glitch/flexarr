@@ -7,6 +7,8 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### Family invites
 
 - Family can watch your Flexarr from their own homes without installing Tailscale, making an account or signing in. Set it up once in **Settings › Remote access**, then under **Guests** choose **Add new guest**. On their iPhone, iPad, Apple TV, Mac or Android device they choose **Join someone’s Flexarr**, which shows a code, and you type it in. A guest has a profile of their own and can reach Flexarr and nothing else on your network. See [Share with family](https://flexarr.io/guide/share-with-family).
+- Someone who lives with you can watch away from home without installing Tailscale too. In **Settings › Remote access**, under **Your household**, choose **+ Add device** under their name and type the code their app shows. Their device then watches as their own profile, with nothing taken away, and signing it out keeps their profile and what they've watched.
+- Each guest's card says which libraries they see, and **Change** opens their profile to pick them.
 
 ### Watching away from home
 

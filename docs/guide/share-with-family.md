@@ -33,9 +33,22 @@ Flexarr checks your policy again every hour. If it's ever changed so guests coul
 - A guest's device is refused everything on the server unless it has its own Flexarr sign-in, and that sign-in only works from that device.
 - Guests can't switch profiles, change settings, use child lock, or see or control your household's TVs and phones.
 
+## Someone who lives with you
+
+Someone in your household (a partner, a teenager) shouldn't have to be a guest to watch on their iPad on the train. Add their device under **Your household** instead, at the top of **Settings › Remote access**. It works like a guest's, with Tailscale built into the app and nothing for them to set up, but the device watches as **their own profile**, with what they've already watched, and can do everything a device at home can: switch to another of your household's profiles, see and control your TVs, find subtitles.
+
+1. **Your household** lists everyone with a profile except the main one. Not there? Add them in [Profiles](profiles.md) first.
+2. Under their name, choose **+ Add device**.
+3. On their device, they open Flexarr and choose **Join someone’s Flexarr**. It shows a code like `H42K-FM5W`.
+4. They read it to you, you type it in and choose **Connect**. Their app asks **Join Dan’s Flexarr?** and they choose **Join**.
+
+That's it: from then on the app connects by itself, at home or away. The bin beside a device signs it out; their profile and what they've watched stay. If you type someone who lives with you under **Add new guest**, Flexarr offers to add their device under **Your household** instead.
+
+The main profile isn't in **Your household**: away from home, it uses Tailscale, so the server's settings stay out of reach of a lost phone. AirPlay, background downloads and Top Shelf don't work over the built-in connection, for household devices as for guests.
+
 ## Add a guest
 
-Under **Guests**, choose **Add new guest** and type their name ("Dad"). Flexarr makes them a profile of their own, which they watch as and can't leave. You can set its age limit or hidden libraries later in [Profiles](profiles.md). Names are unique: if someone already has the name, Flexarr offers to add a device for them instead.
+Under **Guests**, choose **Add new guest** and type their name ("Dad"). Flexarr makes them a profile of their own, which they watch as and can't leave. Each guest's card says which libraries they see: choose **Change** to pick them, or set an age limit, in their profile in [Profiles](profiles.md). Names are unique: if someone already has the name, Flexarr offers to add a device for them instead.
 
 Then add their device:
 
