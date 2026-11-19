@@ -40,8 +40,15 @@ public sealed partial class TailscaleApi(IHttpClientFactory clients, IOptionsMon
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
 
-    /// <summary>What the client may do, as Tailscale's tokens list it: making keys and reading the policy, nothing else.</summary>
-    private static readonly HashSet<string> AllowedScopes = new(StringComparer.OrdinalIgnoreCase) { "auth_keys", "auth_keys:read", "policy_file:read" };
+    /// <summary>
+    /// What the client may do, as Tailscale's tokens list it: making keys and reading the policy, nothing else. Tailscale
+    /// won't make a client with Policy File (read) unless it can also read the devices and their posture attributes, so
+    /// those two read-only scopes come with it and are allowed.
+    /// </summary>
+    private static readonly HashSet<string> AllowedScopes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "auth_keys", "auth_keys:read", "policy_file:read", "devices:core:read", "devices:posture_attributes:read",
+    };
 
     private readonly SemaphoreSlim _tokenLock = new(1, 1);
 
@@ -193,12 +200,13 @@ public sealed partial class TailscaleApi(IHttpClientFactory clients, IOptionsMon
             // than Flexarr should hold: a leaked secret could then change the policy or the owner's devices.
             if (_scope is null)
             {
-                // Tailscale didn't say: ask for something only a wider client may see (the tailnet's devices).
-                using var request = new HttpRequestMessage(HttpMethod.Get, Url("api/v2/tailnet/-/devices"));
+                // Tailscale didn't say: ask for something only a wider client may see (the tailnet's users; the devices
+                // don't tell, as a client that reads the policy can read them too).
+                using var request = new HttpRequestMessage(HttpMethod.Get, Url("api/v2/tailnet/-/users"));
                 try
                 {
                     using var _ = await GuardAsync(() => SendAsync(request, ct), ct);
-                    return Loc.T("This OAuth client can do more than Flexarr needs (it can see your devices). Make one with only Auth Keys (write) and Policy File (read).");
+                    return Loc.T("This OAuth client can do more than Flexarr needs (it can see your tailnet’s users). Make one with only Auth Keys (write) and Policy File (read).");
                 }
                 catch (TailscaleApiException ex) when (ex.Status is HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized or HttpStatusCode.NotFound)
                 {

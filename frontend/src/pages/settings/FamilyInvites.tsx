@@ -152,7 +152,7 @@ export function SetupGroup({ setup, onChange, collapsed = false }: { setup: Remo
         <li>
           <strong>{t('Create an OAuth client')}</strong>
           <span className="muted">
-            {t.rich('In {link}: {authKeys} (write, tag {tag}) and {policyFile} (read). Nothing else.', {
+            {t.rich('In {link}: {authKeys} (write, tag {tag}) and {policyFile} (read). Tailscale adds Devices (read) itself.', {
               link: <a href={CLIENTS_URL}>{t('Trust credentials')}</a>,
               authKeys: <em>{t('Auth Keys')}</em>,
               tag: <code>{setup.tag}</code>,

@@ -15,7 +15,7 @@ Their app has Tailscale built in and joins your tailnet as a **Flexarr guest**. 
 In Flexarr on the web, signed in as the main profile, go to **Settings › Remote access**. **Tailscale setup** has three steps:
 
 1. **Paste this into your tailnet policy.** Flexarr shows a few lines with your server's tailnet address filled in. Copy them into your tailnet policy in Tailscale's admin console (**Access controls**). They create the `tag:flexarr-guest` tag and let guests reach Flexarr's port on your server, and nothing else.
-2. **Create an OAuth client.** In Tailscale's admin console, under **Settings › Trust credentials**, make an OAuth client with two scopes: **Auth Keys** (write, with the tag `tag:flexarr-guest`) and **Policy File** (read). Nothing else: Flexarr refuses a client that can do more.
+2. **Create an OAuth client.** In Tailscale's admin console, under **Settings › Trust credentials**, make an OAuth client with two scopes: **Auth Keys** (write, with the tag `tag:flexarr-guest`) and **Policy File** (read). Tailscale adds two **Devices** read scopes itself when you pick Policy File; that's fine. Nothing else: Flexarr refuses a client that can do more.
 3. **Paste its ID and secret** into Flexarr and choose **Save**.
 
 Flexarr then checks your policy. When it's done, it says **Guests can reach Flexarr and nothing else**, and the steps fold away.
