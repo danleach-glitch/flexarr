@@ -66,7 +66,16 @@ export function FamilyInvites() {
           <SetupGroup setup={setup} onChange={refresh} collapsed={ready} />
         </>
       ) : (
-        <SetupGroup setup={setup} onChange={refresh} />
+        <>
+          {/* Where household devices will be, so it's clear setup comes first. */}
+          <div className="settings-group">
+            <div className="settings-group-head">
+              <h3 className="settings-subhead">{t('Your household')}</h3>
+            </div>
+            <p className="muted household-intro">{t('Set up Tailscale below first.')}</p>
+          </div>
+          <SetupGroup setup={setup} onChange={refresh} />
+        </>
       )}
     </>
   )
@@ -175,7 +184,7 @@ export function SetupGroup({ setup, onChange, collapsed = false }: { setup: Remo
   const last = setup.check
   const status = last?.safe ? (
     <p className="guest-check ok" role="status">
-      <span className="status-dot ok" aria-hidden="true" /> {t('Guests can reach Flexarr and nothing else.')}
+      <span className="status-dot ok" aria-hidden="true" /> {t('Devices that join with a code can reach Flexarr and nothing else.')}
     </p>
   ) : last && setup.hasClient ? (
     <div className="guest-check" role="alert">
@@ -207,7 +216,7 @@ export function SetupGroup({ setup, onChange, collapsed = false }: { setup: Remo
     <SettingsGroup
       title={t('Tailscale setup')}
       action={toggle}
-      note={t('Guests don’t need Tailscale or an account. Their apps join your tailnet, can reach Flexarr and nothing else, and you can remove them at any time.')}
+      note={t('Guests, and your household’s devices away from home, don’t need Tailscale or an account. Their apps join your tailnet, can reach Flexarr and nothing else, and you can remove them at any time.')}
     >
       <ol className="guest-steps">
         <li>
@@ -864,7 +873,7 @@ export function HouseholdGroup({
             setRemoveError(undefined)
           }}
         >
-          <p>{t('It stops reaching Flexarr. {name}’s profile and what they’ve watched stay. Adding it again takes a new code.', { name: confirming.person })}</p>
+          <p>{t('It stops reaching Flexarr. Downloads on it are deleted. {name}’s profile and what they’ve watched stay. Adding it again takes a new code.', { name: confirming.person })}</p>
         </ConfirmDialog>
       )}
       <p className="settings-note">

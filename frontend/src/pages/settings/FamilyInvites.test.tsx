@@ -94,6 +94,9 @@ describe('Settings › Remote access › Family invites', () => {
 
     expect(await screen.findByText('Paste this into your tailnet policy')).toBeVisible()
     expect(screen.getByText(/"flexarr": "100.64.0.1"/)).toBeVisible()
+    // Your household is there already, waiting for setup.
+    expect(screen.getByRole('heading', { name: 'Your household' })).toBeVisible()
+    expect(screen.getByText('Set up Tailscale below first.')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Copy the policy' })).toBeVisible()
 
     fireEvent.change(screen.getByLabelText('Client ID'), { target: { value: ' abc ' } })
@@ -445,6 +448,7 @@ describe('Settings › Remote access › Family invites', () => {
 
       fireEvent.click(await screen.findByRole('button', { name: 'Sign out Claire’s iPad' }))
       expect(await screen.findByText(/Claire’s profile and what they’ve watched stay/)).toBeVisible()
+      expect(screen.getByText(/Downloads on it are deleted/)).toBeVisible()
       // Not a guest: no Remove guest for Claire anywhere.
       expect(screen.queryByRole('button', { name: 'Remove Claire' })).not.toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))

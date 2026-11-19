@@ -18,7 +18,7 @@ In Flexarr on the web, signed in as the main profile, go to **Settings › Remot
 2. **Create an OAuth client.** In Tailscale's admin console, under **Settings › Trust credentials**, make an OAuth client with two scopes: **Auth Keys** (write, with the tag `tag:flexarr-guest`) and **Policy File** (read). Tailscale adds two **Devices** read scopes itself when you pick Policy File; that's fine. Nothing else: Flexarr refuses a client that can do more.
 3. **Paste its ID and secret** into Flexarr and choose **Save**.
 
-Flexarr then checks your policy. When it's done, it says **Guests can reach Flexarr and nothing else**, and the steps fold away.
+Flexarr then checks your policy. When it's done, it says **Devices that join with a code can reach Flexarr and nothing else**, and the steps fold away.
 
 > **Important**
 > A new tailnet lets every device reach every other one, and that rule would let guests in everywhere too. Flexarr won't add guests until your policy keeps them to Flexarr. If it says guests could reach more, it names the rules: change a rule whose source is `"*"` to `"autogroup:member"`, so your own devices keep their access and guests don't get it.
@@ -35,14 +35,14 @@ Flexarr checks your policy again every hour. If it's ever changed so guests coul
 
 ## Someone who lives with you
 
-Someone in your household (a partner, a teenager) shouldn't have to be a guest to watch on their iPad on the train. Add their device under **Your household** instead, at the top of **Settings › Remote access**. It works like a guest's, with Tailscale built into the app and nothing for them to set up, but the device watches as **their own profile**, with what they've already watched, and can do everything a device at home can: switch to another of your household's profiles, see and control your TVs, find subtitles.
+Someone in your household (a partner, a teenager) shouldn't have to be a guest to watch on their iPad on the train. Add their device under **Your household** instead, above **Guests** in **Settings › Remote access**. It works like a guest's, with Tailscale built into the app and nothing for them to set up, but the device watches as **their own profile**, with what they've already watched, and can do everything a device at home can: switch to another of your household's profiles, see and control your TVs, find subtitles.
 
 1. **Your household** lists everyone with a profile except the main one. Not there? Add them in [Profiles](profiles.md) first.
 2. Under their name, choose **+ Add device**.
 3. On their device, in Flexarr, they go to **Settings › Server** and choose **Use away from home**. Not signed in on it yet? They choose **Join someone’s Flexarr** instead. It shows a code like `H42K-FM5W`.
 4. They read it to you, you type it in and choose **Connect**. Their app asks **Join Dan’s Flexarr?** and they choose **Join**.
 
-That's it: from then on the app connects by itself, at home or away. **Sign out** beside a device (the arrow leaving a door) signs it out; their profile and what they've watched stay. If you type someone who lives with you under **Add new guest**, Flexarr offers to add their device under **Your household** instead.
+That's it: from then on the app connects by itself, at home or away. **Sign out** beside a device (the arrow leaving a door) signs it out, and deletes its downloads; their profile and what they've watched stay. If you type someone who lives with you under **Add new guest**, Flexarr offers to add their device under **Your household** instead.
 
 The main profile isn't in **Your household**: away from home, it uses Tailscale, so the server's settings stay out of reach of a lost phone. AirPlay, background downloads and Top Shelf don't work over the built-in connection, for household devices as for guests.
 
