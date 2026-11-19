@@ -49,5 +49,10 @@ struct TopShelfSignInTests {
         let guest = GuestTunnelInfo(target: "100.101.102.103:8383", hostname: "guest", ownerName: "Dan")
         let visiting = ServerCredentials(address: URL(string: "http://127.0.0.1:50123")!, apiKey: "key", guest: guest)
         #expect(SharedSignIn.forTopShelf(visiting, asksWhoIsWatching: false, watching: child) == nil)
+        // A household device away from home is no guest, but the extension can't reach its tunnel either.
+        var away = guest
+        away.household = true
+        let household = ServerCredentials(address: URL(string: "http://127.0.0.1:50123")!, apiKey: "key", guest: away)
+        #expect(SharedSignIn.forTopShelf(household, asksWhoIsWatching: false, watching: child) == nil)
     }
 }
