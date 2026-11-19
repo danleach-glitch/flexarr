@@ -48,7 +48,7 @@ export function FamilyInvites() {
   const [version, setVersion] = useState(0)
   const guests = useApi(getRemoteGuests, [version])
   const refresh = () => setVersion((v) => v + 1)
-  /** Someone typed as a new guest who already lives here: their device is added under Away from home instead. */
+  /** Someone typed as a new guest who already lives here: their device is added under Your household instead. */
   const [householdFor, setHouseholdFor] = useState<{ id: string; at: number }>()
   /** The profile Guests is adding a device for: made for a new guest a moment ago, it's not someone who lives here. */
   const [guestBeingAdded, setGuestBeingAdded] = useState<string>()
@@ -225,9 +225,9 @@ export function GuestsGroup({
 }: {
   onChange: () => void
   canAdd?: boolean
-  /** Someone who lives here was typed as a new guest: add their device under Away from home instead. */
+  /** Someone who lives here was typed as a new guest: add their device under Your household instead. */
   onAddHousehold?: (profileId: string) => void
-  /** Who a device is being added for here (so Away from home leaves out a guest's profile made a moment ago). */
+  /** Who a device is being added for here (so Your household leaves out a guest's profile made a moment ago). */
   onAddingFor?: (profileId: string | undefined) => void
 }) {
   const profiles = useApi(getProfiles, [])
@@ -430,7 +430,7 @@ export function GuestsGroup({
                     stopNaming()
                   }}
                 >
-                  {t('Do they live with you? Add their device under Away from home')}
+                  {t('Do they live with you? Add their device under Your household')}
                 </button>
               ) : !nameTaken.isMain && (
                 <button
@@ -607,7 +607,7 @@ function LibrariesSeen({ profile, libraries }: { profile?: Profile; libraries: L
 }
 
 /**
- * Away from home: people who live here, each with their phones, tablets and TVs that watch from anywhere through the
+ * Your household: people who live here, each with their phones, tablets and TVs that watch from anywhere through the
  * same built-in Tailscale as guests, but as their own profile and with nothing a guest can't do taken away. Not the main
  * profile (that keeps using Tailscale), nor a guest's. A device joins with a code it shows; removing it only signs it
  * out.
@@ -684,10 +684,10 @@ export function HouseholdGroup({
   return (
     <div className="settings-group">
       <div className="settings-group-head">
-        <h3 className="settings-subhead">{t('Away from home')}</h3>
+        <h3 className="settings-subhead">{t('Your household')}</h3>
       </div>
       <p className="settings-note household-intro">
-        {t('For people who live with you. Their phone, tablet or TV watches from anywhere as their own profile, with nothing to install but Flexarr.')}
+        {t('Phones, tablets and TVs of people who live with you, watching from anywhere as their own profile. Nothing to install but Flexarr.')}
       </p>
       {!canAdd && <p className="settings-note">{t('Adding devices waits for Tailscale setup, below.')}</p>}
       <div className="guest-cards">
@@ -833,7 +833,7 @@ export function AddDevice({
 }: {
   name: string
   profileId: string
-  /** For someone who lives here (Away from home), not a guest. */
+  /** For someone who lives here (Your household), not a guest. */
   household?: boolean
   devices: GuestDevice[]
   onClose: () => void

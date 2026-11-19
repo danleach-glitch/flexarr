@@ -144,7 +144,7 @@ What guests lose:
 ## Household devices away from home
 
 Someone who lives in the house (Claire) shouldn't have to be a guest to watch from her iPad away from home, or install
-Tailscale. The owner adds her device in **Settings › Remote access › Away from home**: the same code on her device, the
+Tailscale. The owner adds her device in **Settings › Remote access › Your household**: the same code on her device, the
 same built-in tunnel and tag, but the device signs in to **her own household profile**, with none of a guest's limits.
 
 - **The invite** carries `Household = true` (stored server-side in invites.json; the payload is unchanged, so every app

@@ -351,7 +351,7 @@ describe('Settings › Remote access › Family invites', () => {
     expect(describeGuest(device({ online: false }))).toMatch(/Offline/)
   })
 
-  describe('Away from home (people who live here)', () => {
+  describe('Your household (away from home)', () => {
     const claire = { ...main, id: 'claire', name: 'Claire', isMain: false, isCurrent: false, hiddenLibraryIds: [] }
 
     it('lists everyone who lives here but the main profile, and adds a device as theirs, not a guest', async () => {
@@ -370,7 +370,7 @@ describe('Settings › Remote access › Family invites', () => {
       })
       render(<FamilyInvites />)
 
-      expect(await screen.findByRole('heading', { name: 'Away from home' })).toBeVisible()
+      expect(await screen.findByRole('heading', { name: 'Your household' })).toBeVisible()
       expect(await screen.findByText('No devices away from home')).toBeVisible()
       // Gran is a guest, so only under Guests; the main profile is in neither.
       expect(document.getElementById('household-gran')).toBeNull()
@@ -406,7 +406,7 @@ describe('Settings › Remote access › Family invites', () => {
       expect(await screen.findByText(/is signed out/)).toBeVisible()
     })
 
-    it('typing someone who lives here as a new guest offers Away from home instead', async () => {
+    it('typing someone who lives here as a new guest offers Your household instead', async () => {
       let made = false
       mockApi({
         '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),
@@ -424,7 +424,7 @@ describe('Settings › Remote access › Family invites', () => {
       fireEvent.click(await screen.findByRole('button', { name: 'Add new guest' }))
       fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'claire' } })
       fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
-      fireEvent.click(await screen.findByRole('button', { name: 'Do they live with you? Add their device under Away from home' }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Do they live with you? Add their device under Your household' }))
       expect(made).toBe(false)
       expect(await screen.findByLabelText('Type the code their device shows')).toBeVisible()
       expect(document.getElementById('household-claire')?.querySelector('#guest-code')).not.toBeNull()
