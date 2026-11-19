@@ -100,12 +100,14 @@ public static class SessionEndpoints
         // As the device's own release: its notifications, moved to the kids profile with the lock, come back to the main profile.
         group.MapPost("/{id}/release-kids-lock", async (string id, SignIns signIns, FlexarrDbContext db, CancellationToken ct) =>
         {
-            if (!signIns.SetKidsLock(id, false))
+            if (signIns.ById(id) is not { } signIn || !signIns.SetKidsLock(id, false))
             {
                 return Results.NotFound();
             }
 
-            await db.NotificationDevices.Where(d => d.SignInId == id).ExecuteUpdateAsync(u => u.SetProperty(d => d.ProfileId, PlaybackState.DefaultUser), ct);
+            // A household device away from home never has the main profile: they go to its own.
+            var hears = ProfileEndpoints.ReleasedNotificationProfile(signIn);
+            await db.NotificationDevices.Where(d => d.SignInId == id).ExecuteUpdateAsync(u => u.SetProperty(d => d.ProfileId, hears), ct);
             return Results.NoContent();
         });
 

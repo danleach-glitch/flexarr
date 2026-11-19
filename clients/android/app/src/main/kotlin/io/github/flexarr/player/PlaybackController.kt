@@ -429,7 +429,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
             override fun onRenderedFirstFrame() {
                 if (info?.sessionId != switchingFrom) switchingQuality = false
                 val started = timing?.takeIf { it.isAnswered } ?: return
-                started.report(log, client.baseUrl.host, model.isGuest)
+                started.report(log, client.baseUrl.host, model.usesTunnel)
                 firstFrame = Triple(android.os.SystemClock.elapsedRealtime(), player.currentPosition, info?.playbackId)
                 timing = null
             }
@@ -461,7 +461,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                     if (after < EARLY_STALL_MS && abs(player.currentPosition - position - after) < 3000) {
                         log.measured(
                             "Playback ${playbackId ?: "unknown"} stalled soon after starting",
-                            mapOf("afterMs" to after.toString(), "remote" to (model.isGuest || StartTiming.looksRemote(client.baseUrl.host)).toString(), "playbackId" to playbackId),
+                            mapOf("afterMs" to after.toString(), "remote" to (model.usesTunnel || StartTiming.looksRemote(client.baseUrl.host)).toString(), "playbackId" to playbackId),
                         )
                     }
                 }

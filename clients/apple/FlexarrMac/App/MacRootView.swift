@@ -152,10 +152,11 @@ struct MacRootView: View {
             }
         }
         .onChange(of: model.phase) { old, new in
-            if case .signedIn(let before) = old, new == .signedOut || model.credentials?.isGuest != before.isGuest {
-                downloads.deleteAll()
+            if case .signedIn(let before) = old, new == .signedOut || model.credentials?.usesTunnel != before.usesTunnel {
+                if !model.keepsDownloads { downloads.deleteAll() }
                 notifications.forget()
             }
+            if case .signedIn = new { model.keepsDownloads = false }
         }
         .onChange(of: scenePhase, initial: true) { _, phase in
             if phase != .inactive { model.setInFront(phase == .active) }

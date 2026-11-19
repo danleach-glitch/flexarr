@@ -2346,6 +2346,8 @@ export interface GuestInvite {
   via: 'Link' | 'TvCode'
   createdAt: string
   expiresAt: string
+  /** For a household device away from home, not a guest. Absent from servers before 0.67. */
+  household?: boolean
 }
 
 export type TailnetPath = 'Unknown' | 'Direct' | 'PeerRelay' | 'Derp'
@@ -2365,6 +2367,13 @@ export interface GuestDevice {
   tailscaleAdminUrl: string
   /** The server's tailnet address or port changed since it joined, so it can't reach the server. Absent before 0.57. */
   serverMoved?: boolean
+  /** A household device away from home, on its own profile, rather than a guest's. Absent from servers before 0.67. */
+  household?: boolean
+  /**
+   * The profile a household device was added for (`profileId` is the one it's on now, which may be another of the
+   * household's). Absent from servers before 0.67, and for guests' devices.
+   */
+  homeProfileId?: string | null
 }
 
 export const getRemoteGuests = (signal?: AbortSignal) => apiGet<RemoteGuests>('/remote/guests', signal)
@@ -2373,12 +2382,17 @@ export const checkGuestPolicy = () => request<RemoteGuests>('POST', '/remote/gue
 export const setGuestRelay = (enabled: boolean) => request<GuestRelay>('PUT', '/remote/guests/relay', { enabled })
 export const getGuestInvites = (signal?: AbortSignal) => apiGet<GuestInvite[]>('/remote/guests/invites', signal)
 export const createGuestInvite = (name: string | null, profileId: string) => request<{ invite: GuestInvite; link: string }>('POST', '/remote/guests/invites', { name, profileId })
-export const inviteGuestTv = (code: string, name: string | null, profileId: string) => request<GuestInvite>('POST', '/remote/guests/tv-code', { code, name, profileId })
+/** `household`: a device for someone who lives here, on their own profile without a guest's limits (servers from 0.67). */
+export const inviteGuestTv = (code: string, name: string | null, profileId: string, household = false) =>
+  request<GuestInvite>('POST', '/remote/guests/tv-code', household ? { code, name, profileId, household } : { code, name, profileId })
 export const cancelGuestInvite = (id: string) => request<void>('DELETE', `/remote/guests/invites/${encodeURIComponent(id)}`)
 /** Every guest's profile id, devices or not (servers from 0.57). */
 export const getGuestPeople = (signal?: AbortSignal) => apiGet<string[]>('/remote/guests/people', signal)
 export const getGuestDevices = (signal?: AbortSignal) => apiGet<GuestDevice[]>('/remote/guests/devices', signal)
 export const removeGuestDevice = (id: string) => request<void>('DELETE', `/remote/guests/devices/${encodeURIComponent(id)}`)
+/** A guest who lives here after all: their profile joins the household, and their devices become household devices (servers from 0.67). */
+export const moveGuestToHousehold = (profileId: string) =>
+  request<void>('POST', `/remote/guests/people/${encodeURIComponent(profileId)}/move-to-household`)
 
 /** A browser or TV signed in to this server with its own token. */
 export interface SignIn {

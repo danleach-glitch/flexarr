@@ -68,3 +68,23 @@ fun InviteDialog(model: AppModel) {
         )
     }
 }
+
+/**
+ * "Signed in as Claire": said once, just after joining as a household device away from home, so it's plain this is
+ * the household's own Flexarr on someone's own profile, not a guest's. As Apple's.
+ */
+@Composable
+fun AwayWelcomeDialog(model: AppModel) {
+    val welcome = model.awayWelcome ?: return
+    AlertDialog(
+        onDismissRequest = { model.awayWelcome = null },
+        title = { Text(t("Signed in as {profile}", "profile" to welcome.profile)) },
+        text = { Text(awayWelcomeMessage(welcome)) },
+        confirmButton = { TextButton(onClick = { model.awayWelcome = null }) { Text(t("OK"), color = Flexarr.screen) } },
+        containerColor = Flexarr.seat,
+    )
+}
+
+/** "Smith House works here as it does at home." */
+fun awayWelcomeMessage(welcome: AppModel.AwayWelcome): String =
+    t("{kind, select, named {{server} works here as it does at home.} owner {{owner}’s Flexarr works here as it does at home.} other {Flexarr works here as it does at home.}}", *welcome.server.values)

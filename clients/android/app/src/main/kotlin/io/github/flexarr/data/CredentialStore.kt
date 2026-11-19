@@ -61,8 +61,35 @@ data class ServerCredentials(
      * wasn't connected here. It's then asked before it's sent the sign-in ([ServerAddresses.remoteConfirmed]).
      */
     val remoteConfirmed: Boolean = true,
+    /**
+     * Joined through the tunnel as a household device away from home (the redeem answer's `household`), not a guest: its
+     * own household profile, with none of a guest's limits. Only with [guest]; false for sign-ins saved before.
+     */
+    val household: Boolean = false,
 ) {
-    val isGuest: Boolean get() = guest != null
+    /**
+     * Reaches the server through the tunnel inside the app ([guest] is set): a guest's or a household device's away from
+     * home. No address for away from home, no Cast, downloads only while the app's in front, always away.
+     */
+    val usesTunnel: Boolean get() = guest != null
+
+    /** A family guest's sign-in, as saved: through the tunnel, and not a household device's. The server's `/me` has the last word. */
+    val isGuest: Boolean get() = guest != null && !household
+
+    /** A household device away from home: through the tunnel, as its own household profile, not a guest. */
+    val isHouseholdAway: Boolean get() = guest != null && household
+
+    /**
+     * Someone has been chosen for this sign-in: a profile picked on this device, or the profile a household device away
+     * from home joined as, which the invite chose (so "Who's watching?" doesn't follow the join, as on Apple).
+     */
+    val profileChosen: Boolean get() = profileToken != null || isHouseholdAway
+
+    /**
+     * This tunnel sign-in as the server says it is ([guest]: `/me`'s `isGuest`), or null when that changes nothing (it
+     * already says so, or it isn't a tunnel sign-in).
+     */
+    fun withServerSaid(guest: Boolean): ServerCredentials? = takeIf { usesTunnel && household == guest }?.copy(household = !guest)
 
     /** The away address with whether it's confirmed, as [io.github.flexarr.AppModel.remoteAddress] takes and gives it. */
     val away: Away? get() = remoteAddress?.let { Away(it, remoteConfirmed) }
@@ -115,6 +142,7 @@ class CredentialStore internal constructor(context: Context, private val secrets
             guest,
             prefs.getString(SERVER_ID, null).takeIf { guest == null },
             prefs.getString(REMOTE, null) != null || prefs.getString(REMOTE_PENDING, null) == null,
+            guest != null && prefs.getBoolean(GUEST_HOUSEHOLD, false),
         )
     }
 
@@ -137,6 +165,7 @@ class CredentialStore internal constructor(context: Context, private val secrets
             .putString(GUEST_HOSTNAME, guest?.hostname)
             .putString(GUEST_OWNER, guest?.ownerName)
             .putString(GUEST_SERVER_NAME, guest?.serverName)
+            .putBoolean(GUEST_HOUSEHOLD, guest != null && credentials.household)
             .apply()
     }
 
@@ -171,6 +200,15 @@ class CredentialStore internal constructor(context: Context, private val secrets
         prefs.edit().putString(ADDRESS, address).apply()
     }
 
+    /**
+     * The server said whether this tunnel sign-in is a guest's (`/me`'s `isGuest`): kept as [ServerCredentials.household],
+     * so offline the app still knows. Only for a tunnel sign-in.
+     */
+    fun saveHousehold(household: Boolean) {
+        if (prefs.getString(GUEST_TARGET, null) == null) return
+        prefs.edit().putBoolean(GUEST_HOUSEHOLD, household).apply()
+    }
+
     /** Remembers who's watching. The token only works alongside the device's own, so it isn't encrypted. */
     fun saveProfile(token: String?) {
         prefs.edit().putString(PROFILE, token).apply()
@@ -199,7 +237,7 @@ class CredentialStore internal constructor(context: Context, private val secrets
 
     fun clear() {
         prefs.edit().remove(ADDRESS).remove(API_KEY).remove(PROFILE).remove(PROFILES).remove(KIDS_LOCK).remove(REMOTE).remove(REMOTE_PENDING).remove(SERVER_ID)
-            .remove(GUEST_TARGET).remove(GUEST_HOSTNAME).remove(GUEST_OWNER).remove(GUEST_SERVER_NAME).remove(SERVER_NAME).apply()
+            .remove(GUEST_TARGET).remove(GUEST_HOSTNAME).remove(GUEST_OWNER).remove(GUEST_SERVER_NAME).remove(GUEST_HOUSEHOLD).remove(SERVER_NAME).apply()
     }
 
     /** Encrypted as the token is, for other secrets kept beside it (the notification key). */
@@ -221,6 +259,7 @@ class CredentialStore internal constructor(context: Context, private val secrets
         const val GUEST_HOSTNAME = "guest.hostname"
         const val GUEST_OWNER = "guest.owner"
         const val GUEST_SERVER_NAME = "guest.serverName"
+        const val GUEST_HOUSEHOLD = "guest.household"
         const val SERVER_NAME = "serverName"
     }
 }

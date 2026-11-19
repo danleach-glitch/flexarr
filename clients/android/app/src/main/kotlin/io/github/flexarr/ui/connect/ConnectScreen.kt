@@ -8,6 +8,8 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -220,9 +222,12 @@ private fun ChooseServer(
             }
         }
 
-        // Someone else's Flexarr, from another home: a code to give whoever invited them.
+        // Someone else's Flexarr, from another home, or the household's own from away: a code to give whoever runs it.
         if (BuildConfig.GUEST_INVITES) {
-            ActionButton(t("Join someone’s Flexarr"), onClick = onGuest, icon = Icons.Filled.Key, modifier = Modifier.fillMaxWidth())
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                ActionButton(t("Join someone’s Flexarr"), onClick = onGuest, icon = Icons.Filled.Key, modifier = Modifier.fillMaxWidth())
+                Text(t("Away from home? Ask whoever runs Flexarr for a code."), fontSize = 13.sp, color = Flexarr.usher, modifier = Modifier.padding(horizontal = 4.dp))
+            }
         }
 
         // Typing an address is for the few whose server can't be found: offered only once it hasn't been, or under
@@ -554,9 +559,12 @@ private fun Input(
     )
 }
 
-/** "Join someone’s Flexarr" on a phone or tablet: the code to read or send to whoever invited it (see [rememberGuestCode]). */
+/**
+ * "Join someone’s Flexarr" on a phone or tablet, and Settings › Server › Use away from home: the code to read or send to
+ * whoever runs that Flexarr (see [rememberGuestCode]). [onBack] null: the page's own title has Back, so there's no other.
+ */
 @Composable
-private fun PhoneGuestCode(model: AppModel, onBack: () -> Unit) {
+internal fun PhoneGuestCode(model: AppModel, onBack: (() -> Unit)?) {
     var attempt by remember { mutableIntStateOf(0) }
     val guest = rememberGuestCode(model, attempt)
     val context = LocalContext.current
@@ -595,7 +603,8 @@ private fun PhoneGuestCode(model: AppModel, onBack: () -> Unit) {
             ActionButton(if (guest.badInvite) t("New code") else t("Try again"), onClick = { attempt++ }, prominent = true)
         } else {
             // Not once codes have stopped: there's none to give.
-            if (!guest.stopped) Text(t("Give this code to the person who invited you"), fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
+            // For a guest and for someone in the household away from home alike: whoever runs Flexarr types it in.
+            if (!guest.stopped) Text(t("Tell this code to whoever runs Flexarr. They type it in Settings › Remote access."), fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Flexarr.usher)
             val shown = guest.code
             if (shown != null) {
                 Text(shown.display, fontSize = 44.sp, fontWeight = FontWeight.Black, letterSpacing = 3.sp, color = Flexarr.screen,
@@ -605,7 +614,7 @@ private fun PhoneGuestCode(model: AppModel, onBack: () -> Unit) {
                         .putExtra(android.content.Intent.EXTRA_TEXT, shown.display)
                     context.startActivity(android.content.Intent.createChooser(send, null))
                 })
-                Text(t("They type it into Settings › Remote access in Flexarr. Keep this screen open."), fontSize = 13.sp, color = Flexarr.usher)
+                Text(t("Keep this screen open."), fontSize = 13.sp, color = Flexarr.usher)
             } else if (guest.stopped) {
                 ActionButton(t("Show a new code"), onClick = { attempt++ }, prominent = true)
             } else if (guest.problem == null) {
@@ -614,8 +623,10 @@ private fun PhoneGuestCode(model: AppModel, onBack: () -> Unit) {
             guest.problem?.let { Text(it, fontSize = 15.sp, color = Flexarr.screen) }
         }
         // Not beside Join and Not now: those already say what to do.
-        if (!(invite != null && model.inviteFromCode && joinProblem == null && !model.joining)) {
-            ActionButton(t("Back"), onClick = { if (!model.joining) onBack() }, enabled = !model.joining, modifier = Modifier.padding(top = 6.dp))
+        if (onBack != null && !(invite != null && model.inviteFromCode && joinProblem == null && !model.joining)) {
+            // The gap above as a spacer of its own: padding in the button's modifier showed as a second layer behind it.
+            Spacer(Modifier.height(6.dp))
+            ActionButton(t("Back"), onClick = { if (!model.joining) onBack() }, enabled = !model.joining)
         }
     }
 }

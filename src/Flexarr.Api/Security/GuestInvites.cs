@@ -41,6 +41,12 @@ public sealed class GuestInvite
 
     /// <summary>Where the guest's app reaches Flexarr: this server's tailnet address and port when the invite was made.</summary>
     public string? Target { get; init; }
+
+    /// <summary>
+    /// For a household device away from home rather than a guest: redeeming it gives an away sign-in on the profile
+    /// (see <see cref="SignIn.Away"/>), and the profile doesn't become a guest.
+    /// </summary>
+    public bool Household { get; init; }
 }
 
 /// <summary>What the guest's app needs, carried in the invite link (base64url JSON after the #).</summary>
@@ -121,11 +127,16 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
     {
         lock (_lock)
         {
-            var ids = new HashSet<string>(LoadedGuests(), StringComparer.Ordinal);
-            ids.UnionWith(Loaded().Select(i => i.ProfileId));
-            ids.UnionWith(signIns.List().Where(s => s.Guest && s.ProfileId is not null).Select(s => s.ProfileId!));
-            return ids.ToList();
+            return GuestProfilesLocked().ToList();
         }
+    }
+
+    private HashSet<string> GuestProfilesLocked()
+    {
+        var ids = new HashSet<string>(LoadedGuests(), StringComparer.Ordinal);
+        ids.UnionWith(Loaded().Where(i => !i.Household).Select(i => i.ProfileId));
+        ids.UnionWith(signIns.List().Where(s => s.Guest && s.ProfileId is not null).Select(s => s.ProfileId!));
+        return ids;
     }
 
     /// <summary>
@@ -150,9 +161,26 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
             }
         }
 
-        foreach (var signIn in signIns.List().Where(s => s.Guest && s.ProfileId == profileId))
+        foreach (var signIn in signIns.List().Where(s => s.Tunneled))
         {
-            signIns.Revoke(signIn.Id);
+            if (signIn.Guest ? signIn.ProfileId == profileId : signIn.HomeProfileId == profileId)
+            {
+                // A guest's device, or a household device whose person it was: it goes with them.
+                signIns.Revoke(signIn.Id);
+            }
+            else if (signIn.Away && signIn.ProfileId == profileId)
+            {
+                // A household device that had switched to this profile goes back to its own (one from before
+                // HomeProfileId has none, and goes).
+                if (signIn.HomeProfileId is { } home)
+                {
+                    signIns.ChooseProfile(signIn.Id, home);
+                }
+                else
+                {
+                    signIns.Revoke(signIn.Id);
+                }
+            }
         }
 
         // In the background: removing the profile needn't wait on Tailscale, once per invite.
@@ -168,6 +196,61 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
         }
 
         await Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="profileId"/> is someone in the household with a device away from home, or one waiting to
+    /// join: they can't be invited as a guest.
+    /// </summary>
+    public bool IsHousehold(string profileId)
+    {
+        lock (_lock)
+        {
+            return HouseholdLocked(profileId);
+        }
+    }
+
+    private bool HouseholdLocked(string profileId) =>
+        Loaded().Any(i => i.Household && i.ProfileId == profileId) || signIns.List().Any(s => s.Away && s.OwnProfileId == profileId);
+
+    /// <summary>
+    /// Someone invited as a guest who lives in the house after all: they stop being a guest, their devices become
+    /// household devices away from home on their profile (child lock on for a kids profile), and their waiting invites
+    /// household ones. Their profile, and what they've watched, stay. False if they aren't a guest.
+    /// </summary>
+    public bool MoveToHousehold(string profileId, bool kidsProfile)
+    {
+        lock (_lock)
+        {
+            if (!GuestProfilesLocked().Contains(profileId))
+            {
+                return false;
+            }
+
+            var invites = Loaded();
+            for (var i = 0; i < invites.Count; i++)
+            {
+                if (invites[i] is { Household: false } invite && invite.ProfileId == profileId)
+                {
+                    invites[i] = new GuestInvite
+                    {
+                        Id = invite.Id, TokenHash = invite.TokenHash, Name = invite.Name, ProfileId = invite.ProfileId, Via = invite.Via,
+                        CreatedAt = invite.CreatedAt, ExpiresAt = invite.ExpiresAt, KeyId = invite.KeyId, Target = invite.Target, Household = true,
+                    };
+                }
+            }
+
+            SaveLocked();
+            if (LoadedGuests().Remove(profileId))
+            {
+                SaveGuestsLocked();
+            }
+
+            signIns.MoveGuestToHousehold(profileId, kidsProfile);
+        }
+
+        LogMovedToHousehold();
+        return true;
     }
 
     /// <summary>
@@ -294,7 +377,8 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
     /// Makes an invite for <paramref name="profileId"/>, once the safety check passes: mints the Tailscale key, keeps
     /// the invite and returns the payload for the guest's link (or TV).
     /// </summary>
-    public async Task<(GuestInvite Invite, InvitePayload Payload)> CreateAsync(string? name, string profileId, string profileName, string ownerName, InviteVia via, CancellationToken ct)
+    public async Task<(GuestInvite Invite, InvitePayload Payload)> CreateAsync(string? name, string profileId, string profileName, string ownerName, InviteVia via, CancellationToken ct,
+        bool household = false)
     {
         var settings = options.CurrentValue.RemoteGuests;
         if (!settings.Enabled)
@@ -315,7 +399,7 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
 
         try
         {
-            return await MakeAsync(name, profileId, profileName, ownerName, via, ct);
+            return await MakeAsync(name, profileId, profileName, ownerName, via, household, ct);
         }
         finally
         {
@@ -329,7 +413,8 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
     /// <summary>Invites being made right now (between the count and the key).</summary>
     private int _making;
 
-    private async Task<(GuestInvite Invite, InvitePayload Payload)> MakeAsync(string? name, string profileId, string profileName, string ownerName, InviteVia via, CancellationToken ct)
+    private async Task<(GuestInvite Invite, InvitePayload Payload)> MakeAsync(string? name, string profileId, string profileName, string ownerName, InviteVia via,
+        bool household, CancellationToken ct)
     {
 
         var check = await policy.CheckAsync(ct);
@@ -373,12 +458,17 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
             ExpiresAt = expires, // the key was asked to expire with it
             KeyId = key.Id,
             Target = $"{address}:{policy.FlexarrPort.ToString(CultureInfo.InvariantCulture)}",
+            Household = household,
         };
 
         lock (_lock)
         {
             Loaded().Add(invite);
-            MarkGuest(profileId);
+            if (!household)
+            {
+                MarkGuest(profileId);
+            }
+
             SaveLocked();
         }
 
@@ -413,8 +503,9 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
     /// Swaps an invite's token for a guest sign-in on the device at <paramref name="address"/> (a guest device on the
     /// tailnet, checked by the caller). Works once.
     /// </summary>
+    /// <param name="isKids">Whether a profile is a kids profile: a household device for one comes with child lock on.</param>
     public (SignIn SignIn, string Token, GuestInvite Invite, bool Retry) Redeem(string token, string address, DeviceType? deviceType,
-        Func<string, string?>? profileNameFor = null, Func<string, bool>? profileExists = null)
+        Func<string, string?>? profileNameFor = null, Func<string, bool>? profileExists = null, Func<string, bool>? isKids = null)
     {
         if (string.IsNullOrEmpty(token) || token.Length > 128)
         {
@@ -452,6 +543,13 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
             {
                 Loaded().Remove(invite);
                 SaveLocked();
+                // Someone's place changed while it waited (a household invite whose profile became a guest's, or a
+                // guest's whose profile now has a household device): it can't be used.
+                if (invite.Household ? GuestProfilesLocked().Contains(invite.ProfileId) : HouseholdLocked(invite.ProfileId))
+                {
+                    throw new InviteException(Loc.T("This invite has been used, cancelled or has expired. Ask for a new one."), StatusCodes.Status410Gone);
+                }
+
                 _redeemed[hash] = (invite, address, now + RetryWindow, null);
             }
         }
@@ -464,7 +562,9 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
         }
 
         var name = invite.Name.Length > 0 ? invite.Name : DeviceName(profileNameFor?.Invoke(invite.ProfileId), deviceType);
-        var (signIn, signInToken) = signIns.IssueGuest(name, invite.ProfileId, address, deviceType, invite.Target);
+        var (signIn, signInToken) = invite.Household
+            ? signIns.IssueAway(name, invite.ProfileId, address, deviceType, invite.Target, kidsLock: isKids?.Invoke(invite.ProfileId) == true)
+            : signIns.IssueGuest(name, invite.ProfileId, address, deviceType, invite.Target);
         lock (_lock)
         {
             if (_redeemed.TryGetValue(hash, out var entry))
@@ -593,6 +693,9 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
 
     [LoggerMessage(Level = LogLevel.Information, Message = "\"{Name}\" used their invite from {Address}")]
     private partial void LogRedeemed(string name, string address);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Moved a guest to the household")]
+    private partial void LogMovedToHousehold();
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Couldn't delete a cancelled invite's Tailscale key ({Reason}); it expires by itself")]
     private partial void LogKeyNotDeleted(string reason);

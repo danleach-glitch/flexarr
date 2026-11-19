@@ -142,7 +142,20 @@ data class GuestInvite(
 
 /** What redeeming an invite gives this device: its own sign-in, locked to the invite's profile. */
 @Serializable
-data class RedeemedInvite(val apiKey: String, val profileId: String, val serverId: String = "", val name: String = "")
+data class RedeemedInvite(
+    val apiKey: String,
+    val profileId: String,
+    val serverId: String = "",
+    val name: String = "",
+    /**
+     * Joined as a household device away from home (its own household profile, none of a guest's limits), not a guest.
+     * Absent from servers before 0.67, where every invite is a guest's.
+     */
+    val household: Boolean? = null,
+) {
+    /** A household device away from home rather than a guest ([household], false when absent). */
+    val isHousehold: Boolean get() = household == true
+}
 
 @Serializable
 internal data class RedeemInviteRequest(val token: String)

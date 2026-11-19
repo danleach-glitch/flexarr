@@ -7,19 +7,28 @@ struct ServerSettingsView: View {
     @State private var error: String?
 
     @State private var confirmLeave = false
-    /// A guest's tunnel right now (see `connection`), asked off the main thread.
+    /// The tunnel right now (see `connection`), asked off the main thread.
     @State private var path: String?
 
     var body: some View {
         List {
             if let guest = model.credentials?.guest {
+                // Through the tunnel: no address to show, just whose server. A guest leaves it here; a household device
+                // away from home signs out on Settings, as at home.
+                let isGuest = model.credentials?.isGuest == true
                 Section {
                     row(t("Server"), model.guestServerTitle(guest))
                     row(t("Connection"), connection)
-                    Button(t("Leave"), role: .destructive) { confirmLeave = true }
-                        .listRowBackground(Color.seat)
+                    if isGuest {
+                        Button(t("Leave"), role: .destructive) { confirmLeave = true }
+                            .listRowBackground(Color.seat)
+                    }
                 } header: {
-                    Text(t("Connected by invite"))
+                    Text(isGuest ? t("Connected by invite") : t("Away from home"))
+                } footer: {
+                    Text(isGuest
+                         ? t("Connected over the internet. AirPlay is off on this connection, and downloads carry on only while Flexarr is open.")
+                         : t("Away from home, Flexarr uses its own connection. AirPlay is off on it, and downloads carry on only while Flexarr is open."))
                 }
                 .leaveGuestConfirmation(isPresented: $confirmLeave, server: model.guestServerNaming(guest)) { model.signOut() }
             } else {
@@ -36,6 +45,13 @@ struct ServerSettingsView: View {
                      : model.credentials?.remoteConfirmed == false
                      ? t("This {device} hasn’t reached the server over Tailscale yet.", ["device": ThisDevice.name])
                      : t("Away from home, this {device} reaches the server over Tailscale, which needs to be connected on it.", ["device": ThisDevice.name]))
+            }
+            if model.offersUseAwayFromHome(serverVersion: status?.version) {
+                Section {
+                    SettingsLink(t("Use away from home"), icon: "key") { UseAwayFromHomeView() }
+                } footer: {
+                    Text(t("Watch here away from home without Tailscale. Whoever runs Flexarr types a code."))
+                }
             }
             }
 
@@ -69,7 +85,7 @@ struct ServerSettingsView: View {
         .refreshable { await load() }
     }
 
-    /// A guest's tunnel right now: straight to the host's server, or through a relay.
+    /// The tunnel right now: straight to the host's server, or through a relay.
     private var connection: String {
         switch path {
         case "direct": t("Direct")
@@ -123,13 +139,34 @@ struct ServerSettingsView: View {
         // Says here whether the away address has been reached, so it's asked again if it hasn't (beside the status,
         // which needn't wait for it).
         Task { await model.checkAwayAddress() }
-        if model.credentials?.isGuest == true { path = await GuestTunnel.shared.connectionPath() }
+        if model.credentials?.usesTunnel == true { path = await GuestTunnel.shared.connectionPath() }
         guard let client = model.client else { return }
         do {
             status = try await client.systemStatus()
             error = nil
         } catch {
             self.error = ConnectionError(error).message
+        }
+    }
+}
+
+/// Use away from home: the same code as Join someone’s Flexarr, for this device's own server. Once it's joined, the
+/// tunnel's sign-in takes the place of the one at home (keeping the downloads); Back leaves the one at home as it was.
+private struct UseAwayFromHomeView: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ScrollView {
+            GuestCodeView(onBack: { dismiss() })
+                .padding(20)
+                .frame(maxWidth: 560, alignment: .leading)
+                .frame(maxWidth: .infinity)
+        }
+        .settingsPage(t("Use away from home"))
+        // Joined: this page has done its job.
+        .onChange(of: model.credentials?.usesTunnel) { _, tunnel in
+            if tunnel == true { dismiss() }
         }
     }
 }

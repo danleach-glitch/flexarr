@@ -450,6 +450,13 @@ export const Trash = (p: IconProps) => (
     <path d="M9 7V4h6v3" />
   </svg>
 )
+/** Sign out: a door with an arrow leaving it, as rectangle.portrait.and.arrow.right on the Apple apps. */
+export const SignOut = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+    <path d="m16 17 5-5-5-5M21 12H9" />
+  </svg>
+)
 /** Explicit: an E in a solid square, as e.square.fill on the Apple apps. */
 export const Explicit = (p: IconProps) => {
   const id = useId()

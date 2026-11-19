@@ -199,8 +199,12 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     private var profileList: List<Profile> by mutableStateOf(emptyList())
 
+    /**
+     * The household's profiles, as this device may choose them. Through the tunnel (a household device away from home)
+     * the main profile is left out: the server never lets one have it.
+     */
     var profiles: List<Profile>
-        get() = profileList
+        get() = profileList.let { list -> if (credentials?.usesTunnel == true) withoutMainProfile(list) else list }
         private set(value) {
             // Kept on the device, so who's watching (and whether it's a child) is still known offline. Never a list with
             // nobody watching (on its way to "Who's watching?"): offline goes on as the profile last chosen.
@@ -280,14 +284,35 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** A grown-up is watching on this app's own sign-in, the household has a kids profile and this device isn't locked yet. */
     val canLockToKids: Boolean get() = hasOwnSignIn && !isGuest && !isKids && !kidsLock && profiles.any { it.isKids }
 
-    /** The server said this is a family guest's sign-in (servers from 0.57). */
-    private var serverSaysGuest by mutableStateOf(false)
+    /** Whether the server said this is a family guest's sign-in (`/me`, servers from 0.57); null until it has. */
+    private var serverSaysGuest: Boolean? by mutableStateOf(null)
 
     /**
-     * Signed in as a family guest, through the tunnel inside the app: one profile, fixed by the invite, and no Cast
-     * (a Chromecast can't reach the tunnel).
+     * Signed in as a family guest: one profile, fixed by the invite, no household devices, kids lock or remote commands,
+     * and Leave rather than Sign out. The server's word once it has said; until then (and offline) the sign-in as saved,
+     * where a tunnel one is a guest's unless it joined as a household device. A household device away from home uses the
+     * tunnel ([usesTunnel]) without being a guest.
      */
-    val isGuest: Boolean get() = credentials?.isGuest == true || serverSaysGuest
+    val isGuest: Boolean get() = serverSaysGuest ?: (credentials?.isGuest == true)
+
+    /**
+     * Reaches the server through the tunnel inside the app, as a guest or a household device away from home: no Cast
+     * (a Chromecast can't reach the tunnel), no away address, always away, downloads only while in front.
+     */
+    val usesTunnel: Boolean get() = credentials?.usesTunnel == true
+
+    /**
+     * What the server said about [isGuest] (null: a server before 0.57, which says nothing, and the sign-in as saved
+     * stands), kept with a tunnel sign-in so offline (and the next launch) knows too, and in the sign-in in use.
+     */
+    private fun serverSaid(guest: Boolean?) {
+        if (guest == null) return
+        serverSaysGuest = guest
+        val credentials = credentials ?: return
+        val updated = credentials.withServerSaid(guest) ?: return
+        if (saved) store.saveHousehold(updated.household)
+        phase = Phase.SignedIn(updated)
+    }
 
     /** The Tailscale node a guest reaches its host's server through. */
     val tunnel = GuestTunnel(context)
@@ -322,7 +347,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         adminPinMissing = me.adminPinMissing
         kidsLock = me.kidsLock
         hasOwnSignIn = me.method == "device"
-        serverSaysGuest = me.isGuest
+        serverSaid(me.isGuest)
         if (me.isMainProfile) pairing.refresh(client) else pairing.clear()
     }
 
@@ -349,7 +374,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         canUnlock = false
         adminPinMissing = false
         hasOwnSignIn = false
-        serverSaysGuest = false
+        serverSaysGuest = null
         pairing.clear()
     }
 
@@ -386,7 +411,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     fun measuredBitrate(client: FlexarrClient? = this.client): Long? = client?.let { linkSpeed.current(linkKey(it)) }
 
     /** Reaching the server away from home: by its away address, or a guest's tunnel. */
-    val isAway: Boolean get() = credentials?.isGuest == true || client?.addresses?.isAway == true
+    val isAway: Boolean get() = usesTunnel || client?.addresses?.isAway == true
 
     private var speedTesting: Job? = null
 
@@ -985,7 +1010,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
      */
     val needsProfile: Boolean
         get() = profilesLoaded && (!serverUnreachable || offlineAsksWho) &&
-            needsProfile(chosenHere = credentials?.profileToken != null, profiles = profiles.size, serverAsks = serverAsksWho)
+            needsProfile(chosenHere = credentials?.profileChosen == true, profiles = profiles.size, serverAsks = serverAsksWho)
 
     /**
      * The server answers this device as nobody chosen until someone is: the main profile has a PIN of its own that wasn't
@@ -1008,7 +1033,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
      */
     val awaitsProfile: Boolean
         get() = awaitsProfile(
-            chosenHere = credentials?.profileToken != null,
+            chosenHere = credentials?.profileChosen == true,
             loaded = profilesLoaded,
             needsProfile = needsProfile,
             keptProfiles = { if (saved && credentials != null) store.savedProfiles().size else 0 },
@@ -1064,6 +1089,40 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         scope.launch { notifications.resume(credentials) }
     }
 
+    /**
+     * Settings › Server offers Use away from home: signed in at home (not through the tunnel) on a profile other than the
+     * main one, in a build with family invites, to a server with household devices away from home (0.67 on; [serverVersion]
+     * as its status says, null while it isn't known). As Apple's offersUseAwayFromHome.
+     */
+    fun offersUseAwayFromHome(serverVersion: String?): Boolean =
+        offersUseAwayFromHome(credentials, currentProfile, serverVersion, BuildConfig.GUEST_INVITES)
+
+    /**
+     * Use away from home's code is showing: an invite that comes to it joins this signed-in device through the tunnel,
+     * in place of its home sign-in ([join]). Backing out leaves the home sign-in as it was.
+     */
+    var joiningAway by mutableStateOf(false)
+        private set
+
+    /** Use away from home's code opened. */
+    fun startUsingAway() {
+        if (joining) return
+        dismissInvite()
+        joiningAway = true
+    }
+
+    /** Use away from home's code closed without joining (or after): the home sign-in stays. */
+    fun stopUsingAway() {
+        if (joining) return
+        dismissInvite()
+        joiningAway = false
+    }
+
+    /** "Signed in as Claire": just joined as a household device away from home, said once (as Apple's awayWelcome). */
+    var awayWelcome: AwayWelcome? by mutableStateOf(null)
+
+    data class AwayWelcome(val profile: String, val server: ServerNaming)
+
     /** A family invite opened from a link, a paste or a scan, waiting for "Join Dan's Flexarr as Gran?". */
     var offeredInvite: GuestInvite? by mutableStateOf(null)
 
@@ -1084,7 +1143,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     fun offerInvite(invite: GuestInvite?, fromCode: Boolean = false) {
         when {
             invite == null -> inviteProblem = t("That invite isn’t complete. Ask for the link again.")
-            phase is Phase.SignedIn -> inviteProblem = t("Sign out in Settings first, then open the invite again.")
+            // Signed in, only Use away from home's code may bring one (the same server's household invite, as a rule).
+            phase is Phase.SignedIn && !(joiningAway && fromCode) -> inviteProblem = t("Sign out in Settings first, then open the invite again.")
             else -> {
                 offeredInvite = invite
                 inviteFromCode = fromCode
@@ -1221,11 +1281,63 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             withContext(Dispatchers.IO) { tunnel.use(null) }
             throw GuestJoinException(guestJoinProblem(e, owner, server = invite.serverNaming))
         }
-        val credentials = ServerCredentials(address, redeemed.apiKey, guest = info)
-        store.save(credentials)
+        val credentials = ServerCredentials(address, redeemed.apiKey, guest = info, household = redeemed.isHousehold)
+        // Use away from home: the home sign-in gives way to this one.
+        val home = this.credentials?.takeIf { joiningAway && !it.usesTunnel }
+        if (home != null) {
+            movedOntoTunnel(home, credentials, sameServer = sameServer(home.serverId, redeemed.serverId.ifEmpty { invite.serverId }))
+        } else {
+            store.save(credentials)
+            saved = true
+            signedIn(credentials)
+        }
+        joiningAway = false
+        if (credentials.household) awayWelcome = AwayWelcome(invite.profileName, invite.serverNaming)
+        flexarrLog.info(if (credentials.household) "Joined as a household device away from home" else "Joined as a guest")
+    }
+
+    /**
+     * Use away from home joined: this device moves from its [home] sign-in onto the tunnel's [away] one. The same server
+     * keeps the downloads (the same titles, ids and profiles); another server's join drops them, as signing out would.
+     * The home sign-in is signed out on the server (best effort; never one from the command line, which may be its API
+     * key), and notifications move to the new one.
+     */
+    private fun movedOntoTunnel(home: ServerCredentials, away: ServerCredentials, sameServer: Boolean) {
+        val homeClient = home.client()
+        val wasSaved = saved
+        dropAllReady()
+        commands.stop()
+        music.stop()
+        podcasts.stop()
+        books.stop()
+        podcastStatus = null
+        upNext = emptyList()
+        forgetWatchlist()
+        remoteRetry?.cancel()
+        remoteRetry = null
+        remoteChecked = false
+        val downloadsDone = if (sameServer) {
+            null
+        } else {
+            io.github.flexarr.audio.LastHeard.clear(context)
+            io.github.flexarr.core.i18n.Localization.forgetDownloaded()
+            serverName = null
+            bookDownloads.deleteAll(homeClient)
+            downloads.signedOut(homeClient)
+        }
+        flexarrLog.info(if (sameServer) "Use away from home: on the tunnel, downloads kept" else "Use away from home: another server, downloads deleted")
+        store.clear()
+        store.save(away)
         saved = true
-        signedIn(credentials)
-        flexarrLog.info("Joined as a guest")
+        signedIn(away)
+        scope.launch {
+            if (wasSaved) {
+                downloadsDone?.join()
+                notifications.signedOut(homeClient)
+                runCatching { homeClient.signOut() }
+            }
+            notifications.resume(away)
+        }
     }
 
     /** The tunnel came up on [port]: a guest's sign-in follows it there, if it had to move from the one it had. */
@@ -1233,7 +1345,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         scope.launch {
             // Started again in the background (music, a download, a widget): it stops again once that's done with it.
             if (!inFront && tunnelIdle?.isActive != true) wentToBackground()
-            val now = credentials?.takeIf { it.isGuest } ?: return@launch
+            val now = credentials?.takeIf { it.usesTunnel } ?: return@launch
             val address = "http://127.0.0.1:$port/"
             if (now.address == address) return@launch
             if (saved) store.saveGuestAddress(address)
@@ -1281,7 +1393,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         // Once a launch too: the server says when the morning's "on today" arrives in this phone's time zone.
         scope.launch { notifications.checkTimeZone() }
         // A guest only ever reaches the server through its tunnel.
-        if (credentials.isGuest) return
+        if (credentials.usesTunnel) return
         checkRemoteAddress(credentials, launching = true)
         confirmRemoteLater()
     }
@@ -1332,7 +1444,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
      */
     suspend fun checkAwayAddress() {
         val credentials = credentials ?: return
-        if (credentials.isGuest || credentials.remoteAddress == null || credentials.remoteConfirmed) return
+        if (credentials.usesTunnel || credentials.remoteAddress == null || credentials.remoteConfirmed) return
         checkRemoteAddress(credentials)
         confirmRemoteLater()
     }
@@ -1387,7 +1499,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
      * it's no use): once [tunnelNeededBy] has finished telling the server.
      */
     private fun forget(tunnelNeededBy: Job? = null) {
-        if (credentials?.isGuest == true || tunnel.isInUse) {
+        if (credentials?.usesTunnel == true || tunnel.isInUse) {
             leaving = scope.launch {
                 tunnelNeededBy?.join()
                 withContext(Dispatchers.IO) { tunnel.forget() }
@@ -1507,7 +1619,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
 
     private suspend fun loadProfilesNow(serverAnswered: Boolean) {
         // A guest with no network at all needn't wait for its tunnel to give up.
-        if (credentials?.isGuest == true && network.isOffline) return goOffline()
+        if (credentials?.usesTunnel == true && network.isOffline) return goOffline()
         // A guest reaches the server only through its tunnel: if that can't start, its problem screen says so.
         if (!ensureGuestTunnel()) return
         val client = client ?: return
@@ -1542,7 +1654,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             me?.let {
                 kidsLock = it.kidsLock
                 hasOwnSignIn = it.method == "device"
-                serverSaysGuest = it.isGuest
+                serverSaid(it.isGuest)
             }
             // Without an answer, as before servers asked: a refused request asks again (serverRefusedUnchosen). Someone
             // chosen while this was asked (chose) already settled it: an answer from before doesn't bring the picker back.
@@ -1550,7 +1662,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             leaveOfflineMode()
         } catch (e: FlexarrException) {
             // A guest's device the host has removed is turned away (403) whatever it asks: back to joining.
-            if (e is FlexarrException.Http && e.guestRemoved && credentials?.isGuest == true) return removedAsGuest()
+            if (e is FlexarrException.Http && e.guestRemoved && credentials?.usesTunnel == true) return removedAsGuest()
             // Reached, but the list didn't come: the one kept from last time, so the right profile (a child's) shows.
             if (profiles.isEmpty() && saved) profiles = store.savedProfiles()
             if (e is FlexarrException.Unreachable) goOffline()
@@ -1942,18 +2054,22 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                 refused.client().me()
             } catch (e: FlexarrException.Http) {
                 // A guest's device its host removed: refused everything (403), not just the sign-in.
-                if (e.guestRemoved && credentials == refused && refused.isGuest) removedAsGuest()
+                if (e.guestRemoved && credentials == refused && refused.usesTunnel) removedAsGuest()
             } catch (_: FlexarrException.Unauthorized) {
                 if (credentials == refused) {
                     // A guest's address is the same loopback one whoever's Flexarr it joins, so its downloads can't wait for it.
-                    val kept = if (refused.isGuest) false.also { deleteDownloads() } else downloads.signedOutByServer(refused.address)
+                    val kept = if (refused.usesTunnel) false.also { deleteDownloads() } else downloads.signedOutByServer(refused.address)
+                    // Named before the sign-in (and the server's name with it) is forgotten.
+                    val household = if (refused.isHouseholdAway) householdSignedOutNotice(refused) else null
                     notifications.forget()
                     forget()
                     signedOutNotice = if (kept) {
                         t("This device was signed out. Its downloads are kept, and catch up when it connects to this server again.")
-                    } else {
+                    } else household ?: run {
                         t("This device was signed out.")
                     }
+                    // Joining again takes a new code: the connect screen opens on its choices, not a code for an address.
+                    if (household != null) signedOutAsGuest = true
                 }
             } catch (_: Exception) {
                 // Unreachable or restarting: no reason to forget the sign-in.
@@ -1963,18 +2079,29 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         }
     }
 
-    /** The host removed this guest's device: its sign-in, tunnel and downloads go, and the connect screen says what to do. */
+    /**
+     * The host removed this tunnel device: its sign-in, tunnel and downloads go, and the connect screen says what to do.
+     * A guest no longer has access to someone else's Flexarr; a household device away from home was signed out of its own.
+     */
     private fun removedAsGuest() {
         val credentials = credentials ?: return
         val server = guestServerNaming(credentials.guest)
+        // Named before the sign-in (and the server's name with it) is forgotten.
+        val household = if (credentials.isHouseholdAway && serverSaysGuest != true) householdSignedOutNotice(credentials) else null
         // Not kept for coming back: every guest's address is this phone's own loopback one, so another host's Flexarr
         // joined later would look like the same server and take them on.
         deleteDownloads()
         notifications.forget()
         forget()
-        signedOutNotice = t("{kind, select, named {You no longer have access to {server}.} owner {You no longer have access to {owner}’s Flexarr.} other {You no longer have access to this Flexarr.}}", *server.values)
+        signedOutNotice = household ?: run {
+            t("{kind, select, named {You no longer have access to {server}.} owner {You no longer have access to {owner}’s Flexarr.} other {You no longer have access to this Flexarr.}}", *server.values)
+        }
         signedOutAsGuest = true
     }
+
+    /** A household device away from home, signed out by its server: joining again takes a new code, as on Apple. */
+    private fun householdSignedOutNotice(credentials: ServerCredentials): String =
+        t("{kind, select, named {This device was signed out of {server}. Joining again takes a new code.} owner {This device was signed out of {owner}’s Flexarr. Joining again takes a new code.} other {This device was signed out of this Flexarr. Joining again takes a new code.}}", *guestServerNaming(credentials.guest).values)
 
     /**
      * Every download goes with a sign-in that isn't coming back (a guest's, refused or removed by its host): films,
@@ -2011,7 +2138,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         // A guest's address is the tunnel's loopback port, which can change; the server behind it is the tunnel's target.
         LogHub.signedIn(client, credentials?.let { it.guest?.target ?: it.address })
         val address = credentials?.address
-        address?.let { downloads.signingIn(it, guest = credentials?.isGuest == true) }
+        address?.let { downloads.signingIn(it, guest = credentials?.usesTunnel == true) }
         if (address == null) {
             reportsServer = null
             ErrorReports.stop()
@@ -2024,7 +2151,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             scope.launch {
                 val status = serverStatus(now) ?: return@launch
                 ErrorReports.apply(status.errorReports, address)
-                noteServerName(status, address, now.isGuest)
+                noteServerName(status, address, isGuest)
             }
         }
     }
@@ -2041,7 +2168,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         FlexarrClient.onChooseProfile = { scope.launch { serverRefusedUnchosen() } }
         tunnel.onPort = ::tunnelMoved
         // The host deleted this device from its tailnet: as good as removing it from Flexarr.
-        tunnel.onRefused = { scope.launch { if (credentials?.isGuest == true) removedAsGuest() } }
+        tunnel.onRefused = { scope.launch { if (credentials?.usesTunnel == true) removedAsGuest() } }
         // A guest's tunnel starts now, off the main thread, so it's up (or on its way) before the first request, which
         // waits for it either way.
         savedSignIn?.guest?.let { guest ->
@@ -2053,13 +2180,13 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** Back in front: a guest's tunnel is started again if it stopped while the app was away. */
     fun cameToFront() {
         tunnelIdle?.cancel()
-        if (credentials?.isGuest == true) scope.launch(Dispatchers.IO) { tunnel.ensureRunning() }
+        if (credentials?.usesTunnel == true) scope.launch(Dispatchers.IO) { tunnel.ensureRunning() }
         // One request does both: the connection to the server is set up again before Play needs it, and the server's
         // name follows if it was renamed on the web while the app was away. Starting up, it's the status already asked for.
         // Then, away from home, the link is measured, so the first play starts on a quality it carries.
         credentials?.let { now ->
             scope.launch {
-                serverStatus(now)?.let { status -> noteServerName(status, now.address, now.isGuest) }
+                serverStatus(now)?.let { status -> noteServerName(status, now.address, isGuest) }
                 speedTest()
             }
         }
@@ -2101,7 +2228,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     private fun settleOfflineProfile() {
         val known = if (saved && profiles.none { it.isCurrent }) store.savedProfiles().takeIf { it.isNotEmpty() } ?: profiles else profiles
         if (saved && store.savedKidsLock()) kidsLock = true
-        val settled = offlineProfiles(known, chosenHere = credentials?.profileToken != null, kidsLock = kidsLock)
+        val settled = offlineProfiles(known, chosenHere = credentials?.profileChosen == true, kidsLock = kidsLock)
         if (settled.profiles != profiles) profiles = settled.profiles
         offlineAsksWho = settled.asksWho
     }
@@ -2146,7 +2273,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         if (credentials == null) return
         if (serverUnreachable) {
             // A guest's server is only there once its tunnel is.
-            if (credentials?.isGuest == true && (network.isOffline || !ensureGuestTunnel())) return
+            if (credentials?.usesTunnel == true && (network.isOffline || !ensureGuestTunnel())) return
             val client = client ?: return
             if (!knownReachable && !serverAnswers(client, ignoringNetwork)) return
             flexarrLog.info("Back online")
@@ -2191,7 +2318,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                 if (network.isOffline && profilesLoaded && !serverUnreachable) goOffline()
             } else {
                 // Tailscale may have come up with the network: an unconfirmed away address is asked again.
-                if (credentials?.isGuest == false) confirmRemoteLater()
+                if (credentials?.usesTunnel == false) confirmRemoteLater()
                 if (serverUnreachable) {
                     // Once the new network has settled.
                     delay(1_000)
@@ -2293,6 +2420,29 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         }
     }
 }
+
+/**
+ * Use away from home is offered ([AppModel.offersUseAwayFromHome]): a build with family invites, signed in at home (not
+ * through the tunnel) on a profile other than the main one, to a server from 0.67, which has household devices away
+ * from home. Not while the version isn't known.
+ */
+internal fun offersUseAwayFromHome(credentials: ServerCredentials?, profile: Profile?, serverVersion: String?, invitesBuilt: Boolean): Boolean =
+    invitesBuilt && credentials != null && !credentials.usesTunnel && profile != null && !profile.isMain &&
+        serverVersion != null && ServerVersion.atLeast(serverVersion, 0, 67)
+
+/**
+ * Whether Use away from home joined the server the home sign-in was on ([AppModel.join]), by their ids: only ids that
+ * are both known and differ say it's another server (and its downloads go); one not known keeps them.
+ */
+internal fun sameServer(homeId: String?, joinedId: String?): Boolean =
+    homeId.isNullOrEmpty() || joinedId.isNullOrEmpty() || homeId == joinedId
+
+/**
+ * The profiles a device on the tunnel may choose: all but the main profile, which the server refuses a household device
+ * away from home (403) and a guest never has. One that's somehow watching stays, so who's watching still shows.
+ */
+internal fun withoutMainProfile(profiles: List<Profile>): List<Profile> =
+    if (profiles.none { it.isMain && !it.isCurrent }) profiles else profiles.filter { !it.isMain || it.isCurrent }
 
 /**
  * Whether "Who's watching?" is up, once [profiles] have loaded ([AppModel.needsProfile]): more than one and none

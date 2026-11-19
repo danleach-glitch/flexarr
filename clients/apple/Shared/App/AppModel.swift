@@ -38,7 +38,7 @@ final class AppModel {
         // Warnings and errors go to the server signed in to, and its sign-in is kept out of the log.
         didSet {
             guard phase != oldValue else { return }
-            GuestMode.isActive = credentials?.isGuest == true
+            GuestMode.isActive = credentials?.usesTunnel == true
             // Speed readings follow the server signed in to, and the address it's reached at.
             LinkSpeed.shared.follow(client?.addresses)
             ConnectionError.server = serverNaming
@@ -183,6 +183,27 @@ final class AppModel {
     /// An invite link this app can't take now (it predates invites, or this device is signed in to its own server):
     /// what to do instead.
     var inviteNotice: String?
+    /// The sign-in is moving from home onto the tunnel for the same server (Use away from home): the change of
+    /// sign-in keeps this device's downloads. Cleared by the app once it's signed in again.
+    @ObservationIgnored var keepsDownloads = false
+
+    /// Settings › Server offers Use away from home: signed in at home (not through the tunnel) on a profile other than
+    /// the main one, to a server that has household devices away from home (0.67 and later; `serverVersion` as its
+    /// status says, nil while it's not known).
+    func offersUseAwayFromHome(serverVersion: String?) -> Bool {
+        guard GuestInvite.guestInvitesOffered, let credentials, !credentials.usesTunnel,
+              let profile = currentProfile, !profile.isMain, let serverVersion else { return false }
+        return ServerVersion.isAtLeast(serverVersion, major: 0, minor: 67) == true
+    }
+
+    /// Just joined as a household device away from home: "Signed in as Claire", said once.
+    var awayWelcome: AwayWelcome?
+
+    struct AwayWelcome: Identifiable, Equatable {
+        let profile: String
+        let server: ServerNaming
+        var id: String { profile }
+    }
     /// "Now playing on iPhone": a title moved to a phone with Continue on iPhone (the Apple TV shows it a moment).
     var handOffNotice: String?
 
@@ -195,6 +216,8 @@ final class AppModel {
     /// Launch-argument sign-ins (simulator runs, the screenshot tour) act as the main profile
     /// unless `-FlexarrAskProfile YES` asks.
     private var skipsProfileChoice = false
+    /// `-FlexarrPretendAway YES`: signed in as a household device away from home would be, but straight to the server.
+    private var pretendsAway = false
     #endif
 
     init() {
@@ -208,7 +231,17 @@ final class AppModel {
         // `-FlexarrSignedOut YES` starts on the connect screen (keeps the last address).
         if defaults.bool(forKey: "FlexarrSignedOut") { store.clear() }
         if let server = defaults.string(forKey: "FlexarrServer"), let url = FlexarrClient.normalizeAddress(server) {
-            let credentials = ServerCredentials(address: url, apiKey: defaults.string(forKey: "FlexarrApiKey") ?? "")
+            var credentials = ServerCredentials(address: url, apiKey: defaults.string(forKey: "FlexarrApiKey") ?? "")
+            // `-FlexarrPretendAway YES` makes it a household device away from home's sign-in (the tunnel's, but straight
+            // to the server, with no tunnel started), to see its screens; `-FlexarrAwayWelcome <profile>` says hello.
+            if defaults.bool(forKey: "FlexarrPretendAway") {
+                credentials.guest = GuestTunnelInfo(target: "\(url.host() ?? ""):\(url.port ?? 8383)", hostname: "flexarr-guest-preview",
+                                                    ownerName: "Dan", household: true)
+                pretendsAway = true
+                if let profile = defaults.string(forKey: "FlexarrAwayWelcome") {
+                    awayWelcome = AwayWelcome(profile: profile, server: credentials.guest!.serverNaming)
+                }
+            }
             try? store.save(credentials)
             skipsProfileChoice = !defaults.bool(forKey: "FlexarrAskProfile")
             // Keep the key given on the command line rather than making a new device sign-in every run.
@@ -257,9 +290,10 @@ final class AppModel {
         FlexarrClient.onChooseProfile = { [weak self] home in
             Task { @MainActor in self?.serverAsksWhoIsWatching(home) }
         }
-        // A family guest reaches its host only through the tunnel: start it before anything asks the server.
-        GuestMode.isActive = credentials?.isGuest == true
-        if credentials?.isGuest == true { Task { await ensureGuestTunnel() } }
+        // A family guest (or a household device away from home) reaches its host only through the tunnel: start it
+        // before anything asks the server.
+        GuestMode.isActive = credentials?.usesTunnel == true
+        if credentials?.usesTunnel == true { Task { await ensureGuestTunnel() } }
         LogHub.shared.signedIn(client)
         // Before anything else can crash: the server's answer comes later (see `refreshErrorReports`).
         ErrorReports.resume(server: credentials?.address)
@@ -519,7 +553,7 @@ final class AppModel {
         player.dropReady()
         music.dropReadyBook()
         // Tell the server too, so this device's token stops working; best effort, it's forgotten here either way.
-        let guest = credentials?.isGuest == true
+        let guest = credentials?.usesTunnel == true
         var told: Task<Void, Never>?
         if let client = credentials?.client {
             let leaving = onSignOut
@@ -572,7 +606,7 @@ final class AppModel {
         endPlayback()
         music.stop()
         // A guest leaving leaves its host's tailnet too: nothing of the tunnel stays on the device.
-        if stoppingTunnel, credentials?.isGuest == true { GuestTunnel.shared.stop(forget: true) }
+        if stoppingTunnel, credentials?.usesTunnel == true { GuestTunnel.shared.stop(forget: true) }
         tunnelProblem = nil
         serverUpdateNotice = nil
         leaveOfflineMode()
@@ -607,28 +641,34 @@ final class AppModel {
     /// out there (from the web's Sign-ins list, or a new key): forget it and go back to connecting, rather than
     /// leave every screen on an error that Try again can't fix. One refusal alone could be a server mid-restart.
     private func checkSignIn(_ refused: ServerCredentials) {
-        guard !checkingSignIn, credentials == refused else { return }
+        // By who it is, not every detail: `/me` may have corrected whether it's a guest's since the refusing client
+        // was made, or the tunnel moved port.
+        guard !checkingSignIn, let current = credentials, refused.isSameSignIn(as: current) else { return }
         checkingSignIn = true
         Task {
             defer { checkingSignIn = false }
             try? await Task.sleep(for: .seconds(1))
             do {
-                _ = try await refused.client.me()
+                _ = try await current.client.me()
                 return // Accepted after all.
             } catch FlexarrClientError.unauthorized {
                 // Refused again: signed out.
-            } catch FlexarrClientError.guestRemoved where refused.isGuest {
-                // A guest's device its host removed: refused everything, not just the sign-in.
-                guard credentials == refused else { return }
-                removedAsGuest(refused.guest)
+            } catch FlexarrClientError.guestRemoved where current.usesTunnel {
+                // A guest's (or household device's away) its host removed: refused everything, not just the sign-in.
+                guard current.isSameSignIn(as: credentials) else { return }
+                removedAsGuest(credentials?.guest ?? current.guest)
                 return
             } catch {
                 return // Unreachable or restarting: no reason to forget the sign-in.
             }
             // Not if it's been replaced meanwhile (another profile chosen, or connected again).
-            guard credentials == refused else { return }
-            signedOutNotice = t("This {device} was signed out.", ["device": ThisDevice.name])
-            signedOutAsGuest = false
+            guard current.isSameSignIn(as: credentials) else { return }
+            let tunnel = credentials?.guest ?? current.guest
+            signedOutNotice = tunnel?.household == true
+                ? householdSignedOutNotice(tunnel)
+                : t("This {device} was signed out.", ["device": ThisDevice.name])
+            // A tunnel sign-in had no server of its own to show a code for: it joins again with a new code.
+            signedOutAsGuest = current.usesTunnel
             forget()
         }
     }
@@ -643,8 +683,8 @@ final class AppModel {
     /// from before the app kept that), so the home address can be asked who it is before it's sent the sign-in. Best
     /// effort, once per launch, after the profiles are up.
     private func refreshRemoteAddress() async {
-        // A guest only ever reaches its host through the tunnel.
-        guard !remoteChecked, let credentials, !credentials.isGuest else { return }
+        // A tunnel sign-in only ever reaches its host through the tunnel.
+        guard !remoteChecked, let credentials, !credentials.usesTunnel else { return }
         remoteChecked = true
         await checkRemoteAddress(credentials)
         confirmRemoteLater()
@@ -688,7 +728,7 @@ final class AppModel {
     /// Asks the away address again now if it's still unconfirmed: Settings › Server shows whether it has been reached,
     /// and Tailscale may have been connected since the last try.
     func checkAwayAddress() async {
-        guard let credentials, !credentials.isGuest, credentials.remoteAddress != nil, !credentials.remoteConfirmed else { return }
+        guard let credentials, !credentials.usesTunnel, credentials.remoteAddress != nil, !credentials.remoteConfirmed else { return }
         await checkRemoteAddress(credentials)
         confirmRemoteLater()
     }
@@ -833,7 +873,7 @@ final class AppModel {
         guard credentials != nil else { return }
         if isOffline {
             // A guest's server is only there once its tunnel is.
-            if credentials?.isGuest == true {
+            if credentials?.usesTunnel == true {
                 guard !(await NetworkWatch.shared.isOfflineNow()), await ensureGuestTunnel() else { return }
             }
             guard let client else { return }
@@ -878,9 +918,9 @@ final class AppModel {
                 if NetworkWatch.shared.isOffline, profilesLoaded, !isOffline { goOffline() }
             }
         } else {
-            if tunnelProblem != nil, credentials?.isGuest == true { Task { await ensureGuestTunnel() } }
+            if tunnelProblem != nil, credentials?.usesTunnel == true { Task { await ensureGuestTunnel() } }
             // Tailscale may have come up with the network: an unconfirmed away address is asked again.
-            if credentials?.isGuest == false { confirmRemoteLater() }
+            if credentials?.usesTunnel == false { confirmRemoteLater() }
             // Once the new network has settled.
             if isOffline {
                 Task {
@@ -896,12 +936,15 @@ final class AppModel {
     @discardableResult
     func ensureGuestTunnel() async -> Bool {
         guard let credentials, let guest = credentials.guest else { return true }
+        #if DEBUG
+        if pretendsAway { return true }
+        #endif
         let network = NetworkWatch.shared
         // The tunnel tries for up to a minute: with no network that's offline mode now, and still nothing after a
         // while, the problem shows (Downloads are there on iPhone) while it carries on trying.
         let early = Task { @MainActor [weak self] in
             for second in 1...15 {
-                guard (try? await Task.sleep(for: .seconds(1))) != nil, let self, self.credentials?.guest == guest else { return }
+                guard (try? await Task.sleep(for: .seconds(1))) != nil, let self, guest.isSameTunnel(as: self.credentials?.guest) else { return }
                 if network.isOffline {
                     self.goOffline()
                     return
@@ -919,7 +962,7 @@ final class AppModel {
             let recovered = tunnelProblem != nil
             tunnelProblem = nil
             // The port it asked for was taken: the sign-in moves to the one it got.
-            if let now = self.credentials, now.guest == guest, now.address != address {
+            if let now = self.credentials, guest.isSameTunnel(as: now.guest), now.address != address {
                 var moved = now
                 moved.address = address
                 store.clear()
@@ -935,11 +978,11 @@ final class AppModel {
             return true
         } catch GuestTunnel.Failure.needsInvite {
             // Deleted from the host's tailnet (or its key ran out): Try again can't help, so it's as if removed.
-            guard self.credentials?.guest == guest else { return false }
+            guard guest.isSameTunnel(as: self.credentials?.guest) else { return false }
             removedAsGuest(guest)
             return false
         } catch {
-            guard self.credentials?.guest == guest else { return false }
+            guard guest.isSameTunnel(as: self.credentials?.guest) else { return false }
             log.warning("The guest tunnel didn't start: \(error.localizedDescription)")
             // With no network it's simply offline; the problem screen is for a tunnel that fails with one.
             if network.isOffline { goOffline() } else { tunnelProblem = error.localizedDescription }
@@ -949,9 +992,18 @@ final class AppModel {
 
     /// The host removed this device (or deleted it from their tailnet): signed out, back to joining, saying why.
     private func removedAsGuest(_ guest: GuestTunnelInfo?) {
-        signedOutNotice = t("{kind, select, named {You no longer have access to {server}.} owner {You no longer have access to {owner}’s Flexarr.} other {You no longer have access to this Flexarr.}}", guestServerNaming(guest).values)
+        // A household device away from home is signed out of its own server, not shut out of someone else's.
+        signedOutNotice = guest?.household == true ? householdSignedOutNotice(guest) : t("{kind, select, named {You no longer have access to {server}.} owner {You no longer have access to {owner}’s Flexarr.} other {You no longer have access to this Flexarr.}}", guestServerNaming(guest).values)
         forget()
         signedOutAsGuest = true
+    }
+
+    /// "This iPad was signed out of Smith House. Joining again takes a new code.": a household device away from home
+    /// signed out by the server.
+    private func householdSignedOutNotice(_ guest: GuestTunnelInfo?) -> String {
+        let server = guestServerNaming(guest)
+        return t("{kind, select, named {This {device} was signed out of {server}. Joining again takes a new code.} owner {This {device} was signed out of {owner}’s Flexarr. Joining again takes a new code.} other {This {device} was signed out of this Flexarr. Joining again takes a new code.}}",
+                 server.values.merging(["device": ThisDevice.name]) { _, new in new })
     }
 
     /// Keeps what the server is called, for Settings and for while it can't be reached. Servers before 0.61 say
@@ -972,7 +1024,7 @@ final class AppModel {
 
     /// The server signed in to, for sentences that name it: a guest's host as `guestServerNaming` has it.
     var serverNaming: ServerNaming {
-        credentials?.isGuest == true ? guestServerNaming(credentials?.guest) : ServerNaming(name: serverName, owner: nil)
+        credentials?.usesTunnel == true ? guestServerNaming(credentials?.guest) : ServerNaming(name: serverName, owner: nil)
     }
 
     /// A guest's host server: the name it last gave, or the invite's, or "Dan's Flexarr".
@@ -1017,7 +1069,7 @@ final class AppModel {
         guard !invite.isExpired() else { throw JoinError.usedUp }
         // Signed in to a server of its own, it stays there: an invite is opened after signing out (see openURL).
         // One tunnel, one host: a guest leaves its last host first (its sign-out goes through that tunnel).
-        if credentials?.isGuest == true { signOut() }
+        if credentials?.usesTunnel == true { signOut() }
         await guestLeaving?.value
         let info = GuestTunnelInfo(target: invite.tailnetTarget, hostname: invite.hostname, ownerName: invite.ownerName, serverName: invite.serverName)
         // Trying this invite again after its sign-in didn't go through: the node joined with its key already (spent
@@ -1059,11 +1111,18 @@ final class AppModel {
             GuestTunnel.shared.stop(forget: true)
             throw JoinError.otherServer
         }
+        // This device's own sign-in at home moving onto the tunnel for the same server (Use away from home): its
+        // downloads stay, as the same server and profile still have them. Another server's go, as with any sign-out.
+        keepsDownloads = redeemed.household == true && credentials.map { !$0.usesTunnel && $0.serverId == redeemed.serverId } == true
         if credentials != nil { signOut() }
-        let credentials = ServerCredentials(address: address, apiKey: redeemed.apiKey, guest: info)
+        // A household device away from home (servers from 0.67 say so): its own profile, without a guest's limits.
+        var tunnel = info
+        if redeemed.household == true { tunnel.household = true }
+        let credentials = ServerCredentials(address: address, apiKey: redeemed.apiKey, guest: tunnel)
         do {
             try store.save(credentials)
         } catch {
+            keepsDownloads = false
             GuestTunnel.shared.stop()
             throw JoinError.failed(error.localizedDescription)
         }
@@ -1073,7 +1132,18 @@ final class AppModel {
         upgradeChecked = true
         remoteChecked = true
         phase = .signedIn(credentials)
-        log.info("Joined as a family guest")
+        if credentials.isHouseholdAway {
+            // Once the join screen (a sheet, on iPhone) has gone, or the alert would have nowhere to show.
+            let welcome = AwayWelcome(profile: invite.profileName, server: invite.serverNaming)
+            Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(700))
+                guard let self, self.credentials?.isHouseholdAway == true else { return }
+                self.awayWelcome = welcome
+            }
+            log.info("Joined as a household device away from home")
+        } else {
+            log.info("Joined as a family guest")
+        }
     }
 
     /// The error `work` throws, if any.
@@ -1132,7 +1202,7 @@ final class AppModel {
     /// `serverAnswered`: it has just answered (coming back online), so it isn't asked again.
     private func loadProfilesNow(serverAnswered: Bool = false) async {
         // A guest with no network at all needn't wait for its tunnel to give up.
-        if credentials?.isGuest == true, await NetworkWatch.shared.isOfflineNow() { return goOffline() }
+        if credentials?.usesTunnel == true, await NetworkWatch.shared.isOfflineNow() { return goOffline() }
         if let guest = credentials?.guest {
             guard await ensureGuestTunnel() else { return }
             upgradeChecked = true // a guest's sign-in is its own already
@@ -1181,9 +1251,14 @@ final class AppModel {
             phase = .signedIn(credentials)
             return await loadProfilesNow(serverAnswered: true)
         }
-        profiles = list
-        hasBeenOnline = true
         let me = await signIn.value
+        // A tunnel sign-in is a guest's or a household device's as the server says (a redeem answer lost, or a device
+        // that joined before the app kept which).
+        if let credentials, case let matched = credentials.matching(serverSaysGuest: me?.isGuest), matched != credentials {
+            if (try? store.save(matched)) != nil { phase = .signedIn(matched) }
+        }
+        profiles = offered(list)
+        hasBeenOnline = true
         // In the profile's language (or the device's) before the first screen, so it doesn't change under you.
         profileLanguage = me?.language
         await settleLanguage(client)
@@ -1192,7 +1267,9 @@ final class AppModel {
         // Asked to, a shared Apple TV asks who's watching once each time the app starts, whoever watched last.
         let asksNow = Self.asksWhoIsWatching && !askedWhoIsWatching
         askedWhoIsWatching = true
-        needsProfileChoice = list.count > 1 && (credentials?.profileToken == nil || asksNow)
+        // A household device away from home joined as its profile: that's the choice, until someone switches.
+        let chosenByInvite = credentials?.isHouseholdAway == true
+        needsProfileChoice = profiles.count > 1 && ((credentials?.profileToken == nil && !chosenByInvite) || asksNow)
         #if DEBUG
         if skipsProfileChoice { needsProfileChoice = false }
         #endif
@@ -1317,7 +1394,7 @@ final class AppModel {
         // list is read again as the new profile.
         Task { [weak self] in
             guard let self, let client = self.client, let fresh = try? await client.profiles() else { return }
-            if fresh.contains(where: { $0.isCurrent && $0.id == profile.id }) { self.profiles = fresh }
+            if fresh.contains(where: { $0.isCurrent && $0.id == profile.id }) { self.profiles = self.offered(fresh) }
         }
         needsProfileChoice = false
         libraries = []
@@ -1346,6 +1423,13 @@ final class AppModel {
         endPlayback()
         music.stop()
         needsProfileChoice = true
+    }
+
+    /// The profiles this device may choose: on a household device away from home, never the main profile (the server
+    /// refuses it there, so it isn't offered).
+    private func offered(_ list: [Profile]) -> [Profile] {
+        guard credentials?.isHouseholdAway == true else { return list }
+        return list.filter { !$0.isMain || $0.isCurrent }
     }
 
     private func resetProfiles() {
@@ -2186,7 +2270,7 @@ final class AppModel {
         }
         guard url.scheme == "flexarr", let host = url.host() else { return }
         // A guest's link at launch (Siri, a widget) waits for the tunnel, or it would find no server.
-        if credentials?.isGuest == true, GuestTunnel.shared.address == nil {
+        if credentials?.usesTunnel == true, GuestTunnel.shared.address == nil {
             Task { if await ensureGuestTunnel() { open(url: url, outside: outside) } }
             return
         }

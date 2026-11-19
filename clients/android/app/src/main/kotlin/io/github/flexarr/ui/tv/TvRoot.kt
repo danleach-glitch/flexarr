@@ -34,6 +34,7 @@ fun TvRoot(model: AppModel) {
                         model.needsProfile -> TvProfilePicker(model)
                         else -> {
                             TvMainScreen(model)
+                            TvAwayWelcome(model)
                             // Offline after the server had answered: the notice covers the screens rather than replace
                             // them, so the TV carries on where it was once the server's back. Focus stays in it.
                             if (model.serverUnreachable) {

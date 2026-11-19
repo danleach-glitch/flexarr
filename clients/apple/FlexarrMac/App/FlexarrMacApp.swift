@@ -160,6 +160,7 @@ struct FlexarrMacApp: App {
                 )) {
                     Button(t("OK"), role: .cancel) {}
                 }
+                .awayWelcome(model)
                 .onAppear {
                     delegate.model = model
                     #if DEBUG

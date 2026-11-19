@@ -121,12 +121,23 @@ public struct GuestInvite: Codable, Sendable, Equatable {
     }
 }
 
-/// What redeeming an invite gives this device: its own sign-in, locked to the invite's profile.
+/// What redeeming an invite gives this device: its own sign-in, on the invite's profile.
 public struct RedeemedInvite: Decodable, Sendable, Equatable {
     public let apiKey: String
     public let profileId: String
     public let serverId: String
     public let name: String
+    /// The device joined as a household device away from home, on its own profile with none of a guest's limits.
+    /// Absent from servers before 0.67 (a guest).
+    public var household: Bool? = nil
+
+    public init(apiKey: String, profileId: String, serverId: String, name: String, household: Bool? = nil) {
+        self.apiKey = apiKey
+        self.profileId = profileId
+        self.serverId = serverId
+        self.name = name
+        self.household = household
+    }
 }
 
 extension FlexarrClient {

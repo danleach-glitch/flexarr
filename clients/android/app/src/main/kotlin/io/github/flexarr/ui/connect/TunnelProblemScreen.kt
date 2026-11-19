@@ -30,12 +30,13 @@ import androidx.compose.ui.unit.sp
 import io.github.flexarr.AppModel
 import io.github.flexarr.ui.components.ActionButton
 import io.github.flexarr.ui.settings.LeaveDialog
+import io.github.flexarr.ui.settings.leaveLabel
 import io.github.flexarr.ui.theme.Flexarr
 
 /** "Can’t reach Dan’s Flexarr", and the line under it: shared by the phone's and the TV's problem screens. */
 internal fun tunnelProblemWords(model: AppModel): Pair<String, String> {
     // The server's name (a guest's host: "Dan’s Flexarr" when it has none), or "this Flexarr".
-    val server = if (model.isGuest) model.guestServerNaming(model.credentials?.guest) else ServerNaming(model.serverName, null)
+    val server = if (model.usesTunnel) model.guestServerNaming(model.credentials?.guest) else ServerNaming(model.serverName, null)
     return t("{kind, select, named {Can’t reach {server}} owner {Can’t reach {owner}’s Flexarr} other {Can’t reach this Flexarr}}", *server.values) to
         t("{kind, select, named {Check this device’s internet, or that {server} is on.} owner {Check this device’s internet, or that {owner}’s Flexarr is on.} other {Check this device’s internet, or that its server is on.}}", *server.values)
 }
@@ -60,7 +61,7 @@ fun TunnelProblemScreen(model: AppModel) {
             ) {
                 ActionButton(t("Try again"), onClick = model::retryGuestTunnel, prominent = true)
                 if (model.downloads.downloads.isNotEmpty()) ActionButton(t(Words.downloads), onClick = model::browseOfflineAsGuest)
-                ActionButton(t("Leave"), onClick = { confirmLeave = true }, ambient = Flexarr.danger)
+                ActionButton(leaveLabel(model), onClick = { confirmLeave = true }, ambient = Flexarr.danger)
             }
         }
     }

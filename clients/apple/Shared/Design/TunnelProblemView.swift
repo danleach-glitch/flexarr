@@ -1,13 +1,18 @@
 import FlexarrKit
 import SwiftUI
 
-/// A family guest's app couldn't reach its host's server through the tunnel: Try again, Leave (which forgets the
-/// invite, so a new one can be used), and on iPhone the downloads, which play without the server.
+/// The app couldn't reach its host's server through the tunnel: Try again, Leave (Sign out, for a household device away
+/// from home; either forgets the invite, so a new one can be used), and on iPhone the downloads, which play without the
+/// server.
 struct TunnelProblemView: View {
     @Environment(AppModel.self) private var model
     /// Opens this device's downloads (iPhone, when there are some).
     var onDownloads: (() -> Void)?
     @State private var confirmLeave = false
+    @State private var confirmSignOut = false
+
+    /// A family guest leaves; a household device away from home signs out, as it would at home.
+    private var isGuest: Bool { model.credentials?.isGuest == true }
 
     /// The host's server: its name, or "Dan’s Flexarr".
     private var server: ServerNaming { model.guestServerNaming(model.credentials?.guest) }
@@ -32,6 +37,15 @@ struct TunnelProblemView: View {
         .padding(40)
         .frame(maxWidth: 560)
         .leaveGuestConfirmation(isPresented: $confirmLeave, server: server) { model.signOut() }
+        .confirmationDialog(t("Sign out of this server?"), isPresented: $confirmSignOut, titleVisibility: .visible) {
+            Button(t("Sign out"), role: .destructive) { model.signOut() }
+        } message: {
+            #if os(tvOS)
+            Text(t("Joining again takes a new code."))
+            #else
+            Text(t("Joining again takes a new code. Downloads are deleted."))
+            #endif
+        }
     }
 
     @ViewBuilder private var buttons: some View {
@@ -41,16 +55,41 @@ struct TunnelProblemView: View {
             Button(t(Words.downloads), action: onDownloads)
                 .buttonStyle(ActionButtonStyle())
         }
-        Button(t("Leave"), role: .destructive) { confirmLeave = true }
-            .buttonStyle(ActionButtonStyle())
+        Button(isGuest ? t("Leave") : t("Sign out"), role: .destructive) {
+            if isGuest { confirmLeave = true } else { confirmSignOut = true }
+        }
+        .buttonStyle(ActionButtonStyle())
     }
 }
 
 extension View {
+    /// "Signed in as Claire": said once, after joining as a household device away from home, so it's plain this is
+    /// their own Flexarr and not a guest's visit.
+    func awayWelcome(_ model: AppModel) -> some View {
+        modifier(AwayWelcomeAlert(model: model))
+    }
+
     /// "Leave Smith House?" (or "Leave Dan’s Flexarr?"), asked before a family guest leaves its host (Settings ›
     /// Server, or the problem screen).
     func leaveGuestConfirmation(isPresented: Binding<Bool>, server: ServerNaming, onLeave: @escaping () -> Void) -> some View {
         modifier(LeaveGuestConfirmation(isPresented: isPresented, server: server, onLeave: onLeave))
+    }
+}
+
+private struct AwayWelcomeAlert: ViewModifier {
+    let model: AppModel
+
+    func body(content: Content) -> some View {
+        content.alert(model.awayWelcome.map { t("Signed in as {profile}", ["profile": $0.profile]) } ?? "", isPresented: Binding(
+            get: { model.awayWelcome != nil },
+            set: { if !$0 { model.awayWelcome = nil } }
+        )) {
+            Button(t("OK"), role: .cancel) {}
+        } message: {
+            if let welcome = model.awayWelcome {
+                Text(t("{kind, select, named {{server} works here as it does at home.} owner {{owner}’s Flexarr works here as it does at home.} other {Flexarr works here as it does at home.}}", welcome.server.values))
+            }
+        }
     }
 }
 

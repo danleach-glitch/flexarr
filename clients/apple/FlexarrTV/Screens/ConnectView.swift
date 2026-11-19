@@ -91,8 +91,14 @@ private struct ChooseServer: View {
     @State private var lookingAWhile = false
 
     private var joinButton: some View {
-        Button(t("Join someone’s Flexarr"), action: onGuest)
-            .buttonStyle(ActionButtonStyle(prominent: false))
+        VStack(alignment: .leading, spacing: 14) {
+            Button(t("Join someone’s Flexarr"), action: onGuest)
+                .buttonStyle(ActionButtonStyle(prominent: false))
+            Text(t("Away from home? Ask whoever runs Flexarr for a code."))
+                .font(.system(size: 26))
+                .foregroundStyle(Color.usher)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     var body: some View {
@@ -433,8 +439,9 @@ private struct ManualConnect: View {
 
 // MARK: - A family invite, by code
 
-/// "Join someone’s Flexarr": the code to read to whoever invited this Apple TV (see `GuestCodeWaiter`).
-private struct GuestCode: View {
+/// "Join someone’s Flexarr": the code to read to whoever invited this Apple TV (see `GuestCodeWaiter`). Also Settings ›
+/// Server › Use away from home.
+struct GuestCode: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
     let onBack: () -> Void
@@ -491,7 +498,7 @@ private struct GuestCode: View {
                     .buttonStyle(ActionButtonStyle(prominent: true))
                     .focused($focus, equals: .main)
             } else {
-                Text(t("Read this code to the person who invited you"))
+                Text(t("Tell this code to whoever runs Flexarr. They type it in Settings › Remote access."))
                     .font(.system(size: 32, weight: .semibold))
                     .foregroundStyle(Color.usher)
                     .fixedSize(horizontal: false, vertical: true)
@@ -499,7 +506,7 @@ private struct GuestCode: View {
                     .font(.system(size: 110, weight: .bold, design: .monospaced))
                     .foregroundStyle(Color.screen)
                     .accessibilityLabel(waiter.code.map { $0.code.map(String.init).joined(separator: " ") } ?? t("Getting a code"))
-                Text(t("They type it into Settings › Remote access in Flexarr."))
+                Text(t("Keep this screen open."))
                     .font(.system(size: 26))
                     .foregroundStyle(Color.usher)
             }

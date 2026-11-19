@@ -12,9 +12,9 @@ struct OfflineView: View {
 
     private var isGuest: Bool { model.credentials?.isGuest == true }
 
-    /// The server's name (a guest's host: "Dan’s Flexarr" when it has none), or "this Flexarr".
+    /// The server's name (through the tunnel: "Dan’s Flexarr" when it has none), or "this Flexarr".
     private var server: ServerNaming {
-        isGuest ? model.guestServerNaming(model.credentials?.guest) : ServerNaming(name: model.serverName, owner: nil)
+        model.credentials?.usesTunnel == true ? model.guestServerNaming(model.credentials?.guest) : ServerNaming(name: model.serverName, owner: nil)
     }
 
     var body: some View {
@@ -55,6 +55,9 @@ struct OfflineView: View {
         .accessibilityIdentifier("offline")
         .confirmationDialog(t("Sign out of this server?"), isPresented: $confirmSignOut, titleVisibility: .visible) {
             Button(t("Sign out"), role: .destructive) { model.signOut() }
+        } message: {
+            // A household device away from home: the way back is a new code.
+            if model.credentials?.usesTunnel == true { Text(t("Joining again takes a new code.")) }
         }
         .leaveGuestConfirmation(isPresented: $confirmLeave, server: server) { model.signOut() }
     }

@@ -114,7 +114,8 @@ fun rememberGuestCode(model: AppModel, attempt: Int): GuestCodeState {
                         snapshotFlow { model.offeredInvite }.first { it == null }
                         // Joined; or let go without joining ("Not now", "New code"), when this code is used up: a new
                         // one, asked about quickly again, as someone's there.
-                        if (model.phase is AppModel.Phase.SignedIn) return@LaunchedEffect
+                        // (Use away from home is signed in all along: only joining ends it.)
+                        if (model.phase is AppModel.Phase.SignedIn && !model.joiningAway) return@LaunchedEffect
                         ranOut = 0
                         break
                     }

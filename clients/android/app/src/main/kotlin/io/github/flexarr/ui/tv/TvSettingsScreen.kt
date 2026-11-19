@@ -51,7 +51,7 @@ import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.Tokens
 
 /** Settings' pages, opened from the first and from each other; Back goes to the one before. */
-internal enum class TvSettingsPageId { Main, Playback, Libraries, Sidebar, Language, Trakt, Server, Diagnostics }
+internal enum class TvSettingsPageId { Main, Playback, Libraries, Sidebar, Language, Trakt, Server, Diagnostics, AwayFromHome }
 
 /**
  * Settings, as the Apple TV's SettingsView: a short list of pages, each row saying how it's set now, the details a
@@ -87,8 +87,10 @@ fun TvSettingsScreen(model: AppModel, onSwitchProfile: () -> Unit) {
         TvSettingsPageId.Sidebar -> TvSidebarSettings(model, libraries)
         TvSettingsPageId.Language -> TvLanguageSettings(model)
         TvSettingsPageId.Trakt -> TvTraktSettings(model)
-        TvSettingsPageId.Server -> TvServerSettings(model, libraries, returningFrom, onDiagnostics = { open(TvSettingsPageId.Diagnostics) })
+        TvSettingsPageId.Server -> TvServerSettings(model, libraries, returningFrom, onDiagnostics = { open(TvSettingsPageId.Diagnostics) },
+            onUseAway = { open(TvSettingsPageId.AwayFromHome) })
         TvSettingsPageId.Diagnostics -> TvDiagnosticsSettings(model)
+        TvSettingsPageId.AwayFromHome -> TvAwayFromHomeSettings(model, onBack = { returningFrom = stack.removeAt(stack.lastIndex) })
     }
 }
 
@@ -110,7 +112,7 @@ private fun MainPage(
     val context = LocalContext.current
     var confirmSignOut by remember { mutableStateOf(false) }
     val profile = model.currentProfile
-    // A guest stays on its invite's profile.
+    // A guest stays on its invite's profile; a household device away from home switches among all but the main one.
     val switches = profile != null && model.profiles.size > 1 && !model.isGuest
     val server = model.guestServerNaming(model.credentials?.guest)
     // Only from servers that keep an order with the profile (0.54 on): it's kept there, not on this TV.
@@ -223,7 +225,8 @@ private fun MainPage(
                 )
                 // With child lock on, the server keeps the sign-in: says so in place of Sign out.
                 val refusal = if (guest) null else signOutRefusal(model.kidsLock)
-                Text(refusal ?: if (guest) t("Joining again takes a new code.") else t("This TV will need to connect again to use the server."), fontSize = 14.sp, color = Flexarr.usher)
+                // Joined with a code (a guest, or a household device away from home): coming back takes a new one.
+                Text(refusal ?: if (model.usesTunnel) t("Joining again takes a new code.") else t("This TV will need to connect again to use the server."), fontSize = 14.sp, color = Flexarr.usher)
                 // As the Apple TV: Cancel first, and where focus starts; Leave (or Sign out) after it.
                 Row(Modifier.fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     TvActionButton(t(Words.cancel), onClick = { confirmSignOut = false }, prominent = true, modifier = Modifier.focusRequester(cancel))

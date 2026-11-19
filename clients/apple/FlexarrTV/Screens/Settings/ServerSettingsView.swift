@@ -10,11 +10,16 @@ struct ServerSettingsView: View {
     @State private var confirmLeave = false
     @FocusState private var focusesCheck: Bool
     @State private var openedAt = Date.now
+    /// Use away from home's code is showing.
+    @State private var usingAway = false
 
     var body: some View {
         SettingsPage(title: t("Server"), summary: summary) {
             SettingsGroupLabel(t("Connection"))
-            if let guest = model.credentials?.guest {
+            if let guest = model.credentials?.guest, model.credentials?.isGuest != true {
+                // A household device away from home: no address to show, just whose server. Sign out is on Settings.
+                SettingsFact(t("Away from home"), model.guestServerTitle(guest))
+            } else if let guest = model.credentials?.guest {
                 // A family guest: no address to show, just whose server, and a way to leave it.
                 SettingsFact(t("Connected by invite"), model.guestServerTitle(guest))
                 SettingsRow(title: t("Leave"), symbol: "rectangle.portrait.and.arrow.right",
@@ -25,6 +30,12 @@ struct ServerSettingsView: View {
             } else {
             if let name = model.serverName { SettingsFact(t("Name"), name) }
             SettingsFact(t("Address"), address(model.credentials?.address))
+            if model.offersUseAwayFromHome(serverVersion: status?.version) {
+                SettingsRow(title: t("Use away from home"), symbol: "key",
+                            help: t("Watch here away from home without Tailscale. Whoever runs Flexarr types a code.")) {
+                    usingAway = true
+                }
+            }
             }
             if let remote = model.credentials?.remoteAddress {
                 SettingsFact(t("Away from home"), address(remote))
@@ -70,10 +81,21 @@ struct ServerSettingsView: View {
             }
         }
         .onAppear { openedAt = .now }
+        // The same code as Join someone’s Flexarr. Joined, the tunnel's sign-in takes the place of the one at home;
+        // Back leaves that as it was.
+        .fullScreenCover(isPresented: $usingAway) {
+            GuestCode(onBack: { usingAway = false })
+                .frame(width: 820)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(RoomBackground(ambient: .silver, intensity: 0.22))
+        }
+        .onChange(of: model.credentials?.usesTunnel) { _, tunnel in
+            if tunnel == true { usingAway = false }
+        }
         .task {
             await load()
             // Wherever focus landed as the page opened, it's on "Check again" now, in view, unless it's been moved.
-            if model.credentials?.guest == nil, FocusMove.untouched(since: openedAt) { focusesCheck = true }
+            if model.credentials?.isGuest != true, FocusMove.untouched(since: openedAt) { focusesCheck = true }
         }
     }
 
@@ -83,7 +105,11 @@ struct ServerSettingsView: View {
     }
 
     private var summary: String {
-        model.credentials?.remoteAddress == nil
+        model.credentials?.isHouseholdAway == true
+            ? t("Away from home, Flexarr uses its own connection. AirPlay is off on it.")
+            : model.credentials?.usesTunnel == true
+            ? t("Connected over the internet. AirPlay is off on this connection.")
+            : model.credentials?.remoteAddress == nil
             ? t("To watch away from home, turn on remote access with Tailscale in Settings › Remote access on the web. This Apple TV picks the address up by itself.")
             : model.credentials?.remoteConfirmed == false
             ? t("This Apple TV hasn’t reached the server over Tailscale yet.")

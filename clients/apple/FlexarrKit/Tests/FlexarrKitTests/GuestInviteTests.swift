@@ -80,6 +80,94 @@ struct GuestInviteTests {
         #expect(loaded.apiKey == "guest-key")
     }
 
+    @Test func theRedeemAnswerSaysWhetherItsAHouseholdDevice() throws {
+        let household = #"{"apiKey":"k","profileId":"claire","serverId":"s","name":"Claire’s iPad","household":true}"#
+        #expect(try JSONDecoder().decode(RedeemedInvite.self, from: Data(household.utf8)).household == true)
+        // Servers before 0.67 never say: a guest.
+        let before = #"{"apiKey":"k","profileId":"gran","serverId":"s","name":"Gran’s iPad"}"#
+        #expect(try JSONDecoder().decode(RedeemedInvite.self, from: Data(before.utf8)).household == nil)
+    }
+
+    @Test func aHouseholdDeviceAwayUsesTheTunnelWithoutAGuestsLimits() {
+        let tunnel = GuestTunnelInfo(target: "100.101.102.103:8383", hostname: "flexarr-guest-claire", ownerName: "Dan", household: true)
+        let away = ServerCredentials(address: URL(string: "http://127.0.0.1:52000")!, apiKey: "key",
+                                     remoteAddress: URL(string: "https://mini.tail.ts.net:8443"), guest: tunnel, serverId: "abc")
+        #expect(away.usesTunnel)
+        #expect(!away.isGuest)
+        #expect(away.isHouseholdAway)
+        // Still only ever the tunnel: no away address, no home id to ask.
+        #expect(away.remoteAddress == nil)
+        #expect(away.serverId == nil)
+
+        let guest = ServerCredentials(address: URL(string: "http://127.0.0.1:52000")!, apiKey: "key",
+                                      guest: GuestTunnelInfo(target: "100.101.102.103:8383", hostname: "flexarr-guest-gran", ownerName: "Dan"))
+        #expect(guest.usesTunnel && guest.isGuest && !guest.isHouseholdAway)
+
+        let home = ServerCredentials(address: URL(string: "http://192.168.1.2:8383")!, apiKey: "key")
+        #expect(!home.usesTunnel && !home.isGuest && !home.isHouseholdAway)
+    }
+
+    @Test func meDecidesWhetherATunnelSignInIsAGuests() {
+        let tunnel = GuestTunnelInfo(target: "100.101.102.103:8383", hostname: "flexarr-guest-claire", ownerName: "Dan")
+        let saved = ServerCredentials(address: URL(string: "http://127.0.0.1:52000")!, apiKey: "key", guest: tunnel)
+        // Joined before the app kept it (or the redeem answer was lost): /me says it's no guest.
+        let household = saved.matching(serverSaysGuest: false)
+        #expect(household.isHouseholdAway)
+        #expect(household.guest?.isSameTunnel(as: tunnel) == true)
+        #expect(household.matching(serverSaysGuest: false) == household)
+        #expect(household.matching(serverSaysGuest: true).isGuest)
+        // Nothing said, or a sign-in at home: as it was.
+        #expect(saved.matching(serverSaysGuest: nil) == saved)
+        #expect(saved.matching(serverSaysGuest: true) == saved)
+        let home = ServerCredentials(address: URL(string: "http://192.168.1.2:8383")!, apiKey: "key")
+        #expect(home.matching(serverSaysGuest: false) == home)
+    }
+
+    @Test func aSignInIsTheSameOneAfterTheServerSaysWhoseItIs() {
+        let tunnel = GuestTunnelInfo(target: "100.101.102.103:8383", hostname: "flexarr-guest-claire", ownerName: "Dan")
+        let saved = ServerCredentials(address: URL(string: "http://127.0.0.1:52000")!, apiKey: "key", guest: tunnel)
+        // Corrected to a household device's by /me: a 401 from a client made before still counts.
+        let corrected = saved.matching(serverSaysGuest: false)
+        #expect(corrected != saved)
+        #expect(corrected.isSameSignIn(as: saved))
+        // The tunnel's port moved: the same sign-in.
+        var moved = corrected
+        moved.address = URL(string: "http://127.0.0.1:52001")!
+        #expect(moved.isSameSignIn(as: saved))
+        // Another key, another profile, another tunnel, or none: not.
+        #expect(!saved.isSameSignIn(as: ServerCredentials(address: saved.address, apiKey: "other", guest: tunnel)))
+        #expect(!saved.isSameSignIn(as: ServerCredentials(address: saved.address, apiKey: "key", profileToken: "p", guest: tunnel)))
+        #expect(!saved.isSameSignIn(as: ServerCredentials(address: saved.address, apiKey: "key",
+                                                          guest: GuestTunnelInfo(target: "100.1.1.1:8383", hostname: "x", ownerName: "Dan"))))
+        let home = ServerCredentials(address: URL(string: "http://192.168.1.2:8383")!, apiKey: "key")
+        #expect(!saved.isSameSignIn(as: home))
+        #expect(!home.isSameSignIn(as: saved))
+        #expect(home.isSameSignIn(as: home))
+        #expect(!home.isSameSignIn(as: nil))
+    }
+
+    @Test func aHouseholdDeviceIsSavedAsOneAndOlderSignInsReadAsGuests() throws {
+        let suite = "household-test-\(UUID().uuidString)"
+        let service = "io.github.flexarr.test.\(UUID().uuidString)"
+        let store = CredentialStore(service: service, suiteName: suite)
+        defer { store.clear(); UserDefaults().removePersistentDomain(forName: suite) }
+        let tunnel = GuestTunnelInfo(target: "100.101.102.103:8383", hostname: "flexarr-guest-claire", ownerName: "Dan", household: true)
+        do {
+            try store.save(ServerCredentials(address: URL(string: "http://127.0.0.1:52000")!, apiKey: "key", guest: tunnel))
+        } catch {
+            return // No Keychain for command-line tests on every machine.
+        }
+        #expect(store.load()?.isHouseholdAway == true)
+
+        // What the version before saved: no household at all.
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        let older = #"{"target":"100.101.102.103:8383","hostname":"flexarr-guest-gran","ownerName":"Dan"}"#
+        defaults.set(Data(older.utf8), forKey: "\(service).address.guest")
+        let loaded = try #require(store.load())
+        #expect(loaded.isGuest)
+        #expect(loaded.guest?.household == nil)
+    }
+
     @Test func anUnconfirmedAwayAddressIsKeptWhereOlderVersionsDoNotLook() throws {
         let suite = "away-test-\(UUID().uuidString)"
         let service = "io.github.flexarr.test.\(UUID().uuidString)"

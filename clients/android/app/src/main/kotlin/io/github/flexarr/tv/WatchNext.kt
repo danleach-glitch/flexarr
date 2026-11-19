@@ -163,7 +163,7 @@ object WatchNext {
 
     private suspend fun sync(context: Context) {
         val credentials = context.appModel.credentials ?: CredentialStore(context).load()
-        if (credentials == null || credentials.isGuest) return write(context, emptyList())
+        if (credentials == null || credentials.usesTunnel) return write(context, emptyList())
         val client = credentials.client()
         try {
             // Asked every time, never the app's own list: a PIN added elsewhere has to empty the row, the 6-hourly refresh's included.

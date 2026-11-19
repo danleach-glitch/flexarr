@@ -14,16 +14,46 @@ public struct ServerCredentials: Sendable, Equatable {
     /// False while `remoteAddress` hasn't given the server's id to this device: the server gave it while Tailscale
     /// wasn't connected here. It's then asked before it's sent this sign-in (see `ServerAddresses.remoteConfirmed`).
     public var remoteConfirmed: Bool
-    /// A family guest's sign-in: how to start the tunnel into the host's tailnet. `address` is then the tunnel's own
-    /// address on this device (127.0.0.1), and there's never a home or away address: a guest's network might have
-    /// something else at the host's home address, which mustn't be sent this sign-in.
+    /// A sign-in through the built-in tunnel (a family guest's, or a household device's away from home): how to start
+    /// the tunnel into the host's tailnet. `address` is then the tunnel's own address on this device (127.0.0.1), and
+    /// there's never a home or away address: the device's network might have something else at the host's home
+    /// address, which mustn't be sent this sign-in.
     public var guest: GuestTunnelInfo?
     /// The server's own id (`SystemStatus.serverId`), kept from the first time it gives it, so the home address can be
     /// asked who it is before it's sent this sign-in (see `ServerAddresses`). Nil for servers before 0.55, until the
     /// server has said, and for a guest (whose address is its own tunnel).
     public var serverId: String?
 
-    public var isGuest: Bool { guest != nil }
+    /// Reaches the server through the built-in tunnel: no AirPlay (a receiver can't reach a tunnel inside this device),
+    /// downloads only while the app is open, no Top Shelf, and never a home or away address. A guest or a household
+    /// device away from home.
+    public var usesTunnel: Bool { guest != nil }
+
+    /// A family guest: the tunnel, with a guest's limits (kept to its profile, no child lock, Leave rather than Sign
+    /// out, no commands from the host's devices). Not a household device away from home (`isHouseholdAway`).
+    public var isGuest: Bool { guest != nil && guest?.household != true }
+
+    /// A household device away from home: the tunnel, but signed in to its own household profile like a device at home.
+    public var isHouseholdAway: Bool { guest?.household == true }
+
+    /// This sign-in as the server's `/me` says it is (`SignInInfo.isGuest`): a tunnel sign-in it calls a guest's is a
+    /// guest's, and one it doesn't is a household device's (which covers a device whose redeem answer was lost, or that
+    /// joined before the app kept it). Unchanged when it isn't a tunnel sign-in or the server doesn't say.
+    public func matching(serverSaysGuest: Bool?) -> ServerCredentials {
+        guard var tunnel = guest, let says = serverSaysGuest, says == isHouseholdAway else { return self }
+        tunnel.household = !says
+        var matched = self
+        matched.guest = tunnel
+        return matched
+    }
+
+    /// The same sign-in (its key and profile, and the same tunnel or none), whatever else has changed since: the
+    /// server's word on whether it's a guest's (`matching`), the tunnel's port on this device, the away address.
+    public func isSameSignIn(as other: ServerCredentials?) -> Bool {
+        guard let other, other.apiKey == apiKey, other.profileToken == profileToken else { return false }
+        guard let guest else { return other.guest == nil }
+        return guest.isSameTunnel(as: other.guest)
+    }
 
     public init(address: URL, apiKey: String, profileToken: String? = nil, remoteAddress: URL? = nil, guest: GuestTunnelInfo? = nil,
                 serverId: String? = nil, remoteConfirmed: Bool = true) {
@@ -40,7 +70,7 @@ public struct ServerCredentials: Sendable, Equatable {
     public var away: FlexarrClient.Away? {
         get { remoteAddress.map { FlexarrClient.Away($0, confirmed: remoteConfirmed) } }
         set {
-            remoteAddress = isGuest || newValue?.url == address ? nil : newValue?.url
+            remoteAddress = usesTunnel || newValue?.url == address ? nil : newValue?.url
             remoteConfirmed = newValue?.confirmed ?? true
         }
     }
@@ -50,13 +80,13 @@ public struct ServerCredentials: Sendable, Equatable {
     /// A client for this sign-in; `onUnauthorized` hears about every 401 it gets. Clients for the same sign-in share
     /// which address is answering (see `ServerAddresses`).
     public func client(onUnauthorized: (@Sendable () -> Void)? = nil) -> FlexarrClient {
-        FlexarrClient(addresses: ServerAddresses.shared(home: address, remote: remoteAddress, serverId: isGuest ? nil : serverId,
+        FlexarrClient(addresses: ServerAddresses.shared(home: address, remote: remoteAddress, serverId: usesTunnel ? nil : serverId,
                                                         remoteConfirmed: remoteConfirmed, guest: guest?.target),
                       apiKey: apiKey.isEmpty ? nil : apiKey, profileToken: profileToken, onUnauthorized: onUnauthorized)
     }
 }
 
-/// Where a guest's tunnel leads: the host's server on its tailnet, and this device's name there.
+/// Where a tunnel sign-in's tunnel leads: the host's server on its tailnet, and this device's name there.
 public struct GuestTunnelInfo: Codable, Sendable, Equatable {
     /// The server's tailnet address and Flexarr's port ("100.101.102.103:8383").
     public var target: String
@@ -66,12 +96,21 @@ public struct GuestTunnelInfo: Codable, Sendable, Equatable {
     public var ownerName: String
     /// The server's name, from the invite (absent from invites before 0.61 and from guests who joined before).
     public var serverName: String?
+    /// A household device away from home (`RedeemedInvite.household`), not a guest. Nil for guests and for sign-ins
+    /// saved before the apps knew of household devices (they're guests until `/me` says otherwise).
+    public var household: Bool?
 
-    public init(target: String, hostname: String, ownerName: String, serverName: String? = nil) {
+    public init(target: String, hostname: String, ownerName: String, serverName: String? = nil, household: Bool? = nil) {
         self.target = target
         self.hostname = hostname
         self.ownerName = ownerName
         self.serverName = serverName
+        self.household = household
+    }
+
+    /// The same tunnel (where it leads, and as which node), whether or not it's a household device's.
+    public func isSameTunnel(as other: GuestTunnelInfo?) -> Bool {
+        other.map { $0.target == target && $0.hostname == hostname } ?? false
     }
 
     /// What to call the host's server: its name, or "Dan's Flexarr".
@@ -156,7 +195,7 @@ public struct CredentialStore: Sendable {
         if credentials.guest == nil { defaults.set(account, forKey: "\(addressKey).last") }
         saveProfile(credentials.profileToken)
         saveRemoteAddress(credentials.away)
-        saveServerId(credentials.isGuest ? nil : credentials.serverId)
+        saveServerId(credentials.usesTunnel ? nil : credentials.serverId)
         defaults.set(credentials.guest.flatMap { try? JSONEncoder().encode($0) }, forKey: "\(addressKey).guest")
     }
 

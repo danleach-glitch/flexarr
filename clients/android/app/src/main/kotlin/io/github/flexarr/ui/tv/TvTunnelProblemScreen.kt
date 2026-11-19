@@ -33,6 +33,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
 import io.github.flexarr.AppModel
 import io.github.flexarr.ui.connect.tunnelProblemWords
+import io.github.flexarr.ui.settings.leaveLabel
 import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.Tokens
 
@@ -55,7 +56,7 @@ fun TvTunnelProblemScreen(model: AppModel) {
         Text(line, fontSize = 16.sp, color = Flexarr.usher, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 560.dp))
         Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(15.dp)) {
             TvActionButton(t("Try again"), onClick = model::retryGuestTunnel, prominent = true, modifier = Modifier.focusRequester(again))
-            TvActionButton(t("Leave"), onClick = { confirmLeave = true })
+            TvActionButton(leaveLabel(model), onClick = { confirmLeave = true })
         }
     }
     TakeFocus(again, key = confirmLeave, ready = !confirmLeave)
@@ -64,12 +65,13 @@ fun TvTunnelProblemScreen(model: AppModel) {
         val cancel = remember { FocusRequester() }
         Dialog(onDismissRequest = { confirmLeave = false }) {
             Column(Modifier.width(400.dp).background(Flexarr.seat, RoundedCornerShape(Tokens.radiusPanel)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text(t("{kind, select, named {Leave {server}?} owner {Leave {owner}’s Flexarr?} other {Leave this Flexarr?}}", *model.guestServerNaming(model.credentials?.guest).values), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                // A household device away from home signs out of its own Flexarr; a guest leaves someone else's.
+                Text(if (model.isGuest) t("{kind, select, named {Leave {server}?} owner {Leave {owner}’s Flexarr?} other {Leave this Flexarr?}}", *model.guestServerNaming(model.credentials?.guest).values) else t("Sign out of this server?"), fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Text(t("Joining again takes a new code."), fontSize = 14.sp, color = Flexarr.usher)
                 // As the Apple TV: Cancel first, and where focus starts; Leave after it.
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     TvActionButton(t(Words.cancel), onClick = { confirmLeave = false }, prominent = true, modifier = Modifier.focusRequester(cancel))
-                    TvActionButton(t("Leave"), onClick = {
+                    TvActionButton(leaveLabel(model), onClick = {
                         confirmLeave = false
                         model.signOut()
                     }, ambient = Flexarr.danger)
@@ -78,4 +80,19 @@ fun TvTunnelProblemScreen(model: AppModel) {
         }
         TakeFocus(cancel)
     }
+}
+
+/** "Signed in as Claire", on the TV: said once after joining as a household device away from home, as the phone's. */
+@Composable
+fun TvAwayWelcome(model: AppModel) {
+    val welcome = model.awayWelcome ?: return
+    val ok = remember { FocusRequester() }
+    Dialog(onDismissRequest = { model.awayWelcome = null }) {
+        Column(Modifier.width(400.dp).background(Flexarr.seat, RoundedCornerShape(Tokens.radiusPanel)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text(t("Signed in as {profile}", "profile" to welcome.profile), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(io.github.flexarr.ui.connect.awayWelcomeMessage(welcome), fontSize = 14.sp, color = Flexarr.usher)
+            TvActionButton(t("OK"), onClick = { model.awayWelcome = null }, prominent = true, modifier = Modifier.focusRequester(ok))
+        }
+    }
+    TakeFocus(ok)
 }

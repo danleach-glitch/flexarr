@@ -87,16 +87,24 @@ struct JoinInviteView: View {
     }
 }
 
-/// On the connect screen, for a family guest: a code to give whoever invited them.
+/// On the connect screen, for a family guest or someone in the household away from home: a code to give whoever runs
+/// the server.
 struct InvitedBySomeone: View {
     let onCode: () -> Void
 
     var body: some View {
-        Button(action: onCode) {
-            Label(t("Join someone’s Flexarr"), systemImage: "key")
-                .frame(maxWidth: .infinity)
+        VStack(alignment: .leading, spacing: 8) {
+            Button(action: onCode) {
+                Label(t("Join someone’s Flexarr"), systemImage: "key")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(ActionButtonStyle(prominent: false))
+            Text(t("Away from home? Ask whoever runs Flexarr for a code."))
+                .font(.footnote)
+                .foregroundStyle(Color.usher)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 4)
         }
-        .buttonStyle(ActionButtonStyle(prominent: false))
     }
 }
 
@@ -150,9 +158,10 @@ struct GuestCodeView: View {
                 Button { waiter.newCode() } label: { Text(t("Show a new code")).frame(maxWidth: .infinity) }
                     .buttonStyle(ActionButtonStyle(prominent: true))
             } else {
-                Text(t("Give this code to the person who invited you"))
+                Text(t("Tell this code to whoever runs Flexarr. They type it in Settings › Remote access."))
                     .font(.headline)
                     .foregroundStyle(Color.usher)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(waiter.code?.display ?? "····-····")
                     .font(.system(size: 46, weight: .bold, design: .monospaced))
                     .foregroundStyle(Color.screen)
@@ -164,7 +173,7 @@ struct GuestCodeView: View {
                     }
                     .font(.body.weight(.semibold))
                 }
-                Text(t("They type it into Settings › Remote access in Flexarr. Keep this screen open."))
+                Text(t("Keep this screen open."))
                     .font(.footnote)
                     .foregroundStyle(Color.usher)
             }

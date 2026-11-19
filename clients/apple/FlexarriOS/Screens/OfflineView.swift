@@ -15,7 +15,7 @@ struct OfflineView: View {
 
     /// The server's name (a guest's host: "Dan’s Flexarr" when it has none), or "this Flexarr".
     private var server: ServerNaming {
-        model.credentials?.isGuest == true
+        model.credentials?.usesTunnel == true
             ? model.guestServerNaming(model.credentials?.guest) : ServerNaming(name: model.serverName, owner: nil)
     }
 
