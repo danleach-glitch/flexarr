@@ -27,7 +27,7 @@ class WatchNextReceiver : BroadcastReceiver() {
                 // An album isn't in Continue Watching: its card just stays out of the row until it's played again.
                 if (card.isAlbum) return@launch
                 val credentials = context.appModel.credentials ?: CredentialStore(context).load() ?: return@launch
-                if (credentials.isGuest) return@launch
+                if (credentials.usesTunnel) return@launch
                 val client = credentials.client()
                 // Only for the profile whose card it was: a row left from before a switch isn't the new profile's.
                 val current = runCatching { client.profiles().firstOrNull { it.isCurrent } }.getOrNull()

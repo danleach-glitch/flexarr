@@ -108,6 +108,18 @@ class GuestInviteTest {
     }
 
     @Test
+    fun `a household device away from home is told so, and older servers' answers are a guest's`() {
+        val household = FlexarrClient.json.decodeFromString(RedeemedInvite.serializer(), """{"apiKey":"k","profileId":"p2","serverId":"s1","name":"Claire’s iPad","household":true}""")
+        assertTrue(household.isHousehold)
+        val guest = FlexarrClient.json.decodeFromString(RedeemedInvite.serializer(), """{"apiKey":"k","profileId":"p1","serverId":"s1","name":"Gran’s phone","household":false}""")
+        assertFalse(guest.isHousehold)
+        // Servers before 0.67 never say.
+        val before = FlexarrClient.json.decodeFromString(RedeemedInvite.serializer(), """{"apiKey":"k","profileId":"p1"}""")
+        assertNull(before.household)
+        assertFalse(before.isHousehold)
+    }
+
+    @Test
     fun `loopback requests wait for the tunnel, go to its port and start it again once when it's gone`() {
         MockWebServer().use { server ->
             server.start()

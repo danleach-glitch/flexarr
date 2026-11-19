@@ -114,6 +114,66 @@ class GuestSignInTest {
     }
 
     @Test
+    fun `a household device away from home uses the tunnel without being a guest`() {
+        val away = ServerCredentials("http://127.0.0.1:52000/", "away-key", remoteAddress = "https://mini.tail.ts.net:8443/", guest = tunnel, household = true)
+        assertTrue(away.usesTunnel)
+        assertFalse(away.isGuest)
+        // Still only through the tunnel.
+        assertNull(away.client().addresses.remote)
+
+        store.save(away)
+        val loaded = store.load()!!
+        assertTrue(loaded.household)
+        assertTrue(loaded.usesTunnel)
+        assertFalse(loaded.isGuest)
+        assertNull(loaded.remoteAddress)
+        assertNull(store.lastAddress)
+
+        // The server's word is kept for next time: a guest after all, then a household device again.
+        store.saveHousehold(false)
+        assertTrue(store.load()!!.isGuest)
+        store.saveHousehold(true)
+        assertFalse(store.load()!!.isGuest)
+
+        // Signing out forgets it, so the next tunnel sign-in starts as a guest's.
+        store.clear()
+        store.save(ServerCredentials("http://127.0.0.1:52000/", "guest-key", guest = tunnel))
+        assertFalse(store.load()!!.household)
+        assertTrue(store.load()!!.isGuest)
+    }
+
+    @Test
+    fun `a guest saved before household devices stays a guest, and a home sign-in is neither`() {
+        // As an older version saved it: no household key at all.
+        store.save(ServerCredentials("http://127.0.0.1:52000/", "guest-key", guest = tunnel))
+        context.getSharedPreferences("server", android.content.Context.MODE_PRIVATE).edit().remove("guest.household").commit()
+        val guest = store.load()!!
+        assertFalse(guest.household)
+        assertTrue(guest.usesTunnel)
+        assertTrue(guest.isGuest)
+
+        store.clear()
+        // Household only goes with the tunnel; at home it's dropped, and the server's word is never kept.
+        store.save(ServerCredentials("http://192.168.1.50:8383/", "home-key", household = true))
+        store.saveHousehold(true)
+        val home = store.load()!!
+        assertFalse(home.household)
+        assertFalse(home.usesTunnel)
+        assertFalse(home.isGuest)
+    }
+
+    @Test
+    fun `through the tunnel the main profile isn't offered`() {
+        val main = io.github.flexarr.core.Profile(id = "main", name = "Dan", color = "#fff", isMain = true)
+        val claire = io.github.flexarr.core.Profile(id = "claire", name = "Claire", color = "#fff", isCurrent = true)
+        val kids = io.github.flexarr.core.Profile(id = "kids", name = "Kids", color = "#fff", isKids = true)
+        assertEquals(listOf(claire, kids), withoutMainProfile(listOf(main, claire, kids)))
+        // One already watching stays, so who's watching still shows.
+        val watching = main.copy(isCurrent = true)
+        assertEquals(listOf(watching, kids), withoutMainProfile(listOf(watching, kids)))
+    }
+
+    @Test
     fun `invite links open from flexarr io and the app's own scheme, from any app`() {
         val payload = "eyJ2IjoxfQ"
         assertEquals(AppLink.Join(payload), AppLink.parse(Uri.parse("https://flexarr.io/join#$payload")))
