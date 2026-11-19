@@ -97,14 +97,14 @@ class Casting private constructor(private val context: Context, private val mode
     private var frameworkLoaded by mutableStateOf(false)
 
     /**
-     * The Cast button shows: the framework loaded, and this isn't a family guest's phone, whose server is only reached
+     * The Cast button shows: the framework loaded, and this phone doesn’t reach its server
      * through the tunnel inside the app, which a Chromecast can't use.
      */
-    val available: Boolean get() = frameworkLoaded && !model.isGuest
+    val available: Boolean get() = frameworkLoaded && !model.usesTunnel
     /** The Chromecast connected to, by name; null when none is. */
     var deviceName: String? by mutableStateOf(null)
         private set
-    val isConnected: Boolean get() = deviceName != null && !model.isGuest
+    val isConnected: Boolean get() = deviceName != null && !model.usesTunnel
     /** What's going to the Chromecast, from the moment it's asked for. */
     var kind: Kind? by mutableStateOf(null)
         private set

@@ -295,7 +295,7 @@ fun SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, tint = Flexarr.danger)
-                        Text(if (model.isGuest) t("Leave") else t("Sign out"), fontSize = 17.sp, color = Flexarr.danger)
+                        Text(leaveLabel(model), fontSize = 17.sp, color = Flexarr.danger)
                     }
                 }
             }
@@ -313,7 +313,8 @@ fun SettingsScreen(
             AlertDialog(
                 onDismissRequest = { confirmSignOut = false },
                 title = { Text(t("Sign out of this server?")) },
-                text = { Text(refusal ?: t("This device will need to connect again to use the server, and its downloads will be deleted.")) },
+                // Through the tunnel (a household device away from home), connecting again takes a new code.
+                text = { Text(refusal ?: if (model.usesTunnel) t("Joining again takes a new code. Downloads are deleted.") else t("This device will need to connect again to use the server, and its downloads will be deleted.")) },
                 confirmButton = { if (refusal == null) TextButton(onClick = model::signOut) { Text(t("Sign out"), color = Flexarr.danger) } },
                 dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text(t(Words.cancel), color = Flexarr.screen) } },
                 containerColor = Flexarr.seat,
@@ -482,20 +483,29 @@ internal fun Toggle(label: String, on: Boolean, onChange: (Boolean) -> Unit, det
 /** "192.168.1.20:8383" for "http://192.168.1.20:8383/". */
 internal fun shortAddress(address: String?): String = address.orEmpty().replace(Regex("^https?://"), "").trimEnd('/')
 
-/** Leaving someone else's Flexarr as a guest: the tunnel, sign-in and downloads go, and joining again takes a new code. */
+/**
+ * Leaving a Flexarr joined with a code: the tunnel, sign-in and downloads go, and joining again takes a new code. A
+ * guest leaves someone else's Flexarr; a household device away from home signs out of its own.
+ */
 @Composable
 internal fun LeaveDialog(model: AppModel, onDismiss: () -> Unit) {
+    val guest = model.isGuest
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(t("{kind, select, named {Leave {server}?} owner {Leave {owner}’s Flexarr?} other {Leave this Flexarr?}}", *model.guestServerNaming(model.credentials?.guest).values)) },
+        title = {
+            Text(if (guest) t("{kind, select, named {Leave {server}?} owner {Leave {owner}’s Flexarr?} other {Leave this Flexarr?}}", *model.guestServerNaming(model.credentials?.guest).values) else t("Sign out of this server?"))
+        },
         text = { Text(t("Joining again takes a new code. Downloads are deleted.")) },
-        confirmButton = { TextButton(onClick = model::signOut) { Text(t("Leave"), color = Flexarr.danger) } },
+        confirmButton = { TextButton(onClick = model::signOut) { Text(leaveLabel(model), color = Flexarr.danger) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(t(Words.cancel), color = Flexarr.screen) } },
         containerColor = Flexarr.seat,
     )
 }
 
-/** Address, server version and what it runs on; for a guest, whose it is and Leave. */
+/** "Leave" for a guest, "Sign out" for everyone else (a household device away from home included). */
+internal fun leaveLabel(model: AppModel): String = if (model.isGuest) t("Leave") else t("Sign out")
+
+/** Address, server version and what it runs on; through the tunnel, whose it is (and for a guest, Leave). */
 @Composable
 fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit) {
     val client = model.client ?: return
@@ -510,17 +520,21 @@ fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit) {
     RoomBackground(ambient = null) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
             stickyHeader { PinnedPageTitle(t("Server"), onBack = { navigator.back() }) }
-            // A guest's server is only ever reached through the tunnel: no address to show or change.
+            // Through the tunnel (a guest, or a household device away from home): no address to show or change.
+            // A guest leaves here; a household device away from home signs out on Settings, as at home (as the iPhone).
             if (guest != null || model.isGuest) item {
+                val isGuest = model.isGuest
                 Group {
-                    Fact(t("Connected by invite"), model.guestServerTitle(guest))
-                    Divider()
-                    Text(
-                        t("Leave"),
-                        fontSize = 17.sp,
-                        color = Flexarr.danger,
-                        modifier = Modifier.fillMaxWidth().pressable({ confirmLeave = true }).padding(horizontal = 16.dp, vertical = 14.dp),
-                    )
+                    Fact(if (isGuest) t("Connected by invite") else t("Away from home"), model.guestServerTitle(guest))
+                    if (isGuest) {
+                        Divider()
+                        Text(
+                            t("Leave"),
+                            fontSize = 17.sp,
+                            color = Flexarr.danger,
+                            modifier = Modifier.fillMaxWidth().pressable({ confirmLeave = true }).padding(horizontal = 16.dp, vertical = 14.dp),
+                        )
+                    }
                 }
             } else item {
                 val remote = model.credentials?.remoteAddress

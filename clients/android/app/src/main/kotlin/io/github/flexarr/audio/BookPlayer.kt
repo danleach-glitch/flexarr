@@ -201,7 +201,7 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
         override fun onIsPlayingChanged(playing: Boolean) {
             isPlaying = playing
             if (playing) timing?.takeIf { it.isAnswered }?.let { started ->
-                started.report(flexarrLog, client?.baseUrl?.host, model.isGuest)
+                started.report(flexarrLog, client?.baseUrl?.host, model.usesTunnel)
                 timing = null
             }
             if (playing) startTicking()

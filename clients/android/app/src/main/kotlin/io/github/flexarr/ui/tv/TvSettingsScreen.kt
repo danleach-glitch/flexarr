@@ -110,7 +110,7 @@ private fun MainPage(
     val context = LocalContext.current
     var confirmSignOut by remember { mutableStateOf(false) }
     val profile = model.currentProfile
-    // A guest stays on its invite's profile.
+    // A guest stays on its invite's profile; a household device away from home switches among all but the main one.
     val switches = profile != null && model.profiles.size > 1 && !model.isGuest
     val server = model.guestServerNaming(model.credentials?.guest)
     // Only from servers that keep an order with the profile (0.54 on): it's kept there, not on this TV.
@@ -223,7 +223,8 @@ private fun MainPage(
                 )
                 // With child lock on, the server keeps the sign-in: says so in place of Sign out.
                 val refusal = if (guest) null else signOutRefusal(model.kidsLock)
-                Text(refusal ?: if (guest) t("Joining again takes a new code.") else t("This TV will need to connect again to use the server."), fontSize = 14.sp, color = Flexarr.usher)
+                // Joined with a code (a guest, or a household device away from home): coming back takes a new one.
+                Text(refusal ?: if (model.usesTunnel) t("Joining again takes a new code.") else t("This TV will need to connect again to use the server."), fontSize = 14.sp, color = Flexarr.usher)
                 // As the Apple TV: Cancel first, and where focus starts; Leave (or Sign out) after it.
                 Row(Modifier.fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     TvActionButton(t(Words.cancel), onClick = { confirmSignOut = false }, prominent = true, modifier = Modifier.focusRequester(cancel))
