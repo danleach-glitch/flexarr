@@ -10,6 +10,7 @@ import {
   getGuestInvites,
   getAllLibraries,
   getProfiles,
+  getRemoteAccess,
   getRemoteGuests,
   inviteGuestTv,
   removeGuestDevice,
@@ -91,6 +92,8 @@ export interface GuestLists {
   /** Every guest's profile id, devices or not. */
   guestIds?: string[]
   libraries: Library[]
+  /** People with their own Tailscale, and the profile each gets (Settings › Remote access, above). */
+  tailnet: { login: string; profileId: string | null }[]
   /** Asks for the devices, invites and guests afresh (after a change, or on the poll). */
   refresh: () => void
   reloadProfiles: () => void
@@ -103,6 +106,7 @@ function InviteGroups({ ready, onChange }: { ready: boolean; onChange: () => voi
   const guestIds = useApi(getGuestPeople, [])
   const invites = useApi(getGuestInvites, [])
   const libraries = useApi(getAllLibraries, []).data
+  const remote = useApi(getRemoteAccess, []).data
   /** Someone typed as a new guest who already lives here: their device is added under Your household instead. */
   const [householdFor, setHouseholdFor] = useState<{ id: string; at: number }>()
   /** The profile Guests is adding a device for: made for a new guest a moment ago, it's not someone who lives here. */
@@ -116,6 +120,7 @@ function InviteGroups({ ready, onChange }: { ready: boolean; onChange: () => voi
     invites: invites.data,
     guestIds: guestIds.data,
     libraries: libraries ?? [],
+    tailnet: remote?.links ?? [],
     refresh: () => {
       devices.reload()
       invites.reload()
@@ -522,20 +527,22 @@ export function GuestsGroup({
       )}
       {people.map((person) => (
         <div key={person.id} className="panel guest-card guest-person">
-          <span className="guest-who">
+          <div className="guest-head">
             <Avatar profile={{ name: person.name, color: person.color ?? guestProfiles.find((p) => p.id === person.id)?.color ?? '#a9c2ec' }} size={40} />
             <span className="guest-name-block">
               <strong className="guest-name">{person.name}</strong>
               <LibrariesSeen profile={guestProfiles.find((p) => p.id === person.id)} libraries={libraries} />
             </span>
-            <IconButton
-              label={t('Remove guest')}
-              aria-label={t('Remove {name}', { name: person.name })}
-              icon={<icon.delete />}
-              className="button quiet small icon danger-icon"
-              onClick={() => setConfirming({ person })}
-            />
-          </span>
+            <span className="guest-head-actions">
+              <IconButton
+                label={t('Remove guest')}
+                aria-label={t('Remove {name}', { name: person.name })}
+                icon={<icon.delete />}
+                className="button quiet small icon danger-icon"
+                onClick={() => setConfirming({ person })}
+              />
+            </span>
+          </div>
           <div className="guest-devices">
             {devices.data
               ?.filter((d) => d.profileId === person.id)
@@ -693,7 +700,7 @@ export function HouseholdGroup({
   /** Who a device is being added for here, so the lists are asked for quickly meanwhile. */
   onAddingFor?: (profileId: string | undefined) => void
 }) {
-  const { profiles, guestIds, refresh } = lists
+  const { profiles, guestIds, refresh, tailnet } = lists
   const devices = lists.devices?.filter((d) => d.household) ?? []
   const waiting = lists.invites?.filter((w) => w.household) ?? []
   const [adding, setAddingState] = useState<string>()
@@ -751,7 +758,7 @@ export function HouseholdGroup({
         <h3 className="settings-subhead">{t('Your household')}</h3>
       </div>
       <p className="settings-note household-intro">
-        {t('Phones, tablets and TVs of people who live with you, watching from anywhere as their own profile. Nothing to install but Flexarr.')}
+        {t('Phones, tablets and TVs of people who live with you, away from home without Tailscale. Their app shows a code; you type it here.')}
       </p>
       {!canAdd && <p className="settings-note">{t('Adding devices waits for Tailscale setup, below.')}</p>}
       <div className="guest-cards">
@@ -765,12 +772,32 @@ export function HouseholdGroup({
         {people.map((person) => {
           const theirs = devices.filter((d) => homeOf(d) === person.id)
           const theirWaiting = waiting.filter((w) => w.profileId === person.id && adding !== person.id)
+          // Nothing away from home yet: one line, with Add device beside their name.
+          const compact = theirs.length === 0 && theirWaiting.length === 0 && adding !== person.id
+          const logins = tailnet.filter((l) => l.profileId === person.id).map((l) => l.login)
+          const addButton = canAdd && adding !== person.id && (
+            <button
+              type="button"
+              id={`household-add-${person.id}`}
+              className="text-button"
+              aria-label={t('Add a device for {name}', { name: person.name })}
+              onClick={() => setAdding(person.id)}
+            >
+              {t('+ Add device')}
+            </button>
+          )
           return (
-            <div key={person.id} id={`household-${person.id}`} className="panel guest-card guest-person">
-              <span className="guest-who">
-                <Avatar profile={person} size={40} />
-                <strong className="guest-name">{person.name}</strong>
-              </span>
+            <div key={person.id} id={`household-${person.id}`} className={compact ? 'panel guest-card guest-person household-person compact' : 'panel guest-card guest-person household-person'}>
+              <div className="guest-head">
+                <Avatar profile={person} size={32} />
+                <span className="guest-name-block">
+                  <strong className="guest-name">{person.name}</strong>
+                  {person.isKids && <span className="muted guest-libraries">{t('Child lock keeps their device on {name}.', { name: person.name })}</span>}
+                  {logins.length > 0 && <span className="muted guest-libraries">{t('Also on your tailnet as {login}', { login: logins.join(', ') })}</span>}
+                </span>
+                {compact && <span className="guest-head-actions">{addButton}</span>}
+              </div>
+              {!compact && (
               <div className="guest-devices">
                 {theirs.map((d) => (
                   <div key={d.id} className="guest-device">
@@ -813,9 +840,6 @@ export function HouseholdGroup({
                     </AsyncButton>
                   </div>
                 ))}
-                {theirs.length === 0 && theirWaiting.length === 0 && adding !== person.id && (
-                  <p className="muted guest-no-devices">{t('No devices away from home')}</p>
-                )}
                 {adding === person.id ? (
                   <AddDevice
                     name={person.name}
@@ -833,20 +857,11 @@ export function HouseholdGroup({
                       focusAdd(person.id)
                     }}
                   />
-                ) : canAdd ? (
-                  <div className="guest-device guest-add-row">
-                    <button
-                      type="button"
-                      id={`household-add-${person.id}`}
-                      className="text-button"
-                      aria-label={t('Add a device for {name}', { name: person.name })}
-                      onClick={() => setAdding(person.id)}
-                    >
-                      {t('+ Add device')}
-                    </button>
-                  </div>
+                ) : addButton ? (
+                  <div className="guest-device guest-add-row">{addButton}</div>
                 ) : null}
               </div>
+              )}
             </div>
           )
         })}

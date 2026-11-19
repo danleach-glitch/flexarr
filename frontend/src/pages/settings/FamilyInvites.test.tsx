@@ -377,7 +377,10 @@ describe('Settings › Remote access › Family invites', () => {
       render(<FamilyInvites />)
 
       expect(await screen.findByRole('heading', { name: 'Your household' })).toBeVisible()
-      expect(await screen.findByText('No devices away from home')).toBeVisible()
+      // Claire has nothing away from home yet: one line, with Add device beside her name.
+      expect(await screen.findByRole('button', { name: 'Add a device for Claire' })).toBeVisible()
+      expect(document.getElementById('household-claire')).toHaveClass('compact')
+      expect(screen.queryByText(/No devices away from home/)).not.toBeInTheDocument()
       // Gran is a guest, so only under Guests; the main profile is in neither.
       expect(document.getElementById('household-gran')).toBeNull()
       expect(document.getElementById('household-owner')).toBeNull()
@@ -429,6 +432,23 @@ describe('Settings › Remote access › Family invites', () => {
       expect(await screen.findByText('iPad')).toBeVisible()
       expect(document.getElementById('household-claire')?.textContent).toMatch(/iPad/)
       expect(document.getElementById('household-tom')?.textContent).not.toMatch(/iPad/)
+    })
+
+    it('says when child lock keeps a device on its profile, and when they’re also on your tailnet', async () => {
+      mockApi({
+        '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),
+        '/profiles': [main, claire, { ...claire, id: 'tom', name: 'Tom', isKids: true }],
+        '/remote/guests/people': [],
+        '/remote/guests/invites': [],
+        '/remote/guests/devices': [],
+        '/remote': { links: [{ login: 'claire@example.com', name: 'Claire', profileId: 'claire' }] },
+      })
+      render(<FamilyInvites />)
+
+      expect(await screen.findByText('Child lock keeps their device on Tom.')).toBeVisible()
+      expect(await screen.findByText('Also on your tailnet as claire@example.com')).toBeVisible()
+      expect(document.getElementById('household-tom')?.textContent).not.toMatch(/tailnet/)
+      expect(document.getElementById('household-claire')?.textContent).not.toMatch(/Child lock/)
     })
 
     it('signing out a household device says their profile stays', async () => {

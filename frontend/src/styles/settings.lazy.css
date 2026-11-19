@@ -2355,24 +2355,54 @@
   padding: 0;
 }
 
-/* A guest's card: who on the left; their devices on the right, a row each, with Add device as the last row. */
+/* A person's card: who they are across the top (what can be done to them at the right), then their devices beneath their
+   name, a row each, with Add device as the last row. */
 .guest-card.guest-person {
+  --guest-indent: 52px;
   display: grid;
-  grid-template-columns: minmax(140px, 200px) 1fr;
-  gap: 4px 20px;
-  align-items: start;
-  padding: 4px 20px;
+  padding: 0 20px 4px;
 }
 
-.guest-who {
-  display: inline-flex;
+.guest-head {
+  display: flex;
   align-items: center;
   gap: 12px;
   padding: 14px 0;
 }
 
+.guest-head .guest-name-block {
+  flex: 1 1 auto;
+}
+
+.guest-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .guest-name {
   font-size: var(--step-1, 1.15rem);
+}
+
+/* Your household: names the size of the rows above (People with their own Tailscale), and one line for someone with
+   nothing away from home yet. */
+.guest-card.household-person {
+  --guest-indent: 44px;
+}
+
+.household-person .guest-name {
+  font-size: var(--step-0);
+  font-weight: 600;
+}
+
+.guest-card.household-person.compact {
+  padding-bottom: 0;
+}
+
+.household-person.compact .guest-head {
+  padding: 10px 0;
 }
 
 /* A guest's name with which libraries they see beneath it. */
@@ -2393,6 +2423,7 @@
 .guest-devices {
   display: grid;
   min-width: 0;
+  padding-inline-start: var(--guest-indent, 0);
 }
 
 .guest-device {
@@ -2427,12 +2458,8 @@
 }
 
 @media (max-width: 640px) {
-  .guest-card.guest-person {
-    grid-template-columns: 1fr;
-  }
-
-  .guest-who {
-    padding-bottom: 0;
+  .guest-devices {
+    padding-inline-start: 0;
   }
 }
 
@@ -2464,11 +2491,6 @@
 /* Cancel in adding a guest or a device: a quiet link at the right. */
 .guest-cancel {
   margin-inline-start: auto;
-}
-
-/* Remove guest sits beside their name, quiet until hovered. */
-.guest-who .danger-icon {
-  margin-inline-start: -4px;
 }
 
 .guest-no-devices {
