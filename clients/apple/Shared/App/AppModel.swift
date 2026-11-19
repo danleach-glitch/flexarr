@@ -198,6 +198,8 @@ final class AppModel {
     #endif
 
     init() {
+        // Before the tunnel or a player opens a connection (see `ErrorReports.ignoreBrokenPipes`).
+        ErrorReports.ignoreBrokenPipes()
         let defaults = UserDefaults.standard
         defer { serverName = store.savedServerName }
         #if DEBUG

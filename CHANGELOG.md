@@ -10,6 +10,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Watching away from home
 
+- The iPhone, iPad, Apple TV and Mac apps no longer close by themselves when a stream over a family invite or remote connection drops part-way.
 - Away from home, films and episodes start straight away and stop buffering. Each app checks your connection when it opens away from home and remembers it. When your connection easily carries a file, it plays as it is; otherwise it comes in 1080p, 720p and 480p at once, starts on a light one, and the player moves between them every few seconds to suit your connection.
 - If a stream still keeps stopping, the player steps down a quality by itself and says *Lowered quality for your connection*, and steps back up once things have been steady for a few minutes. Switching keeps the picture on screen rather than going black.
 - The players on iPhone, iPad, Apple TV, the Mac, Android phones and Android TV have a Quality menu: Automatic, Original, 1080p, 720p or 480p. The web player's menu gains Original. Away from home, each device remembers its choice.
