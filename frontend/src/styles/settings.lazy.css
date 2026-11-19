@@ -2405,6 +2405,11 @@
   padding: 10px 0;
 }
 
+/* + Add device beside the name is the same size as under a person's devices. */
+.household-person.compact .guest-head-actions .text-button {
+  font-size: var(--step--1);
+}
+
 /* A guest's name with which libraries they see beneath it. */
 .guest-name-block {
   display: grid;
