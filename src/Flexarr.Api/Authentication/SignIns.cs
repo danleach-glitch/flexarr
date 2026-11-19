@@ -546,6 +546,32 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
         }
     }
 
+    /// <summary>
+    /// A guest who lives in the house after all: their devices become household devices away from home on their profile
+    /// (<paramref name="kidsLock"/> for a kids profile), keeping their sign-ins. Returns how many.
+    /// </summary>
+    public int MoveGuestToHousehold(string profileId, bool kidsLock)
+    {
+        lock (_lock)
+        {
+            var moved = Loaded().Values.Where(s => s.Guest && s.ProfileId == profileId).ToList();
+            foreach (var signIn in moved)
+            {
+                signIn.Guest = false;
+                signIn.Away = true;
+                signIn.HomeProfileId = profileId;
+                signIn.KidsLock = kidsLock;
+            }
+
+            if (moved.Count > 0)
+            {
+                SaveLocked();
+            }
+
+            return moved.Count;
+        }
+    }
+
     /// <summary>Remembers who's watching on a browser or device (null: the main profile).</summary>
     public void ChooseProfile(string id, string? profileId)
     {

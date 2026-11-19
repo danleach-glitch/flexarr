@@ -154,7 +154,9 @@ same built-in tunnel and tag, but the device signs in to **her own household pro
   (switch to other household profiles, see and control the household's TVs and phones, Bazarr, music requests, DVR), but
   with a guest's safety: valid only from the tailnet address that redeemed it, its token under the `guest:` prefix (a
   server rolled back to before household devices finds nothing, rather than a guest), and never the main profile: it
-  can't be chosen there and the device never unlocks the server's settings. If its profile goes, it's signed out.
+  can't be chosen there (nor a guest's) and the device never unlocks the server's settings. It keeps the profile it
+  was added for as `HomeProfileId`: if the profile it switched to goes, it goes back there; if that one goes, it's
+  signed out. A kids profile's device comes with child lock on.
   `SignIn.Tunneled` (guest or away) is what the gate and the address binding check; `Guest` is what the limits check.
 - **The API** only grows: `household` on `CreateInviteRequest`/`TvCodeRequest` (in), and on `GuestInviteDto`,
   `GuestDeviceDto` and `RedeemedInviteDto` (out). `/me`'s `isGuest` keeps its meaning and is false for these devices.
@@ -165,6 +167,14 @@ same built-in tunnel and tag, but the device signs in to **her own household pro
   An app from before treats the device as a guest: it works, with a guest's limits in the app, until it's updated.
 - **Tailscale:** the device is tagged `tag:flexarr-guest` like a guest's, so the policy keeps it to Flexarr's port, and
   pausing invites for an unsafe policy pauses household joins too.
+- **Guest or household, not both:** a guest can't be invited to the profile of someone with a household device (or one
+  waiting), and redeeming checks again. A guest who turns out to live in the house moves across with
+  `POST /remote/guests/people/{profileId}/move-to-household`: their devices become away ones and their waiting invites
+  household ones, keeping the profile.
+- **Rolling back to 0.66** with household invites still waiting: 0.66 doesn't know `Household`, so it reads them as
+  guests' invites, and a device that redeems one there joins as a guest of that profile. Cancel waiting household invites
+  before going back. Devices already joined are safe: 0.66 finds nothing for their tokens, so they're signed out rather
+  than becoming guests.
 
 ## Turning it on
 

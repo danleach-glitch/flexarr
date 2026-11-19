@@ -214,6 +214,46 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
         Loaded().Any(i => i.Household && i.ProfileId == profileId) || signIns.List().Any(s => s.Away && s.OwnProfileId == profileId);
 
     /// <summary>
+    /// Someone invited as a guest who lives in the house after all: they stop being a guest, their devices become
+    /// household devices away from home on their profile (child lock on for a kids profile), and their waiting invites
+    /// household ones. Their profile, and what they've watched, stay. False if they aren't a guest.
+    /// </summary>
+    public bool MoveToHousehold(string profileId, bool kidsProfile)
+    {
+        lock (_lock)
+        {
+            if (!GuestProfilesLocked().Contains(profileId))
+            {
+                return false;
+            }
+
+            var invites = Loaded();
+            for (var i = 0; i < invites.Count; i++)
+            {
+                if (invites[i] is { Household: false } invite && invite.ProfileId == profileId)
+                {
+                    invites[i] = new GuestInvite
+                    {
+                        Id = invite.Id, TokenHash = invite.TokenHash, Name = invite.Name, ProfileId = invite.ProfileId, Via = invite.Via,
+                        CreatedAt = invite.CreatedAt, ExpiresAt = invite.ExpiresAt, KeyId = invite.KeyId, Target = invite.Target, Household = true,
+                    };
+                }
+            }
+
+            SaveLocked();
+            if (LoadedGuests().Remove(profileId))
+            {
+                SaveGuestsLocked();
+            }
+
+            signIns.MoveGuestToHousehold(profileId, kidsProfile);
+        }
+
+        LogMovedToHousehold();
+        return true;
+    }
+
+    /// <summary>
     /// Whether a guest device ever redeemed an invite from <paramref name="address"/>. When Tailscale can't say whose
     /// an address is just now, these wait (the gate answers 503) while every other device carries on.
     /// </summary>
@@ -653,6 +693,9 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
 
     [LoggerMessage(Level = LogLevel.Information, Message = "\"{Name}\" used their invite from {Address}")]
     private partial void LogRedeemed(string name, string address);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Moved a guest to the household")]
+    private partial void LogMovedToHousehold();
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Couldn't delete a cancelled invite's Tailscale key ({Reason}); it expires by itself")]
     private partial void LogKeyNotDeleted(string reason);

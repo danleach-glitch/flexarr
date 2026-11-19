@@ -1137,4 +1137,37 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
         Assert.Equal(HttpStatusCode.Gone, (await RedeemAsync("100.64.0.62", payload.T)).StatusCode);
         Assert.DoesNotContain(factory.Services.GetRequiredService<SignIns>().List(), s => s.GuestAddress == "100.64.0.62");
     }
+
+    [Fact]
+    public async Task A_guest_who_lives_in_the_house_moves_to_the_household_keeping_their_profile_and_devices()
+    {
+        var finn = await factory.AddProfileAsync("Finn63");
+        var (_, payload) = await InviteAsync(finn, "Finn's iPad");
+        const string address = "100.64.0.63";
+        factory.Whois.Tags[address] = ["tag:flexarr-guest"];
+        var key = (await (await RedeemAsync(address, payload.T)).Content.ReadFromJsonAsync<RedeemedInviteDto>(Web))!.ApiKey;
+        await InviteAsync(finn, "Finn's phone"); // still waiting
+        using var admin = factory.Admin();
+
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.PostAsync($"/api/v1/remote/guests/people/{finn}/move-to-household", null)).StatusCode);
+
+        Assert.DoesNotContain(finn, (await admin.GetFromJsonAsync<List<string>>("/api/v1/remote/guests/people"))!);
+        var device = Assert.Single((await admin.GetFromJsonAsync<List<GuestDeviceDto>>("/api/v1/remote/guests/devices", Web))!, d => d.Address == address);
+        Assert.True(device.Household);
+        Assert.Equal(finn, device.HomeProfileId);
+        Assert.All((await admin.GetFromJsonAsync<List<GuestInviteDto>>("/api/v1/remote/guests/invites", Web))!.Where(i => i.ProfileId == finn), i => Assert.True(i.Household));
+        using (var moved = factory.From(address, key))
+        {
+            var me = await moved.GetFromJsonAsync<JsonElement>("/api/v1/me");
+            Assert.False(me.GetProperty("isGuest").GetBoolean());
+            Assert.Equal(finn, me.GetProperty("profileId").GetString());
+        }
+
+        // Only a guest moves; never the main profile.
+        Assert.Equal(HttpStatusCode.Conflict, (await admin.PostAsync($"/api/v1/remote/guests/people/{finn}/move-to-household", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await admin.PostAsync($"/api/v1/remote/guests/people/{PlaybackState.DefaultUser}/move-to-household", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.PostAsync("/api/v1/remote/guests/people/nobody/move-to-household", null)).StatusCode);
+        using var notAdmin = factory.From(address, key);
+        Assert.Equal(HttpStatusCode.Forbidden, (await notAdmin.PostAsync($"/api/v1/remote/guests/people/{finn}/move-to-household", null)).StatusCode);
+    }
 }

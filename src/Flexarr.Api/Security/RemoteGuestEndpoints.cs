@@ -142,6 +142,25 @@ public static class RemoteGuestEndpoints
             return Results.Ok(present);
         });
 
+        // A guest who lives in the house after all: they move to Your household, keeping their profile, what they've
+        // watched and their devices (now household devices away from home). Available from 0.67.
+        group.MapPost("/people/{profileId}/move-to-household", async (string profileId, GuestInvites invites, FlexarrDbContext db, CancellationToken ct) =>
+        {
+            if (await db.Profiles.AsNoTracking().FirstOrDefaultAsync(p => p.Id == profileId, ct) is not { } profile)
+            {
+                return Problems.Of("That profile has been removed.", status: 404);
+            }
+
+            if (profile.Id == PlaybackState.DefaultUser)
+            {
+                return Problems.Of("The main profile is already the household’s.", status: 409);
+            }
+
+            return invites.MoveToHousehold(profile.Id, profile.IsKids)
+                ? Results.NoContent()
+                : Problems.Of("{name} isn’t a guest.", new { name = profile.Name }, status: 409);
+        });
+
         group.MapGet("/invites", async (GuestInvites invites, FlexarrDbContext db, CancellationToken ct) =>
         {
             var names = await db.Profiles.AsNoTracking().ToDictionaryAsync(p => p.Id, p => p.Name, ct);
