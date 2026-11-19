@@ -205,7 +205,7 @@ private fun ChooseServer(browser: ServerBrowser, onPick: (DiscoveredServer) -> U
  * and then joins as a phone does with a link (the tunnel, then a sign-in of its own). See [rememberGuestCode].
  */
 @Composable
-private fun GuestCode(model: AppModel, onBack: () -> Unit) {
+internal fun GuestCode(model: AppModel, onBack: () -> Unit) {
     var attempt by remember { mutableIntStateOf(0) }
     val guest = rememberGuestCode(model, attempt)
     val code = guest.code

@@ -40,6 +40,7 @@ fun FlexarrRoot(model: AppModel) {
             }
         }
         InviteDialog(model)
+        io.github.flexarr.ui.connect.AwayWelcomeDialog(model)
     }
 }
 

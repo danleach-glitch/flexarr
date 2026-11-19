@@ -557,9 +557,12 @@ private fun Input(
     )
 }
 
-/** "Join someone’s Flexarr" on a phone or tablet: the code to read or send to whoever runs that Flexarr (see [rememberGuestCode]). */
+/**
+ * "Join someone’s Flexarr" on a phone or tablet, and Settings › Server › Use away from home: the code to read or send to
+ * whoever runs that Flexarr (see [rememberGuestCode]). [onBack] null: the page's own title has Back, so there's no other.
+ */
 @Composable
-private fun PhoneGuestCode(model: AppModel, onBack: () -> Unit) {
+internal fun PhoneGuestCode(model: AppModel, onBack: (() -> Unit)?) {
     var attempt by remember { mutableIntStateOf(0) }
     val guest = rememberGuestCode(model, attempt)
     val context = LocalContext.current
@@ -618,7 +621,7 @@ private fun PhoneGuestCode(model: AppModel, onBack: () -> Unit) {
             guest.problem?.let { Text(it, fontSize = 15.sp, color = Flexarr.screen) }
         }
         // Not beside Join and Not now: those already say what to do.
-        if (!(invite != null && model.inviteFromCode && joinProblem == null && !model.joining)) {
+        if (onBack != null && !(invite != null && model.inviteFromCode && joinProblem == null && !model.joining)) {
             ActionButton(t("Back"), onClick = { if (!model.joining) onBack() }, enabled = !model.joining, modifier = Modifier.padding(top = 6.dp))
         }
     }

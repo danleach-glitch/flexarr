@@ -76,6 +76,21 @@ data class ServerCredentials(
     /** A family guest's sign-in, as saved: through the tunnel, and not a household device's. The server's `/me` has the last word. */
     val isGuest: Boolean get() = guest != null && !household
 
+    /** A household device away from home: through the tunnel, as its own household profile, not a guest. */
+    val isHouseholdAway: Boolean get() = guest != null && household
+
+    /**
+     * Someone has been chosen for this sign-in: a profile picked on this device, or the profile a household device away
+     * from home joined as, which the invite chose (so "Who's watching?" doesn't follow the join, as on Apple).
+     */
+    val profileChosen: Boolean get() = profileToken != null || isHouseholdAway
+
+    /**
+     * This tunnel sign-in as the server says it is ([guest]: `/me`'s `isGuest`), or null when that changes nothing (it
+     * already says so, or it isn't a tunnel sign-in).
+     */
+    fun withServerSaid(guest: Boolean): ServerCredentials? = takeIf { usesTunnel && household == guest }?.copy(household = !guest)
+
     /** The away address with whether it's confirmed, as [io.github.flexarr.AppModel.remoteAddress] takes and gives it. */
     val away: Away? get() = remoteAddress?.let { Away(it, remoteConfirmed) }
 

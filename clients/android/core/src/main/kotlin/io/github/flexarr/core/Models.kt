@@ -892,7 +892,7 @@ data class SignInInfo(
     /** This device is locked to kids profiles until the admin PIN releases it. Absent from servers before 0.56. */
     val kidsLock: Boolean = false,
     /** A family guest's device: it stays on its invite's profile and has no household devices. Absent from servers before 0.57. */
-    val isGuest: Boolean = false,
+    val isGuest: Boolean? = null,
     /** The profile's chosen language (a BCP 47 code); null follows the device. Absent from servers before 0.61. */
     val language: String? = null,
     /**

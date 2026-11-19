@@ -81,3 +81,18 @@ fun TvTunnelProblemScreen(model: AppModel) {
         TakeFocus(cancel)
     }
 }
+
+/** "Signed in as Claire", on the TV: said once after joining as a household device away from home, as the phone's. */
+@Composable
+fun TvAwayWelcome(model: AppModel) {
+    val welcome = model.awayWelcome ?: return
+    val ok = remember { FocusRequester() }
+    Dialog(onDismissRequest = { model.awayWelcome = null }) {
+        Column(Modifier.width(400.dp).background(Flexarr.seat, RoundedCornerShape(Tokens.radiusPanel)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text(t("Signed in as {profile}", "profile" to welcome.profile), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(io.github.flexarr.ui.connect.awayWelcomeMessage(welcome), fontSize = 14.sp, color = Flexarr.usher)
+            TvActionButton(t("OK"), onClick = { model.awayWelcome = null }, prominent = true, modifier = Modifier.focusRequester(ok))
+        }
+    }
+    TakeFocus(ok)
+}

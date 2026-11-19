@@ -396,7 +396,10 @@ fun MainScreen(model: AppModel) {
                 composable("settings/language") { io.github.flexarr.ui.settings.LanguageSettingsScreen(model) }
                 composable("settings/downloads") { DownloadSettingsScreen(model) }
                 composable("settings/listening") { ListeningSettingsScreen(model, onNotifications = { nav.navigate("settings/notifications") }) }
-                composable("settings/server") { ServerSettingsScreen(model, onDiagnostics = { nav.navigate("settings/diagnostics") }) }
+                composable("settings/server") {
+                    ServerSettingsScreen(model, onDiagnostics = { nav.navigate("settings/diagnostics") }, onUseAway = { nav.navigate("settings/away-from-home") })
+                }
+                composable("settings/away-from-home") { io.github.flexarr.ui.settings.AwayFromHomeScreen(model) }
                 composable("settings/diagnostics") { DiagnosticsSettingsScreen(model) }
                 composable("settings/notifications") { NotificationSettingsScreen(model) }
                 composable("settings/trakt") { TraktSettingsScreen(model) }

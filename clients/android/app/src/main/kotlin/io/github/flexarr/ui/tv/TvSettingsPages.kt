@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
@@ -564,7 +566,7 @@ internal fun TvSidebarSettings(model: AppModel, libraries: Loader<List<Library>>
 
 /** The server this TV uses: where it is, how it's reached now, and what it's running. As the Apple TV's ServerSettingsView. */
 @Composable
-internal fun TvServerSettings(model: AppModel, libraries: Loader<List<Library>>, returningFrom: TvSettingsPageId?, onDiagnostics: () -> Unit) {
+internal fun TvServerSettings(model: AppModel, libraries: Loader<List<Library>>, returningFrom: TvSettingsPageId?, onDiagnostics: () -> Unit, onUseAway: () -> Unit = {}) {
     val client = model.client ?: return
     val status = rememberLoader(model.credentials) { client.systemStatus() }
     val checking = status.state is Load.Loading || status.refreshing
@@ -596,6 +598,15 @@ internal fun TvServerSettings(model: AppModel, libraries: Loader<List<Library>>,
         } else {
             model.serverName?.let { name -> item { TvSettingsFact(t("Name"), name) } }
             item { TvSettingsFact(t("Address"), shortAddress(model.credentials?.address)) }
+            // At home on someone's own profile: this TV can go on the tunnel too, as the Apple TV offers.
+            if (model.offersUseAwayFromHome((status.state as? Load.Loaded)?.value?.version)) item {
+                TvSettingsRow(
+                    t("Use away from home"), onClick = onUseAway,
+                    modifier = if (returningFrom == TvSettingsPageId.AwayFromHome) Modifier.focusRequester(focus) else Modifier,
+                    icon = Icons.Filled.Key, accessory = TvSettingAccessory.Chevron,
+                    help = t("Watch here away from home without Tailscale. Whoever runs Flexarr types a code."),
+                )
+            }
         }
         if (remote != null && guest == null) {
             item { TvSettingsFact(t("Away from home"), shortAddress(remote)) }
@@ -627,7 +638,7 @@ internal fun TvServerSettings(model: AppModel, libraries: Loader<List<Library>>,
         item {
             TvSettingsRow(
                 if (checking) t("Checking…") else t("Check again"), onClick = { if (!checking) status.retry() },
-                modifier = Modifier.padding(top = 15.dp).then(if (onDiagnosticsRow) Modifier else Modifier.focusRequester(focus)),
+                modifier = Modifier.padding(top = 15.dp).then(if (onDiagnosticsRow || returningFrom == TvSettingsPageId.AwayFromHome) Modifier else Modifier.focusRequester(focus)),
                 icon = Icons.Filled.Refresh, help = t("Ask the server how it is now."),
             )
         }
@@ -762,4 +773,19 @@ private fun NoteDialog(initial: String, onDone: (String) -> Unit, onCancel: () -
         }
     }
     TakeFocus(field)
+}
+
+/**
+ * Settings › Server › Use away from home, on the TV: the code whoever runs Flexarr types in, as Join someone’s Flexarr's.
+ * Joining moves this TV onto the tunnel as its own household profile; Back leaves the home sign-in as it was.
+ */
+@Composable
+internal fun TvAwayFromHomeSettings(model: AppModel, onBack: () -> Unit) {
+    DisposableEffect(Unit) {
+        model.startUsingAway()
+        onDispose { model.stopUsingAway() }
+    }
+    TvSettingsPage(t("Use away from home"), summary = t("Watch here away from home without Tailscale. Whoever runs Flexarr types a code.")) {
+        item { Box(Modifier.width(410.dp)) { GuestCode(model, onBack) } }
+    }
 }

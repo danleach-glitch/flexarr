@@ -18,6 +18,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.activity.compose.BackHandler
+import androidx.compose.material.icons.filled.Key
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -505,9 +508,34 @@ internal fun LeaveDialog(model: AppModel, onDismiss: () -> Unit) {
 /** "Leave" for a guest, "Sign out" for everyone else (a household device away from home included). */
 internal fun leaveLabel(model: AppModel): String = if (model.isGuest) t("Leave") else t("Sign out")
 
+/**
+ * Settings › Server › Use away from home: the code whoever runs Flexarr types in, as Join someone’s Flexarr's. Joining
+ * moves this device onto the tunnel as its own household profile; Back leaves the home sign-in as it was.
+ */
+@Composable
+fun AwayFromHomeScreen(model: AppModel) {
+    val navigator = LocalNavigator.current
+    DisposableEffect(Unit) {
+        model.startUsingAway()
+        onDispose { model.stopUsingAway() }
+    }
+    // Not away mid-join: it finishes, or says what went wrong, here.
+    BackHandler(enabled = model.joining) {}
+    RoomBackground(ambient = null) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+            stickyHeader { PinnedPageTitle(t("Use away from home"), onBack = { if (!model.joining) navigator.back() }) }
+            item {
+                Box(Modifier.padding(horizontal = Edge).padding(horizontal = 16.dp).widthIn(max = ReadableWidth)) {
+                    io.github.flexarr.ui.connect.PhoneGuestCode(model, onBack = null)
+                }
+            }
+        }
+    }
+}
+
 /** Address, server version and what it runs on; through the tunnel, whose it is (and for a guest, Leave). */
 @Composable
-fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit) {
+fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit, onUseAway: () -> Unit = {}) {
     val client = model.client ?: return
     val navigator = LocalNavigator.current
     val status = rememberLoader(model.credentials) { client.systemStatus() }
@@ -524,7 +552,8 @@ fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit) {
             // A guest leaves here; a household device away from home signs out on Settings, as at home (as the iPhone).
             if (guest != null || model.isGuest) item {
                 val isGuest = model.isGuest
-                Group {
+                // On the tunnel, guest or household alike: why Cast isn't offered.
+                Group(footer = t("Away from home, Flexarr uses its own connection. Cast is off on it.")) {
                     Fact(if (isGuest) t("Connected by invite") else t("Away from home"), model.guestServerTitle(guest))
                     if (isGuest) {
                         Divider()
@@ -558,6 +587,12 @@ fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit) {
                         Divider()
                         Fact(t("Connected"), if (client.addresses.isAway) t("Away, over Tailscale") else t("At home"))
                     }
+                }
+            }
+            // At home on someone's own profile: this device can go on the tunnel too, as Apple's Server page offers.
+            if (guest == null && model.offersUseAwayFromHome((status.state as? Load.Loaded)?.value?.version)) item {
+                Group(footer = t("Watch here away from home without Tailscale. Whoever runs Flexarr types a code.")) {
+                    SettingsLink(t("Use away from home"), Icons.Filled.Key, value = null, onClick = onUseAway)
                 }
             }
             item {

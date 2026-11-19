@@ -51,7 +51,7 @@ import io.github.flexarr.ui.theme.Flexarr
 import io.github.flexarr.ui.theme.Tokens
 
 /** Settings' pages, opened from the first and from each other; Back goes to the one before. */
-internal enum class TvSettingsPageId { Main, Playback, Libraries, Sidebar, Language, Trakt, Server, Diagnostics }
+internal enum class TvSettingsPageId { Main, Playback, Libraries, Sidebar, Language, Trakt, Server, Diagnostics, AwayFromHome }
 
 /**
  * Settings, as the Apple TV's SettingsView: a short list of pages, each row saying how it's set now, the details a
@@ -87,8 +87,10 @@ fun TvSettingsScreen(model: AppModel, onSwitchProfile: () -> Unit) {
         TvSettingsPageId.Sidebar -> TvSidebarSettings(model, libraries)
         TvSettingsPageId.Language -> TvLanguageSettings(model)
         TvSettingsPageId.Trakt -> TvTraktSettings(model)
-        TvSettingsPageId.Server -> TvServerSettings(model, libraries, returningFrom, onDiagnostics = { open(TvSettingsPageId.Diagnostics) })
+        TvSettingsPageId.Server -> TvServerSettings(model, libraries, returningFrom, onDiagnostics = { open(TvSettingsPageId.Diagnostics) },
+            onUseAway = { open(TvSettingsPageId.AwayFromHome) })
         TvSettingsPageId.Diagnostics -> TvDiagnosticsSettings(model)
+        TvSettingsPageId.AwayFromHome -> TvAwayFromHomeSettings(model, onBack = { returningFrom = stack.removeAt(stack.lastIndex) })
     }
 }
 

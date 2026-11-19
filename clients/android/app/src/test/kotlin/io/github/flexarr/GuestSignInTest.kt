@@ -143,6 +143,63 @@ class GuestSignInTest {
     }
 
     @Test
+    fun `a household device that joined away from home has its profile chosen, so Who's watching doesn't follow`() {
+        val away = ServerCredentials("http://127.0.0.1:52000/", "key", guest = tunnel, household = true)
+        assertTrue(away.profileChosen)
+        assertFalse(needsProfile(chosenHere = away.profileChosen, profiles = 3, serverAsks = false))
+        // The server asking still asks.
+        assertTrue(needsProfile(chosenHere = away.profileChosen, profiles = 3, serverAsks = true))
+        // A home sign-in with nobody picked, and a guest, are as before.
+        assertFalse(ServerCredentials("http://192.168.1.50:8383/", "key").profileChosen)
+        assertFalse(ServerCredentials("http://127.0.0.1:52000/", "key", guest = tunnel).profileChosen)
+        assertTrue(ServerCredentials("http://192.168.1.50:8383/", "key", profileToken = "p.t").profileChosen)
+    }
+
+    @Test
+    fun `Use away from home is offered at home on someone's own profile, from servers with household devices`() {
+        val home = ServerCredentials("http://192.168.1.50:8383/", "key")
+        val claire = io.github.flexarr.core.Profile(id = "claire", name = "Claire", color = "#fff", isCurrent = true)
+        val main = io.github.flexarr.core.Profile(id = "main", name = "Dan", color = "#fff", isMain = true, isCurrent = true)
+        assertTrue(offersUseAwayFromHome(home, claire, "0.67.0", invitesBuilt = true))
+        assertTrue(offersUseAwayFromHome(home, claire, "0.67.0-dev.1a2b3c4", invitesBuilt = true))
+        // Not the main profile, not on the tunnel already, not before 0.67 or while the version isn't known, and not in
+        // a build without family invites.
+        assertFalse(offersUseAwayFromHome(home, main, "0.67.0", invitesBuilt = true))
+        assertFalse(offersUseAwayFromHome(home.copy(guest = tunnel, household = true), claire, "0.67.0", invitesBuilt = true))
+        assertFalse(offersUseAwayFromHome(home.copy(guest = tunnel), claire, "0.67.0", invitesBuilt = true))
+        assertFalse(offersUseAwayFromHome(home, claire, "0.66.0", invitesBuilt = true))
+        assertFalse(offersUseAwayFromHome(home, claire, null, invitesBuilt = true))
+        assertFalse(offersUseAwayFromHome(home, null, "0.67.0", invitesBuilt = true))
+        assertFalse(offersUseAwayFromHome(home, claire, "0.67.0", invitesBuilt = false))
+    }
+
+    @Test
+    fun `Use away from home keeps the downloads unless it joined another server`() {
+        assertTrue(sameServer("s1", "s1"))
+        assertFalse(sameServer("s1", "s2"))
+        // Not known on either side: nothing says it's another server.
+        assertTrue(sameServer(null, "s1"))
+        assertTrue(sameServer("s1", ""))
+    }
+
+    @Test
+    fun `what the server says about a tunnel sign-in changes it only when it differs`() {
+        val guest = ServerCredentials("http://127.0.0.1:52000/", "key", guest = tunnel)
+        // The server says it's a household device: the sign-in in use becomes one, as saved.
+        val household = guest.withServerSaid(guest = false)!!
+        assertTrue(household.household)
+        assertFalse(household.isGuest)
+        assertEquals(guest.apiKey, household.apiKey)
+        // Said again: nothing to change, nothing to save.
+        assertNull(household.withServerSaid(guest = false))
+        assertNull(guest.withServerSaid(guest = true))
+        // A guest after all.
+        assertTrue(household.withServerSaid(guest = true)!!.isGuest)
+        // A home sign-in is never a household device away from home, whatever's said.
+        assertNull(ServerCredentials("http://192.168.1.50:8383/", "key").withServerSaid(guest = false))
+    }
+
+    @Test
     fun `a guest saved before household devices stays a guest, and a home sign-in is neither`() {
         // As an older version saved it: no household key at all.
         store.save(ServerCredentials("http://127.0.0.1:52000/", "guest-key", guest = tunnel))
