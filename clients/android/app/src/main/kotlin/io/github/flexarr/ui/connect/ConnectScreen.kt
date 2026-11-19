@@ -8,6 +8,8 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -622,7 +624,9 @@ internal fun PhoneGuestCode(model: AppModel, onBack: (() -> Unit)?) {
         }
         // Not beside Join and Not now: those already say what to do.
         if (onBack != null && !(invite != null && model.inviteFromCode && joinProblem == null && !model.joining)) {
-            ActionButton(t("Back"), onClick = { if (!model.joining) onBack() }, enabled = !model.joining, modifier = Modifier.padding(top = 6.dp))
+            // The gap above as a spacer of its own: padding in the button's modifier showed as a second layer behind it.
+            Spacer(Modifier.height(6.dp))
+            ActionButton(t("Back"), onClick = { if (!model.joining) onBack() }, enabled = !model.joining)
         }
     }
 }
