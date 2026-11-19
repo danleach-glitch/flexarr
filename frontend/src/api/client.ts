@@ -2390,6 +2390,9 @@ export const cancelGuestInvite = (id: string) => request<void>('DELETE', `/remot
 export const getGuestPeople = (signal?: AbortSignal) => apiGet<string[]>('/remote/guests/people', signal)
 export const getGuestDevices = (signal?: AbortSignal) => apiGet<GuestDevice[]>('/remote/guests/devices', signal)
 export const removeGuestDevice = (id: string) => request<void>('DELETE', `/remote/guests/devices/${encodeURIComponent(id)}`)
+/** A guest who lives here after all: their profile joins the household, and their devices become household devices (servers from 0.67). */
+export const moveGuestToHousehold = (profileId: string) =>
+  request<void>('POST', `/remote/guests/people/${encodeURIComponent(profileId)}/move-to-household`)
 
 /** A browser or TV signed in to this server with its own token. */
 export interface SignIn {

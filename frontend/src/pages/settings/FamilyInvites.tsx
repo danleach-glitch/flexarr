@@ -13,6 +13,7 @@ import {
   getRemoteAccess,
   getRemoteGuests,
   inviteGuestTv,
+  moveGuestToHousehold,
   removeGuestDevice,
   saveGuestClient,
   setGuestRelay,
@@ -405,6 +406,25 @@ export function GuestsGroup({
     refresh()
   }
 
+  /** A guest who turns out to live here, being moved to Your household (their profile and devices with them). */
+  const [moving, setMoving] = useState<{ id: string; name: string }>()
+  const [moveBusy, setMoveBusy] = useState(false)
+  const [moveError, setMoveError] = useState<string>()
+  async function confirmMove() {
+    if (!moving) return
+    setMoveBusy(true)
+    setMoveError(undefined)
+    try {
+      await moveGuestToHousehold(moving.id)
+      setMoving(undefined)
+      refresh()
+    } catch (err) {
+      setMoveError(errorText(err))
+    } finally {
+      setMoveBusy(false)
+    }
+  }
+
   /**
    * A new guest by name, with a profile of their own made here. Names are unique: one that's taken is refused, and if
    * it's another guest's, adding a device for them is offered instead.
@@ -534,6 +554,9 @@ export function GuestsGroup({
               <LibrariesSeen profile={guestProfiles.find((p) => p.id === person.id)} libraries={libraries} />
             </span>
             <span className="guest-head-actions">
+              <button type="button" className="button quiet small" onClick={() => setMoving(person)}>
+                {t('Move to Your household')}
+              </button>
               <IconButton
                 label={t('Remove guest')}
                 aria-label={t('Remove {name}', { name: person.name })}
@@ -647,6 +670,21 @@ export function GuestsGroup({
               ? t('It can’t reach Flexarr any more. Joining again takes a new code.')
               : t('Their devices are signed out, and their profile and its watch history go.')}
           </p>
+        </ConfirmDialog>
+      )}
+      {moving && (
+        <ConfirmDialog
+          title={t('Move {name} to Your household?', { name: moving.name })}
+          confirmLabel={t('Move')}
+          busy={moveBusy}
+          error={moveError}
+          onConfirm={() => void confirmMove()}
+          onClose={() => {
+            setMoving(undefined)
+            setMoveError(undefined)
+          }}
+        >
+          <p>{t('They’ll watch as {name} with nothing taken away, on every device they’ve joined with.', { name: moving.name })}</p>
         </ConfirmDialog>
       )}
       <p className="settings-note">{t('Each guest watches as a profile of their own, and can’t switch to another. Each device joins with a code that works once.')}</p>

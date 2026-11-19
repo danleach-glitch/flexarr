@@ -501,6 +501,31 @@ describe('Settings › Remote access › Family invites', () => {
     })
   })
 
+  it('moves a guest to Your household, once confirmed, and both groups catch up', async () => {
+    let moved: string | undefined
+    mockApi({
+      '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),
+      '/profiles': [main, gran],
+      '/remote/guests/people': () => (moved ? [] : ['gran']),
+      '/remote/guests/invites': [],
+      '/remote/guests/devices': () => [device(moved ? { household: true, homeProfileId: 'gran' } : {})],
+      'POST /remote/guests/people/gran/move-to-household': () => {
+        moved = 'gran'
+        return undefined
+      },
+    })
+    render(<FamilyInvites />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Move to Your household' }))
+    expect(await screen.findByText('Move Gran to Your household?')).toBeVisible()
+    expect(screen.getByText('They’ll watch as Gran with nothing taken away, on every device they’ve joined with.')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Move' }))
+    await waitFor(() => expect(moved).toBe('gran'))
+    // Now under Your household with her iPad, and no longer a guest.
+    await waitFor(() => expect(document.getElementById('household-gran')?.textContent).toMatch(/iPad/))
+    expect(screen.queryByRole('button', { name: 'Remove Gran' })).not.toBeInTheDocument()
+  })
+
   it('each guest card says which libraries they see, with Change opening their profile there', async () => {
     mockApi({
       '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),

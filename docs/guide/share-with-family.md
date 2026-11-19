@@ -42,7 +42,7 @@ Someone in your household (a partner, a teenager) shouldn't have to be a guest t
 3. On their device, in Flexarr, they go to **Settings › Server** and choose **Use away from home**. Not signed in on it yet? They choose **Join someone’s Flexarr** instead. It shows a code like `H42K-FM5W`.
 4. They read it to you, you type it in and choose **Connect**. Their app asks **Join Dan’s Flexarr?** and they choose **Join**.
 
-That's it: from then on the app connects by itself, at home or away. **Sign out** beside a device (the arrow leaving a door) signs it out, and deletes its downloads; their profile and what they've watched stay. If you type someone who lives with you under **Add new guest**, Flexarr offers to add their device under **Your household** instead.
+That's it: from then on the app connects by itself, at home or away. **Sign out** beside a device (the arrow leaving a door) signs it out, and deletes its downloads; their profile and what they've watched stay. If you type someone who lives with you under **Add new guest**, Flexarr offers to add their device under **Your household** instead. Someone already a guest who lives with you? Choose **Move to Your household** on their card: they keep their profile, with nothing taken away, on every device they've joined with.
 
 The main profile isn't in **Your household**: away from home, it uses Tailscale, so the server's settings stay out of reach of a lost phone. AirPlay, background downloads and Top Shelf don't work over the built-in connection, for household devices as for guests.
 
