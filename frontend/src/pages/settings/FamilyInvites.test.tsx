@@ -222,7 +222,7 @@ describe('Settings › Remote access › Family invites', () => {
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Dan' } })
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
     expect(await screen.findByText(/There’s already a profile called/)).toBeVisible()
-    expect(screen.queryByRole('button', { name: /Add a device for/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Add a device for .* instead/ })).not.toBeInTheDocument()
   })
 
   it('shows how each guest is connected, and removing one points to Tailscale', async () => {
@@ -341,7 +341,7 @@ describe('Settings › Remote access › Family invites', () => {
 
     expect(await screen.findByText('Gran')).toBeVisible()
     expect(screen.getByText('No devices')).toBeVisible()
-    expect(screen.getByRole('button', { name: '+ Add device' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Add a device for Gran' })).toHaveTextContent('+ Add device')
     expect(screen.getByRole('button', { name: 'Remove Gran' })).toBeVisible()
   })
 
@@ -379,7 +379,10 @@ describe('Settings › Remote access › Family invites', () => {
       expect(document.getElementById('household-gran')).toBeNull()
       expect(document.getElementById('household-owner')).toBeNull()
 
-      fireEvent.click(document.getElementById('household-add-claire')!)
+      fireEvent.click(screen.getByRole('button', { name: 'Add a device for Claire' }))
+      // Their app, signed in at home, offers it in its settings; not signed in, on its first screen.
+      expect(screen.getByText('Settings › Server › Use away from home')).toBeVisible()
+      expect(screen.getByText('Join someone’s Flexarr')).toBeVisible()
       fireEvent.change(screen.getByLabelText('Type the code their device shows'), { target: { value: 'abcd-efgh' } })
       fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
       await waitFor(() => expect(tv).toEqual({ code: 'ABCD-EFGH', name: null, profileId: 'claire', household: true }))
@@ -470,7 +473,7 @@ describe('Settings › Remote access › Family invites', () => {
       fireEvent.click(await screen.findByRole('button', { name: 'Do they live with you? Add their device under Your household' }))
       expect(made).toBe(false)
       expect(await screen.findByLabelText('Type the code their device shows')).toBeVisible()
-      expect(document.getElementById('household-claire')?.querySelector('#guest-code')).not.toBeNull()
+      expect(document.getElementById('household-claire')?.querySelector('#guest-code-claire')).not.toBeNull()
     })
   })
 

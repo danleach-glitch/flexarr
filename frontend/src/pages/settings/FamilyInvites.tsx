@@ -589,7 +589,13 @@ export function GuestsGroup({
               />
             ) : canAdd ? (
               <div className="guest-device guest-add-row">
-                <button type="button" id={`guest-add-${person.id}`} className="text-button" onClick={() => setAddingFor(person)}>
+                <button
+                  type="button"
+                  id={`guest-add-${person.id}`}
+                  className="text-button"
+                  aria-label={t('Add a device for {name}', { name: person.name })}
+                  onClick={() => setAddingFor(person)}
+                >
                   {t('+ Add device')}
                 </button>
               </div>
@@ -820,7 +826,13 @@ export function HouseholdGroup({
                   />
                 ) : canAdd ? (
                   <div className="guest-device guest-add-row">
-                    <button type="button" id={`household-add-${person.id}`} className="text-button" onClick={() => setAdding(person.id)}>
+                    <button
+                      type="button"
+                      id={`household-add-${person.id}`}
+                      className="text-button"
+                      aria-label={t('Add a device for {name}', { name: person.name })}
+                      onClick={() => setAdding(person.id)}
+                    >
                       {t('+ Add device')}
                     </button>
                   </div>
@@ -939,6 +951,8 @@ export function AddDevice({
     return () => window.clearTimeout(timer)
   }, [waiting, arrivedId])
 
+  // One per person, so two people's panels never share an id.
+  const codeId = `guest-code-${profileId}`
   const title = arrived ? t('✓ {name} joined', { name: arrived.name }) : waiting ? t('Waiting for their device to join…') : t('Type the code their device shows')
 
   return (
@@ -952,7 +966,7 @@ export function AddDevice({
     >
       <div className="guest-add-head">
         {!waiting ? (
-          <label htmlFor="guest-code" className="guest-add-title">
+          <label htmlFor={codeId} className="guest-add-title">
             {title}
           </label>
         ) : (
@@ -974,6 +988,14 @@ export function AddDevice({
             <span className="error" role="alert">
               {t('Their device hasn’t joined yet. Ask them to choose Join, or type the new code it shows.')}
             </span>
+          ) : household ? (
+            // Signed in at home already, their app offers it in its settings; not yet, on its first screen.
+            <span className="field-help">
+              {t.rich('On their device: {path}. Not signed in yet? {join}.', {
+                path: <strong>{[t('Settings'), t('Server'), t('Use away from home')].join(' › ')}</strong>,
+                join: <strong>{t('Join someone’s Flexarr')}</strong>,
+              })}
+            </span>
           ) : (
             <span className="field-help">
               {t.rich('On their phone, tablet or TV, they open Flexarr and choose {join}', { join: <strong>{t('Join someone’s Flexarr')}</strong> })}
@@ -981,7 +1003,7 @@ export function AddDevice({
           )}
           <span className="guest-code-row">
             <input
-              id="guest-code"
+              id={codeId}
               type="text"
               className="guest-code"
               value={code}

@@ -39,7 +39,7 @@ Someone in your household (a partner, a teenager) shouldn't have to be a guest t
 
 1. **Your household** lists everyone with a profile except the main one. Not there? Add them in [Profiles](profiles.md) first.
 2. Under their name, choose **+ Add device**.
-3. On their device, they open Flexarr and choose **Join someone’s Flexarr**. It shows a code like `H42K-FM5W`.
+3. On their device, in Flexarr, they go to **Settings › Server** and choose **Use away from home**. Not signed in on it yet? They choose **Join someone’s Flexarr** instead. It shows a code like `H42K-FM5W`.
 4. They read it to you, you type it in and choose **Connect**. Their app asks **Join Dan’s Flexarr?** and they choose **Join**.
 
 That's it: from then on the app connects by itself, at home or away. **Sign out** beside a device (the arrow leaving a door) signs it out; their profile and what they've watched stay. If you type someone who lives with you under **Add new guest**, Flexarr offers to add their device under **Your household** instead.
