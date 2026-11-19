@@ -167,6 +167,13 @@ public static class AdminEndpoints
                 return Results.Ok(new AdminUnlockDto(null, current.TokenFor(main)));
             }
 
+            // A household device away from home (or a guest's) never has the main profile: the new PIN is set, and the
+            // device stays as it was, on its own profile and locked.
+            if (signIns.ById(current.SignInId) is { Tunneled: true })
+            {
+                return Results.Ok(new AdminUnlockDto(null));
+            }
+
             var signInId = current.SignInId ?? SignInForUnlock(http, signIns);
             signIns.ChooseProfile(signInId, null);
             return Results.Ok(new AdminUnlockDto(unlocks.Unlock(signInId), current.TokenFor(main)));

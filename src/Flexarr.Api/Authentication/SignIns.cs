@@ -111,14 +111,25 @@ public sealed class SignIn
     /// A family guest's device, joined to the tailnet with an invite: locked to <see cref="ProfileId"/>, never trusted,
     /// and only valid from <see cref="GuestAddress"/>. See docs/remote-guests.md.
     /// </summary>
-    public bool Guest { get; init; }
+    public bool Guest { get; set; }
 
     /// <summary>
     /// A household device away from home: joined to the tailnet with a household invite like a guest (so only valid from
     /// <see cref="GuestAddress"/>, and its token kept under <see cref="GuestHashPrefix"/>), but signed in to its
     /// household profile with none of a guest's limits. Never the main profile. See docs/remote-guests.md.
     /// </summary>
-    public bool Away { get; init; }
+    public bool Away { get; set; }
+
+    /// <summary>
+    /// For an <see cref="Away"/> device, the household profile it was added for: Settings lists it under that person, it
+    /// goes back there if the profile it switched to is removed, and it's signed out when this one is. Null for guests,
+    /// and for devices at home.
+    /// </summary>
+    public string? HomeProfileId { get; set; }
+
+    /// <summary>The profile this device is its own: its home profile away from home, else the one chosen on it.</summary>
+    [JsonIgnore]
+    public string? OwnProfileId => HomeProfileId ?? ProfileId;
 
     /// <summary>Joined through the built-in tunnel (a guest or a household device away from home).</summary>
     [JsonIgnore]
@@ -212,11 +223,13 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
     /// <summary>
     /// Signs in a household device away from home at tailnet address <paramref name="address"/>, on household profile
     /// <paramref name="profileId"/> (see <see cref="SignIn.Away"/>). Another tunnel sign-in for the address is replaced.
+    /// A kids profile's device comes with child lock on, so it stays on kids profiles until the admin PIN releases it.
     /// </summary>
-    public (SignIn SignIn, string Token) IssueAway(string name, string profileId, string address, DeviceType? deviceType, string? server = null) =>
-        IssueTunneled(name, profileId, address, deviceType, server, household: true);
+    public (SignIn SignIn, string Token) IssueAway(string name, string profileId, string address, DeviceType? deviceType, string? server = null, bool kidsLock = false) =>
+        IssueTunneled(name, profileId, address, deviceType, server, household: true, kidsLock);
 
-    private (SignIn SignIn, string Token) IssueTunneled(string name, string profileId, string address, DeviceType? deviceType, string? server, bool household)
+    private (SignIn SignIn, string Token) IssueTunneled(string name, string profileId, string address, DeviceType? deviceType, string? server, bool household,
+        bool kidsLock = false)
     {
         var token = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
         var now = clock.GetUtcNow().UtcDateTime;
@@ -236,6 +249,8 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
             DeviceType = deviceType,
             Guest = !household,
             Away = household,
+            HomeProfileId = household ? profileId : null,
+            KidsLock = household && kidsLock,
             GuestAddress = address,
             GuestServer = server,
         };

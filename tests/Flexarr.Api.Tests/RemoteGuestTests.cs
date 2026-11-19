@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.EntityFrameworkCore;
 
 namespace Flexarr.Api.Tests;
 
@@ -927,5 +928,213 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
         // Removed as a profile: no longer a guest.
         await admin.DeleteAsync($"/api/v1/profiles/{dad}");
         Assert.DoesNotContain(dad, (await admin.GetFromJsonAsync<List<string>>("/api/v1/remote/guests/people"))!);
+    }
+
+    /// <summary>Adds a household device away from home for <paramref name="profileId"/> from tailnet address <paramref name="address"/>.</summary>
+    private async Task<RedeemedInviteDto> JoinHouseholdAsync(string profileId, string address)
+    {
+        factory.Whois.Tags[address] = ["tag:flexarr-guest"];
+        using var admin = factory.Admin();
+        var made = await admin.PostAsJsonAsync("/api/v1/remote/guests/invites", new { profileId, household = true });
+        Assert.True(made.IsSuccessStatusCode, await made.Content.ReadAsStringAsync());
+        var created = (await made.Content.ReadFromJsonAsync<CreatedInviteDto>(Web))!;
+        var redeemed = await RedeemAsync(address, GuestInvites.Decode(created.Link[GuestInvites.LinkBase.Length..])!.T);
+        Assert.Equal(HttpStatusCode.OK, redeemed.StatusCode);
+        return (await redeemed.Content.ReadFromJsonAsync<RedeemedInviteDto>(Web))!;
+    }
+
+    private async Task<string> AddKidsProfileAsync(string name)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+        var profile = db.Profiles.Add(new Profile { Id = Profile.NewId(), Name = name, IsKids = true, MaxRatingAge = 12 }).Entity;
+        await db.SaveChangesAsync();
+        return profile.Id;
+    }
+
+    [Fact]
+    public async Task A_household_device_goes_back_to_its_own_profile_when_the_one_it_chose_goes_and_with_its_own()
+    {
+        var claire = await factory.AddProfileAsync("Claire51");
+        var other = await factory.AddProfileAsync("Other51");
+        const string address = "100.64.0.51";
+        var answer = await JoinHouseholdAsync(claire, address);
+        using var admin = factory.Admin();
+        using var away = factory.From(address, answer.ApiKey);
+        Assert.True((await away.PostAsJsonAsync($"/api/v1/profiles/{other}/select", new { })).IsSuccessStatusCode);
+        Assert.Equal(other, (await away.GetFromJsonAsync<JsonElement>("/api/v1/me")).GetProperty("profileId").GetString());
+
+        // The profile it switched to goes: it's back on Claire's, still signed in.
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.DeleteAsync($"/api/v1/profiles/{other}")).StatusCode);
+        Assert.Equal(claire, (await away.GetFromJsonAsync<JsonElement>("/api/v1/me")).GetProperty("profileId").GetString());
+        var device = Assert.Single((await admin.GetFromJsonAsync<List<GuestDeviceDto>>("/api/v1/remote/guests/devices", Web))!, d => d.Address == address);
+        Assert.Equal(claire, device.HomeProfileId);
+
+        // Claire's goes: so does her device.
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.DeleteAsync($"/api/v1/profiles/{claire}")).StatusCode);
+        Assert.NotEqual(HttpStatusCode.OK, (await away.GetAsync("/api/v1/me")).StatusCode);
+        Assert.Null(factory.Services.GetRequiredService<SignIns>().List().FirstOrDefault(s => s.GuestAddress == address));
+    }
+
+    [Fact]
+    public async Task A_household_device_whose_profiles_both_went_while_it_was_away_is_signed_out_never_the_main_profile()
+    {
+        var claire = await factory.AddProfileAsync("Claire52");
+        const string address = "100.64.0.52";
+        var answer = await JoinHouseholdAsync(claire, address);
+
+        // Gone behind the server's back (no ForgetProfileAsync): the sign-in is ended on its next request.
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
+            await db.Profiles.Where(p => p.Id == claire).ExecuteDeleteAsync();
+        }
+
+        using var away = factory.From(address, answer.ApiKey);
+        Assert.NotEqual(HttpStatusCode.OK, (await away.GetAsync("/api/v1/me")).StatusCode);
+        Assert.Null(factory.Services.GetRequiredService<SignIns>().List().FirstOrDefault(s => s.GuestAddress == address));
+    }
+
+    [Fact]
+    public async Task A_household_device_never_unlocks_the_server_or_takes_the_main_profile_with_the_admin_pin()
+    {
+        var claire = await factory.AddProfileAsync("Claire53");
+        const string address = "100.64.0.53";
+        var answer = await JoinHouseholdAsync(claire, address);
+        using var away = factory.From(address, answer.ApiKey);
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await away.PostAsJsonAsync("/api/v1/admin/unlock", new { pin = "1234" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await away.PostAsJsonAsync("/api/v1/admin/unlock", new { apiKey = FlexarrApiFactory.ApiKey })).StatusCode);
+
+        // Knowing the API key, it may set the admin PIN; the device stays on Claire's profile, locked.
+        Assert.Equal(HttpStatusCode.OK, (await away.PostAsJsonAsync("/api/v1/admin/pin", new { pin = "2468", apiKey = FlexarrApiFactory.ApiKey })).StatusCode);
+        var me = await away.GetFromJsonAsync<JsonElement>("/api/v1/me");
+        Assert.Equal(claire, me.GetProperty("profileId").GetString());
+        Assert.False(me.GetProperty("isAdmin").GetBoolean());
+        Assert.Equal(claire, factory.Services.GetRequiredService<SignIns>().List().First(s => s.GuestAddress == address).ProfileId);
+        Assert.Equal(HttpStatusCode.Forbidden, (await away.GetAsync("/api/v1/remote/guests/invites")).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_household_device_joins_with_a_tv_code_too()
+    {
+        var claire = await factory.AddProfileAsync("Claire54");
+        using var tv = System.Security.Cryptography.ECDiffieHellman.Create(System.Security.Cryptography.ECCurve.NamedCurves.nistP256);
+        factory.PairRelay.Keys["HSHKDTV5"] = Convert.ToBase64String(GuestTvCodes.Uncompressed(tv.ExportParameters(false)));
+        using var admin = factory.Admin();
+
+        var response = await admin.PostAsJsonAsync("/api/v1/remote/guests/tv-code", new { code = "HSHKDTV5", profileId = claire, household = true });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True((await response.Content.ReadFromJsonAsync<GuestInviteDto>(Web))!.Household);
+        var left = factory.PairRelay.Invites["HSHKDTV5"];
+        var opened = GuestTvCodes.Open(tv, Convert.FromBase64String(left["serverKey"]!.GetValue<string>()), Convert.FromBase64String(left["sealed"]!.GetValue<string>()));
+        var payload = GuestInvites.Decode(System.Text.Encoding.UTF8.GetString(opened))!;
+        const string address = "100.64.0.54";
+        factory.Whois.Tags[address] = ["tag:flexarr-guest"];
+        var redeemed = await RedeemAsync(address, payload.T);
+        Assert.Equal(HttpStatusCode.OK, redeemed.StatusCode);
+        var answer = (await redeemed.Content.ReadFromJsonAsync<RedeemedInviteDto>(Web))!;
+        Assert.True(answer.Household);
+        Assert.Equal(claire, answer.ProfileId);
+        Assert.DoesNotContain(claire, (await admin.GetFromJsonAsync<List<string>>("/api/v1/remote/guests/people"))!);
+
+        // Used once: another device can't use it again.
+        factory.Whois.Tags["100.64.0.55"] = ["tag:flexarr-guest"];
+        Assert.Equal(HttpStatusCode.Gone, (await RedeemAsync("100.64.0.55", payload.T)).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_kids_profiles_device_away_from_home_has_child_lock_on()
+    {
+        var kid = await AddKidsProfileAsync("Kid56");
+        var grownUp = await factory.AddProfileAsync("Grown-up56");
+        const string address = "100.64.0.56";
+        var answer = await JoinHouseholdAsync(kid, address);
+
+        var signIn = factory.Services.GetRequiredService<SignIns>().List().First(s => s.GuestAddress == address);
+        Assert.True(signIn.KidsLock);
+        using var away = factory.From(address, answer.ApiKey);
+        var offered = (await away.GetFromJsonAsync<List<JsonElement>>("/api/v1/profiles"))!.Select(p => p.GetProperty("id").GetString()).ToList();
+        Assert.Contains(kid, offered);
+        Assert.DoesNotContain(grownUp, offered);
+        var refused = await away.PostAsJsonAsync($"/api/v1/profiles/{grownUp}/select", new { });
+        Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
+        Assert.True((await refused.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("kidsLock").GetBoolean());
+        Assert.Equal(kid, (await away.GetFromJsonAsync<JsonElement>("/api/v1/me")).GetProperty("profileId").GetString());
+    }
+
+    [Fact]
+    public async Task Releasing_child_lock_on_a_household_device_sends_its_notifications_to_its_own_profile()
+    {
+        var kid = await AddKidsProfileAsync("Kid57");
+        const string address = "100.64.0.57";
+        await JoinHouseholdAsync(kid, address);
+        var signIn = factory.Services.GetRequiredService<SignIns>().List().First(s => s.GuestAddress == address);
+
+        Assert.Equal(kid, Flexarr.Api.Profiles.ProfileEndpoints.ReleasedNotificationProfile(signIn));
+        using var admin = factory.Admin();
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.PostAsync($"/api/v1/sign-ins/{signIn.Id}/release-kids-lock", null)).StatusCode);
+        Assert.False(signIn.KidsLock);
+        Assert.Equal(kid, Flexarr.Api.Profiles.ProfileEndpoints.ReleasedNotificationProfile(signIn));
+    }
+
+    [Fact]
+    public async Task A_household_device_never_offers_the_main_profile_or_a_guests()
+    {
+        var claire = await factory.AddProfileAsync("Claire58");
+        var (gran, _) = await JoinAsync("Gran58");
+        const string address = "100.64.0.58";
+        var answer = await JoinHouseholdAsync(claire, address);
+        using var away = factory.From(address, answer.ApiKey);
+
+        var offered = (await away.GetFromJsonAsync<List<JsonElement>>("/api/v1/profiles"))!.Select(p => p.GetProperty("id").GetString()).ToList();
+        Assert.Contains(claire, offered);
+        Assert.DoesNotContain(PlaybackState.DefaultUser, offered);
+        Assert.DoesNotContain(gran, offered);
+        Assert.Equal(HttpStatusCode.Forbidden, (await away.PostAsJsonAsync($"/api/v1/profiles/{gran}/select", new { })).StatusCode);
+        Assert.Equal(claire, (await away.GetFromJsonAsync<JsonElement>("/api/v1/me")).GetProperty("profileId").GetString());
+    }
+
+    [Fact]
+    public async Task Someone_in_the_household_cant_be_invited_as_a_guest()
+    {
+        var claire = await factory.AddProfileAsync("Claire59");
+        var waiting = await factory.AddProfileAsync("Waiting59");
+        await JoinHouseholdAsync(claire, "100.64.0.59");
+        using var admin = factory.Admin();
+        Assert.True((await admin.PostAsJsonAsync("/api/v1/remote/guests/invites", new { profileId = waiting, household = true })).IsSuccessStatusCode);
+
+        foreach (var profileId in new[] { claire, waiting })
+        {
+            var refused = await admin.PostAsJsonAsync("/api/v1/remote/guests/invites", new { profileId });
+            Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+            Assert.Contains("is in your household", await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+            Assert.Equal(HttpStatusCode.BadRequest,
+                (await admin.PostAsJsonAsync("/api/v1/remote/guests/tv-code", new { code = "ABCDEFGH", profileId })).StatusCode);
+        }
+    }
+
+    [Fact]
+    public async Task An_invite_whose_profile_changed_sides_while_it_waited_cant_be_used()
+    {
+        var invites = factory.Services.GetRequiredService<GuestInvites>();
+        using var admin = factory.Admin();
+
+        // A household invite whose profile became a guest's.
+        var dana = await factory.AddProfileAsync("Dana60");
+        var household = (await (await admin.PostAsJsonAsync("/api/v1/remote/guests/invites", new { profileId = dana, household = true }))
+            .Content.ReadFromJsonAsync<CreatedInviteDto>(Web))!;
+        await invites.CreateAsync(null, dana, "Dana60", "Owner", InviteVia.Link, CancellationToken.None, household: false);
+        factory.Whois.Tags["100.64.0.60"] = ["tag:flexarr-guest"];
+        Assert.Equal(HttpStatusCode.Gone, (await RedeemAsync("100.64.0.60", GuestInvites.Decode(household.Link[GuestInvites.LinkBase.Length..])!.T)).StatusCode);
+
+        // A guest's invite whose profile now has a household device.
+        var eli = await factory.AddProfileAsync("Eli61");
+        await JoinHouseholdAsync(eli, "100.64.0.61");
+        var (_, payload) = await invites.CreateAsync(null, eli, "Eli61", "Owner", InviteVia.Link, CancellationToken.None, household: false);
+        factory.Whois.Tags["100.64.0.62"] = ["tag:flexarr-guest"];
+        Assert.Equal(HttpStatusCode.Gone, (await RedeemAsync("100.64.0.62", payload.T)).StatusCode);
+        Assert.DoesNotContain(factory.Services.GetRequiredService<SignIns>().List(), s => s.GuestAddress == "100.64.0.62");
     }
 }

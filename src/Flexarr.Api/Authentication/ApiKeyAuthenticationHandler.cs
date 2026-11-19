@@ -108,7 +108,7 @@ public sealed class ApiKeyAuthenticationHandler(
             // it's refused.
             if (device.Tunneled && !FromGuestAddress(device))
             {
-                return AuthenticateResult.Fail("This guest sign-in belongs to another device");
+                return AuthenticateResult.Fail("This sign-in belongs to another device.");
             }
 
             signIns.NoteDeviceType(device, DeviceTypes.Of(Request));
@@ -323,24 +323,38 @@ public sealed class ApiKeyAuthenticationHandler(
 
             (profile, admin, trusted) = (guestProfile, false, false);
         }
-        else if (signIn is { Away: true }
-            && (signIn.ProfileId is not { } awayProfile || awayProfile == PlaybackState.DefaultUser
-                || !await db.Profiles.AnyAsync(p => p.Id == awayProfile, Context.RequestAborted)))
-        {
-            // A household device away from home only ever has a household profile: without one it's signed out, never
-            // handed the main profile.
-            signIns.Revoke(signIn.Id);
-            return AuthenticateResult.Fail("This device's profile has been removed");
-        }
         else if (signIn is not null)
         {
             // A browser or device the main profile signed in: the profile chosen on it decides, whatever headers say.
+            // Looked up once.
             trusted = true;
-            if (signIn.ProfileId is null || await db.Profiles.AnyAsync(p => p.Id == signIn.ProfileId, Context.RequestAborted))
+            var found = signIn.ProfileId is null || await db.Profiles.AnyAsync(p => p.Id == signIn.ProfileId, Context.RequestAborted);
+            if (signIn.Away)
+            {
+                // A household device away from home only ever has a household profile: if the one it switched to has
+                // gone, it goes back to its own; without that either, it's signed out, never handed the main profile.
+                if (found && signIn.ProfileId is { } awayProfile && awayProfile != PlaybackState.DefaultUser)
+                {
+                    profile = awayProfile;
+                }
+                else if (signIn.HomeProfileId is { } home && home != PlaybackState.DefaultUser && home != signIn.ProfileId
+                    && await db.Profiles.AnyAsync(p => p.Id == home, Context.RequestAborted))
+                {
+                    signIns.ChooseProfile(signIn.Id, home);
+                    profile = home;
+                }
+                else
+                {
+                    signIns.Revoke(signIn.Id);
+                    return AuthenticateResult.Fail("This device's profile has been removed");
+                }
+
+                admin = false;
+            }
+            else if (found)
             {
                 profile = signIn.ProfileId ?? PlaybackState.DefaultUser;
-                // A household device away from home never unlocks the server's settings (it can't have the main profile).
-                admin = profile == PlaybackState.DefaultUser && !signIn.Away && unlocks.IsUnlocked(signIn.Id);
+                admin = profile == PlaybackState.DefaultUser && unlocks.IsUnlocked(signIn.Id);
                 mainByDefault = signIn is { ProfileId: null, AwaitsProfile: true };
             }
             else if (signIn.KidsLock && await FirstKidsProfileAsync(db) is { } kids)

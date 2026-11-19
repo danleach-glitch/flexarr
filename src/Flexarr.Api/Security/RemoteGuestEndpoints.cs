@@ -31,9 +31,11 @@ public sealed record RedeemInviteRequest(string Token);
 /// <param name="ServerMoved">This server's tailnet address or Flexarr's port has changed since the device joined, so
 /// its app can't reach the server any more: it needs adding again.</param>
 /// <param name="Household">A household device away from home rather than a guest's. Absent from servers before 0.67.</param>
+/// <param name="HomeProfileId">For a household device, the person it was added for (it may have switched to another
+/// profile since): Settings lists it under them. Null for guests. Absent from servers before 0.67.</param>
 public sealed record GuestDeviceDto(string Id, string Name, string? ProfileId, string? ProfileName, Authentication.DeviceType? DeviceType, DateTime CreatedAt,
     DateTime LastUsedAt, string? Address, bool Online, TailnetPath Path, DateTime? LastSeen, string TailscaleAdminUrl, bool ServerMoved = false,
-    bool Household = false);
+    bool Household = false, string? HomeProfileId = null);
 
 /// <summary>Family invites' setup, as Settings › Remote access shows it.</summary>
 /// <param name="Enabled">Family invites are turned on for this server (hidden until the apps that carry Tailscale are out).</param>
@@ -148,7 +150,7 @@ public static class RemoteGuestEndpoints
 
         group.MapPost("/invites", async (CreateInviteRequest request, GuestInvites invites, FlexarrDbContext db, CancellationToken ct) =>
         {
-            var (profile, owner, problem) = await ProfileForInviteAsync(db, request.ProfileId, ct, request.Household ? invites : null);
+            var (profile, owner, problem) = await ProfileForInviteAsync(db, request.ProfileId, invites, request.Household, ct);
             if (problem is not null)
             {
                 return problem;
@@ -174,7 +176,7 @@ public static class RemoteGuestEndpoints
                 return Problems.Field("Type the 8 letters and numbers their device shows.", field: "code");
             }
 
-            var (profile, owner, problem) = await ProfileForInviteAsync(db, request.ProfileId, ct, request.Household ? invites : null);
+            var (profile, owner, problem) = await ProfileForInviteAsync(db, request.ProfileId, invites, request.Household, ct);
             if (problem is not null)
             {
                 return problem;
@@ -297,8 +299,9 @@ public static class RemoteGuestEndpoints
 
             try
             {
-                var names = await db.Profiles.AsNoTracking().ToDictionaryAsync(p => p.Id, p => p.Name, ct);
-                var (signIn, token, invite, retry) = invites.Redeem(request.Token, address, DeviceTypes.Of(http.Request), names.GetValueOrDefault, names.ContainsKey);
+                var profiles = await db.Profiles.AsNoTracking().ToDictionaryAsync(p => p.Id, p => (p.Name, p.IsKids), ct);
+                var (signIn, token, invite, retry) = invites.Redeem(request.Token, address, DeviceTypes.Of(http.Request),
+                    id => profiles.TryGetValue(id, out var p) ? p.Name : null, profiles.ContainsKey, id => profiles.TryGetValue(id, out var p) && p.IsKids);
                 if (!retry)
                 {
                     alerts.Joined(signIn.Name, invite.ProfileId);
@@ -318,9 +321,10 @@ public static class RemoteGuestEndpoints
     }
 
     /// <summary>The profile an invite would give, and the owner's name for the guest's "Join Dan's Flexarr?".</summary>
-    /// <param name="household">Given for a household device away from home: a guest's profile can't have one.</param>
-    internal static async Task<(Profile? Profile, string Owner, IResult? Problem)> ProfileForInviteAsync(FlexarrDbContext db, string profileId, CancellationToken ct,
-        GuestInvites? household = null)
+    /// <param name="household">For a household device away from home: a guest's profile can't have one, and a guest can't
+    /// be invited to the profile of someone in the household.</param>
+    internal static async Task<(Profile? Profile, string Owner, IResult? Problem)> ProfileForInviteAsync(FlexarrDbContext db, string profileId, GuestInvites invites,
+        bool household, CancellationToken ct)
     {
         var profiles = await db.Profiles.AsNoTracking().ToListAsync(ct);
         var owner = profiles.FirstOrDefault(p => p.Id == PlaybackState.DefaultUser)?.Name ?? "Flexarr";
@@ -332,14 +336,19 @@ public static class RemoteGuestEndpoints
 
         if (profile.Id == PlaybackState.DefaultUser)
         {
-            return (null, owner, household is null
+            return (null, owner, !household
                 ? Problems.Field("Guests can’t have the main profile. Make them a profile of their own.", field: "profileId")
                 : Problems.Field("The main profile can’t have a device away from home here. Use Tailscale for it.", field: "profileId"));
         }
 
-        if (household is not null && household.GuestProfiles().Contains(profile.Id))
+        if (household && invites.GuestProfiles().Contains(profile.Id))
         {
             return (null, owner, Problems.Field("That’s a guest’s profile. Choose someone in your household.", field: "profileId"));
+        }
+
+        if (!household && invites.IsHousehold(profile.Id))
+        {
+            return (null, owner, Problems.Field("{name} is in your household. Add their device under Your household.", field: "profileId", args: new { name = profile.Name }));
         }
 
         return (profile, owner, null);
@@ -379,7 +388,7 @@ public static class RemoteGuestEndpoints
             var peer = g.GuestAddress is { } address ? peers.GetValueOrDefault(address) : null;
             return new GuestDeviceDto(g.Id, g.Name, g.ProfileId, g.ProfileId is { } id ? profileNames.GetValueOrDefault(id) : null, g.DeviceType, g.CreatedAt,
                 g.LastUsedAt, g.GuestAddress, peer?.Online == true, peer?.Online == true ? peer.Path : TailnetPath.Unknown, peer?.LastSeen,
-                "https://login.tailscale.com/admin/machines", here is not null && g.GuestServer is { } joined && joined != here, g.Away);
+                "https://login.tailscale.com/admin/machines", here is not null && g.GuestServer is { } joined && joined != here, g.Away, g.Away ? g.OwnProfileId : null);
         }).OrderByDescending(d => d.Online).ThenByDescending(d => d.LastUsedAt).ToList();
     }
 

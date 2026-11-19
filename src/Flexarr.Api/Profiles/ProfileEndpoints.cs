@@ -84,13 +84,21 @@ public static partial class ProfileEndpoints
         var group = api.MapGroup("/profiles").WithTags("Profiles");
 
         // A browser or device locked to kids profiles only offers them.
-        group.MapGet("/", async (FlexarrDbContext db, CurrentProfile current, SignIns signIns, CancellationToken ct) =>
+        group.MapGet("/", async (FlexarrDbContext db, CurrentProfile current, SignIns signIns, Security.GuestInvites guests, CancellationToken ct) =>
         {
-            var locked = signIns.ById(current.SignInId)?.KidsLock == true;
+            var signIn = signIns.ById(current.SignInId);
+            var locked = signIn?.KidsLock == true;
             // A family guest sees only the profile its invite gave it.
             var guestProfile = current.IsGuest ? current.Id : null;
-            return (await db.Profiles.AsNoTracking().Where(p => (!locked || p.IsKids) && (guestProfile == null || p.Id == guestProfile)).OrderBy(p => p.CreatedAt).ToListAsync(ct))
-                .Select(p => ToDto(p, current)).ToList();
+            var profiles = await db.Profiles.AsNoTracking().Where(p => (!locked || p.IsKids) && (guestProfile == null || p.Id == guestProfile)).OrderBy(p => p.CreatedAt).ToListAsync(ct);
+            if (signIn is { Away: true })
+            {
+                // A household device away from home offers only what it may choose: never the main profile, or a guest's.
+                var guestProfiles = guests.GuestProfiles();
+                profiles.RemoveAll(p => p.IsMain || guestProfiles.Contains(p.Id));
+            }
+
+            return profiles.Select(p => ToDto(p, current)).ToList();
         });
 
         group.MapPost("/", async (ProfileRequest request, FlexarrDbContext db, CurrentProfile current, IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
@@ -291,8 +299,10 @@ public static partial class ProfileEndpoints
 
             signIns.SetKidsLock(signIn.Id, false);
             // Its notifications went to the kids profile with the lock: they come back to the main profile, whose PIN
-            // just released it (else the parent's own phone stops hearing about devices asking to connect).
-            await db.NotificationDevices.Where(d => d.SignInId == signIn.Id).ExecuteUpdateAsync(u => u.SetProperty(d => d.ProfileId, PlaybackState.DefaultUser), ct);
+            // just released it (else the parent's own phone stops hearing about devices asking to connect). A household
+            // device away from home never has the main profile: they go to its own.
+            var hears = ReleasedNotificationProfile(signIn);
+            await db.NotificationDevices.Where(d => d.SignInId == signIn.Id).ExecuteUpdateAsync(u => u.SetProperty(d => d.ProfileId, hears), ct);
             return Results.NoContent();
         });
 
@@ -443,7 +453,7 @@ public static partial class ProfileEndpoints
             }
 
             // A device locked to it would be left as nobody in particular: it moves to another kids profile, if there is one.
-            if (await KeepLockedDevicesAsync(id, db, signIns, ct) is { } refused)
+            if (await KeepLockedDevicesAsync(id, db, signIns, ct, removing: true) is { } refused)
             {
                 return refused;
             }
@@ -502,7 +512,7 @@ public static partial class ProfileEndpoints
         // Choosing a profile returns the token clients send as X-Flexarr-Profile. On a browser or device signed in
         // with its own token, the choice is also kept on the server, so leaving the header off doesn't undo it.
         group.MapPost("/{id}/select", async (string id, SelectProfileRequest request, HttpContext http, FlexarrDbContext db, CurrentProfile current,
-            PinGuard guard, SignIns signIns, AdminUnlocks unlocks, CancellationToken ct) =>
+            PinGuard guard, SignIns signIns, AdminUnlocks unlocks, Security.GuestInvites guests, CancellationToken ct) =>
         {
             if (await db.Profiles.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, ct) is not { } profile)
             {
@@ -518,10 +528,19 @@ public static partial class ProfileEndpoints
             // Child lock is what keeps a child in kids profiles: a device with it on offers nothing else, and only the admin
             // PIN turns it off. Without it, any profile may be chosen from any other, kids profiles included, with no PIN
             // but the chosen profile's own. (`parentPin`, from apps that asked for it before, is accepted and not needed.)
-            if (profile.IsMain && signIns.ById(current.SignInId) is { Away: true })
+            if (signIns.ById(current.SignInId) is { Away: true })
             {
-                // A household device away from home never has the main profile (see SignIn.Away), so no PIN is tried.
-                return Problems.Of("The main profile can’t be chosen on a device away from home.", status: 403);
+                // A household device away from home never has the main profile (see SignIn.Away), so no PIN is tried;
+                // nor a guest's, which is theirs alone.
+                if (profile.IsMain)
+                {
+                    return Problems.Of("The main profile can’t be chosen on a device away from home.", status: 403);
+                }
+
+                if (guests.GuestProfiles().Contains(profile.Id))
+                {
+                    return Problems.Of("That’s a guest’s profile.", status: 403);
+                }
             }
 
             if (!profile.IsKids && signIns.ById(current.SignInId)?.KidsLock == true)
@@ -760,13 +779,18 @@ public static partial class ProfileEndpoints
             p.IsKids ? [] : p.HiddenNavigation, p.RequestMusicLibraryId);
 
 
+    /// <summary>Which profile a browser or device's notifications go to once its child lock is released.</summary>
+    internal static string ReleasedNotificationProfile(SignIn signIn) =>
+        signIn is { Away: true, OwnProfileId: { } own } ? own : PlaybackState.DefaultUser;
+
     /// <summary>
     /// Moves devices locked to <paramref name="profileId"/> to another kids profile, before it goes or stops being one;
-    /// null when that's done (or there were none), else why it can't be.
+    /// null when that's done (or there were none), else why it can't be. Household devices away from home are left
+    /// when it goes: they go back to their own profile, or with it (see <see cref="Security.GuestInvites.ForgetProfileAsync"/>).
     /// </summary>
-    private static async Task<IResult?> KeepLockedDevicesAsync(string profileId, FlexarrDbContext db, SignIns signIns, CancellationToken ct)
+    private static async Task<IResult?> KeepLockedDevicesAsync(string profileId, FlexarrDbContext db, SignIns signIns, CancellationToken ct, bool removing = false)
     {
-        var locked = signIns.List().Where(s => s.KidsLock && s.ProfileId == profileId).ToList();
+        var locked = signIns.List().Where(s => s.KidsLock && s.ProfileId == profileId && !(removing && s.Away)).ToList();
         if (locked.Count == 0)
         {
             return null;
