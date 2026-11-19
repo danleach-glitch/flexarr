@@ -552,8 +552,8 @@ fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit, onUseAway: 
             // A guest leaves here; a household device away from home signs out on Settings, as at home (as the iPhone).
             if (guest != null || model.isGuest) item {
                 val isGuest = model.isGuest
-                // On the tunnel, guest or household alike: why Cast isn't offered.
-                Group(footer = t("Away from home, Flexarr uses its own connection. Cast is off on it.")) {
+                // A household device on the tunnel: why Cast isn't offered (a guest's page stays as it was, as on Apple).
+                Group(footer = if (isGuest) null else t("Away from home, Flexarr uses its own connection. Cast is off on it.")) {
                     Fact(if (isGuest) t("Connected by invite") else t("Away from home"), model.guestServerTitle(guest))
                     if (isGuest) {
                         Divider()
