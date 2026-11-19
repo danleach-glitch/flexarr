@@ -113,7 +113,18 @@ public sealed class SignIn
     /// </summary>
     public bool Guest { get; init; }
 
-    /// <summary>For a guest, the tailnet address of the device that redeemed the invite.</summary>
+    /// <summary>
+    /// A household device away from home: joined to the tailnet with a household invite like a guest (so only valid from
+    /// <see cref="GuestAddress"/>, and its token kept under <see cref="GuestHashPrefix"/>), but signed in to its
+    /// household profile with none of a guest's limits. Never the main profile. See docs/remote-guests.md.
+    /// </summary>
+    public bool Away { get; init; }
+
+    /// <summary>Joined through the built-in tunnel (a guest or a household device away from home).</summary>
+    [JsonIgnore]
+    public bool Tunneled => Guest || Away;
+
+    /// <summary>For a guest or away device, the tailnet address of the device that redeemed the invite.</summary>
     public string? GuestAddress { get; init; }
 
     /// <summary>Where a guest's app reaches this server (its tailnet address and Flexarr's port when invited).</summary>
@@ -195,7 +206,17 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
     /// <paramref name="profileId"/>. Another guest sign-in for the same address (the device used a second invite) is
     /// replaced.
     /// </summary>
-    public (SignIn SignIn, string Token) IssueGuest(string name, string profileId, string address, DeviceType? deviceType, string? server = null)
+    public (SignIn SignIn, string Token) IssueGuest(string name, string profileId, string address, DeviceType? deviceType, string? server = null) =>
+        IssueTunneled(name, profileId, address, deviceType, server, household: false);
+
+    /// <summary>
+    /// Signs in a household device away from home at tailnet address <paramref name="address"/>, on household profile
+    /// <paramref name="profileId"/> (see <see cref="SignIn.Away"/>). Another tunnel sign-in for the address is replaced.
+    /// </summary>
+    public (SignIn SignIn, string Token) IssueAway(string name, string profileId, string address, DeviceType? deviceType, string? server = null) =>
+        IssueTunneled(name, profileId, address, deviceType, server, household: true);
+
+    private (SignIn SignIn, string Token) IssueTunneled(string name, string profileId, string address, DeviceType? deviceType, string? server, bool household)
     {
         var token = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
         var now = clock.GetUtcNow().UtcDateTime;
@@ -203,9 +224,9 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
         {
             Id = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8)),
             Kind = SignInKind.Device,
-            Name = name.Trim() is { Length: > 0 } trimmed ? trimmed[..Math.Min(trimmed.Length, 80)] : "A guest",
-            // Kept under a prefix an older server never looks up: rolled back to a version without family invites,
-            // a guest's token matches nothing, rather than passing for a trusted household device.
+            Name = name.Trim() is { Length: > 0 } trimmed ? trimmed[..Math.Min(trimmed.Length, 80)] : household ? "A device" : "A guest",
+            // Kept under a prefix an older server never looks up: rolled back to a version without family invites (or
+            // without household devices away, which it would take for a guest's), the token matches nothing.
             TokenHash = GuestHashPrefix + Hash(token),
             CreatedAt = now,
             LastUsedAt = now,
@@ -213,7 +234,8 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
             Address = address,
             ProfileId = profileId,
             DeviceType = deviceType,
-            Guest = true,
+            Guest = !household,
+            Away = household,
             GuestAddress = address,
             GuestServer = server,
         };
@@ -221,7 +243,7 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
         List<SignIn> replaced;
         lock (_lock)
         {
-            replaced = Loaded().Values.Where(s => s.Guest && s.GuestAddress == address).ToList();
+            replaced = Loaded().Values.Where(s => s.Tunneled && s.GuestAddress == address).ToList();
             foreach (var old in replaced)
             {
                 Loaded().Remove(old.TokenHash);
@@ -237,25 +259,25 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
         return (signIn, token);
     }
 
-    /// <summary>Whether any family guest is signed in (so the guest gate has someone to keep out once removed).</summary>
+    /// <summary>Whether any guest or away device is signed in (so the guest gate has someone to keep out once removed).</summary>
     public bool HasAnyGuest
     {
         get
         {
             lock (_lock)
             {
-                return Loaded().Values.Any(s => s.Guest);
+                return Loaded().Values.Any(s => s.Tunneled);
             }
         }
     }
 
-    /// <summary>Whether a family guest's device at <paramref name="address"/> is signed in (not removed or expired).</summary>
+    /// <summary>Whether a guest's or away device at <paramref name="address"/> is signed in (not removed or expired).</summary>
     public bool HasGuestAt(string address)
     {
         lock (_lock)
         {
             var now = clock.GetUtcNow().UtcDateTime;
-            return Loaded().Values.Any(s => s.Guest && s.GuestAddress == address && !Expired(s, now));
+            return Loaded().Values.Any(s => s.Tunneled && s.GuestAddress == address && !Expired(s, now));
         }
     }
 
@@ -270,12 +292,12 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
         var now = clock.GetUtcNow().UtcDateTime;
         lock (_lock)
         {
-            // A household sign-in, or a guest's under its prefix (only ever a guest's).
+            // A household sign-in, or a tunnel one (a guest's or away device's) under its prefix.
             var hash = Hash(token);
-            if (!Loaded().TryGetValue(hash, out var signIn) || signIn.Guest)
+            if (!Loaded().TryGetValue(hash, out var signIn) || signIn.Tunneled)
             {
                 hash = GuestHashPrefix + hash;
-                if (!Loaded().TryGetValue(hash, out signIn) || !signIn.Guest)
+                if (!Loaded().TryGetValue(hash, out signIn) || !signIn.Tunneled)
                 {
                     return null;
                 }
@@ -536,7 +558,7 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
         }
     }
 
-    /// <summary>What a guest sign-in's token hash starts with (see <see cref="IssueGuest"/>).</summary>
+    /// <summary>What a guest's or away device's token hash starts with (see <see cref="IssueGuest"/>).</summary>
     public const string GuestHashPrefix = "guest:";
 
     private static string Hash(string token) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(token)));

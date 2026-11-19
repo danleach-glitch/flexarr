@@ -141,6 +141,31 @@ What guests lose:
 - **iPhone downloads:** they run only while the app is open, since the system's background download service can't use the tunnel.
 - **Apple TV Top Shelf:** shows nothing for a guest TV.
 
+## Household devices away from home
+
+Someone who lives in the house (Claire) shouldn't have to be a guest to watch from her iPad away from home, or install
+Tailscale. The owner adds her device in **Settings › Remote access › Away from home**: the same code on her device, the
+same built-in tunnel and tag, but the device signs in to **her own household profile**, with none of a guest's limits.
+
+- **The invite** carries `Household = true` (stored server-side in invites.json; the payload is unchanged, so every app
+  that can join a guest can join this). Creating one never writes guests.json, so the profile never shows under Guests.
+  It's refused for the main profile (that keeps using Tailscale) and for a guest's profile.
+- **The sign-in** is an *away* sign-in (`SignIn.Away`): a household device for its profile, trusted like one at home
+  (switch to other household profiles, see and control the household's TVs and phones, Bazarr, music requests, DVR), but
+  with a guest's safety: valid only from the tailnet address that redeemed it, its token under the `guest:` prefix (a
+  server rolled back to before household devices finds nothing, rather than a guest), and never the main profile: it
+  can't be chosen there and the device never unlocks the server's settings. If its profile goes, it's signed out.
+  `SignIn.Tunneled` (guest or away) is what the gate and the address binding check; `Guest` is what the limits check.
+- **The API** only grows: `household` on `CreateInviteRequest`/`TvCodeRequest` (in), and on `GuestInviteDto`,
+  `GuestDeviceDto` and `RedeemedInviteDto` (out). `/me`'s `isGuest` keeps its meaning and is false for these devices.
+- **Removing** a household device (the bin, `DELETE /remote/guests/devices/{id}`) only signs it out. There's no remove
+  person for them: the profile is the household's.
+- **The apps** keep "uses the tunnel" (AirPlay, background downloads, Top Shelf, no remote address) apart from "is a guest"
+  (profile lock, kids lock, Leave, remote commands), reading `household` from the redeem answer and `isGuest` from `/me`.
+  An app from before treats the device as a guest: it works, with a guest's limits in the app, until it's updated.
+- **Tailscale:** the device is tagged `tag:flexarr-guest` like a guest's, so the policy keeps it to Flexarr's port, and
+  pausing invites for an unsafe policy pauses household joins too.
+
 ## Turning it on
 
 Family invites are on by default (they were hidden until the apps carrying the tunnel were in the stores):

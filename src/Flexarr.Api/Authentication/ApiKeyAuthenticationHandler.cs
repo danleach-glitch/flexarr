@@ -104,8 +104,9 @@ public sealed class ApiKeyAuthenticationHandler(
                 return AuthenticateResult.Fail("Invalid API key");
             }
 
-            // A guest's token only works from the guest device that redeemed the invite: copied anywhere else, it's refused.
-            if (device.Guest && !FromGuestAddress(device))
+            // A guest's or away device's token only works from the device that redeemed the invite: copied anywhere else,
+            // it's refused.
+            if (device.Tunneled && !FromGuestAddress(device))
             {
                 return AuthenticateResult.Fail("This guest sign-in belongs to another device");
             }
@@ -322,6 +323,15 @@ public sealed class ApiKeyAuthenticationHandler(
 
             (profile, admin, trusted) = (guestProfile, false, false);
         }
+        else if (signIn is { Away: true }
+            && (signIn.ProfileId is not { } awayProfile || awayProfile == PlaybackState.DefaultUser
+                || !await db.Profiles.AnyAsync(p => p.Id == awayProfile, Context.RequestAborted)))
+        {
+            // A household device away from home only ever has a household profile: without one it's signed out, never
+            // handed the main profile.
+            signIns.Revoke(signIn.Id);
+            return AuthenticateResult.Fail("This device's profile has been removed");
+        }
         else if (signIn is not null)
         {
             // A browser or device the main profile signed in: the profile chosen on it decides, whatever headers say.
@@ -329,7 +339,8 @@ public sealed class ApiKeyAuthenticationHandler(
             if (signIn.ProfileId is null || await db.Profiles.AnyAsync(p => p.Id == signIn.ProfileId, Context.RequestAborted))
             {
                 profile = signIn.ProfileId ?? PlaybackState.DefaultUser;
-                admin = profile == PlaybackState.DefaultUser && unlocks.IsUnlocked(signIn.Id);
+                // A household device away from home never unlocks the server's settings (it can't have the main profile).
+                admin = profile == PlaybackState.DefaultUser && !signIn.Away && unlocks.IsUnlocked(signIn.Id);
                 mainByDefault = signIn is { ProfileId: null, AwaitsProfile: true };
             }
             else if (signIn.KidsLock && await FirstKidsProfileAsync(db) is { } kids)
@@ -385,7 +396,7 @@ public sealed class ApiKeyAuthenticationHandler(
         // Whatever the client says it can do: leaving ProfileChoiceHeader off must not make it the main profile.
         var choose = mainByDefault && !admin
             && await db.Profiles.AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.PinHash != null, Context.RequestAborted);
-        var canUnlock = !admin && !guest && profile == PlaybackState.DefaultUser;
+        var canUnlock = !admin && !guest && signIn is not { Away: true } && profile == PlaybackState.DefaultUser;
         var claims = new List<Claim> { new(FlexarrClaims.Method, method), new(FlexarrClaims.Profile, profile) };
         if (admin)
         {

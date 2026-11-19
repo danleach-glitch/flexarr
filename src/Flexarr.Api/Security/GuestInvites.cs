@@ -41,6 +41,12 @@ public sealed class GuestInvite
 
     /// <summary>Where the guest's app reaches Flexarr: this server's tailnet address and port when the invite was made.</summary>
     public string? Target { get; init; }
+
+    /// <summary>
+    /// For a household device away from home rather than a guest: redeeming it gives an away sign-in on the profile
+    /// (see <see cref="SignIn.Away"/>), and the profile doesn't become a guest.
+    /// </summary>
+    public bool Household { get; init; }
 }
 
 /// <summary>What the guest's app needs, carried in the invite link (base64url JSON after the #).</summary>
@@ -122,7 +128,7 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
         lock (_lock)
         {
             var ids = new HashSet<string>(LoadedGuests(), StringComparer.Ordinal);
-            ids.UnionWith(Loaded().Select(i => i.ProfileId));
+            ids.UnionWith(Loaded().Where(i => !i.Household).Select(i => i.ProfileId));
             ids.UnionWith(signIns.List().Where(s => s.Guest && s.ProfileId is not null).Select(s => s.ProfileId!));
             return ids.ToList();
         }
@@ -150,7 +156,7 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
             }
         }
 
-        foreach (var signIn in signIns.List().Where(s => s.Guest && s.ProfileId == profileId))
+        foreach (var signIn in signIns.List().Where(s => s.Tunneled && s.ProfileId == profileId))
         {
             signIns.Revoke(signIn.Id);
         }
@@ -294,7 +300,8 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
     /// Makes an invite for <paramref name="profileId"/>, once the safety check passes: mints the Tailscale key, keeps
     /// the invite and returns the payload for the guest's link (or TV).
     /// </summary>
-    public async Task<(GuestInvite Invite, InvitePayload Payload)> CreateAsync(string? name, string profileId, string profileName, string ownerName, InviteVia via, CancellationToken ct)
+    public async Task<(GuestInvite Invite, InvitePayload Payload)> CreateAsync(string? name, string profileId, string profileName, string ownerName, InviteVia via, CancellationToken ct,
+        bool household = false)
     {
         var settings = options.CurrentValue.RemoteGuests;
         if (!settings.Enabled)
@@ -315,7 +322,7 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
 
         try
         {
-            return await MakeAsync(name, profileId, profileName, ownerName, via, ct);
+            return await MakeAsync(name, profileId, profileName, ownerName, via, household, ct);
         }
         finally
         {
@@ -329,7 +336,8 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
     /// <summary>Invites being made right now (between the count and the key).</summary>
     private int _making;
 
-    private async Task<(GuestInvite Invite, InvitePayload Payload)> MakeAsync(string? name, string profileId, string profileName, string ownerName, InviteVia via, CancellationToken ct)
+    private async Task<(GuestInvite Invite, InvitePayload Payload)> MakeAsync(string? name, string profileId, string profileName, string ownerName, InviteVia via,
+        bool household, CancellationToken ct)
     {
 
         var check = await policy.CheckAsync(ct);
@@ -373,12 +381,17 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
             ExpiresAt = expires, // the key was asked to expire with it
             KeyId = key.Id,
             Target = $"{address}:{policy.FlexarrPort.ToString(CultureInfo.InvariantCulture)}",
+            Household = household,
         };
 
         lock (_lock)
         {
             Loaded().Add(invite);
-            MarkGuest(profileId);
+            if (!household)
+            {
+                MarkGuest(profileId);
+            }
+
             SaveLocked();
         }
 
@@ -464,7 +477,9 @@ public sealed partial class GuestInvites(IOptionsMonitor<FlexarrOptions> options
         }
 
         var name = invite.Name.Length > 0 ? invite.Name : DeviceName(profileNameFor?.Invoke(invite.ProfileId), deviceType);
-        var (signIn, signInToken) = signIns.IssueGuest(name, invite.ProfileId, address, deviceType, invite.Target);
+        var (signIn, signInToken) = invite.Household
+            ? signIns.IssueAway(name, invite.ProfileId, address, deviceType, invite.Target)
+            : signIns.IssueGuest(name, invite.ProfileId, address, deviceType, invite.Target);
         lock (_lock)
         {
             if (_redeemed.TryGetValue(hash, out var entry))

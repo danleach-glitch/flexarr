@@ -362,6 +362,67 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
     }
 
     [Fact]
+    public async Task A_household_device_away_from_home_joins_its_own_profile_with_no_guest_limits()
+    {
+        var claire = await factory.AddProfileAsync("Claire away");
+        var other = await factory.AddProfileAsync("Someone at home");
+        using var admin = factory.Admin();
+
+        // Never the main profile, or a guest's.
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await admin.PostAsJsonAsync("/api/v1/remote/guests/invites", new { profileId = PlaybackState.DefaultUser, household = true })).StatusCode);
+        var (guestProfile, _) = await JoinAsync("Gran away");
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/v1/remote/guests/invites", new { profileId = guestProfile, household = true })).StatusCode);
+
+        var made = await admin.PostAsJsonAsync("/api/v1/remote/guests/invites", new { profileId = claire, household = true });
+        Assert.True(made.IsSuccessStatusCode, await made.Content.ReadAsStringAsync());
+        var created = (await made.Content.ReadFromJsonAsync<CreatedInviteDto>(Web))!;
+        Assert.True(created.Invite.Household);
+        // Waiting, it doesn't make Claire a guest.
+        Assert.DoesNotContain(claire, (await admin.GetFromJsonAsync<List<string>>("/api/v1/remote/guests/people"))!);
+
+        var redeemed = await RedeemAsync(RemoteGuestFactory.Guest, GuestInvites.Decode(created.Link[GuestInvites.LinkBase.Length..])!.T);
+        Assert.Equal(HttpStatusCode.OK, redeemed.StatusCode);
+        var answer = (await redeemed.Content.ReadFromJsonAsync<RedeemedInviteDto>(Web))!;
+        Assert.True(answer.Household);
+        Assert.Equal(claire, answer.ProfileId);
+        Assert.DoesNotContain(claire, (await admin.GetFromJsonAsync<List<string>>("/api/v1/remote/guests/people"))!);
+
+        using (var away = factory.From(RemoteGuestFactory.Guest, answer.ApiKey))
+        {
+            var me = await away.GetFromJsonAsync<JsonElement>("/api/v1/me");
+            Assert.False(me.GetProperty("isGuest").GetBoolean());
+            Assert.False(me.GetProperty("isAdmin").GetBoolean());
+            Assert.False(me.GetProperty("canUnlock").GetBoolean());
+            Assert.Equal(claire, me.GetProperty("profileId").GetString());
+            // It sees the household and can switch to another of its profiles, but never the main one (no PIN tried).
+            Assert.Contains(other, (await away.GetFromJsonAsync<List<JsonElement>>("/api/v1/profiles"))!.Select(p => p.GetProperty("id").GetString()));
+            Assert.Equal(HttpStatusCode.Forbidden, (await away.PostAsJsonAsync($"/api/v1/profiles/{PlaybackState.DefaultUser}/select", new { pin = "1234" })).StatusCode);
+            Assert.True((await away.PostAsJsonAsync($"/api/v1/profiles/{other}/select", new { })).IsSuccessStatusCode);
+            Assert.True((await away.PostAsJsonAsync($"/api/v1/profiles/{claire}/select", new { })).IsSuccessStatusCode);
+            // The household's devices, like at home.
+            Assert.Equal(HttpStatusCode.OK, (await away.GetAsync("/api/v1/devices")).StatusCode);
+        }
+
+        // Its token is tied to the device that joined, like a guest's.
+        using (var elsewhere = factory.From(RemoteGuestFactory.Owner, answer.ApiKey))
+        {
+            Assert.Equal(HttpStatusCode.Unauthorized, (await elsewhere.GetAsync("/api/v1/me")).StatusCode);
+        }
+
+        // Listed, marked household; removing it signs it out and leaves Claire's profile alone.
+        var devices = (await admin.GetFromJsonAsync<List<GuestDeviceDto>>("/api/v1/remote/guests/devices", Web))!;
+        var device = Assert.Single(devices, d => d.ProfileId == claire);
+        Assert.True(device.Household);
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.DeleteAsync($"/api/v1/remote/guests/devices/{device.Id}")).StatusCode);
+        Assert.Contains(claire, (await admin.GetFromJsonAsync<List<JsonElement>>("/api/v1/profiles"))!.Select(p => p.GetProperty("id").GetString()));
+        using (var removed = factory.From(RemoteGuestFactory.Guest, answer.ApiKey))
+        {
+            Assert.NotEqual(HttpStatusCode.OK, (await removed.GetAsync("/api/v1/me")).StatusCode);
+        }
+    }
+
+    [Fact]
     public async Task A_guest_stays_on_its_profile_and_never_manages_the_server()
     {
         var (gran, key) = await JoinAsync("Gran7");

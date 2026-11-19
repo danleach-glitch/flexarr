@@ -518,6 +518,12 @@ public static partial class ProfileEndpoints
             // Child lock is what keeps a child in kids profiles: a device with it on offers nothing else, and only the admin
             // PIN turns it off. Without it, any profile may be chosen from any other, kids profiles included, with no PIN
             // but the chosen profile's own. (`parentPin`, from apps that asked for it before, is accepted and not needed.)
+            if (profile.IsMain && signIns.ById(current.SignInId) is { Away: true })
+            {
+                // A household device away from home never has the main profile (see SignIn.Away), so no PIN is tried.
+                return Problems.Of("The main profile can’t be chosen on a device away from home.", status: 403);
+            }
+
             if (!profile.IsKids && signIns.ById(current.SignInId)?.KidsLock == true)
             {
                 return Results.Problem(detail: Loc.T("Child lock is on for this device."), statusCode: 403, extensions: new Dictionary<string, object?> { ["kidsLock"] = true });
