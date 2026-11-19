@@ -184,8 +184,14 @@ private fun ChooseServer(browser: ServerBrowser, onPick: (DiscoveredServer) -> U
         }
         // With no server found (a guest's home), joining someone's comes first, as on the Apple TV.
         val joinFirst = BuildConfig.GUEST_INVITES && browser.servers.isEmpty()
+        // Someone else's Flexarr, or the household's own from away: a code to give whoever runs it.
         val join = @Composable { modifier: Modifier ->
-            if (BuildConfig.GUEST_INVITES) TvActionButton(t("Join someone’s Flexarr"), onClick = onGuest, modifier = modifier.focusRequester(guest))
+            if (BuildConfig.GUEST_INVITES) {
+                Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TvActionButton(t("Join someone’s Flexarr"), onClick = onGuest, modifier = Modifier.focusRequester(guest))
+                    Text(t("Away from home? Ask whoever runs Flexarr for a code."), fontSize = 14.sp, color = Flexarr.usher)
+                }
+            }
         }
         if (joinFirst) join(Modifier.padding(top = 5.dp))
         TvActionButton(t("Enter an address instead"), onClick = onManual, modifier = Modifier.padding(top = if (joinFirst) 0.dp else 5.dp).focusRequester(manual))
@@ -194,7 +200,7 @@ private fun ChooseServer(browser: ServerBrowser, onPick: (DiscoveredServer) -> U
 }
 
 /**
- * A family invite for this TV: a code to read out to whoever invited it, who types it into their Flexarr. The code
+ * A family invite for this TV: a code to read out to whoever runs the Flexarr, who types it in there. The code
  * meets their server's invite at Flexarr's relay, sealed so only this TV can open it; the TV asks "Join Dan’s Flexarr?"
  * and then joins as a phone does with a link (the tunnel, then a sign-in of its own). See [rememberGuestCode].
  */
@@ -260,13 +266,14 @@ private fun GuestCode(model: AppModel, onBack: () -> Unit) {
             TvActionButton(if (guest.badInvite) t("New code") else t("Try again"), onClick = { attempt++ }, prominent = true, modifier = Modifier.focusRequester(retry))
         } else {
             // Not once codes have stopped: there's none to read.
-            if (!guest.stopped) Text(t("Read this code to the person who invited you"), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            // For a guest and for someone in the household away from home alike: whoever runs Flexarr types it in.
+            if (!guest.stopped) Text(t("Tell this code to whoever runs Flexarr. They type it in Settings › Remote access."), fontSize = 20.sp, fontWeight = FontWeight.Bold)
             val shown = code
             if (shown != null) {
                 Text(shown.display, fontSize = 56.sp, fontWeight = FontWeight.Black, letterSpacing = 4.sp, modifier = Modifier.semantics { contentDescription = shown.spoken })
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = Flexarr.usher)
-                    Text(t("They type it into Settings › Remote access in Flexarr."), fontSize = 13.sp, color = Flexarr.usher)
+                    Text(t("Keep this screen open."), fontSize = 13.sp, color = Flexarr.usher)
                 }
             } else if (guest.stopped) {
                 TvActionButton(t("Show a new code"), onClick = { attempt++ }, prominent = true, modifier = Modifier.focusRequester(newCode))
