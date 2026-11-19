@@ -16,6 +16,7 @@ import {
   saveGuestClient,
   setGuestRelay,
   type GuestDevice,
+  type GuestInvite,
   type Library,
   type Profile,
   type RemoteGuests,
@@ -48,10 +49,6 @@ export function FamilyInvites() {
   const [version, setVersion] = useState(0)
   const guests = useApi(getRemoteGuests, [version])
   const refresh = () => setVersion((v) => v + 1)
-  /** Someone typed as a new guest who already lives here: their device is added under Your household instead. */
-  const [householdFor, setHouseholdFor] = useState<{ id: string; at: number }>()
-  /** The profile Guests is adding a device for: made for a new guest a moment ago, it's not someone who lives here. */
-  const [guestBeingAdded, setGuestBeingAdded] = useState<string>()
 
   if (!guests.data?.enabled) return null
   const setup = guests.data
@@ -65,14 +62,7 @@ export function FamilyInvites() {
         </SettingsGroup>
       ) : setup.hasClient ? (
         <>
-          {/* Both stay listed while the check fails (that's when someone may want removing); only adding waits. */}
-          <HouseholdGroup onChange={refresh} canAdd={ready} startFor={householdFor} leaveOut={guestBeingAdded} />
-          <GuestsGroup
-            onChange={refresh}
-            canAdd={ready}
-            onAddHousehold={(id) => setHouseholdFor({ id, at: Date.now() })}
-            onAddingFor={setGuestBeingAdded}
-          />
+          <InviteGroups ready={ready} onChange={refresh} />
           <SetupGroup setup={setup} onChange={refresh} collapsed={ready} />
         </>
       ) : (
@@ -81,6 +71,77 @@ export function FamilyInvites() {
     </>
   )
 }
+
+/** What Your household and Guests both list: asked for once, for both, and kept up to date by one poll. */
+export interface GuestLists {
+  profiles?: Profile[]
+  /** Every device that joined with a code, household and guests'. */
+  devices?: GuestDevice[]
+  /** Every invite still waiting for its device, household and guests'. */
+  invites?: GuestInvite[]
+  /** Every guest's profile id, devices or not. */
+  guestIds?: string[]
+  libraries: Library[]
+  /** Asks for the devices, invites and guests afresh (after a change, or on the poll). */
+  refresh: () => void
+  reloadProfiles: () => void
+}
+
+/** Your household and Guests, with the lists they share. */
+function InviteGroups({ ready, onChange }: { ready: boolean; onChange: () => void }) {
+  const profiles = useApi(getProfiles, [])
+  const devices = useApi(getGuestDevices, [])
+  const guestIds = useApi(getGuestPeople, [])
+  const invites = useApi(getGuestInvites, [])
+  const libraries = useApi(getAllLibraries, []).data
+  /** Someone typed as a new guest who already lives here: their device is added under Your household instead. */
+  const [householdFor, setHouseholdFor] = useState<{ id: string; at: number }>()
+  /** The profile Guests is adding a device for: made for a new guest a moment ago, it's not someone who lives here. */
+  const [guestBeingAdded, setGuestBeingAdded] = useState<string>()
+  /** The profile Your household is adding a device for. */
+  const [householdAdding, setHouseholdAdding] = useState<string>()
+
+  const lists: GuestLists = {
+    profiles: profiles.data,
+    devices: devices.data,
+    invites: invites.data,
+    guestIds: guestIds.data,
+    libraries: libraries ?? [],
+    refresh: () => {
+      devices.reload()
+      invites.reload()
+      guestIds.reload()
+      onChange()
+    },
+    reloadProfiles: profiles.reload,
+  }
+  // While a device is being added, see it arrive quickly; while invites wait, now and then. One poll for both groups.
+  const poll = () => {
+    devices.reload()
+    invites.reload()
+    guestIds.reload()
+  }
+  usePolling(poll, guestBeingAdded || householdAdding ? 2000 : invites.data?.length ? 8000 : null)
+
+  return (
+    <>
+      {/* Both stay listed while the check fails (that's when someone may want removing); only adding waits. */}
+      <HouseholdGroup lists={lists} canAdd={ready} startFor={householdFor} leaveOut={guestBeingAdded} onAddingFor={setHouseholdAdding} />
+      <GuestsGroup
+        lists={lists}
+        canAdd={ready}
+        onAddHousehold={(id) => {
+          setHouseholdFor({ id, at: Date.now() })
+          setHouseholdAdding(id)
+        }}
+        onAddingFor={setGuestBeingAdded}
+      />
+    </>
+  )
+}
+
+/** Which profile a household device belongs with: the one it was added for, though it may have switched since. */
+const homeOf = (d: GuestDevice) => d.homeProfileId ?? d.profileId
 
 /** The three steps with Tailscale, and the safety check's answer. Folded away once it passes. */
 export function SetupGroup({ setup, onChange, collapsed = false }: { setup: RemoteGuests; onChange: () => void; collapsed?: boolean }) {
@@ -218,26 +279,24 @@ export function SetupGroup({ setup, onChange, collapsed = false }: { setup: Remo
  * in the code it shows, since a TV can't open a link.
  */
 export function GuestsGroup({
-  onChange,
+  lists,
   canAdd = true,
   onAddHousehold,
   onAddingFor,
 }: {
-  onChange: () => void
+  lists: GuestLists
   canAdd?: boolean
   /** Someone who lives here was typed as a new guest: add their device under Your household instead. */
   onAddHousehold?: (profileId: string) => void
   /** Who a device is being added for here (so Your household leaves out a guest's profile made a moment ago). */
   onAddingFor?: (profileId: string | undefined) => void
 }) {
-  const profiles = useApi(getProfiles, [])
-  const allDevices = useApi(getGuestDevices, [])
-  const guestIds = useApi(getGuestPeople, [])
-  const allWaiting = useApi(getGuestInvites, [])
-  const libraries = useApi(getAllLibraries, []).data ?? []
+  const { libraries, refresh } = lists
+  const profiles = { data: lists.profiles, reload: lists.reloadProfiles }
+  const guestIds = { data: lists.guestIds }
   // Household devices away from home have their own group (HouseholdGroup); these are guests' only.
-  const devices = { ...allDevices, data: allDevices.data?.filter((d) => !d.household) }
-  const waiting = { ...allWaiting, data: allWaiting.data?.filter((w) => !w.household) }
+  const devices = { data: lists.devices?.filter((d) => !d.household) }
+  const waiting = { data: lists.invites?.filter((w) => !w.household) }
   /** Who a device is being added for: kept here, so a profile made a moment ago shows before the list catches up. */
   /** `made`: the profile was made a moment ago for this guest, so giving up before a device joins removes it again. */
   const [addingFor, setAddingForState] = useState<{ id: string; name: string; color?: string; made?: boolean }>()
@@ -271,15 +330,6 @@ export function GuestsGroup({
   const focusAddDevice = (id: string | undefined) => requestAnimationFrame(() => document.getElementById(`guest-add-${id}`)?.focus())
   /** Devices that joined while this page was open, marked New. */
   const [joined, setJoined] = useState<string[]>([])
-
-  const refresh = () => {
-    devices.reload()
-    waiting.reload()
-    guestIds.reload()
-    onChange()
-  }
-  // While a device is being added, see it arrive quickly; while invites wait, now and then.
-  usePolling(refresh, adding ? 2000 : waiting.data?.length ? 8000 : null)
 
   const guestProfiles = profiles.data?.filter((p) => !p.isMain) ?? []
   // Newest first, so someone just invited is at the top, where their card was made.
@@ -613,43 +663,40 @@ function LibrariesSeen({ profile, libraries }: { profile?: Profile; libraries: L
  * out.
  */
 export function HouseholdGroup({
-  onChange,
+  lists,
   canAdd = true,
   startFor,
   leaveOut,
+  onAddingFor,
 }: {
-  onChange: () => void
+  lists: GuestLists
   canAdd?: boolean
   /** Start adding a device for this profile now (sent from Guests, when someone who lives here was typed there). */
   startFor?: { id: string; at: number }
   /** A profile Guests is adding a device for right now. */
   leaveOut?: string
+  /** Who a device is being added for here, so the lists are asked for quickly meanwhile. */
+  onAddingFor?: (profileId: string | undefined) => void
 }) {
-  const profiles = useApi(getProfiles, [])
-  const allDevices = useApi(getGuestDevices, [])
-  const guestIds = useApi(getGuestPeople, [])
-  const allWaiting = useApi(getGuestInvites, [])
-  const devices = allDevices.data?.filter((d) => d.household) ?? []
-  const waiting = allWaiting.data?.filter((w) => w.household) ?? []
-  const [adding, setAdding] = useState<string>()
+  const { profiles, guestIds, refresh } = lists
+  const devices = lists.devices?.filter((d) => d.household) ?? []
+  const waiting = lists.invites?.filter((w) => w.household) ?? []
+  const [adding, setAddingState] = useState<string>()
+  const setAdding = (id: string | undefined) => {
+    setAddingState(id)
+    onAddingFor?.(id)
+  }
   const [joined, setJoined] = useState<string[]>([])
   const [confirming, setConfirming] = useState<{ device: GuestDevice; label: string; person: string }>()
   const [removing, setRemoving] = useState(false)
   const [removeError, setRemoveError] = useState<string>()
   const [removed, setRemoved] = useState<GuestDevice>()
 
-  const refresh = () => {
-    allDevices.reload()
-    allWaiting.reload()
-    onChange()
-  }
-  usePolling(refresh, adding ? 2000 : waiting.length ? 8000 : null)
-
   // Each request from Guests once (`at` tells two for the same person apart).
   const [started, setStarted] = useState<number>()
   if (startFor && startFor.at !== started) {
     setStarted(startFor.at)
-    setAdding(startFor.id)
+    setAddingState(startFor.id)
   }
   const startedFor = startFor?.at === started ? startFor?.id : undefined
   useEffect(() => {
@@ -657,8 +704,10 @@ export function HouseholdGroup({
   }, [startedFor, started])
 
   const focusAdd = (id: string | undefined) => requestAnimationFrame(() => document.getElementById(`household-add-${id}`)?.focus())
-  // Everyone who lives here but the main profile: those with no devices yet too, so adding one is a tap away.
-  const people = (profiles.data ?? []).filter((p) => !p.isMain && p.id !== leaveOut && !guestIds.data?.includes(p.id))
+  // Everyone who lives here but the main profile: those with no devices yet too, so adding one is a tap away. Only once
+  // both lists are in, so a guest is never shown here for a moment while who's a guest is still being asked.
+  const loaded = profiles !== undefined && guestIds !== undefined
+  const people = loaded ? profiles.filter((p) => !p.isMain && p.id !== leaveOut && !guestIds.includes(p.id)) : []
 
   async function confirmRemove() {
     if (!confirming) return
@@ -691,7 +740,7 @@ export function HouseholdGroup({
       </p>
       {!canAdd && <p className="settings-note">{t('Adding devices waits for Tailscale setup, below.')}</p>}
       <div className="guest-cards">
-        {profiles.data && people.length === 0 && (
+        {loaded && people.length === 0 && (
           <div className="panel guest-card">
             <p className="muted guest-empty">
               {t.rich('No one else lives here yet. Add them in {page} first.', { page: <a href="/settings/profiles">{t('Profiles')}</a> })}
@@ -699,7 +748,7 @@ export function HouseholdGroup({
           </div>
         )}
         {people.map((person) => {
-          const theirs = devices.filter((d) => d.profileId === person.id)
+          const theirs = devices.filter((d) => homeOf(d) === person.id)
           const theirWaiting = waiting.filter((w) => w.profileId === person.id && adding !== person.id)
           return (
             <div key={person.id} id={`household-${person.id}`} className="panel guest-card guest-person">

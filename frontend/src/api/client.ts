@@ -2369,6 +2369,11 @@ export interface GuestDevice {
   serverMoved?: boolean
   /** A household device away from home, on its own profile, rather than a guest's. Absent from servers before 0.67. */
   household?: boolean
+  /**
+   * The profile a household device was added for (`profileId` is the one it's on now, which may be another of the
+   * household's). Absent from servers before 0.67, and for guests' devices.
+   */
+  homeProfileId?: string | null
 }
 
 export const getRemoteGuests = (signal?: AbortSignal) => apiGet<RemoteGuests>('/remote/guests', signal)

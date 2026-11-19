@@ -382,6 +382,46 @@ describe('Settings › Remote access › Family invites', () => {
       await waitFor(() => expect(tv).toEqual({ code: 'ABCD-EFGH', name: null, profileId: 'claire', household: true }))
     })
 
+    it('asks for each list once for both groups, and lists no one as household until it knows who the guests are', async () => {
+      let release: (ids: string[]) => void = () => undefined
+      const fetch = mockApi({
+        '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),
+        '/profiles': [main, gran, claire],
+        '/remote/guests/people': () => new Promise<string[]>((resolve) => (release = resolve)),
+        '/remote/guests/invites': [],
+        '/remote/guests/devices': [],
+      })
+      render(<FamilyInvites />)
+
+      expect(await screen.findByRole('heading', { name: 'Your household' })).toBeVisible()
+      await waitFor(() => expect(fetch.mock.calls.some(([url]) => String(url).endsWith('/profiles'))).toBe(true))
+      // Gran is a guest, but that isn't known yet: nobody is listed rather than her for a moment.
+      expect(document.getElementById('household-gran')).toBeNull()
+      expect(document.getElementById('household-claire')).toBeNull()
+      release(['gran'])
+      expect(await screen.findByText('Claire')).toBeVisible()
+      expect(document.getElementById('household-gran')).toBeNull()
+      const asked = (path: string) => fetch.mock.calls.filter(([url]) => new URL(String(url), 'http://localhost').pathname === `/api/v1${path}`).length
+      expect(asked('/remote/guests/devices')).toBe(1)
+      expect(asked('/remote/guests/invites')).toBe(1)
+      expect(asked('/remote/guests/people')).toBe(1)
+    })
+
+    it('files a household device under the profile it was added for, though it has switched to another', async () => {
+      mockApi({
+        '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),
+        '/profiles': [main, claire, { ...claire, id: 'tom', name: 'Tom' }],
+        '/remote/guests/people': [],
+        '/remote/guests/invites': [],
+        '/remote/guests/devices': [device({ id: 'c1', name: 'Claire’s iPad', profileId: 'tom', profileName: 'Tom', homeProfileId: 'claire', household: true })],
+      })
+      render(<FamilyInvites />)
+
+      expect(await screen.findByText('iPad')).toBeVisible()
+      expect(document.getElementById('household-claire')?.textContent).toMatch(/iPad/)
+      expect(document.getElementById('household-tom')?.textContent).not.toMatch(/iPad/)
+    })
+
     it('signing out a household device says their profile stays', async () => {
       let removed = false
       mockApi({
