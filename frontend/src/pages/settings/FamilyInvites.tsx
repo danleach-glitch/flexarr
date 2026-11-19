@@ -776,7 +776,7 @@ export function HouseholdGroup({
                     <IconButton
                       label={t('Sign out')}
                       aria-label={t('Sign out {name}', { name: d.name })}
-                      icon={<icon.delete />}
+                      icon={<icon.signOut />}
                       className="button quiet small icon danger-icon"
                       onClick={() =>
                         setConfirming({ device: d, person: person.name, label: t('{name}’s {device}', { name: person.name, device: deviceLabel(d, person.name) }) })

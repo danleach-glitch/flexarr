@@ -6,6 +6,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
@@ -95,6 +96,8 @@ object FlexarrIcons {
     val download: ImageVector get() = Icons.Outlined.ArrowCircleDown
     /** Delete a title, album, artist or book. */
     val delete: ImageVector get() = Icons.Outlined.Delete
+    /** Sign a device out (one of your household's, away from home). */
+    val signOut: ImageVector get() = Icons.AutoMirrored.Outlined.Logout
     /** Explicit (a badge on a track or episode). */
     val explicit: ImageVector get() = Icons.Filled.Explicit
     /** Search for subtitles. */
