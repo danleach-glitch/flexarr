@@ -123,6 +123,29 @@ struct GuestInviteTests {
         #expect(home.matching(serverSaysGuest: false) == home)
     }
 
+    @Test func aSignInIsTheSameOneAfterTheServerSaysWhoseItIs() {
+        let tunnel = GuestTunnelInfo(target: "100.101.102.103:8383", hostname: "flexarr-guest-claire", ownerName: "Dan")
+        let saved = ServerCredentials(address: URL(string: "http://127.0.0.1:52000")!, apiKey: "key", guest: tunnel)
+        // Corrected to a household device's by /me: a 401 from a client made before still counts.
+        let corrected = saved.matching(serverSaysGuest: false)
+        #expect(corrected != saved)
+        #expect(corrected.isSameSignIn(as: saved))
+        // The tunnel's port moved: the same sign-in.
+        var moved = corrected
+        moved.address = URL(string: "http://127.0.0.1:52001")!
+        #expect(moved.isSameSignIn(as: saved))
+        // Another key, another profile, another tunnel, or none: not.
+        #expect(!saved.isSameSignIn(as: ServerCredentials(address: saved.address, apiKey: "other", guest: tunnel)))
+        #expect(!saved.isSameSignIn(as: ServerCredentials(address: saved.address, apiKey: "key", profileToken: "p", guest: tunnel)))
+        #expect(!saved.isSameSignIn(as: ServerCredentials(address: saved.address, apiKey: "key",
+                                                          guest: GuestTunnelInfo(target: "100.1.1.1:8383", hostname: "x", ownerName: "Dan"))))
+        let home = ServerCredentials(address: URL(string: "http://192.168.1.2:8383")!, apiKey: "key")
+        #expect(!saved.isSameSignIn(as: home))
+        #expect(!home.isSameSignIn(as: saved))
+        #expect(home.isSameSignIn(as: home))
+        #expect(!home.isSameSignIn(as: nil))
+    }
+
     @Test func aHouseholdDeviceIsSavedAsOneAndOlderSignInsReadAsGuests() throws {
         let suite = "household-test-\(UUID().uuidString)"
         let service = "io.github.flexarr.test.\(UUID().uuidString)"

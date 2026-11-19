@@ -47,6 +47,14 @@ public struct ServerCredentials: Sendable, Equatable {
         return matched
     }
 
+    /// The same sign-in (its key and profile, and the same tunnel or none), whatever else has changed since: the
+    /// server's word on whether it's a guest's (`matching`), the tunnel's port on this device, the away address.
+    public func isSameSignIn(as other: ServerCredentials?) -> Bool {
+        guard let other, other.apiKey == apiKey, other.profileToken == profileToken else { return false }
+        guard let guest else { return other.guest == nil }
+        return guest.isSameTunnel(as: other.guest)
+    }
+
     public init(address: URL, apiKey: String, profileToken: String? = nil, remoteAddress: URL? = nil, guest: GuestTunnelInfo? = nil,
                 serverId: String? = nil, remoteConfirmed: Bool = true) {
         self.address = address

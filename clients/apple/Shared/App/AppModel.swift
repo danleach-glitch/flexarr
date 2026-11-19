@@ -628,29 +628,34 @@ final class AppModel {
     /// out there (from the web's Sign-ins list, or a new key): forget it and go back to connecting, rather than
     /// leave every screen on an error that Try again can't fix. One refusal alone could be a server mid-restart.
     private func checkSignIn(_ refused: ServerCredentials) {
-        guard !checkingSignIn, credentials == refused else { return }
+        // By who it is, not every detail: `/me` may have corrected whether it's a guest's since the refusing client
+        // was made, or the tunnel moved port.
+        guard !checkingSignIn, let current = credentials, refused.isSameSignIn(as: current) else { return }
         checkingSignIn = true
         Task {
             defer { checkingSignIn = false }
             try? await Task.sleep(for: .seconds(1))
             do {
-                _ = try await refused.client.me()
+                _ = try await current.client.me()
                 return // Accepted after all.
             } catch FlexarrClientError.unauthorized {
                 // Refused again: signed out.
-            } catch FlexarrClientError.guestRemoved where refused.usesTunnel {
+            } catch FlexarrClientError.guestRemoved where current.usesTunnel {
                 // A guest's (or household device's away) its host removed: refused everything, not just the sign-in.
-                guard credentials == refused else { return }
-                removedAsGuest(refused.guest)
+                guard current.isSameSignIn(as: credentials) else { return }
+                removedAsGuest(credentials?.guest ?? current.guest)
                 return
             } catch {
                 return // Unreachable or restarting: no reason to forget the sign-in.
             }
             // Not if it's been replaced meanwhile (another profile chosen, or connected again).
-            guard credentials == refused else { return }
-            signedOutNotice = t("This {device} was signed out.", ["device": ThisDevice.name])
+            guard current.isSameSignIn(as: credentials) else { return }
+            let tunnel = credentials?.guest ?? current.guest
+            signedOutNotice = tunnel?.household == true
+                ? householdSignedOutNotice(tunnel)
+                : t("This {device} was signed out.", ["device": ThisDevice.name])
             // A tunnel sign-in had no server of its own to show a code for: it joins again with a new code.
-            signedOutAsGuest = refused.usesTunnel
+            signedOutAsGuest = current.usesTunnel
             forget()
         }
     }
@@ -974,9 +979,18 @@ final class AppModel {
 
     /// The host removed this device (or deleted it from their tailnet): signed out, back to joining, saying why.
     private func removedAsGuest(_ guest: GuestTunnelInfo?) {
-        signedOutNotice = t("{kind, select, named {You no longer have access to {server}.} owner {You no longer have access to {owner}’s Flexarr.} other {You no longer have access to this Flexarr.}}", guestServerNaming(guest).values)
+        // A household device away from home is signed out of its own server, not shut out of someone else's.
+        signedOutNotice = guest?.household == true ? householdSignedOutNotice(guest) : t("{kind, select, named {You no longer have access to {server}.} owner {You no longer have access to {owner}’s Flexarr.} other {You no longer have access to this Flexarr.}}", guestServerNaming(guest).values)
         forget()
         signedOutAsGuest = true
+    }
+
+    /// "This iPad was signed out of Smith House. Joining again takes a new code.": a household device away from home
+    /// signed out by the server.
+    private func householdSignedOutNotice(_ guest: GuestTunnelInfo?) -> String {
+        let server = guestServerNaming(guest)
+        return t("{kind, select, named {This {device} was signed out of {server}. Joining again takes a new code.} owner {This {device} was signed out of {owner}’s Flexarr. Joining again takes a new code.} other {This {device} was signed out of this Flexarr. Joining again takes a new code.}}",
+                 server.values.merging(["device": ThisDevice.name]) { _, new in new })
     }
 
     /// Keeps what the server is called, for Settings and for while it can't be reached. Servers before 0.61 say
