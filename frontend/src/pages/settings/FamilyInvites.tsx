@@ -1054,7 +1054,7 @@ export function AddDevice({
             // Signed in at home already, their app offers it in its settings; not yet, on its first screen.
             <span className="field-help">
               {t.rich('On their device: {path}. Not signed in yet? {join}.', {
-                path: <strong>{[t('Settings'), t('Server'), t('Use away from home')].join(' › ')}</strong>,
+                path: <strong>{[t(Words.settings), t('Server'), t('Use away from home')].join(' › ')}</strong>,
                 join: <strong>{t('Join someone’s Flexarr')}</strong>,
               })}
             </span>
