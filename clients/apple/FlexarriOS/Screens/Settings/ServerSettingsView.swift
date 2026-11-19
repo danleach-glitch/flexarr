@@ -26,7 +26,9 @@ struct ServerSettingsView: View {
                 } header: {
                     Text(isGuest ? t("Connected by invite") : t("Away from home"))
                 } footer: {
-                    Text(t("Connected over the internet. AirPlay is off on this connection, and downloads carry on only while Flexarr is open."))
+                    Text(isGuest
+                         ? t("Connected over the internet. AirPlay is off on this connection, and downloads carry on only while Flexarr is open.")
+                         : t("Away from home, Flexarr uses its own connection. AirPlay is off on it, and downloads carry on only while Flexarr is open."))
                 }
                 .leaveGuestConfirmation(isPresented: $confirmLeave, server: model.guestServerNaming(guest)) { model.signOut() }
             } else {

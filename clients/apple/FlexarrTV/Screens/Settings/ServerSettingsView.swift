@@ -86,7 +86,9 @@ struct ServerSettingsView: View {
     }
 
     private var summary: String {
-        model.credentials?.usesTunnel == true
+        model.credentials?.isHouseholdAway == true
+            ? t("Away from home, Flexarr uses its own connection. AirPlay is off on it.")
+            : model.credentials?.usesTunnel == true
             ? t("Connected over the internet. AirPlay is off on this connection.")
             : model.credentials?.remoteAddress == nil
             ? t("To watch away from home, turn on remote access with Tailscale in Settings › Remote access on the web. This Apple TV picks the address up by itself.")

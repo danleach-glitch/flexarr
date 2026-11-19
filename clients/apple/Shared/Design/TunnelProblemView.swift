@@ -87,7 +87,7 @@ private struct AwayWelcomeAlert: ViewModifier {
             Button(t("OK"), role: .cancel) {}
         } message: {
             if let welcome = model.awayWelcome {
-                Text(t("{kind, select, named {Watch {server} here, as you do at home.} owner {Watch {owner}’s Flexarr here, as you do at home.} other {Watch Flexarr here, as you do at home.}}", welcome.server.values))
+                Text(t("{kind, select, named {{server} works here as it does at home.} owner {{owner}’s Flexarr works here as it does at home.} other {Flexarr works here as it does at home.}}", welcome.server.values))
             }
         }
     }
