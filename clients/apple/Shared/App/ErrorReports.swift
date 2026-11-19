@@ -96,8 +96,18 @@ enum ErrorReports {
             #endif
             options.beforeSend = { event in scrub(event) }
         }
+        // Sentry's crash handler takes SIGPIPE back (it counts it as a crash), so it's ignored again.
+        ignoreBrokenPipes()
         SentrySDK.setUser(id.map { User(userId: $0) })
         log.info("Error reports on")
+    }
+
+    /// A write to a connection the other end has closed fails with EPIPE instead of killing the app with SIGPIPE.
+    /// The tunnel's loopback forwarding (Go) hits this whenever a player drops a stream mid-copy, and Darwin sends
+    /// the signal to the whole process, so it can land on the main thread, where Go's own handler can't swallow it.
+    /// Called at launch and again after Sentry starts.
+    static func ignoreBrokenPipes() {
+        signal(SIGPIPE, SIG_IGN)
     }
 
     #if os(tvOS)
