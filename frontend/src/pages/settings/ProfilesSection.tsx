@@ -1,5 +1,5 @@
 import { errorText } from '../../lib/errorText'
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import {
   ApiError,
@@ -47,6 +47,20 @@ export function ProfilesSection() {
   const musicDestinations =
     useApi(async (signal) => ((await getMusicRequestStatus(signal)).configured ? getMusicDestinations(signal) : []), []).data ?? []
   const [editing, setEditing] = useState<Profile | 'new'>()
+  // Opened from elsewhere at one profile (Settings › Remote access links a guest's libraries here):
+  // ?edit=<id>, and #libraries to go straight to them.
+  const [linked] = useState(() => new URLSearchParams(window.location.search).get('edit'))
+  const [opened, setOpened] = useState(false)
+  if (!opened && linked && data) {
+    setOpened(true)
+    const profile = data.find((p) => p.id === linked)
+    if (profile) setEditing(profile)
+  }
+  const openedAt = opened && editing !== undefined && editing !== 'new' && editing.id === linked ? linked : undefined
+  useEffect(() => {
+    if (openedAt && window.location.hash === '#libraries')
+      requestAnimationFrame(() => document.querySelector('.profile-libraries')?.scrollIntoView?.({ block: 'start', behavior: 'smooth' }))
+  }, [openedAt])
   // A kids profile is only as safe as the admin PIN, which is what it takes to leave one.
   const me = useApi(getMe, [])
   // Until /me answers, assume there is one, so the Kids switch isn't disabled for a moment.

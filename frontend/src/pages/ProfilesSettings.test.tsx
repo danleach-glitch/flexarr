@@ -28,6 +28,22 @@ const kids = { id: 'c1', name: 'Kids', color: '#e8a0bf', hasPin: false, isMain: 
 const shows = { ...movies, id: 'lib-shows', name: 'TV Shows', type: 'Shows', scan: null }
 
 describe('Profile form', () => {
+  it('opens straight at one profile’s libraries from a link (?edit=<id>#libraries)', async () => {
+    mockApi({
+      '/libraries': [movies, shows],
+      '/me': adminHere,
+      '/profiles': [main, kids],
+    })
+    window.history.replaceState(null, '', '/settings/profiles?edit=c1#libraries')
+    render(
+      <MemoryRouter>
+        <ProfilesSection />
+      </MemoryRouter>,
+    )
+    expect(await screen.findByRole('form', { name: 'Edit Kids' })).toBeInTheDocument()
+    expect(screen.getByText('Libraries Kids sees')).toBeInTheDocument()
+  })
+
   it('switching Edit from one profile to another shows and saves the second one’s settings', async () => {
     let sent: Record<string, unknown> | undefined
     mockApi({

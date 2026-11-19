@@ -2375,6 +2375,21 @@
   font-size: var(--step-1, 1.15rem);
 }
 
+/* A guest's name with which libraries they see beneath it. */
+.guest-name-block {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.guest-libraries {
+  font-size: 0.85rem;
+}
+
+.household-intro {
+  margin-top: 0;
+}
+
 .guest-devices {
   display: grid;
   min-width: 0;

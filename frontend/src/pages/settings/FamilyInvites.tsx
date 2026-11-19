@@ -8,6 +8,7 @@ import {
   getGuestDevices,
   getGuestPeople,
   getGuestInvites,
+  getAllLibraries,
   getProfiles,
   getRemoteGuests,
   inviteGuestTv,
@@ -15,6 +16,7 @@ import {
   saveGuestClient,
   setGuestRelay,
   type GuestDevice,
+  type Library,
   type Profile,
   type RemoteGuests,
 } from '../../api/client'
@@ -46,6 +48,10 @@ export function FamilyInvites() {
   const [version, setVersion] = useState(0)
   const guests = useApi(getRemoteGuests, [version])
   const refresh = () => setVersion((v) => v + 1)
+  /** Someone typed as a new guest who already lives here: their device is added under Away from home instead. */
+  const [householdFor, setHouseholdFor] = useState<{ id: string; at: number }>()
+  /** The profile Guests is adding a device for: made for a new guest a moment ago, it's not someone who lives here. */
+  const [guestBeingAdded, setGuestBeingAdded] = useState<string>()
 
   if (!guests.data?.enabled) return null
   const setup = guests.data
@@ -59,8 +65,14 @@ export function FamilyInvites() {
         </SettingsGroup>
       ) : setup.hasClient ? (
         <>
-          {/* Guests stay listed while the check fails (that's when someone may want removing); only adding waits. */}
-          <GuestsGroup onChange={refresh} canAdd={ready} />
+          {/* Both stay listed while the check fails (that's when someone may want removing); only adding waits. */}
+          <HouseholdGroup onChange={refresh} canAdd={ready} startFor={householdFor} leaveOut={guestBeingAdded} />
+          <GuestsGroup
+            onChange={refresh}
+            canAdd={ready}
+            onAddHousehold={(id) => setHouseholdFor({ id, at: Date.now() })}
+            onAddingFor={setGuestBeingAdded}
+          />
           <SetupGroup setup={setup} onChange={refresh} collapsed={ready} />
         </>
       ) : (
@@ -205,14 +217,34 @@ export function SetupGroup({ setup, onChange, collapsed = false }: { setup: Remo
  * and Add device. A device joins with a one-use invite: a phone or tablet by a link (or its QR code), a TV by typing
  * in the code it shows, since a TV can't open a link.
  */
-export function GuestsGroup({ onChange, canAdd = true }: { onChange: () => void; canAdd?: boolean }) {
+export function GuestsGroup({
+  onChange,
+  canAdd = true,
+  onAddHousehold,
+  onAddingFor,
+}: {
+  onChange: () => void
+  canAdd?: boolean
+  /** Someone who lives here was typed as a new guest: add their device under Away from home instead. */
+  onAddHousehold?: (profileId: string) => void
+  /** Who a device is being added for here (so Away from home leaves out a guest's profile made a moment ago). */
+  onAddingFor?: (profileId: string | undefined) => void
+}) {
   const profiles = useApi(getProfiles, [])
-  const devices = useApi(getGuestDevices, [])
+  const allDevices = useApi(getGuestDevices, [])
   const guestIds = useApi(getGuestPeople, [])
-  const waiting = useApi(getGuestInvites, [])
+  const allWaiting = useApi(getGuestInvites, [])
+  const libraries = useApi(getAllLibraries, []).data ?? []
+  // Household devices away from home have their own group (HouseholdGroup); these are guests' only.
+  const devices = { ...allDevices, data: allDevices.data?.filter((d) => !d.household) }
+  const waiting = { ...allWaiting, data: allWaiting.data?.filter((w) => !w.household) }
   /** Who a device is being added for: kept here, so a profile made a moment ago shows before the list catches up. */
   /** `made`: the profile was made a moment ago for this guest, so giving up before a device joins removes it again. */
-  const [addingFor, setAddingFor] = useState<{ id: string; name: string; color?: string; made?: boolean }>()
+  const [addingFor, setAddingForState] = useState<{ id: string; name: string; color?: string; made?: boolean }>()
+  const setAddingFor = (person: typeof addingFor) => {
+    setAddingForState(person)
+    onAddingFor?.(person?.id)
+  }
   const adding = addingFor?.id
   const [removed, setRemoved] = useState<GuestDevice>()
   const [newPerson, setNewPerson] = useState('')
@@ -389,7 +421,18 @@ export function GuestsGroup({ onChange, canAdd = true }: { onChange: () => void;
           {nameTaken && (
             <p className="error guest-new-help" role="alert">
               {t('There’s already a profile called {name}.', { name: nameTaken.name })}{' '}
-              {!nameTaken.isMain && (
+              {!nameTaken.isMain && !guestIds.data?.includes(nameTaken.id) && onAddHousehold ? (
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() => {
+                    onAddHousehold(nameTaken.id)
+                    stopNaming()
+                  }}
+                >
+                  {t('Do they live with you? Add their device under Away from home')}
+                </button>
+              ) : !nameTaken.isMain && (
                 <button
                   type="button"
                   className="text-button"
@@ -422,7 +465,10 @@ export function GuestsGroup({ onChange, canAdd = true }: { onChange: () => void;
         <div key={person.id} className="panel guest-card guest-person">
           <span className="guest-who">
             <Avatar profile={{ name: person.name, color: person.color ?? guestProfiles.find((p) => p.id === person.id)?.color ?? '#a9c2ec' }} size={40} />
-            <strong className="guest-name">{person.name}</strong>
+            <span className="guest-name-block">
+              <strong className="guest-name">{person.name}</strong>
+              <LibrariesSeen profile={guestProfiles.find((p) => p.id === person.id)} libraries={libraries} />
+            </span>
             <IconButton
               label={t('Remove guest')}
               aria-label={t('Remove {name}', { name: person.name })}
@@ -536,6 +582,237 @@ export function GuestsGroup({ onChange, canAdd = true }: { onChange: () => void;
   )
 }
 
+/**
+ * Which libraries a guest sees, under their name, with Change opening their profile at its libraries (Settings ›
+ * Profiles), where hiding one is done.
+ */
+function LibrariesSeen({ profile, libraries }: { profile?: Profile; libraries: Library[] }) {
+  if (!profile || libraries.length < 2) return null
+  const seen = libraries.filter((l) => !profile.hiddenLibraryIds.includes(l.id))
+  const text =
+    seen.length === libraries.length
+      ? t('Sees every library')
+      : seen.length === 0
+        ? t('Sees no libraries')
+        : t('Sees {libraries}', { libraries: seen.map((l) => l.name).join(', ') })
+  return (
+    <span className="muted guest-libraries">
+      {text}
+      {' · '}
+      <a href={`/settings/profiles?edit=${encodeURIComponent(profile.id)}#libraries`} aria-label={t('Change the libraries {name} sees', { name: profile.name })}>
+        {t('Change')}
+      </a>
+    </span>
+  )
+}
+
+/**
+ * Away from home: people who live here, each with their phones, tablets and TVs that watch from anywhere through the
+ * same built-in Tailscale as guests, but as their own profile and with nothing a guest can't do taken away. Not the main
+ * profile (that keeps using Tailscale), nor a guest's. A device joins with a code it shows; removing it only signs it
+ * out.
+ */
+export function HouseholdGroup({
+  onChange,
+  canAdd = true,
+  startFor,
+  leaveOut,
+}: {
+  onChange: () => void
+  canAdd?: boolean
+  /** Start adding a device for this profile now (sent from Guests, when someone who lives here was typed there). */
+  startFor?: { id: string; at: number }
+  /** A profile Guests is adding a device for right now. */
+  leaveOut?: string
+}) {
+  const profiles = useApi(getProfiles, [])
+  const allDevices = useApi(getGuestDevices, [])
+  const guestIds = useApi(getGuestPeople, [])
+  const allWaiting = useApi(getGuestInvites, [])
+  const devices = allDevices.data?.filter((d) => d.household) ?? []
+  const waiting = allWaiting.data?.filter((w) => w.household) ?? []
+  const [adding, setAdding] = useState<string>()
+  const [joined, setJoined] = useState<string[]>([])
+  const [confirming, setConfirming] = useState<{ device: GuestDevice; label: string; person: string }>()
+  const [removing, setRemoving] = useState(false)
+  const [removeError, setRemoveError] = useState<string>()
+  const [removed, setRemoved] = useState<GuestDevice>()
+
+  const refresh = () => {
+    allDevices.reload()
+    allWaiting.reload()
+    onChange()
+  }
+  usePolling(refresh, adding ? 2000 : waiting.length ? 8000 : null)
+
+  // Each request from Guests once (`at` tells two for the same person apart).
+  const [started, setStarted] = useState<number>()
+  if (startFor && startFor.at !== started) {
+    setStarted(startFor.at)
+    setAdding(startFor.id)
+  }
+  const startedFor = startFor?.at === started ? startFor?.id : undefined
+  useEffect(() => {
+    if (startedFor) requestAnimationFrame(() => document.getElementById(`household-${startedFor}`)?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }))
+  }, [startedFor, started])
+
+  const focusAdd = (id: string | undefined) => requestAnimationFrame(() => document.getElementById(`household-add-${id}`)?.focus())
+  // Everyone who lives here but the main profile: those with no devices yet too, so adding one is a tap away.
+  const people = (profiles.data ?? []).filter((p) => !p.isMain && p.id !== leaveOut && !guestIds.data?.includes(p.id))
+
+  async function confirmRemove() {
+    if (!confirming) return
+    setRemoving(true)
+    setRemoveError(undefined)
+    try {
+      await removeGuestDevice(confirming.device.id)
+      setRemoved(confirming.device)
+      setConfirming(undefined)
+      refresh()
+    } catch (err) {
+      setRemoveError(errorText(err))
+    } finally {
+      setRemoving(false)
+    }
+  }
+
+  async function cancel(id: string) {
+    await cancelGuestInvite(id)
+    refresh()
+  }
+
+  return (
+    <div className="settings-group">
+      <div className="settings-group-head">
+        <h3 className="settings-subhead">{t('Away from home')}</h3>
+      </div>
+      <p className="settings-note household-intro">
+        {t('For people who live with you. Their phone, tablet or TV watches from anywhere as their own profile, with nothing to install but Flexarr.')}
+      </p>
+      {!canAdd && <p className="settings-note">{t('Adding devices waits for Tailscale setup, below.')}</p>}
+      <div className="guest-cards">
+        {profiles.data && people.length === 0 && (
+          <div className="panel guest-card">
+            <p className="muted guest-empty">
+              {t.rich('No one else lives here yet. Add them in {page} first.', { page: <a href="/settings/profiles">{t('Profiles')}</a> })}
+            </p>
+          </div>
+        )}
+        {people.map((person) => {
+          const theirs = devices.filter((d) => d.profileId === person.id)
+          const theirWaiting = waiting.filter((w) => w.profileId === person.id && adding !== person.id)
+          return (
+            <div key={person.id} id={`household-${person.id}`} className="panel guest-card guest-person">
+              <span className="guest-who">
+                <Avatar profile={person} size={40} />
+                <strong className="guest-name">{person.name}</strong>
+              </span>
+              <div className="guest-devices">
+                {theirs.map((d) => (
+                  <div key={d.id} className="guest-device">
+                    <span className="sign-in-icon">
+                      <DeviceTypeIcon type={d.deviceType} />
+                    </span>
+                    <span className="setting-text">
+                      <strong>
+                        {deviceLabel(d, person.name)}
+                        {joined.includes(d.id) && <span className="guest-new-tag">{t('New')}</span>}
+                      </strong>
+                      {d.serverMoved ? (
+                        <span className="error">{t('Can’t reach your server since its address changed. Remove it and add it again.')}</span>
+                      ) : (
+                        <span className="muted">{describeGuest(d, false)}</span>
+                      )}
+                    </span>
+                    <IconButton
+                      label={t('Sign out')}
+                      aria-label={t('Sign out {name}', { name: d.name })}
+                      icon={<icon.delete />}
+                      className="button quiet small icon danger-icon"
+                      onClick={() =>
+                        setConfirming({ device: d, person: person.name, label: t('{name}’s {device}', { name: person.name, device: deviceLabel(d, person.name) }) })
+                      }
+                    />
+                  </div>
+                ))}
+                {theirWaiting.map((w) => (
+                  <div key={w.id} className="guest-device">
+                    <span className="sign-in-icon guest-waiting-icon">
+                      <span className="guest-spinner" aria-hidden="true" />
+                    </span>
+                    <span className="setting-text">
+                      <strong>{t('Waiting for their device')}</strong>
+                      <span className="muted">{t('Invited {time}', { time: relativeTime(w.createdAt) })}</span>
+                    </span>
+                    <AsyncButton className="button quiet small" aria-label={t('Cancel the invite for {name}', { name: person.name })} onClick={() => cancel(w.id)}>
+                      {t(Words.cancel)}
+                    </AsyncButton>
+                  </div>
+                ))}
+                {theirs.length === 0 && theirWaiting.length === 0 && adding !== person.id && (
+                  <p className="muted guest-no-devices">{t('No devices away from home')}</p>
+                )}
+                {adding === person.id ? (
+                  <AddDevice
+                    name={person.name}
+                    profileId={person.id}
+                    household
+                    devices={theirs}
+                    onClose={() => {
+                      setAdding(undefined)
+                      focusAdd(person.id)
+                    }}
+                    onChange={refresh}
+                    onJoined={(deviceId) => {
+                      setJoined((ids) => [...ids, deviceId])
+                      setAdding(undefined)
+                      focusAdd(person.id)
+                    }}
+                  />
+                ) : canAdd ? (
+                  <div className="guest-device guest-add-row">
+                    <button type="button" id={`household-add-${person.id}`} className="text-button" onClick={() => setAdding(person.id)}>
+                      {t('+ Add device')}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      {removed && (
+        <p className="settings-note" role="status">
+          {t.rich('{name} is signed out. To free its place on your tailnet, delete it in {link}.', {
+            name: removed.name,
+            link: <a href={webLink(removed.tailscaleAdminUrl)}>{t('Tailscale’s Machines')}</a>,
+          })}
+        </p>
+      )}
+      {confirming && (
+        <ConfirmDialog
+          title={t('Sign out {name}?', { name: confirming.label })}
+          confirmLabel={t('Sign out')}
+          cancelLabel={t('Keep')}
+          danger
+          busy={removing}
+          error={removeError}
+          onConfirm={() => void confirmRemove()}
+          onClose={() => {
+            setConfirming(undefined)
+            setRemoveError(undefined)
+          }}
+        >
+          <p>{t('It stops reaching Flexarr. {name}’s profile and what they’ve watched stay. Adding it again takes a new code.', { name: confirming.person })}</p>
+        </ConfirmDialog>
+      )}
+      <p className="settings-note">
+        {t('Each device joins with a code that works once. The main profile isn’t here: away from home, it uses Tailscale.')}
+      </p>
+    </div>
+  )
+}
+
 /** What the device is ("iPhone"), already being in its person's card; its full name when its app hasn't said. */
 const deviceLabel = (device: GuestDevice, person: string) => {
   const prefix = [`${person}’s `, `${person}'s `].find((p) => device.name.startsWith(p))
@@ -548,6 +825,7 @@ const deviceLabel = (device: GuestDevice, person: string) => {
  */
 export function AddDevice({
   profileId,
+  household = false,
   devices,
   onClose,
   onChange,
@@ -555,6 +833,8 @@ export function AddDevice({
 }: {
   name: string
   profileId: string
+  /** For someone who lives here (Away from home), not a guest. */
+  household?: boolean
   devices: GuestDevice[]
   onClose: () => void
   onChange: () => void
@@ -588,7 +868,7 @@ export function AddDevice({
     setOverdue(false)
     setBefore(devices.map((d) => d.id))
     try {
-      await inviteGuestTv(code, null, profileId)
+      await inviteGuestTv(code, null, profileId, household)
       setWaiting(true)
       setSent(true)
       onChange()

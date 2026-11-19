@@ -67,6 +67,7 @@ describe('Settings › Remote access › Family invites', () => {
     mockApi({
       '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),
       '/profiles': [main, gran],
+      '/remote/guests/people': ['gran', 'sue'],
       '/remote/guests/invites': [],
       '/remote/guests/devices': [],
     })
@@ -109,6 +110,7 @@ describe('Settings › Remote access › Family invites', () => {
         check: { safe: false, problems: ['Guests could reach more than Flexarr.', 'address "100.64.0.2:22": want: Drop, got: Accept'], checkedAt: '', validated: true },
       }),
       '/profiles': [main, gran],
+      '/remote/guests/people': ['gran', 'sue'],
       '/remote/guests/invites': [],
       '/remote/guests/devices': [device()],
     })
@@ -127,6 +129,7 @@ describe('Settings › Remote access › Family invites', () => {
     mockApi({
       '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),
       '/profiles': [main, gran],
+      '/remote/guests/people': ['gran', 'sue'],
       '/remote/guests/invites': [],
       '/remote/guests/devices': [device()],
     })
@@ -149,6 +152,7 @@ describe('Settings › Remote access › Family invites', () => {
     mockApi({
       '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),
       '/profiles': [main, gran, { ...gran, id: 'sue', name: 'Aunt Sue' }],
+      '/remote/guests/people': ['gran', 'sue'],
       '/remote/guests/invites': [],
       '/remote/guests/devices': () => (joined ? [device(), device({ id: 'd2', name: 'Gran’s Apple TV', path: 'Direct' })] : [device()]),
       'POST /remote/guests/tv-code': (init?: RequestInit) => {
@@ -161,7 +165,7 @@ describe('Settings › Remote access › Family invites', () => {
     // Gran has a device; Aunt Sue, with a profile but no devices yet, is suggested by name; the main profile never is.
     expect(await screen.findByText('iPad')).toBeVisible()
 
-    fireEvent.click(screen.getByRole('button', { name: '+ Add device' }))
+    fireEvent.click(document.getElementById('guest-add-gran')!)
     const connect = screen.getByRole('button', { name: 'Connect' })
     expect(connect).toBeDisabled()
     fireEvent.change(screen.getByLabelText('Type the code their device shows'), { target: { value: 'abcd-efgh' } })
@@ -183,6 +187,7 @@ describe('Settings › Remote access › Family invites', () => {
     mockApi({
       '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),
       '/profiles': [main, gran, { ...gran, id: 'sue', name: 'Aunt Sue' }],
+      '/remote/guests/people': ['gran', 'sue'],
       '/remote/guests/invites': [],
       '/remote/guests/devices': [device()],
       'POST /profiles': () => {
@@ -207,6 +212,7 @@ describe('Settings › Remote access › Family invites', () => {
     mockApi({
       '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),
       '/profiles': [main, gran],
+      '/remote/guests/people': ['gran', 'sue'],
       '/remote/guests/invites': [],
       '/remote/guests/devices': [],
     })
@@ -224,6 +230,7 @@ describe('Settings › Remote access › Family invites', () => {
     mockApi({
       '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),
       '/profiles': [main, gran],
+      '/remote/guests/people': ['gran', 'sue'],
       '/remote/guests/invites': [],
       '/remote/guests/devices': () => (removed ? [] : [device()]),
       'DELETE /remote/guests/devices/d1': () => {
@@ -248,6 +255,7 @@ describe('Settings › Remote access › Family invites', () => {
     mockApi({
       '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),
       '/profiles': [main],
+      '/remote/guests/people': ['gran', 'sue'],
       '/remote/guests/invites': [],
       '/remote/guests/devices': [],
       'POST /profiles': (init?: RequestInit) => {
@@ -272,6 +280,7 @@ describe('Settings › Remote access › Family invites', () => {
     mockApi({
       '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),
       '/profiles': [main],
+      '/remote/guests/people': ['gran', 'sue'],
       '/remote/guests/invites': [],
       '/remote/guests/devices': [],
       'POST /profiles': { ...gran, id: 'mum', name: 'Mum' },
@@ -295,6 +304,7 @@ describe('Settings › Remote access › Family invites', () => {
     mockApi({
       '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),
       '/profiles': [main, gran],
+      '/remote/guests/people': ['gran', 'sue'],
       '/remote/guests/invites': [],
       '/remote/guests/devices': [device()],
       'DELETE /remote/guests/devices/d1': () => {
@@ -339,5 +349,104 @@ describe('Settings › Remote access › Family invites', () => {
     expect(describeGuest(device({ path: 'Direct' }))).toMatch(/^Gran\sDirect\slast used/)
     expect(describeGuest(device({ path: 'PeerRelay' }))).toMatch(/Through your relay/)
     expect(describeGuest(device({ online: false }))).toMatch(/Offline/)
+  })
+
+  describe('Away from home (people who live here)', () => {
+    const claire = { ...main, id: 'claire', name: 'Claire', isMain: false, isCurrent: false, hiddenLibraryIds: [] }
+
+    it('lists everyone who lives here but the main profile, and adds a device as theirs, not a guest', async () => {
+      let tv: unknown
+      mockApi({
+        '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),
+        '/profiles': [main, gran, claire],
+        '/remote/guests/people': ['gran'],
+        '/remote/guests/invites': [],
+        '/remote/guests/devices': [device()],
+        '/libraries': [],
+        'POST /remote/guests/tv-code': (init?: RequestInit) => {
+          tv = JSON.parse(String(init?.body))
+          return { id: 'i3', name: '', profileId: 'claire', profileName: 'Claire', via: 'TvCode', createdAt: '', expiresAt: '', household: true }
+        },
+      })
+      render(<FamilyInvites />)
+
+      expect(await screen.findByRole('heading', { name: 'Away from home' })).toBeVisible()
+      expect(await screen.findByText('No devices away from home')).toBeVisible()
+      // Gran is a guest, so only under Guests; the main profile is in neither.
+      expect(document.getElementById('household-gran')).toBeNull()
+      expect(document.getElementById('household-owner')).toBeNull()
+
+      fireEvent.click(document.getElementById('household-add-claire')!)
+      fireEvent.change(screen.getByLabelText('Type the code their device shows'), { target: { value: 'abcd-efgh' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+      await waitFor(() => expect(tv).toEqual({ code: 'ABCD-EFGH', name: null, profileId: 'claire', household: true }))
+    })
+
+    it('signing out a household device says their profile stays', async () => {
+      let removed = false
+      mockApi({
+        '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),
+        '/profiles': [main, claire],
+        '/remote/guests/people': [],
+        '/remote/guests/invites': [],
+        '/remote/guests/devices': () => (removed ? [] : [device({ id: 'c1', name: 'Claire’s iPad', profileId: 'claire', profileName: 'Claire', household: true })]),
+        'DELETE /remote/guests/devices/c1': () => {
+          removed = true
+          return undefined
+        },
+      })
+      render(<FamilyInvites />)
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Sign out Claire’s iPad' }))
+      expect(await screen.findByText(/Claire’s profile and what they’ve watched stay/)).toBeVisible()
+      // Not a guest: no Remove guest for Claire anywhere.
+      expect(screen.queryByRole('button', { name: 'Remove Claire' })).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
+      await waitFor(() => expect(removed).toBe(true))
+      expect(await screen.findByText(/is signed out/)).toBeVisible()
+    })
+
+    it('typing someone who lives here as a new guest offers Away from home instead', async () => {
+      let made = false
+      mockApi({
+        '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),
+        '/profiles': [main, claire],
+        '/remote/guests/people': [],
+        '/remote/guests/invites': [],
+        '/remote/guests/devices': [],
+        'POST /profiles': () => {
+          made = true
+          return claire
+        },
+      })
+      render(<FamilyInvites />)
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Add new guest' }))
+      fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'claire' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Do they live with you? Add their device under Away from home' }))
+      expect(made).toBe(false)
+      expect(await screen.findByLabelText('Type the code their device shows')).toBeVisible()
+      expect(document.getElementById('household-claire')?.querySelector('#guest-code')).not.toBeNull()
+    })
+  })
+
+  it('each guest card says which libraries they see, with Change opening their profile there', async () => {
+    mockApi({
+      '/remote/guests': setup({ clientId: 'abc', hasClient: true, check: safe }),
+      '/profiles': [main, { ...gran, hiddenLibraryIds: ['l2'] }],
+      '/remote/guests/people': ['gran'],
+      '/remote/guests/invites': [],
+      '/remote/guests/devices': [device()],
+      '/libraries': [
+        { id: 'l1', name: 'Films' },
+        { id: 'l2', name: 'Adult films' },
+        { id: 'l3', name: 'TV' },
+      ],
+    })
+    render(<FamilyInvites />)
+
+    expect(await screen.findByText(/Sees Films, TV/)).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Change the libraries Gran sees' })).toHaveAttribute('href', '/settings/profiles?edit=gran#libraries')
   })
 })
