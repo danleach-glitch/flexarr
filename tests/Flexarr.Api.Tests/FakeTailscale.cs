@@ -77,11 +77,11 @@ public sealed class FakeTailscale : HttpMessageHandler
             return new HttpResponseMessage(HttpStatusCode.OK);
         }
 
-        if (path == "/api/v2/tailnet/-/devices")
+        if (path == "/api/v2/tailnet/-/users")
         {
-            // Only a client with more than auth_keys and policy_file:read may list devices.
-            return Scope.Contains("devices", StringComparison.Ordinal) || Scope.Length == 0 && WideWithoutScope
-                ? Json("{\"devices\":[]}") : new HttpResponseMessage(HttpStatusCode.Forbidden);
+            // Only a client with more than Flexarr's scopes may list users.
+            return Scope.Contains("users", StringComparison.Ordinal) || Scope.Length == 0 && WideWithoutScope
+                ? Json("{\"users\":[]}") : new HttpResponseMessage(HttpStatusCode.Forbidden);
         }
 
         if (path == "/api/v2/tailnet/-/acl" && request.Method == HttpMethod.Get)

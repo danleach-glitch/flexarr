@@ -7,7 +7,7 @@ Decided:
 - **Server side:** uses the Tailscale already installed on the server (Mac, Linux, Windows). Docker and the Mac app need Tailscale built into the server, which is a later branch.
 - **What a guest gets:** one profile, fixed by the invite. A guest can't switch profiles, unlock settings, make TV codes, or see or control the household's devices.
 - **Removing a guest:** the server refuses everything from that tailnet device, and links the owner to the device in Tailscale's admin page to delete it.
-- **Flexarr's Tailscale access** is an OAuth client tagged `tag:flexarr-guest` with only `auth_keys` and `policy_file:read`. It can create guest keys and read the policy. It can't change the policy or touch other devices.
+- **Flexarr's Tailscale access** is an OAuth client tagged `tag:flexarr-guest` with only `auth_keys` and `policy_file:read` (plus the `devices:core:read` and `devices:posture_attributes:read` Tailscale adds to any client that reads the policy). It can create guest keys and read the policy. It can't change the policy or touch other devices.
 - **Phone invites:** `https://flexarr.io/join#<invite>`. The invite sits after the `#`, so browsers never send it to flexarr.io.
 - **TV codes** go through the push relay. It holds the TV's public key for up to 10 minutes, and the server encrypts the invite to that key.
 - **Invites** work once and last 3 days.
@@ -31,7 +31,7 @@ Decided:
 
    Grants allow only what they list. But a policy that still has the default `{"src":["*"],"dst":["*"],"ip":["*"]}` rule lets everything through, `*` matches tagged devices, and the check below refuses it. The setup page explains how to narrow `*` to `autogroup:member`.
 
-2. **Create an OAuth client** (Tailscale admin › Settings › Trust credentials) with the `auth_keys` scope (write, tag `tag:flexarr-guest`) and `policy_file:read`. Paste its ID and secret into Flexarr.
+2. **Create an OAuth client** (Tailscale admin › Settings › Trust credentials) with the `auth_keys` scope (write, tag `tag:flexarr-guest`) and `policy_file:read` (Tailscale adds the two device read scopes itself). Paste its ID and secret into Flexarr.
 
 3. Flexarr checks everything live:
    - Tailscale is running.

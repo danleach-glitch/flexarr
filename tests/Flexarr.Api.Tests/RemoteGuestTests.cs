@@ -796,6 +796,9 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
             Assert.Contains("didn’t accept", await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
             factory.Tailscale.AcceptClient = true;
             // A client that can do more than make keys and read the policy is refused.
+            // Tailscale adds the devices' read scopes to every client that reads the policy, so those pass.
+            factory.Tailscale.Scope = "auth_keys policy_file:read devices:core:read devices:posture_attributes:read";
+            Assert.Equal(HttpStatusCode.OK, (await admin.PutAsJsonAsync("/api/v1/remote/guests/client", new { clientId = "client", clientSecret = "secret" })).StatusCode);
             factory.Tailscale.Scope = "auth_keys policy_file devices:core";
             var tooMuch = await admin.PutAsJsonAsync("/api/v1/remote/guests/client", new { clientId = "client", clientSecret = "secret" });
             Assert.Equal(HttpStatusCode.BadRequest, tooMuch.StatusCode);
