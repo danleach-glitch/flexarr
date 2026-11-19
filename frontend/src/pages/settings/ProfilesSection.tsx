@@ -59,7 +59,7 @@ export function ProfilesSection() {
   const openedAt = opened && editing !== undefined && editing !== 'new' && editing.id === linked ? linked : undefined
   useEffect(() => {
     if (openedAt && window.location.hash === '#libraries')
-      requestAnimationFrame(() => document.querySelector('.profile-libraries')?.scrollIntoView?.({ block: 'start', behavior: 'smooth' }))
+      requestAnimationFrame(() => document.querySelector('.profile-libraries')?.scrollIntoView?.({ block: 'center', behavior: 'smooth' }))
   }, [openedAt])
   // A kids profile is only as safe as the admin PIN, which is what it takes to leave one.
   const me = useApi(getMe, [])
