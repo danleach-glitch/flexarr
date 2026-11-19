@@ -46,6 +46,13 @@ struct ServerSettingsView: View {
                      ? t("This {device} hasn’t reached the server over Tailscale yet.", ["device": ThisDevice.name])
                      : t("Away from home, this {device} reaches the server over Tailscale, which needs to be connected on it.", ["device": ThisDevice.name]))
             }
+            if model.offersUseAwayFromHome(serverVersion: status?.version) {
+                Section {
+                    SettingsLink(t("Use away from home"), icon: "key") { UseAwayFromHomeView() }
+                } footer: {
+                    Text(t("Watch here away from home without Tailscale. Whoever runs Flexarr types a code."))
+                }
+            }
             }
 
             Section {
@@ -139,6 +146,27 @@ struct ServerSettingsView: View {
             error = nil
         } catch {
             self.error = ConnectionError(error).message
+        }
+    }
+}
+
+/// Use away from home: the same code as Join someone’s Flexarr, for this device's own server. Once it's joined, the
+/// tunnel's sign-in takes the place of the one at home (keeping the downloads); Back leaves the one at home as it was.
+private struct UseAwayFromHomeView: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ScrollView {
+            GuestCodeView(onBack: { dismiss() })
+                .padding(20)
+                .frame(maxWidth: 560, alignment: .leading)
+                .frame(maxWidth: .infinity)
+        }
+        .settingsPage(t("Use away from home"))
+        // Joined: this page has done its job.
+        .onChange(of: model.credentials?.usesTunnel) { _, tunnel in
+            if tunnel == true { dismiss() }
         }
     }
 }

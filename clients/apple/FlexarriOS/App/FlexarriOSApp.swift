@@ -387,9 +387,11 @@ struct RootView: View {
         .onChange(of: model.phase) { old, new in
             // Joining someone's Flexarr signs out of this device's own server in the same moment: that counts too.
             if case .signedIn(let before) = old, new == .signedOut || model.credentials?.usesTunnel != before.usesTunnel {
-                downloads.deleteAll()
+                // Not when Use away from home moves this device's sign-in onto the tunnel for the same server.
+                if !model.keepsDownloads { downloads.deleteAll() }
                 notifications.forget()
             }
+            if case .signedIn = new { model.keepsDownloads = false }
         }
         // Back in front: anything that's due, and Apple's device token again in case it changed. Leaving: a wake-up
         // for later.

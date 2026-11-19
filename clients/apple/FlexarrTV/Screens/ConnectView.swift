@@ -439,8 +439,9 @@ private struct ManualConnect: View {
 
 // MARK: - A family invite, by code
 
-/// "Join someone’s Flexarr": the code to read to whoever invited this Apple TV (see `GuestCodeWaiter`).
-private struct GuestCode: View {
+/// "Join someone’s Flexarr": the code to read to whoever invited this Apple TV (see `GuestCodeWaiter`). Also Settings ›
+/// Server › Use away from home.
+struct GuestCode: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
     let onBack: () -> Void

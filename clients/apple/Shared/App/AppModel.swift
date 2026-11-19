@@ -183,6 +183,19 @@ final class AppModel {
     /// An invite link this app can't take now (it predates invites, or this device is signed in to its own server):
     /// what to do instead.
     var inviteNotice: String?
+    /// The sign-in is moving from home onto the tunnel for the same server (Use away from home): the change of
+    /// sign-in keeps this device's downloads. Cleared by the app once it's signed in again.
+    @ObservationIgnored var keepsDownloads = false
+
+    /// Settings › Server offers Use away from home: signed in at home (not through the tunnel) on a profile other than
+    /// the main one, to a server that has household devices away from home (0.67 and later; `serverVersion` as its
+    /// status says, nil while it's not known).
+    func offersUseAwayFromHome(serverVersion: String?) -> Bool {
+        guard GuestInvite.guestInvitesOffered, let credentials, !credentials.usesTunnel,
+              let profile = currentProfile, !profile.isMain, let serverVersion else { return false }
+        return ServerVersion.isAtLeast(serverVersion, major: 0, minor: 67) == true
+    }
+
     /// Just joined as a household device away from home: "Signed in as Claire", said once.
     var awayWelcome: AwayWelcome?
 
@@ -1098,6 +1111,9 @@ final class AppModel {
             GuestTunnel.shared.stop(forget: true)
             throw JoinError.otherServer
         }
+        // This device's own sign-in at home moving onto the tunnel for the same server (Use away from home): its
+        // downloads stay, as the same server and profile still have them. Another server's go, as with any sign-out.
+        keepsDownloads = redeemed.household == true && credentials.map { !$0.usesTunnel && $0.serverId == redeemed.serverId } == true
         if credentials != nil { signOut() }
         // A household device away from home (servers from 0.67 say so): its own profile, without a guest's limits.
         var tunnel = info
@@ -1106,6 +1122,7 @@ final class AppModel {
         do {
             try store.save(credentials)
         } catch {
+            keepsDownloads = false
             GuestTunnel.shared.stop()
             throw JoinError.failed(error.localizedDescription)
         }
