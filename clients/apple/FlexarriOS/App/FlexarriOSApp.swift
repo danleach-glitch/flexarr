@@ -290,6 +290,7 @@ struct FlexarriOSApp: App {
                 )) {
                     Button(t("OK"), role: .cancel) {}
                 }
+                .awayWelcome(model)
                 .onAppear { delegate.model = model }
         }
     }
@@ -385,7 +386,7 @@ struct RootView: View {
         }
         .onChange(of: model.phase) { old, new in
             // Joining someone's Flexarr signs out of this device's own server in the same moment: that counts too.
-            if case .signedIn(let before) = old, new == .signedOut || model.credentials?.isGuest != before.isGuest {
+            if case .signedIn(let before) = old, new == .signedOut || model.credentials?.usesTunnel != before.usesTunnel {
                 downloads.deleteAll()
                 notifications.forget()
             }

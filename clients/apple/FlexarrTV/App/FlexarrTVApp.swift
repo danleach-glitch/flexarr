@@ -117,6 +117,7 @@ struct RootView: View {
         } message: {
             Text(t("This server is older than this app supports, so some things won’t work until it’s updated."))
         }
+        .awayWelcome(model)
         .animation(.easeInOut(duration: 0.35), value: model.phase)
         .animation(.easeInOut(duration: 0.35), value: model.needsProfileChoice)
         .animation(.easeInOut(duration: 0.35), value: model.isOffline)

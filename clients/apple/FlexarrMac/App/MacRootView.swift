@@ -152,7 +152,7 @@ struct MacRootView: View {
             }
         }
         .onChange(of: model.phase) { old, new in
-            if case .signedIn(let before) = old, new == .signedOut || model.credentials?.isGuest != before.isGuest {
+            if case .signedIn(let before) = old, new == .signedOut || model.credentials?.usesTunnel != before.usesTunnel {
                 downloads.deleteAll()
                 notifications.forget()
             }

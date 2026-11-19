@@ -17,7 +17,11 @@ struct DownloadSettingsView: View {
             } header: {
                 PageTopHeader(t("Movies and episodes"))
             } footer: {
-                Text(t("Original keeps the full picture and sound but takes the most space. Albums, playlists and podcasts always come as their files are."))
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(t("Original keeps the full picture and sound but takes the most space. Albums, playlists and podcasts always come as their files are."))
+                    // Through the tunnel there's no background session: it can't reach the tunnel inside the app.
+                    if GuestMode.isActive { Text(t("On this connection, downloads carry on only while Flexarr is open.")) }
+                }
             }
 
             Section {

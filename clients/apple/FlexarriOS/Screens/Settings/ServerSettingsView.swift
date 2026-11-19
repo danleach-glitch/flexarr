@@ -7,19 +7,26 @@ struct ServerSettingsView: View {
     @State private var error: String?
 
     @State private var confirmLeave = false
-    /// A guest's tunnel right now (see `connection`), asked off the main thread.
+    /// The tunnel right now (see `connection`), asked off the main thread.
     @State private var path: String?
 
     var body: some View {
         List {
             if let guest = model.credentials?.guest {
+                // Through the tunnel: no address to show, just whose server. A guest leaves it here; a household device
+                // away from home signs out on Settings, as at home.
+                let isGuest = model.credentials?.isGuest == true
                 Section {
                     row(t("Server"), model.guestServerTitle(guest))
                     row(t("Connection"), connection)
-                    Button(t("Leave"), role: .destructive) { confirmLeave = true }
-                        .listRowBackground(Color.seat)
+                    if isGuest {
+                        Button(t("Leave"), role: .destructive) { confirmLeave = true }
+                            .listRowBackground(Color.seat)
+                    }
                 } header: {
-                    Text(t("Connected by invite"))
+                    Text(isGuest ? t("Connected by invite") : t("Away from home"))
+                } footer: {
+                    Text(t("Connected over the internet. AirPlay is off on this connection, and downloads carry on only while Flexarr is open."))
                 }
                 .leaveGuestConfirmation(isPresented: $confirmLeave, server: model.guestServerNaming(guest)) { model.signOut() }
             } else {
@@ -69,7 +76,7 @@ struct ServerSettingsView: View {
         .refreshable { await load() }
     }
 
-    /// A guest's tunnel right now: straight to the host's server, or through a relay.
+    /// The tunnel right now: straight to the host's server, or through a relay.
     private var connection: String {
         switch path {
         case "direct": t("Direct")
@@ -123,7 +130,7 @@ struct ServerSettingsView: View {
         // Says here whether the away address has been reached, so it's asked again if it hasn't (beside the status,
         // which needn't wait for it).
         Task { await model.checkAwayAddress() }
-        if model.credentials?.isGuest == true { path = await GuestTunnel.shared.connectionPath() }
+        if model.credentials?.usesTunnel == true { path = await GuestTunnel.shared.connectionPath() }
         guard let client = model.client else { return }
         do {
             status = try await client.systemStatus()

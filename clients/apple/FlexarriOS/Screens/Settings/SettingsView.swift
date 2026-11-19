@@ -166,7 +166,10 @@ struct SettingsView: View {
             Button(t("Sign out"), role: .destructive) { model.signOut() }
             Button(t(Words.cancel), role: .cancel) {}
         } message: {
-            Text(t("This {device} will need to connect again to use the server, and its downloads will be deleted.", ["device": ThisDevice.name]))
+            // Through the tunnel (a household device away from home), the way back is a new code.
+            Text(model.credentials?.usesTunnel == true
+                 ? t("Joining again takes a new code. Downloads are deleted.")
+                 : t("This {device} will need to connect again to use the server, and its downloads will be deleted.", ["device": ThisDevice.name]))
         }
         .sheet(isPresented: $choosingProfile) {
             ProfilePickerView(marksCurrent: true)
@@ -210,7 +213,7 @@ struct SettingsView: View {
 
     private var connection: String? {
         if model.isOffline { return t("Offline") }
-        if model.credentials?.isGuest == true { return model.serverTitle }
+        if model.credentials?.usesTunnel == true { return model.serverTitle }
         // The server's name when it has given one; with an address for away from home, which of the two is in use.
         guard model.credentials?.remoteAddress != nil else { return model.serverTitle }
         return model.client?.addresses.isAway == true ? t("Away") : t("At home")

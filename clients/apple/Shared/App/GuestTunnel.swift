@@ -6,8 +6,9 @@ import Security
 
 private let log = FlexarrLog("tunnel")
 
-/// This app is a family guest's (signed in through the tunnel): AirPlay is left out, since an AirPlay receiver
-/// can't reach a tunnel inside this device. Set as the sign-in changes (`AppModel.phase`).
+/// This app is signed in through the tunnel (a family guest, or a household device away from home): AirPlay is left
+/// out, since an AirPlay receiver can't reach a tunnel inside this device, and downloads carry on only while the app is
+/// open. Set as the sign-in changes (`AppModel.phase`). A guest's limits are `ServerCredentials.isGuest`, not this.
 enum GuestMode {
     nonisolated(unsafe) static var isActive = false
 }

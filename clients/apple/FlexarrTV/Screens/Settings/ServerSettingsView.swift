@@ -14,7 +14,10 @@ struct ServerSettingsView: View {
     var body: some View {
         SettingsPage(title: t("Server"), summary: summary) {
             SettingsGroupLabel(t("Connection"))
-            if let guest = model.credentials?.guest {
+            if let guest = model.credentials?.guest, model.credentials?.isGuest != true {
+                // A household device away from home: no address to show, just whose server. Sign out is on Settings.
+                SettingsFact(t("Away from home"), model.guestServerTitle(guest))
+            } else if let guest = model.credentials?.guest {
                 // A family guest: no address to show, just whose server, and a way to leave it.
                 SettingsFact(t("Connected by invite"), model.guestServerTitle(guest))
                 SettingsRow(title: t("Leave"), symbol: "rectangle.portrait.and.arrow.right",
@@ -73,7 +76,7 @@ struct ServerSettingsView: View {
         .task {
             await load()
             // Wherever focus landed as the page opened, it's on "Check again" now, in view, unless it's been moved.
-            if model.credentials?.guest == nil, FocusMove.untouched(since: openedAt) { focusesCheck = true }
+            if model.credentials?.isGuest != true, FocusMove.untouched(since: openedAt) { focusesCheck = true }
         }
     }
 
@@ -83,7 +86,9 @@ struct ServerSettingsView: View {
     }
 
     private var summary: String {
-        model.credentials?.remoteAddress == nil
+        model.credentials?.usesTunnel == true
+            ? t("Connected over the internet. AirPlay is off on this connection.")
+            : model.credentials?.remoteAddress == nil
             ? t("To watch away from home, turn on remote access with Tailscale in Settings › Remote access on the web. This Apple TV picks the address up by itself.")
             : model.credentials?.remoteConfirmed == false
             ? t("This Apple TV hasn’t reached the server over Tailscale yet.")
