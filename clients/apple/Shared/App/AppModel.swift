@@ -968,7 +968,7 @@ final class AppModel {
         do {
             let apiKey = credentials.apiKey
             let answers: (@Sendable (URL) async -> Bool)? = checking
-                ? { await FlexarrClient(baseURL: $0, apiKey: apiKey).isReachable(within: .seconds(5)) }
+                ? { @Sendable url in await FlexarrClient(baseURL: url, apiKey: apiKey).isReachable(within: .seconds(5)) }
                 : nil
             let address = try await GuestTunnel.shared.start(guest, answers: answers)
             early.cancel()
