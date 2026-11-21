@@ -1566,18 +1566,20 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
      * Starts a guest's tunnel, or finds it up: true once it is (and for everyone who isn't a guest). False when it
      * can't, with [tunnelProblem] set (unless the guest chose to stay offline), or the tailnet refused this device
      * ([GuestTunnel.onRefused] signs it out). Waits up to a minute; the problem shows after 15 seconds of trying.
+     * [checking]: a tunnel already up is asked whether the server still answers through it, and started again if not
+     * (back in front, offline mode trying again): its connections can be gone after the device has slept a while.
      */
-    private suspend fun ensureGuestTunnel(): Boolean {
+    private suspend fun ensureGuestTunnel(checking: Boolean = false): Boolean {
         credentials?.guest ?: return true
         // One start at a time: whoever else asks meanwhile (Try again, the profile list asked again) waits for it.
-        val start = tunnelStart?.takeIf { it.isActive } ?: scope.async { startGuestTunnel() }.also { tunnelStart = it }
+        val start = tunnelStart?.takeIf { it.isActive } ?: scope.async { startGuestTunnel(checking) }.also { tunnelStart = it }
         return start.await()
     }
 
     /** The guest tunnel's start under way, if any ([ensureGuestTunnel]). */
     private var tunnelStart: Deferred<Boolean>? = null
 
-    private suspend fun startGuestTunnel(): Boolean {
+    private suspend fun startGuestTunnel(checking: Boolean): Boolean {
         val guest = credentials?.guest ?: return true
         val early = scope.launch {
             // With no network at all that's offline mode now; still nothing after a while, the problem shows.
@@ -1589,7 +1591,11 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             if (tunnelProblem == null && !offlineAsGuest && !serverUnreachable && credentials?.guest == guest) tunnelProblem = t("Still connecting")
         }
         try {
-            withContext(Dispatchers.IO) { tunnel.port() }
+            val port = withContext(Dispatchers.IO) { tunnel.port() }
+            if (checking && credentials?.guest == guest && client?.isReachable() == false && !network.isOffline) {
+                flexarrLog.info("The server stopped answering through the tunnel: starting it again")
+                withContext(Dispatchers.IO) { tunnel.restart(port) }
+            }
             if (credentials?.guest == guest) {
                 tunnelProblem = null
                 offlineAsGuest = false
@@ -2180,7 +2186,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     /** Back in front: a guest's tunnel is started again if it stopped while the app was away. */
     fun cameToFront() {
         tunnelIdle?.cancel()
-        if (credentials?.usesTunnel == true) scope.launch(Dispatchers.IO) { tunnel.ensureRunning() }
+        if (credentials?.usesTunnel == true) scope.launch { ensureGuestTunnel(checking = true) }
         // One request does both: the connection to the server is set up again before Play needs it, and the server's
         // name follows if it was renamed on the web while the app was away. Starting up, it's the status already asked for.
         // Then, away from home, the link is measured, so the first play starts on a quality it carries.
@@ -2273,7 +2279,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         if (credentials == null) return
         if (serverUnreachable) {
             // A guest's server is only there once its tunnel is.
-            if (credentials?.usesTunnel == true && (network.isOffline || !ensureGuestTunnel())) return
+            if (credentials?.usesTunnel == true && (network.isOffline || !ensureGuestTunnel(checking = true))) return
             val client = client ?: return
             if (!knownReachable && !serverAnswers(client, ignoringNetwork)) return
             flexarrLog.info("Back online")
@@ -2290,8 +2296,14 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             if (System.currentTimeMillis() - FlexarrClient.lastAnsweredAtMs < 20_000) return
             val client = client ?: return
             if (serverAnswers(client, ignoringNetwork)) return
-            // One miss could be a moment's trouble (a busy server): offline only if it misses again shortly after.
-            delay(3_000)
+            if (credentials?.usesTunnel == true && !network.isOffline) {
+                // Through a tunnel, a miss may be the tunnel itself gone stale while the device slept: it starts again
+                // (joining the restart coming to the front began) before anything says offline.
+                ensureGuestTunnel(checking = true)
+            } else {
+                // One miss could be a moment's trouble (a busy server): offline only if it misses again shortly after.
+                delay(3_000)
+            }
             if (credentials == null || serverUnreachable || serverAnswers(client)) return
             goOffline()
         }

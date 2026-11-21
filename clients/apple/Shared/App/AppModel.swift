@@ -874,7 +874,7 @@ final class AppModel {
         if isOffline {
             // A guest's server is only there once its tunnel is.
             if credentials?.usesTunnel == true {
-                guard !(await NetworkWatch.shared.isOfflineNow()), await ensureGuestTunnel() else { return }
+                guard !(await NetworkWatch.shared.isOfflineNow()), await ensureGuestTunnel(checking: true) else { return }
             }
             guard let client else { return }
             if !knownReachable {
@@ -889,10 +889,16 @@ final class AppModel {
         } else if profilesLoaded {
             // Answered a moment ago: it's there.
             if let last = FlexarrClient.lastAnsweredAt, Date().timeIntervalSince(last) < 20 { return }
-            guard let client, !(await serverAnswers(client, ignoringNetwork: ignoringNetwork)) else { return }
-            // One miss could be a moment's trouble (a busy server): offline only if it misses again shortly after.
-            try? await Task.sleep(for: .seconds(3))
-            guard credentials != nil, !isOffline, !(await serverAnswers(client)) else { return }
+            guard let first = client, !(await serverAnswers(first, ignoringNetwork: ignoringNetwork)) else { return }
+            // Through a tunnel, a miss may be the tunnel itself gone stale while the app was away: it starts again
+            // (joining the restart coming to the front began) before anything says offline.
+            if credentials?.usesTunnel == true, !(await NetworkWatch.shared.isOfflineNow()) {
+                await ensureGuestTunnel(checking: true)
+            } else {
+                // One miss could be a moment's trouble (a busy server): offline only if it misses again shortly after.
+                try? await Task.sleep(for: .seconds(3))
+            }
+            guard credentials != nil, !isOffline, let client, !(await serverAnswers(client)) else { return }
             goOffline()
         }
     }
@@ -933,8 +939,11 @@ final class AppModel {
 
     /// Starts a family guest's tunnel, or finds it running (cheap), and keeps the sign-in's address in step with the
     /// tunnel's port. False, with `tunnelProblem` saying why, when it can't. True for everyone else.
+    /// `checking`: a tunnel already running is asked whether the server still answers through it, and started again if
+    /// not (back in front after a while away, Try again, offline mode trying again): the system closes its connections
+    /// while the app is suspended.
     @discardableResult
-    func ensureGuestTunnel() async -> Bool {
+    func ensureGuestTunnel(checking: Bool = false) async -> Bool {
         guard let credentials, let guest = credentials.guest else { return true }
         #if DEBUG
         if pretendsAway { return true }
@@ -957,7 +966,11 @@ final class AppModel {
         }
         defer { early.cancel() }
         do {
-            let address = try await GuestTunnel.shared.start(guest)
+            let apiKey = credentials.apiKey
+            let answers: (@Sendable (URL) async -> Bool)? = checking
+                ? { @Sendable url in await FlexarrClient(baseURL: url, apiKey: apiKey).isReachable(within: .seconds(5)) }
+                : nil
+            let address = try await GuestTunnel.shared.start(guest, answers: answers)
             early.cancel()
             let recovered = tunnelProblem != nil
             tunnelProblem = nil

@@ -400,7 +400,7 @@ struct RootView: View {
             if phase != .inactive { model.setInFront(phase == .active) }
             if phase == .active, model.credentials != nil {
                 // A guest's tunnel may have stopped while the app was away: back up before anything asks.
-                Task { await model.ensureGuestTunnel() }
+                Task { await model.ensureGuestTunnel(checking: true) }
                 // Offline mode ends (or starts) as soon as it's known whether the server answers now.
                 Task { await model.checkConnection() }
                 // A Watchlist widget placed since the watchlist last changed has nothing yet: what's ready now.

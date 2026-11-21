@@ -161,7 +161,7 @@ struct MacRootView: View {
         .onChange(of: scenePhase, initial: true) { _, phase in
             if phase != .inactive { model.setInFront(phase == .active) }
             if phase == .active, model.credentials != nil {
-                Task { await model.ensureGuestTunnel() }
+                Task { await model.ensureGuestTunnel(checking: true) }
                 Task { await model.checkConnection() }
                 // The rest ran a moment ago, as the window was last clicked into: nothing to catch up on yet.
                 let key = "\(model.credentials?.address.absoluteString ?? "")#\(model.credentials?.profileToken ?? "")"

@@ -209,7 +209,23 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     static let sessionIdentifier = "io.github.flexarr.downloads"
 
     private(set) var all: [LocalDownload] = [] {
-        didSet { refreshDownloadedIds() }
+        didSet {
+            refreshDownloadedIds()
+            keepAwakeForAwayDownloads()
+        }
+    }
+
+    /// Away from home the downloads come through the tunnel, which stops once the app is suspended (the screen
+    /// locking by itself, say): the screen stays on while any is under way, so they finish.
+    private func keepAwakeForAwayDownloads() {
+        #if canImport(UIKit)
+        KeepAwake.set(.awayDownloads, GuestMode.isActive && all.contains { download in
+            switch download.state {
+            case .preparing, .downloading: !isWaitingForWiFi(download)
+            case .downloaded, .failed: false
+            }
+        })
+        #endif
     }
     private(set) var collections: [LocalCollection] = []
     /// The ids of this profile's downloads that are here to play, kept apart from `all` so what only asks "is this

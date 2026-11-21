@@ -145,7 +145,7 @@ struct RootView: View {
             if phase != .inactive { model.setInFront(phase == .active) }
             if phase == .active {
                 // A guest's tunnel may have stopped while the app was away: back up before anything asks.
-                Task { await model.ensureGuestTunnel() }
+                Task { await model.ensureGuestTunnel(checking: true) }
                 // Offline ends (or starts) as soon as it's known whether the server answers now.
                 Task { await model.checkConnection() }
                 model.warmConnection()
