@@ -127,7 +127,12 @@ class GuestTunnel(context: Context, private val available: Boolean = BuildConfig
 
     override fun restart(failed: Int): Int = synchronized(lock) {
         // Another request may have started it again meanwhile.
-        if (listening == failed) listening = null
+        if (listening == failed) {
+            listening = null
+            // The Go side hands back the same node while it thinks it's running, connections gone or not: stopped
+            // first, it starts afresh from its saved identity.
+            if (loaded) runCatching { Tunnel.stop() }
+        }
         start()
     }
 

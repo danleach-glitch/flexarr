@@ -82,6 +82,6 @@ In **Tailscale setup** (choose **Show**), turn on **Faster relay** to make your 
 - **Leave** is in **Settings** in the app. Joining again takes a new code.
 - If the app can't reach your Flexarr, it says so, with **Try again** and **Leave**. Downloads on an iPhone, iPad or Android phone still play from there.
 - **AirPlay** and **Chromecast** aren't offered: those devices can't reach the private connection inside the guest's phone.
-- **Downloads** on iPhone and iPad carry on only while Flexarr is open.
+- **Downloads** on iPhone and iPad carry on only while Flexarr is open. The screen stays on until they're done.
 - **Top Shelf** on a guest's Apple TV stays empty.
 - **In a browser**, guests can't join. Browsers still need Tailscale, as in [Watch away from home](away-from-home.md).

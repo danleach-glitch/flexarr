@@ -586,7 +586,7 @@ final class PlayerViewController: UIViewController {
         sleepWatch?.cancel()
         sleepWatch = nil
         sleep.set(nil)
-        UIApplication.shared.isIdleTimerDisabled = false
+        KeepAwake.set(.player, false)
         #if os(iOS)
         if failed, UIApplication.shared.applicationState != .active {
             nowPlaying.leaveProblem(t("Couldn’t play this"))
@@ -1171,11 +1171,11 @@ final class PlayerViewController: UIViewController {
     /// in comes at once, and the Apple TV going to sleep with it stops the countdown, so the next episode never starts.
     private func updateIdleTimer(_ phase: TransportPhase? = nil) {
         switch phase ?? transport?.phase {
-        case .playing: UIApplication.shared.isIdleTimerDisabled = true
+        case .playing: KeepAwake.set(.player, true)
         case .loading, .buffering: break
         // Paused mid-countdown, the countdown holds: the screen may sleep as for any pause.
-        case .paused: UIApplication.shared.isIdleTimerDisabled = false
-        default: UIApplication.shared.isIdleTimerDisabled = countingDownToNext
+        case .paused: KeepAwake.set(.player, false)
+        default: KeepAwake.set(.player, countingDownToNext)
         }
     }
 

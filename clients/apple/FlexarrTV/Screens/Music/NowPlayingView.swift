@@ -63,7 +63,7 @@ struct NowPlayingView: View {
         .onDisappear { onScreen = false }
         // The visualiser is there to be watched: no screensaver over it while the music plays.
         .onChange(of: onScreen && visualiser && music.isPlaying) { _, awake in
-            UIApplication.shared.isIdleTimerDisabled = awake
+            KeepAwake.set(.visualiser, awake)
         }
     }
 

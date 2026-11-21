@@ -56,7 +56,12 @@ final class GuestTunnel: @unchecked Sendable {
     /// Starts the tunnel to `info.target` (or finds it running) and returns the server's address through it. Takes
     /// a moment the first time; `authKey` is needed only then, to join. Runs off the main thread: the Go side blocks
     /// for up to a minute.
-    func start(_ info: GuestTunnelInfo, authKey: String? = nil) async throws -> URL {
+    ///
+    /// `answers`, when given, is asked whether the server answers through a tunnel that's already running; if it
+    /// doesn't, the tunnel starts again. "Running" is only what the Go side last knew: while the app was suspended
+    /// (the screen locked a while) the system closed the node's connections, and it doesn't notice by itself.
+    func start(_ info: GuestTunnelInfo, authKey: String? = nil,
+               answers: (@Sendable (URL) async -> Bool)? = nil) async throws -> URL {
         // Launch, loading the profiles and coming to the front all ask at once: they share one start, since a second
         // start while the first is connecting would stop it, and two nodes can't share the state folder.
         let task: Task<URL, Error> = lock.withLock {
@@ -64,7 +69,19 @@ final class GuestTunnel: @unchecked Sendable {
             // Cheap (never waits on the Go side), so asking each time the app comes to the front costs nothing.
             if let running, running.target == info.target, Self.state() == "running",
                let url = URL(string: "http://127.0.0.1:\(running.port)") {
-                return Task { url }
+                guard let answers else { return Task { url } }
+                // Shared like a start, so the checks that come with coming to the front restart it only once.
+                let made = Task.detached(priority: .userInitiated) { [self] in
+                    if await answers(url) { return url }
+                    log.info("The server stopped answering through the tunnel: starting it again")
+                    lock.withLock { self.running = nil }
+                    FlexarrTunnelStop()
+                    // Its identity is kept, so no key is needed.
+                    return try startBlocking(info, authKey: nil)
+                }
+                starting = made
+                startingTarget = info.target
+                return made
             }
             // After any stop still under way, so it can't stop this one.
             let stopping = self.stopping
