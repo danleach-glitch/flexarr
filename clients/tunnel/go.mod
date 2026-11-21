@@ -2,7 +2,7 @@ module github.com/danleach-glitch/flexarr/clients/tunnel
 
 go 1.27.4
 
-require tailscale.com v1.104.6
+require tailscale.com v1.104.7
 
 require (
 	9fans.net/go v0.0.8-0.20250307142834-96bdba94b63f // indirect
