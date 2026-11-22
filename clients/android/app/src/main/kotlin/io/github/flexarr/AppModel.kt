@@ -337,6 +337,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         if (saved) store.saveLastAway(away)
         flexarrLog.info(if (away) "Household route: through the tunnel" else if (addresses.homeProven) "Household route: at home" else "Household route: trying home")
         if (!away && addresses.homeProven) stopTunnelAtHome() else tunnelAtHome?.cancel()
+        // Android TV's Watch Next is built from home, and empties away.
+        scope.launch { WatchNext.refresh(context) }
     }
 
     private var tunnelAtHome: Job? = null

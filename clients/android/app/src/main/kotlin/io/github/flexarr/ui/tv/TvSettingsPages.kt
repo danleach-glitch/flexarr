@@ -594,7 +594,9 @@ internal fun TvServerSettings(model: AppModel, libraries: Loader<List<Library>>,
         // A guest's server is only ever reached through the tunnel: no address to show.
         if (guest != null) {
             // A household device away from home rather than a guest: as the Apple TV.
-            item { TvSettingsFact(if (model.isGuest) t("Connected by invite") else t("Away from home"), model.guestServerTitle(guest)) }
+            // A household device at home on its server's home address says so: the route follows where it is.
+            val label = if (model.isGuest) t("Connected by invite") else if (model.householdAtHome) t("At home") else t("Away from home")
+            item { TvSettingsFact(label, model.guestServerTitle(guest)) }
         } else {
             model.serverName?.let { name -> item { TvSettingsFact(t("Name"), name) } }
             item { TvSettingsFact(t("Address"), shortAddress(model.credentials?.address)) }

@@ -139,6 +139,16 @@ data class ServerCredentials(
         )
     }
 
+    /**
+     * A household device's client for its server's home address alone ([pairsHome]), never the tunnel: home has to prove
+     * it's this server first, and with nothing to fall back on a request elsewhere is unreachable. For what only works
+     * at home (Android TV's Watch Next, whose pictures the launcher fetches itself). Null for anyone else on the tunnel.
+     */
+    fun homeClient(): FlexarrClient? {
+        val home = homeUrl?.takeIf { pairsHome } ?: return null
+        return FlexarrClient(ServerAddresses(home, null).also { it.serverId = serverId }, apiKey = apiKey.ifEmpty { null }, profileToken = profileToken)
+    }
+
     fun client(onUnauthorized: (() -> Unit)? = null) = FlexarrClient(
         addresses = addresses(),
         apiKey = apiKey.ifEmpty { null },
