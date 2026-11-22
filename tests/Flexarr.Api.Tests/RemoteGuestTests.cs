@@ -1013,6 +1013,22 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
         Assert.Equal(home, HomeAddress.IsHome(System.Net.IPAddress.Parse(address)));
 
     [Fact]
+    public async Task The_home_address_proves_itself_to_a_household_device_before_it_sends_its_key()
+    {
+        var claire = await factory.AddProfileAsync("Claire74");
+        var answer = await JoinHouseholdAsync(claire, "100.64.0.74");
+        const string challenge = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
+        var hash = ServerProof.HashOf(answer.ApiKey);
+
+        // Asked anonymously from home, as the apps do before trusting the address.
+        using var home = factory.From("192.168.1.74");
+        var setup = await home.GetFromJsonAsync<JsonElement>($"/api/v1/setup?challenge={challenge}&keyId={ServerProof.KeyId(hash)}");
+
+        Assert.Equal(answer.ServerId, setup.GetProperty("serverId").GetString());
+        Assert.Equal(ServerProof.Answer(hash, answer.ServerId, challenge), setup.GetProperty("proof").GetString());
+    }
+
+    [Fact]
     public async Task A_guests_key_never_works_from_the_home_network()
     {
         var (_, key) = await JoinAsync("Gran70");
