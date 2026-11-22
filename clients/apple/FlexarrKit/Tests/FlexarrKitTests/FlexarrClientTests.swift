@@ -9,6 +9,8 @@ final class StubProtocol: URLProtocol, @unchecked Sendable {
         var body: Data
         var contentType: String = "application/json"
         var headers: [String: String] = [:]
+        /// How long it takes to answer.
+        var delay: TimeInterval = 0
     }
 
     nonisolated(unsafe) private static var stubs: [String: Stub] = [:]
@@ -57,9 +59,16 @@ final class StubProtocol: URLProtocol, @unchecked Sendable {
         }
         let response = HTTPURLResponse(url: request.url!, statusCode: stub.status, httpVersion: "HTTP/1.1",
                                        headerFields: stub.headers.merging(["Content-Type": stub.contentType]) { _, type in type })!
-        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: stub.body)
-        client?.urlProtocolDidFinishLoading(self)
+        let answer = { [self] in
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: stub.body)
+            client?.urlProtocolDidFinishLoading(self)
+        }
+        if stub.delay > 0 {
+            DispatchQueue.global().asyncAfter(deadline: .now() + stub.delay) { answer() }
+        } else {
+            answer()
+        }
     }
 
     override func stopLoading() {}

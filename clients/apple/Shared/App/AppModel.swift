@@ -983,10 +983,10 @@ final class AppModel {
                 routeChanged(nil)
                 return true
             }
-            guard await startGuestTunnel(checking: checking) else { return false }
-            // Home didn't answer: the tunnel from now on, rather than each request waiting on home first.
-            if let now = self.client?.addresses, now.hasHomeRoute, let tunnel = now.tunnel { now.reached(tunnel) }
-            return true
+            // Home didn't answer: the tunnel from now on, rather than each request waiting on home first. Moved before it
+            // starts, so a late word from home (see `homeAnswers`) isn't undone once it's up.
+            client.addresses.homeMissed()
+            return await startGuestTunnel(checking: checking)
         }
         // Back in front, or the network changed: perhaps home now. Asked beside the tunnel, never waited on.
         if checking { Task.detached { _ = await client.homeAnswers(within: .seconds(5), fresh: true) } }
@@ -997,9 +997,16 @@ final class AppModel {
     }
 
     /// A household device's request had to go through the tunnel and it wasn't up (see `FlexarrClient.onTunnelNeeded`).
+    /// Only while the tunnel is the route: home in use never starts it.
     private func tunnelNeeded() async -> Bool {
-        guard credentials?.hasHomeRoute == true else { return false }
+        guard credentials?.hasHomeRoute == true, client?.addresses.onTunnel == true else { return false }
         return await startGuestTunnel()
+    }
+
+    /// A household device whose requests go to home now: whatever its tunnel does meanwhile (slow to start, turned
+    /// away) says nothing about whether the server can be reached.
+    private var homeIsRoute: Bool {
+        credentials?.hasHomeRoute == true && client?.addresses.onTunnel == false
     }
 
     /// A household device's requests moved between home and the tunnel (or `addresses` nil: wherever they go now). What
@@ -1051,7 +1058,14 @@ final class AppModel {
                     return
                 }
                 if second == 15 {
-                    if self.tunnelProblem == nil, !self.isOffline { self.tunnelProblem = t("Still connecting") }
+                    if self.homeIsRoute || self.isOffline { return }
+                    // A household device that has been online and moved off home: the slim offline bar while the
+                    // tunnel carries on trying, not a screen in the way of everything.
+                    if self.credentials?.hasHomeRoute == true, self.hasBeenOnline {
+                        self.goOffline()
+                    } else if self.tunnelProblem == nil {
+                        self.tunnelProblem = t("Still connecting")
+                    }
                     return
                 }
             }
@@ -1080,17 +1094,33 @@ final class AppModel {
             // Back after the problem showed: whatever gave up waiting for the tunnel (the profiles) goes again.
             if recovered, profilesLoad == nil { Task { await loadProfiles() } }
             if isOffline { Task { await checkConnection() } }
+            // Home answered while it started: it isn't needed after all.
+            if homeIsRoute { routeChanged(nil) }
             return true
+        } catch is CancellationError {
+            // Stopped as it started (home answered): nothing went wrong.
+            return false
         } catch GuestTunnel.Failure.needsInvite {
-            // Deleted from the host's tailnet (or its key ran out): Try again can't help, so it's as if removed.
+            // Deleted from the host's tailnet (or its key ran out): Try again can't help, so it's as if removed. Not
+            // while home is in use, which takes this device's sign-in whatever the tailnet says.
             guard guest.isSameTunnel(as: self.credentials?.guest) else { return false }
+            if homeIsRoute {
+                log.warning("The tunnel wants a new invite; home still answers")
+                return false
+            }
             removedAsGuest(guest)
             return false
         } catch {
             guard guest.isSameTunnel(as: self.credentials?.guest) else { return false }
             log.warning("The guest tunnel didn't start: \(error.localizedDescription)")
-            // With no network it's simply offline; the problem screen is for a tunnel that fails with one.
-            if network.isOffline { goOffline() } else { tunnelProblem = error.localizedDescription }
+            if homeIsRoute { return false }
+            // With no network it's simply offline; the problem screen is for a tunnel that fails with one. A household
+            // device that has been online gets the slim offline bar instead (it's left home, and will try again).
+            if network.isOffline || credentials.hasHomeRoute && hasBeenOnline {
+                goOffline()
+            } else {
+                tunnelProblem = error.localizedDescription
+            }
             return false
         }
     }

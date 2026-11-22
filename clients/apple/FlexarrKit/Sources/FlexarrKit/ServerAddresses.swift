@@ -136,6 +136,18 @@ public final class ServerAddresses: @unchecked Sendable {
         return remote
     }
 
+    /// Whether a GET at `url` also goes to the other address when it's slow to answer. Never from a household device's
+    /// home to the tunnel: a slow answer at home isn't a missing one, and the tunnel would start (and stay up) for
+    /// nothing. Home that can't connect still moves to the tunnel (`homeMissed`).
+    public func racesFrom(_ url: URL) -> Bool { !(hasHomeRoute && url == home) }
+
+    /// A household device's home didn't connect (or a transfer to it was cut off): the tunnel from now on, which starts
+    /// for the next request, and home is asked again in a few minutes.
+    public func homeMissed() {
+        guard hasHomeRoute, let remote, current == home else { return }
+        reached(remote)
+    }
+
     /// Home answered the sign-in with a refusal (401) while the tunnel takes it: a server that only takes it through
     /// the tunnel. Everything goes there from now on, and home isn't tried again on this instance, so the refusal is
     /// never taken for being signed out. Only for a household device's pairing; nothing otherwise.

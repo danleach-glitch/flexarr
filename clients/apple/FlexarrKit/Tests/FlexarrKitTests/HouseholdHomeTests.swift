@@ -4,6 +4,8 @@ import Testing
 
 /// A household device that joined by invite uses the server's home address while it answers, and the built-in tunnel
 /// when it doesn't (docs/remote-guests.md, "Household devices at home"). A family guest never has a home address.
+/// One at a time: some set `FlexarrClient.onTunnelNeeded`, which every household client here would call.
+@Suite(.serialized)
 struct HouseholdHomeTests {
     private static let id = "7d1e0b44-household"
     private static let target = "100.101.102.103:8383"
@@ -145,6 +147,47 @@ struct HouseholdHomeTests {
         #expect(client.addresses.onTunnel)
         #expect(client.addresses.alternate(to: Self.tunnelAddress) == nil, "home isn't tried again")
         #expect(!(await client.homeAnswers()))
+    }
+
+    /// Records each time a request asks for the tunnel, and whether the tunnel was the route then.
+    private final class TunnelAsks: @unchecked Sendable {
+        private let lock = NSLock()
+        private var asks: [Bool] = []
+        var recorded: [Bool] { lock.withLock { asks } }
+        func ask(onTunnel: Bool) { lock.withLock { asks.append(onTunnel) } }
+    }
+
+    @Test func homeIsNeverRacedAgainstTheTunnel_ASlowAnswerIsWaitedFor() async throws {
+        let (client, home) = client()
+        let asks = TunnelAsks()
+        let addresses = client.addresses
+        FlexarrClient.onTunnelNeeded = { asks.ask(onTunnel: addresses.onTunnel); return false }
+        defer { FlexarrClient.onTunnelNeeded = nil }
+        #expect(!addresses.racesFrom(addresses.home))
+        #expect(addresses.racesFrom(Self.tunnelAddress), "from the tunnel, home is still asked alongside")
+        var slow = Self.status
+        slow.delay = 3.2 // longer than `ServerAddresses.alternateDelay`
+        StubProtocol.register(host: home, slow)
+        StubProtocol.register(host: home, path: "/api/v1/setup", Self.setup(Self.id))
+
+        let status = try await client.systemStatus()
+
+        #expect(status.appName == "Flexarr")
+        #expect(asks.recorded.isEmpty, "a slow home never starts the tunnel")
+        #expect(!addresses.onTunnel)
+    }
+
+    @Test func homeThatCantConnectMovesToTheTunnel_WhichOnlyThenStarts() async {
+        let (client, _) = client() // nothing answers at home
+        let asks = TunnelAsks()
+        let addresses = client.addresses
+        FlexarrClient.onTunnelNeeded = { asks.ask(onTunnel: addresses.onTunnel); return false }
+        defer { FlexarrClient.onTunnelNeeded = nil }
+
+        await #expect(throws: (any Error).self) { _ = try await client.systemStatus() }
+
+        #expect(asks.recorded == [true], "the tunnel starts once it's the route, and only then")
+        #expect(addresses.onTunnel)
     }
 
     @Test func aHouseholdSignInIsSavedWhereOlderVersionsDoNotLook() throws {

@@ -1830,8 +1830,10 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         log.info("A download lost the home address: carrying on through the tunnel")
         let addresses = client.addresses
         Task { @MainActor in
-            if !(await client.homeAnswers(fresh: true)), await FlexarrClient.onTunnelNeeded?() == true, let tunnel = addresses.tunnel {
-                addresses.reached(tunnel)
+            // The tunnel is the route first: only then does it start for the transfer.
+            if !(await client.homeAnswers(fresh: true)) {
+                addresses.homeMissed()
+                _ = await FlexarrClient.onTunnelNeeded?()
             }
             if isOnline { poll() }
         }

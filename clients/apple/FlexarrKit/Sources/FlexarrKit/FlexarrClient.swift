@@ -74,8 +74,9 @@ public struct FlexarrClient: Sendable {
     /// chooseProfile`) rather than as the main profile. Servers before 0.63 ignore it.
     static let profileChoiceHeader = "X-Flexarr-Profile-Choice"
 
-    /// Called when a request for a household device has to go through the built-in tunnel (home didn't answer) and the
-    /// tunnel isn't up: starts it, true once it's listening. Set once at launch; without it such a request can't connect.
+    /// Called when a request for a household device has to go through the built-in tunnel (home didn't answer, so the
+    /// tunnel is the route now) and the tunnel isn't up: starts it, true once it's listening. Set once at launch; without
+    /// it such a request can't connect.
     public nonisolated(unsafe) static var onTunnelNeeded: (@Sendable () async -> Bool)?
 
     /// Debug builds' "act offline": every request fails as if there were no network, and `isReachable` says no.
@@ -140,6 +141,7 @@ public struct FlexarrClient: Sendable {
         let seconds = Double(limit.components.seconds) + Double(limit.components.attoseconds) / 1e18
         let primary = addresses.current
         let alternate = addresses.alternate(to: primary)
+        let races = addresses.racesFrom(primary)
         // Its own session, so it never waits in line behind artwork for the same server.
         let session = session === URLSession.shared ? Self.probeSession : session
         @Sendable func probe(_ url: URL) -> URLRequest {
@@ -164,9 +166,10 @@ public struct FlexarrClient: Sendable {
             }
             if let alternate {
                 group.addTask {
-                    // A head start for the address in use, unless it's already failed.
+                    // A head start for the address in use, unless it's already failed. A household device's home
+                    // is waited on for as long as it takes: the tunnel only once home has failed.
                     await withTaskGroup(of: Void.self) { wait in
-                        wait.addTask { try? await Task.sleep(for: ServerAddresses.probeHeadStart) }
+                        if races { wait.addTask { try? await Task.sleep(for: ServerAddresses.probeHeadStart) } }
                         wait.addTask { for await _ in firstFailed.stream { return } }
                         await wait.next()
                         wait.cancelAll()
@@ -1233,7 +1236,8 @@ public struct FlexarrClient: Sendable {
     /// Sends the request to the address that answered last. With a second address, a GET that can't connect to the
     /// first (or hasn't heard back after `ServerAddresses.alternateDelay`) is also sent there and the first answer
     /// wins; anything else only moves over once the first address has failed to connect, so a write is never sent
-    /// twice. Whichever address answers is used from then on.
+    /// twice. Whichever address answers is used from then on. A household device at home never races the tunnel: home is
+    /// waited on, and the tunnel used only once home can't connect (see `ServerAddresses.racesFrom`).
     private func exchange(_ method: String, _ path: String, query: [URLQueryItem], bodyData: Data?, headers: [String: String] = [:],
                           contentType: String, timeout: TimeInterval, racesAlternate: Bool) async throws -> Answer {
         do {
@@ -1260,13 +1264,15 @@ public struct FlexarrClient: Sendable {
                              timeout: timeout)
         let answer: Answer
         let reached: URL
-        if method == "GET", racesAlternate {
+        if method == "GET", racesAlternate, addresses.racesFrom(primary) {
             (answer, reached) = try await race(first, at: primary, then: second, at: alternate)
         } else {
             do {
                 answer = try await exchange(first, at: primary)
                 reached = primary
             } catch let error where Self.couldNotConnect(error) {
+                // A household device's home that can't be reached: the tunnel is the route now (and starts for this).
+                addresses.homeMissed()
                 guard let other = try? await exchange(second, at: alternate) else { throw FlexarrClientError.unreachable }
                 answer = other
                 reached = alternate
