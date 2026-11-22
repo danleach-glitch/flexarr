@@ -130,13 +130,17 @@ public struct RedeemedInvite: Decodable, Sendable, Equatable {
     /// The device joined as a household device away from home, on its own profile with none of a guest's limits.
     /// Absent from servers before 0.67 (a guest).
     public var household: Bool? = nil
+    /// A household device's way to the server at home (see `SignInInfo.homeUrl`); nil for a guest. Absent from servers
+    /// before 0.67.
+    public var homeUrl: URL? = nil
 
-    public init(apiKey: String, profileId: String, serverId: String, name: String, household: Bool? = nil) {
+    public init(apiKey: String, profileId: String, serverId: String, name: String, household: Bool? = nil, homeUrl: URL? = nil) {
         self.apiKey = apiKey
         self.profileId = profileId
         self.serverId = serverId
         self.name = name
         self.household = household
+        self.homeUrl = homeUrl
     }
 }
 

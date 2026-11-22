@@ -1152,6 +1152,10 @@ public struct SignInInfo: Decodable, Sendable, Equatable {
     /// watching?". Until a profile is chosen, the server refuses anything else (`FlexarrClient.onChooseProfile`).
     /// Absent from servers before 0.63.
     public var chooseProfile: Bool? = nil
+    /// The server's address on its home network (`http://192.168.1.50:8383`), for a household device away from home:
+    /// the app uses it instead of the tunnel while it answers (and says it's the same server). Nil for a guest, a server
+    /// in Docker, or when the server can't tell. Absent from servers before 0.67.
+    public var homeUrl: URL? = nil
 }
 
 /// What `POST /admin/unlock` answers.
