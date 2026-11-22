@@ -14,20 +14,27 @@ public struct ServerCredentials: Sendable, Equatable {
     /// False while `remoteAddress` hasn't given the server's id to this device: the server gave it while Tailscale
     /// wasn't connected here. It's then asked before it's sent this sign-in (see `ServerAddresses.remoteConfirmed`).
     public var remoteConfirmed: Bool
-    /// A sign-in through the built-in tunnel (a family guest's, or a household device's away from home): how to start
-    /// the tunnel into the host's tailnet. `address` is then the tunnel's own address on this device (127.0.0.1), and
-    /// there's never a home or away address: the device's network might have something else at the host's home
-    /// address, which mustn't be sent this sign-in.
+    /// A sign-in through the built-in tunnel (a family guest's, or a household device's that joined by invite): how to
+    /// start the tunnel into the host's tailnet. `address` is then the tunnel's own address on this device (127.0.0.1),
+    /// and there's never an away address. A guest never has a home address either: the device's network might have
+    /// something else at the host's home address, which mustn't be sent this sign-in.
     public var guest: GuestTunnelInfo?
     /// The server's own id (`SystemStatus.serverId`), kept from the first time it gives it, so the home address can be
     /// asked who it is before it's sent this sign-in (see `ServerAddresses`). Nil for servers before 0.55, until the
     /// server has said, and for a guest (whose address is its own tunnel).
     public var serverId: String?
+    /// A household device's way to the server at home (`SignInInfo.homeUrl`), used instead of the tunnel while it
+    /// answers as the server with `serverId`. Only ever for a household sign-in through the tunnel, and only an address
+    /// the server gave: never a guest's.
+    public var homeAddress: URL?
 
-    /// Reaches the server through the built-in tunnel: no AirPlay (a receiver can't reach a tunnel inside this device),
-    /// downloads only while the app is open, no Top Shelf, and never a home or away address. A guest or a household
-    /// device away from home.
+    /// Signed in through the built-in tunnel: a guest or a household device that joined by invite. Whether requests go
+    /// through it now is the route's to say (`ServerAddresses.onTunnel`): a household device at home uses home.
     public var usesTunnel: Bool { guest != nil }
+
+    /// A household device that can switch between home and the tunnel: it has the home address and the server's id
+    /// to ask it for.
+    public var hasHomeRoute: Bool { isHouseholdAway && homeAddress != nil && serverId?.isEmpty == false }
 
     /// A family guest: the tunnel, with a guest's limits (kept to its profile, no child lock, Leave rather than Sign
     /// out, no commands from the host's devices). Not a household device away from home (`isHouseholdAway`).
@@ -44,6 +51,11 @@ public struct ServerCredentials: Sendable, Equatable {
         tunnel.household = !says
         var matched = self
         matched.guest = tunnel
+        // A guest's is never told where home is.
+        if says {
+            matched.homeAddress = nil
+            matched.serverId = nil
+        }
         return matched
     }
 
@@ -56,13 +68,15 @@ public struct ServerCredentials: Sendable, Equatable {
     }
 
     public init(address: URL, apiKey: String, profileToken: String? = nil, remoteAddress: URL? = nil, guest: GuestTunnelInfo? = nil,
-                serverId: String? = nil, remoteConfirmed: Bool = true) {
+                serverId: String? = nil, remoteConfirmed: Bool = true, homeAddress: URL? = nil) {
         self.address = address
         self.apiKey = apiKey
         self.profileToken = profileToken
         self.guest = guest
         self.remoteAddress = guest != nil || remoteAddress == address ? nil : remoteAddress
-        self.serverId = guest != nil ? nil : serverId
+        let household = guest?.household == true
+        self.serverId = guest != nil && !household ? nil : serverId
+        self.homeAddress = household && homeAddress != address ? homeAddress : nil
         self.remoteConfirmed = remoteConfirmed
     }
 
@@ -79,10 +93,20 @@ public struct ServerCredentials: Sendable, Equatable {
 
     /// A client for this sign-in; `onUnauthorized` hears about every 401 it gets. Clients for the same sign-in share
     /// which address is answering (see `ServerAddresses`).
+    ///
+    /// A household device with a home address pairs it with the tunnel: home (asked to prove it's the server with
+    /// `serverId` before it's sent anything) while it answers, the tunnel's address on this device when it doesn't.
     public func client(onUnauthorized: (@Sendable () -> Void)? = nil) -> FlexarrClient {
-        FlexarrClient(addresses: ServerAddresses.shared(home: address, remote: remoteAddress, serverId: usesTunnel ? nil : serverId,
-                                                        remoteConfirmed: remoteConfirmed, guest: guest?.target),
-                      apiKey: apiKey.isEmpty ? nil : apiKey, profileToken: profileToken, onUnauthorized: onUnauthorized)
+        FlexarrClient(addresses: addresses, apiKey: apiKey.isEmpty ? nil : apiKey, profileToken: profileToken, onUnauthorized: onUnauthorized)
+    }
+
+    /// The addresses this sign-in's clients share (see `ServerAddresses.shared`).
+    public var addresses: ServerAddresses {
+        if hasHomeRoute, let homeAddress {
+            return ServerAddresses.shared(home: homeAddress, remote: address, serverId: serverId, guest: guest?.target)
+        }
+        return ServerAddresses.shared(home: address, remote: remoteAddress, serverId: usesTunnel ? nil : serverId,
+                                      remoteConfirmed: remoteConfirmed, guest: guest?.target)
     }
 }
 
@@ -173,8 +197,9 @@ public struct CredentialStore: Sendable {
                                  profileToken: profileToken(account: text),
                                  remoteAddress: confirmed ?? pending,
                                  guest: defaults.data(forKey: "\(addressKey).guest").flatMap { try? JSONDecoder().decode(GuestTunnelInfo.self, from: $0) },
-                                 serverId: defaults.string(forKey: "\(addressKey).serverId"),
-                                 remoteConfirmed: confirmed != nil || pending == nil)
+                                 serverId: defaults.string(forKey: "\(addressKey).serverId") ?? defaults.string(forKey: "\(addressKey).householdServerId"),
+                                 remoteConfirmed: confirmed != nil || pending == nil,
+                                 homeAddress: defaults.string(forKey: "\(addressKey).householdHome").flatMap(URL.init(string:)))
     }
 
     /// The last address used, kept after sign-out so the connect screen can prefill it.
@@ -197,6 +222,15 @@ public struct CredentialStore: Sendable {
         saveRemoteAddress(credentials.away)
         saveServerId(credentials.usesTunnel ? nil : credentials.serverId)
         defaults.set(credentials.guest.flatMap { try? JSONEncoder().encode($0) }, forKey: "\(addressKey).guest")
+        saveHousehold(home: credentials.homeAddress, serverId: credentials.serverId, of: credentials)
+    }
+
+    /// Remembers a household device's home address and the server's id it's asked for (nil forgets them). Under keys of
+    /// their own: versions of the app from before read a tunnel sign-in as the tunnel only, as it always was.
+    public func saveHousehold(home: URL?, serverId: String?, of credentials: ServerCredentials) {
+        let household = credentials.isHouseholdAway
+        defaults.set(household ? home?.absoluteString : nil, forKey: "\(addressKey).householdHome")
+        defaults.set(household && serverId?.isEmpty == false ? serverId : nil, forKey: "\(addressKey).householdServerId")
     }
 
     /// Remembers the server's address for away from home and whether it's confirmed (nil forgets it). A guest never
@@ -280,6 +314,8 @@ public struct CredentialStore: Sendable {
         defaults.removeObject(forKey: "\(addressKey).serverId")
         defaults.removeObject(forKey: "\(addressKey).guest")
         defaults.removeObject(forKey: "\(addressKey).name")
+        defaults.removeObject(forKey: "\(addressKey).householdHome")
+        defaults.removeObject(forKey: "\(addressKey).householdServerId")
     }
 
     // MARK: Keychain
