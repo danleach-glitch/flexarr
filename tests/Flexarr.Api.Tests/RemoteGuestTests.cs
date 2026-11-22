@@ -943,6 +943,41 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
         return (await redeemed.Content.ReadFromJsonAsync<RedeemedInviteDto>(Web))!;
     }
 
+    [Fact]
+    public async Task A_household_device_also_signs_in_from_the_home_network_but_nowhere_else()
+    {
+        var claire = await factory.AddProfileAsync("Claire70");
+        const string address = "100.64.0.70";
+        var answer = await JoinHouseholdAsync(claire, address);
+
+        // Home: the same key works, so the device can switch between its tunnel and the home address.
+        using var home = factory.From("192.168.1.70", answer.ApiKey);
+        Assert.Equal(claire, (await home.GetFromJsonAsync<JsonElement>("/api/v1/me")).GetProperty("profileId").GetString());
+
+        // Another tailnet address, or the internet: still refused.
+        using var otherTailnet = factory.From("100.64.0.71", answer.ApiKey);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await otherTailnet.GetAsync("/api/v1/me")).StatusCode);
+        using var internet = factory.From("203.0.113.70", answer.ApiKey);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await internet.GetAsync("/api/v1/me")).StatusCode);
+
+        // Relayed from the internet to this machine: refused, however local it looks.
+        using var relayed = factory.From("127.0.0.1", answer.ApiKey);
+        relayed.DefaultRequestHeaders.Add("CF-Connecting-IP", "203.0.113.71");
+        Assert.Equal(HttpStatusCode.Unauthorized, (await relayed.GetAsync("/api/v1/me")).StatusCode);
+
+        // This machine itself isn't the home network.
+        using var loopback = factory.From("127.0.0.1", answer.ApiKey);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await loopback.GetAsync("/api/v1/me")).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_guests_key_never_works_from_the_home_network()
+    {
+        var (_, key) = await JoinAsync("Gran70");
+        using var home = factory.From("192.168.1.72", key);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await home.GetAsync("/api/v1/me")).StatusCode);
+    }
+
     private async Task<string> AddKidsProfileAsync(string name)
     {
         using var scope = factory.Services.CreateScope();
