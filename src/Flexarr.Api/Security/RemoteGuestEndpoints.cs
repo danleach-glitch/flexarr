@@ -64,7 +64,8 @@ public sealed record TvCodeRequest(string Code, string? Name, string ProfileId, 
 /// <param name="ApiKey">The guest device's own sign-in, sent as X-Api-Key.</param>
 /// <param name="Household">The device joined as a household device away from home, not a guest: no guest limits apply.
 /// Absent from servers before 0.67.</param>
-public sealed record RedeemedInviteDto(string ApiKey, string ProfileId, string ServerId, string Name, bool Household = false);
+/// <param name="HomeUrl">The server's home address, for a household device only (see <see cref="MeDto.HomeUrl"/>).</param>
+public sealed record RedeemedInviteDto(string ApiKey, string ProfileId, string ServerId, string Name, bool Household = false, Uri? HomeUrl = null);
 
 /// <summary>Family invites: guests watching from their own homes through Tailscale built into the apps (docs/remote-guests.md).</summary>
 public static class RemoteGuestEndpoints
@@ -297,7 +298,7 @@ public static class RemoteGuestEndpoints
     public static RouteGroupBuilder MapGuestRedeemEndpoints(this RouteGroupBuilder api)
     {
         api.MapPost("/invites/redeem", async (RedeemInviteRequest request, HttpContext http, GuestInvites invites, GuestPolicy policy, ITailnetWhois whois,
-            IOptionsMonitor<FlexarrOptions> options, Notifications.GuestAlerts alerts, FlexarrDbContext db, CancellationToken ct) =>
+            IOptionsMonitor<FlexarrOptions> options, Notifications.GuestAlerts alerts, FlexarrDbContext db, HomeAddress home, CancellationToken ct) =>
         {
             var settings = options.CurrentValue.RemoteGuests;
             if (!settings.Enabled)
@@ -328,7 +329,8 @@ public static class RemoteGuestEndpoints
                     _ = Task.Run(() => invites.DeleteUsedKeyAsync(invite, CancellationToken.None), CancellationToken.None);
                 }
 
-                return Results.Ok(new RedeemedInviteDto(token, signIn.ProfileId!, options.CurrentValue.ServerId ?? "", signIn.Name, signIn.Away));
+                return Results.Ok(new RedeemedInviteDto(token, signIn.ProfileId!, options.CurrentValue.ServerId ?? "", signIn.Name, signIn.Away,
+                    signIn.Away ? home.Url() : null));
             }
             catch (InviteException ex)
             {

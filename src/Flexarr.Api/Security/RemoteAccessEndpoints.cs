@@ -52,9 +52,14 @@ public sealed record TailscaleLinkRequest(string Login, string? ProfileId);
 /// Whose names the server's age limits go by: "uk" (U, PG, 12, 15, 18) or "us" (G, PG, PG-13, TV-14, R), for the same
 /// ages. Absent from servers before 0.64, which are the UK's.
 /// </param>
+/// <param name="HomeUrl">
+/// For a household device that joined by invite: the server's address on the home network, which its sign-in also
+/// works from, so it can use it while it's home and its tunnel when it isn't. Never for a guest; null in Docker or
+/// when the server can't tell. Absent from servers before 0.67.
+/// </param>
 public sealed record MeDto(string ProfileId, string Method, NetworkZone Zone, bool IsAdmin, string? TailscaleLogin, bool CanUnlock = false, bool AdminPinMissing = false,
     DateTime? UnlockedUntil = null, bool IsKids = false, int? MaxRatingAge = null, bool KidsLock = false, bool IsGuest = false, string? Language = null,
-    bool ChooseProfile = false, string? RatingSystem = null);
+    bool ChooseProfile = false, string? RatingSystem = null, Uri? HomeUrl = null);
 
 /// <summary>The language a profile picked; null to follow each device's own.</summary>
 public sealed record LanguageChoice(string? Language);
@@ -65,7 +70,7 @@ public static class RemoteAccessEndpoints
     {
         // Who this request is: which profile, how it signed in, and from where.
         api.MapGet("/me", async (HttpContext http, Flexarr.Api.Profiles.CurrentProfile profile, FlexarrDbContext db, AdminUnlocks unlocks, SignIns signIns,
-            IOptionsMonitor<FlexarrOptions> options, CancellationToken ct) =>
+            IOptionsMonitor<FlexarrOptions> options, HomeAddress home, CancellationToken ct) =>
         {
             return new MeDto(
                 profile.Id,
@@ -79,7 +84,9 @@ public static class RemoteAccessEndpoints
                 db.ServesKids, db.MaxRatingAge, signIns.ById(profile.SignInId)?.KidsLock == true, profile.IsGuest,
                 await db.Profiles.AsNoTracking().Where(p => p.Id == profile.Id).Select(p => p.Language).FirstOrDefaultAsync(ct),
                 http.User.HasClaim(FlexarrClaims.ChooseProfile, "true"),
-                options.CurrentValue.Podcasts.RatingSystem.ToString().ToLowerInvariant());
+                options.CurrentValue.Podcasts.RatingSystem.ToString().ToLowerInvariant(),
+                // A household device that joined by invite uses this while it's home; a guest is never told it.
+                !profile.IsGuest && signIns.ById(profile.SignInId) is { Away: true, Guest: false } ? home.Url() : null);
         }).WithTags("Remote access");
 
         // Each profile's own, like its playback preferences: anyone signed in as it may change it, kids included.

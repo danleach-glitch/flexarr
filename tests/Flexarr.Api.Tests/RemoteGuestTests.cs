@@ -971,6 +971,40 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
     }
 
     [Fact]
+    public async Task Only_a_household_device_is_told_the_home_address()
+    {
+        var claire = await factory.AddProfileAsync("Claire73");
+        var answer = await JoinHouseholdAsync(claire, "100.64.0.73");
+        using var away = factory.From("100.64.0.73", answer.ApiKey);
+        var me = await away.GetFromJsonAsync<JsonElement>("/api/v1/me");
+        var homeUrl = me.TryGetProperty("homeUrl", out var h) ? h.GetString() : null;
+        // Whatever this machine's network is: when known, it's a private address, the same as in the redeem answer.
+        if (homeUrl is not null)
+        {
+            Assert.True(HomeAddress.IsHome(System.Net.IPAddress.Parse(new Uri(homeUrl).Host)));
+        }
+
+        Assert.Equal(answer.HomeUrl?.ToString(), homeUrl is null ? null : new Uri(homeUrl).ToString());
+
+        var (_, key) = await JoinAsync("Gran73");
+        using var guest = factory.From(RemoteGuestFactory.Guest, key);
+        var guestMe = await guest.GetFromJsonAsync<JsonElement>("/api/v1/me");
+        Assert.True(!guestMe.TryGetProperty("homeUrl", out var g) || g.ValueKind == JsonValueKind.Null);
+    }
+
+    [Theory]
+    [InlineData("192.168.1.10", true)]
+    [InlineData("10.0.0.5", true)]
+    [InlineData("172.20.1.1", true)]
+    [InlineData("172.32.1.1", false)]
+    [InlineData("100.64.0.1", false)]
+    [InlineData("127.0.0.1", false)]
+    [InlineData("169.254.1.1", false)]
+    [InlineData("8.8.8.8", false)]
+    public void The_home_address_is_a_private_one(string address, bool home) =>
+        Assert.Equal(home, HomeAddress.IsHome(System.Net.IPAddress.Parse(address)));
+
+    [Fact]
     public async Task A_guests_key_never_works_from_the_home_network()
     {
         var (_, key) = await JoinAsync("Gran70");

@@ -353,6 +353,7 @@ builder.Services.AddHttpClient(TailscaleApi.HttpClientName, c => c.Timeout = Tim
 builder.Services.AddSingleton<TailscaleApi>();
 builder.Services.AddSingleton<ITailnet>(sp => sp.GetRequiredService<TailscaleService>());
 builder.Services.AddSingleton<GuestPolicy>();
+builder.Services.AddSingleton<HomeAddress>();
 builder.Services.AddSingleton<GuestInvites>();
 builder.Services.AddHttpClient(GuestTvCodes.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(15));
 builder.Services.AddSingleton<GuestTvCodes>();
