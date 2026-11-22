@@ -188,12 +188,17 @@ switches between its home and away addresses. Family guests are unchanged: tunne
   address. A guest's sign-in stays bound to its tailnet address. The trade-off: a copied household key works on the
   home Wi-Fi, which is what any home device's key already does.
 - **The server says where home is.** `/me` gains `homeUrl` (optional) for away sign-ins only: `http://<LAN IPv4>:<port>`,
-  the first private, non-tailnet address of a running interface and the port Kestrel listens on for plain HTTP. In
-  Docker it's null (the container's own address isn't the host's), so a Docker server's household devices stay on
-  the tunnel. A device already joined learns it the next time it asks `/me`, so nobody joins again.
+  the private address of a running interface with a gateway (Ethernet and Wi-Fi first, VPN and virtual machine
+  adapters last) and the port Kestrel listens on for plain HTTP. `Flexarr:HomeUrl` sets it by hand. In Docker without
+  that it's null (the container's own address isn't the host's), so a Docker server's household devices stay on the
+  tunnel, and the key isn't accepted from home either (port forwarding can make anyone look local). Any trouble
+  reading the interfaces also means null, never a failed `/me`. A device already joined learns it the next time it
+  asks `/me`, so nobody joins again.
 - **The app checks before it sends the key.** A household sign-in keeps `homeAddress` and the server's id (never for a
   guest). The home address only gets the key once it proves it's the same server (`/setup` with a challenge, as home
-  sign-ins do), so a lookalike address on someone else's network gets nothing. The tunnel headers never go to it.
+  sign-ins do), so a lookalike address on someone else's network gets nothing. The server won't answer that proof for
+  a guest's or household device's key asked from the internet, so it can't be passed on from a server that's also
+  public. The tunnel headers never go to it.
 - **Switching is the existing race.** `ServerAddresses` gets home as the home address and the tunnel's loopback
   address as the away one, so requests go to whichever answered last, GETs race the other after a moment, and home is
   tried again every few minutes while away. The last route that answered is kept, so a launch at home goes straight
