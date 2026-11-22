@@ -496,7 +496,11 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     })
 
     /** Where [client]'s speed readings belong now: its server and the address in use (a guest's, its tunnel). */
-    fun linkKey(client: FlexarrClient): String = LinkSpeed.key(client, credentials?.guest?.target)
+    fun linkKey(client: FlexarrClient): String = LinkSpeed.key(client, credentials?.guest?.target?.takeIf { throughTunnel(client) })
+
+    /** [client]'s requests go through the tunnel now (a guest's always; a household device's while it isn't home). */
+    fun throughTunnel(client: FlexarrClient?): Boolean =
+        usesTunnel && (client == null || !client.addresses.awayIsTunnel || client.addresses.isAway)
 
     /** The speed to send with a start for [client] (null: nothing to go on). */
     fun measuredBitrate(client: FlexarrClient? = this.client): Long? = client?.let { linkSpeed.current(linkKey(it)) }

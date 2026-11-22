@@ -425,11 +425,13 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     private val log = FlexarrLog("playback")
 
     init {
+        // Open, it keeps the route it opened on: a household device's tunnel isn't stopped under it at home.
+        model.videoPlayers++
         player.addListener(object : Player.Listener {
             override fun onRenderedFirstFrame() {
                 if (info?.sessionId != switchingFrom) switchingQuality = false
                 val started = timing?.takeIf { it.isAnswered } ?: return
-                started.report(log, client.baseUrl.host, model.usesTunnel)
+                started.report(log, client.baseUrl.host, model.throughTunnel(client))
                 firstFrame = Triple(android.os.SystemClock.elapsedRealtime(), player.currentPosition, info?.playbackId)
                 timing = null
             }
@@ -461,7 +463,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                     if (after < EARLY_STALL_MS && abs(player.currentPosition - position - after) < 3000) {
                         log.measured(
                             "Playback ${playbackId ?: "unknown"} stalled soon after starting",
-                            mapOf("afterMs" to after.toString(), "remote" to (model.usesTunnel || StartTiming.looksRemote(client.baseUrl.host)).toString(), "playbackId" to playbackId),
+                            mapOf("afterMs" to after.toString(), "remote" to (model.throughTunnel(client) || StartTiming.looksRemote(client.baseUrl.host)).toString(), "playbackId" to playbackId),
                         )
                     }
                 }
@@ -1789,6 +1791,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
     /** The player closed: the last position, then the session ends (finishing even though the screen has gone). */
     fun close() {
+        if (!closed) model.videoPlayers--
         closed = true
         tooSlowCheck?.cancel()
         ticker?.cancel()

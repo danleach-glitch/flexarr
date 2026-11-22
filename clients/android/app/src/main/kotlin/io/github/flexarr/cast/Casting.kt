@@ -98,13 +98,15 @@ class Casting private constructor(private val context: Context, private val mode
 
     /**
      * The Cast button shows: the framework loaded, and this phone doesn’t reach its server
-     * through the tunnel inside the app, which a Chromecast can't use.
+     * through the tunnel inside the app, which a Chromecast can't use. A household device that joined by invite has it
+     * while it's at home (its server's home address in use, proven), not while it's on the tunnel.
      */
-    val available: Boolean get() = frameworkLoaded && !model.usesTunnel
+    val available: Boolean get() = frameworkLoaded && (!model.usesTunnel || model.householdAtHome)
     /** The Chromecast connected to, by name; null when none is. */
     var deviceName: String? by mutableStateOf(null)
         private set
-    val isConnected: Boolean get() = deviceName != null && !model.usesTunnel
+    // A household device's cast carries on if it leaves home meanwhile: the Chromecast was given the home address.
+    val isConnected: Boolean get() = deviceName != null && (!model.usesTunnel || model.credentials?.pairsHome == true)
     /** What's going to the Chromecast, from the moment it's asked for. */
     var kind: Kind? by mutableStateOf(null)
         private set

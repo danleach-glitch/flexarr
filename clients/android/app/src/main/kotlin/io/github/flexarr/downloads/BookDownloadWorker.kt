@@ -86,7 +86,15 @@ class BookDownloadWorker(context: Context, parameters: WorkerParameters) : Corou
         val part = store.fileIn("$name.part") ?: throw IOException("Not a download's name")
         val already = if (part.exists()) part.length() else 0L
         val request = client.bookFileRequest(url, already) ?: throw IOException("Not the server's address")
-        FlexarrClient.sharedHttp.newCall(request).execute().use { response ->
+        // A household device leaving home mid-download: the next try carries on through the tunnel.
+        val answer = try {
+            FlexarrClient.sharedHttp.newCall(request).execute()
+        } catch (e: IOException) {
+            client.addresses.homeMissed(request.url)
+            throw e
+        }
+        answer.use { response ->
+            if (response.code == 401 && client.addresses.homeRefused(request.url)) throw IOException("Refused at home; trying the tunnel")
             if (response.code == 401) throw FlexarrException.Unauthorized()
             if (response.code == 416 && already > 0) {
                 // All of it came last time: it only wasn't named.
@@ -101,7 +109,12 @@ class BookDownloadWorker(context: Context, parameters: WorkerParameters) : Corou
                     val buffer = ByteArray(64 * 1024)
                     while (true) {
                         coroutineContext.ensureActive()
-                        val read = input.read(buffer)
+                        val read = try {
+                            input.read(buffer)
+                        } catch (e: IOException) {
+                            client.addresses.homeMissed(request.url)
+                            throw e
+                        }
                         if (read < 0) break
                         out.write(buffer, 0, read)
                         written += read

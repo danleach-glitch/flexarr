@@ -149,6 +149,16 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?, val awayIsTunnel: Boo
         return true
     }
 
+    /**
+     * [url], at home, stopped answering partway (a download's file as the device left home): with the tunnel as the
+     * away address, the next try goes through it, and home is asked about again in a few minutes.
+     */
+    fun homeMissed(url: HttpUrl) {
+        val remote = remote ?: return
+        if (!awayIsTunnel || !url.isAt(home) || _current != home) return
+        reached(remote)
+    }
+
     /** Another network: whatever answers at home there has to show it's this server again. */
     fun networkChanged() {
         homeVerified = false

@@ -135,8 +135,17 @@ internal class DownloadTransfer(
         val kept = File(part.path + ".validator")
         val already = if (part.exists()) part.length() else 0L
         val validator = if (already > 0) runCatching { kept.readText() }.getOrNull()?.takeIf { it.isNotBlank() } else null
-        val response = client.downloadFileRequest(download.id, already, validator).let { FlexarrClient.sharedHttp.newCall(it).execute() }
+        val request = client.downloadFileRequest(download.id, already, validator)
+        // A household device leaving home mid-download: the next try carries on through the tunnel.
+        val response = try {
+            FlexarrClient.sharedHttp.newCall(request).execute()
+        } catch (e: IOException) {
+            client.addresses.homeMissed(request.url)
+            throw e
+        }
         response.use {
+            // Refused at home (a household device's sign-in only taken through the tunnel): tried again through it.
+            if (it.code == 401 && client.addresses.homeRefused(request.url)) throw IOException("Refused at home; trying the tunnel")
             if (it.code == 401) throw FlexarrException.Unauthorized()
             if (it.code == 416) {
                 // Asked to carry on from the end: the whole file came last time, and the app stopped before naming it.
@@ -164,7 +173,12 @@ internal class DownloadTransfer(
                     val buffer = ByteArray(64 * 1024)
                     while (true) {
                         coroutineContext.ensureActive()
-                        val read = input.read(buffer)
+                        val read = try {
+                            input.read(buffer)
+                        } catch (e: IOException) {
+                            client.addresses.homeMissed(request.url)
+                            throw e
+                        }
                         if (read < 0) break
                         out.write(buffer, 0, read)
                         written += read
