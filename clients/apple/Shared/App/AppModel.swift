@@ -1034,13 +1034,19 @@ final class AppModel {
 
     @ObservationIgnored private var tunnelStop: Task<Void, Never>?
 
-    /// Stops a household device's tunnel once nothing is playing that might be using it, as long as home still answers.
+    /// Something opened on the tunnel is still going: a title, a channel, audio (paused or not), a transfer. What opened
+    /// at home doesn't count: it never used the tunnel.
+    private var tunnelInUse: Bool {
+        player.holdsTunnel || music.holdsTunnel || liveTv.holdsTunnel || TunnelUse.inUse
+    }
+
+    /// Stops a household device's tunnel once nothing opened on it is still going, as long as home still answers.
     private func stopTunnelWhenIdle() {
         guard tunnelStop == nil, GuestTunnel.shared.address != nil else { return }
         tunnelStop = Task { [weak self] in
             while true {
                 guard let self, self.credentials?.hasHomeRoute == true, self.client?.addresses.onTunnel == false else { break }
-                if !self.player.isShowingTitle, !self.music.isPlaying, !self.liveTv.isWatching {
+                if !self.tunnelInUse {
                     log.info("Home answers: the tunnel stops until it's needed")
                     GuestTunnel.shared.stop()
                     break

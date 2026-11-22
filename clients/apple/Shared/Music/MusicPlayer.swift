@@ -112,6 +112,12 @@ final class MusicPlayer {
     private(set) var artwork: PlatformImage?
     /// The current track is playing from its downloaded file rather than the server.
     private(set) var isPlayingOffline = false
+    /// What's playing opened on the tunnel (see `GuestMode`): no AirPlay for it, and the tunnel stays up for it, paused
+    /// or not, until it's stopped. Observed, so the AirPlay button follows.
+    private(set) var openedOnTunnel = false
+
+    /// Something is loaded (playing or paused) that streams through the tunnel, which mustn't stop under it.
+    var holdsTunnel: Bool { current != nil && openedOnTunnel && !isPlayingOffline }
     var errorMessage: String?
     /// How fast the podcast episode plays (music always plays at 1×).
     private(set) var speed: Double = 1
@@ -1151,9 +1157,10 @@ final class MusicPlayer {
 
     private func attach(_ item: AVPlayerItem) {
         clearItem()
+        openedOnTunnel = GuestMode.isActive
         #if os(iOS)
-        // Not for a family guest (who may have signed in since launch): an AirPlay receiver can't reach the tunnel.
-        player.allowsExternalPlayback = !GuestMode.isActive
+        // Not through the tunnel (a family guest, a household device away): an AirPlay receiver can't reach it.
+        player.allowsExternalPlayback = !openedOnTunnel
         #endif
         player.replaceCurrentItem(with: item)
         #if os(tvOS)

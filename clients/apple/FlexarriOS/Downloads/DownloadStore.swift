@@ -300,6 +300,8 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     }()
     /// Whether `guestSession` exists: its transfers outlive guest mode (Leave cancels them after it's ended).
     @ObservationIgnored private var madeGuestSession = false
+    /// The transfers under way through the tunnel (by name), which hold it open (see `TunnelUse`).
+    @ObservationIgnored private var tunnelTransfers: Set<String> = []
     /// Where a new transfer goes: the guest's session for a family guest, the background one for everyone else.
     private var transferSession: URLSession { GuestMode.isActive ? guestSession : session }
 
@@ -371,6 +373,8 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
 
     override init() {
         super.init()
+        // A household device's tunnel stays up at home while a transfer that went through it is under way.
+        TunnelUse.register { [weak self] in self?.tunnelTransfers.isEmpty == false }
         let saved = SavedList.load(LocalDownload.self, from: Self.manifest)
         let savedCollections = SavedList.load(LocalCollection.self, from: Self.collectionsManifest)
         Self.report(saved, from: Self.manifest)
@@ -637,8 +641,10 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
                 return
             }
             let resumed = kept.flatMap { $0.wifiOnly == wifiOnly && FlexarrClient.resumes($0.url, at: request.url) ? $0.data : nil }
-            let task = resumed.map { transferSession.downloadTask(withResumeData: $0) } ?? transferSession.downloadTask(with: request)
+            let session = transferSession
+            let task = resumed.map { session.downloadTask(withResumeData: $0) } ?? session.downloadTask(with: request)
             task.taskDescription = name
+            if session !== self.session { tunnelTransfers.insert(name) }
             task.resume()
         }
     }
@@ -1998,6 +2004,7 @@ extension DownloadStore: URLSessionDownloadDelegate {
     }
 
     nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: (any Error)?) {
+        if let name = task.taskDescription { MainActor.assumeIsolated { _ = tunnelTransfers.remove(name) } }
         guard let error, let id = task.taskDescription else { return }
         let wifiOnly = Self.madeWiFiOnly(task)
         let url = Self.address(of: task)

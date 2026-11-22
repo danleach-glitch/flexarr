@@ -493,7 +493,7 @@ struct NowPlayingView: View {
     private var musicExtras: some View {
         HStack(spacing: 36) {
             Spacer()
-            if !GuestMode.isActive { RoutePicker().frame(width: 44, height: 44) }
+            if !model.music.openedOnTunnel { RoutePicker().frame(width: 44, height: 44) }
             if lyrics.lyrics != nil {
                 Button { showingLyrics.toggle() } label: { Label(t("Lyrics"), systemImage: "quote.bubble") }
                     .buttonStyle(TransportStyle(size: 44, active: showingLyrics))
@@ -517,7 +517,7 @@ struct NowPlayingView: View {
             .buttonStyle(.plain)
             .accessibilityLabel(showingDetails ? t("Hide notes") : music.isBook ? t("Chapters and bookmarks") : t("Notes"))
             .frame(maxWidth: .infinity)
-            if !GuestMode.isActive { RoutePicker().frame(width: 44, height: 44).frame(maxWidth: .infinity) }
+            if !model.music.openedOnTunnel { RoutePicker().frame(width: 44, height: 44).frame(maxWidth: .infinity) }
             if music.isBook { bookMenu.frame(maxWidth: .infinity) } else { episodeMenu.frame(maxWidth: .infinity) }
         }
     }

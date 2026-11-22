@@ -16,6 +16,18 @@ enum GuestMode {
     nonisolated(unsafe) static var isGuest = false
 }
 
+/// What else holds a household device's tunnel open besides the players `AppModel` has: the iPhone's transfers that
+/// went through it (`DownloadStore`). Each says, when asked, whether it has something under way there; the tunnel
+/// stops at home only once nothing does (`AppModel.stopTunnelWhenIdle`).
+@MainActor
+enum TunnelUse {
+    private static var holders: [@MainActor () -> Bool] = []
+
+    static func register(_ holds: @escaping @MainActor () -> Bool) { holders.append(holds) }
+
+    static var inUse: Bool { holders.contains { $0() } }
+}
+
 /// The tunnel a family guest's app reaches its host's server through: Tailscale built in (clients/tunnel), joined to
 /// the host's tailnet with the invite's one-use key, and opened here as a port on 127.0.0.1 that every request,
 /// artwork fetch and player uses as the server's address. See docs/remote-guests.md.
