@@ -314,6 +314,37 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         phase = Phase.SignedIn(updated)
     }
 
+    /**
+     * What `/me` said about where home is ([SignInInfo.homeUrl], servers from 0.67), kept with a household device's
+     * sign-in so it uses home while it answers. Asked on each check, so a device that joined before learns it without
+     * joining again; a server that says nothing (before 0.67, in Docker, a guest's) leaves it on the tunnel. The server's
+     * id, which home has to prove, comes with the join, or else from the server's status through the tunnel.
+     */
+    private fun noteHome(me: SignInInfo) {
+        val credentials = credentials?.takeIf { it.isHouseholdAway && me.isGuest != true } ?: return
+        val home = me.homeUrl?.let { householdHome(it) }
+        if (home == credentials.homeAddress && (home == null || !credentials.serverId.isNullOrEmpty())) return
+        scope.launch {
+            val id = credentials.serverId?.takeIf { it.isNotEmpty() }
+                ?: if (home != null) serverStatus(credentials)?.serverId?.takeIf { it.isNotEmpty() } ?: return@launch else null
+            // Still the same sign-in (who's watching may have changed meanwhile).
+            val now = this@AppModel.credentials ?: return@launch
+            if (now.address != credentials.address || now.apiKey != credentials.apiKey || !now.isHouseholdAway) return@launch
+            if (now.homeAddress == home && now.serverId == id) return@launch
+            if (saved) store.saveHome(home, id)
+            flexarrLog.info(if (home != null) "The server said where home is: home when it answers, the tunnel when it doesn't" else "The server gave no home address: the tunnel only")
+            phase = Phase.SignedIn(now.withHome(home, id))
+        }
+    }
+
+    /** The server's home address as it gave it, if it's one to use: http(s), and never loopback (the tunnel's own). */
+    private fun householdHome(url: String): String? {
+        val parsed = FlexarrClient.normalizeAddress(url)?.takeIf { it.scheme == "http" || it.scheme == "https" } ?: return null
+        val host = parsed.host
+        if (host == "localhost" || host.startsWith("127.") || host == "::1" || host == "0.0.0.0") return null
+        return parsed.toString()
+    }
+
     /** The Tailscale node a guest reaches its host's server through. */
     val tunnel = GuestTunnel(context)
 
@@ -348,6 +379,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         kidsLock = me.kidsLock
         hasOwnSignIn = me.method == "device"
         serverSaid(me.isGuest)
+        noteHome(me)
         if (me.isMainProfile) pairing.refresh(client) else pairing.clear()
     }
 
@@ -1281,7 +1313,11 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             withContext(Dispatchers.IO) { tunnel.use(null) }
             throw GuestJoinException(guestJoinProblem(e, owner, server = invite.serverNaming))
         }
-        val credentials = ServerCredentials(address, redeemed.apiKey, guest = info, household = redeemed.isHousehold)
+        val joined = ServerCredentials(address, redeemed.apiKey, guest = info, household = redeemed.isHousehold)
+        // A household device is told where home is, and uses it once home proves it's this server.
+        // Joined through the tunnel, so that's where it starts (home is asked about straight away).
+        val credentials = joined.withHome(redeemed.homeUrl?.let { householdHome(it) }, redeemed.serverId.ifEmpty { invite.serverId })
+            .let { if (it.pairsHome) it.copy(lastAway = true) else it }
         // Use away from home: the home sign-in gives way to this one.
         val home = this.credentials?.takeIf { joiningAway && !it.usesTunnel }
         if (home != null) {
@@ -1340,7 +1376,10 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         }
     }
 
-    /** The tunnel came up on [port]: a guest's sign-in follows it there, if it had to move from the one it had. */
+    /**
+     * The tunnel came up on [port]: a guest's sign-in follows it there, if it had to move from the one it had. Only the
+     * tunnel's address moves: a household device's home address stays as the server gave it.
+     */
     private fun tunnelMoved(port: Int) {
         scope.launch {
             // Started again in the background (music, a download, a widget): it stops again once that's done with it.
@@ -1661,6 +1700,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                 kidsLock = it.kidsLock
                 hasOwnSignIn = it.method == "device"
                 serverSaid(it.isGuest)
+                noteHome(it)
             }
             // Without an answer, as before servers asked: a refused request asks again (serverRefusedUnchosen). Someone
             // chosen while this was asked (chose) already settled it: an answer from before doesn't bring the picker back.
