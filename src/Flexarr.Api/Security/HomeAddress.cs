@@ -1,8 +1,10 @@
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using Flexarr.Api.Configuration;
 using Flexarr.Api.Updates;
 using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.Extensions.Options;
 
 namespace Flexarr.Api.Security;
 
@@ -11,18 +13,25 @@ namespace Flexarr.Api.Security;
 /// they're home and their tunnel when they aren't (docs/remote-guests.md, Household devices at home). Never told to
 /// guests.
 /// </summary>
-public sealed class HomeAddress(IServer server, IInstallEnvironment install, TimeProvider clock)
+public sealed class HomeAddress(IServer server, IInstallEnvironment install, TimeProvider clock, IOptionsMonitor<FlexarrOptions> options)
 {
     private static readonly TimeSpan Lasts = TimeSpan.FromMinutes(1);
     private readonly Lock _lock = new();
     private (Uri? Url, DateTimeOffset At)? _cached;
 
     /// <summary>
-    /// <c>http://&lt;LAN IPv4&gt;:&lt;port&gt;</c>, or null when it can't be known: in a container (its own address isn't
-    /// the host's), before the server is listening, or with no home network.
+    /// <see cref="FlexarrOptions.HomeUrl"/> when set; else <c>http://&lt;LAN IPv4&gt;:&lt;port&gt;</c>, or null when it can't
+    /// be known: in a container (its own address isn't the host's), before the server is listening, or with no home
+    /// network.
     /// </summary>
     public Uri? Url()
     {
+        // Set by hand (Docker, or a machine with several networks): that, as long as it's an http address.
+        if (options.CurrentValue.HomeUrl is { Length: > 0 } configured)
+        {
+            return Uri.TryCreate(configured.Trim(), UriKind.Absolute, out var set) && set.Scheme is "http" or "https" && !set.IsLoopback ? set : null;
+        }
+
         var now = clock.GetUtcNow();
         lock (_lock)
         {

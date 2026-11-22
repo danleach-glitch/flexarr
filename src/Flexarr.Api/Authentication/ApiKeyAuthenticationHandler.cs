@@ -196,11 +196,19 @@ public sealed class ApiKeyAuthenticationHandler(
         && NetworkZones.AddressedToKnownHost(Context, options.KnownHosts) && !NetworkZones.FromContainerGateway(Context);
 
     /// <summary>
-    /// This request is from the home network, not this machine, addressed to one of the server's own names, and not
-    /// handed over by a container's gateway: the same rules as the home network signing in, whatever that's set to.
+    /// This server tells household devices a home address, and this request is from the home network, not this machine,
+    /// addressed to one of the server's own names, and not handed over by a container's gateway: the same rules as the
+    /// home network signing in, whatever that's set to.
     /// </summary>
     private bool FromHomeNetwork(FlexarrOptions options)
     {
+        // Only where household devices are told a home address to use: never, say, in Docker without one set, where
+        // the host's port forwarding can make anyone look local.
+        if (Context.RequestServices.GetService<HomeAddress>()?.Url() is null)
+        {
+            return false;
+        }
+
         if (NetworkZones.Of(Context) != NetworkZone.Local || RequestPeer.Of(Context) is not { } peer
             || IPAddress.IsLoopback(peer.IsIPv4MappedToIPv6 ? peer.MapToIPv4() : peer))
         {

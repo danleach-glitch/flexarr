@@ -27,6 +27,7 @@ public sealed class RemoteGuestFactory : WebApplicationFactory<Program>
 
     public const string Guest = "100.64.0.9";
     public const string Owner = "100.64.0.2";
+    public const string HomeUrl = "http://192.168.1.2:8383/";
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -36,6 +37,8 @@ public sealed class RemoteGuestFactory : WebApplicationFactory<Program>
         builder.UseSetting("Flexarr:DataDirectory", DataDirectory);
         builder.UseSetting("Flexarr:Logs:ErrorReportsDsn", "");
         builder.UseSetting("Flexarr:RemoteGuests:Enabled", "true");
+        // The test server listens nowhere, so it can't work out its own.
+        builder.UseSetting("Flexarr:HomeUrl", HomeUrl);
         builder.UseSetting("Flexarr:RemoteGuests:ClientId", "client");
         builder.UseSetting("Flexarr:RemoteGuests:ClientSecret", "secret");
         builder.UseSetting("Flexarr:RemoteGuests:ApiUrl", "https://tailscale.test");
@@ -985,14 +988,8 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
         var answer = await JoinHouseholdAsync(claire, "100.64.0.73");
         using var away = factory.From("100.64.0.73", answer.ApiKey);
         var me = await away.GetFromJsonAsync<JsonElement>("/api/v1/me");
-        var homeUrl = me.TryGetProperty("homeUrl", out var h) ? h.GetString() : null;
-        // Whatever this machine's network is: when known, it's a private address, the same as in the redeem answer.
-        if (homeUrl is not null)
-        {
-            Assert.True(HomeAddress.IsHome(System.Net.IPAddress.Parse(new Uri(homeUrl).Host)));
-        }
-
-        Assert.Equal(answer.HomeUrl?.ToString(), homeUrl is null ? null : new Uri(homeUrl).ToString());
+        Assert.Equal(RemoteGuestFactory.HomeUrl, me.GetProperty("homeUrl").GetString());
+        Assert.Equal(RemoteGuestFactory.HomeUrl, answer.HomeUrl?.ToString());
 
         var (_, key) = await JoinAsync("Gran73");
         using var guest = factory.From(RemoteGuestFactory.Guest, key);
@@ -1043,6 +1040,22 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
 
         Assert.Equal(answer.ServerId, setup.GetProperty("serverId").GetString());
         Assert.Equal(ServerProof.Answer(hash, answer.ServerId, challenge), setup.GetProperty("proof").GetString());
+    }
+
+    [Fact]
+    public async Task A_household_device_isnt_let_in_from_home_where_the_server_gives_no_home_address()
+    {
+        var claire = await factory.AddProfileAsync("Claire75");
+        var answer = await JoinHouseholdAsync(claire, "100.64.0.75");
+        Assert.Equal(RemoteGuestFactory.HomeUrl, answer.HomeUrl?.ToString());
+
+        // As in Docker without Flexarr:HomeUrl, where the host's port forwarding could make anyone look local (here an
+        // address that isn't one, which also gives none).
+        using var unknown = factory.WithWebHostBuilder(b => b.UseSetting("Flexarr:HomeUrl", "not an address"));
+        using var home = unknown.CreateClient();
+        home.DefaultRequestHeaders.Add("X-Test-Peer", "192.168.1.75");
+        home.DefaultRequestHeaders.Add("X-Api-Key", answer.ApiKey);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await home.GetAsync("/api/v1/me")).StatusCode);
     }
 
     [Fact]
