@@ -59,7 +59,7 @@ public sealed class HomeAddress(IServer server, IInstallEnvironment install, Tim
                 .Where(n => n.Properties.GatewayAddresses.Any(g => g.Address.AddressFamily == AddressFamily.InterNetwork && !g.Address.Equals(IPAddress.Any)))
                 // A VPN's or virtual machine's adapter only when there's nothing else (Windows' Hyper-V switch can carry
                 // the home network itself).
-                .OrderBy(n => Virtual(n) ? 2 : n.Interface.NetworkInterfaceType is NetworkInterfaceType.Ethernet or NetworkInterfaceType.Wireless80211 or NetworkInterfaceType.GigabitEthernet ? 0 : 1)
+                .OrderBy(n => Virtual(n.Interface) ? 2 : n.Interface.NetworkInterfaceType is NetworkInterfaceType.Ethernet or NetworkInterfaceType.Wireless80211 or NetworkInterfaceType.GigabitEthernet ? 0 : 1)
                 .SelectMany(n => n.Properties.UnicastAddresses.Select(u => u.Address))
                 .FirstOrDefault(IsHome);
         }
