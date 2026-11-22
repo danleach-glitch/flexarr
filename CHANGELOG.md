@@ -225,6 +225,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 ### iPad
 
 - **Who's watching?** now sits in the middle of the screen on iPad, instead of starting from the top left.
+- The app no longer crashes when an iPad or iPhone goes to sleep with a film or show page open.
 
 ### Web
 

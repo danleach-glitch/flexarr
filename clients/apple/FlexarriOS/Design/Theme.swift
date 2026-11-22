@@ -53,9 +53,13 @@ struct FactsLine: View {
     }
 
     private var factTexts: some View {
-        ForEach(Array(facts.enumerated()), id: \.offset) { _, fact in
-            Text(fact)
-        }
+        ForEach(Array(facts.enumerated()), id: \.offset, content: Self.factText)
+    }
+
+    /// Nonisolated on purpose: iOS draws a page's header on a background thread while the app goes to the background,
+    /// and a closure written here would carry the main-thread check Swift 6 adds and crash there (Sentry FLEXARR-APPLE-R).
+    nonisolated private static func factText(_ fact: (offset: Int, element: String)) -> Text {
+        Text(fact.element)
     }
 }
 

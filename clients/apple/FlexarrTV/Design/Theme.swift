@@ -20,9 +20,7 @@ struct FactsLine: View {
 
     var body: some View {
         HStack(spacing: 22) {
-            ForEach(Array(facts.enumerated()), id: \.offset) { _, fact in
-                Text(fact)
-            }
+            ForEach(Array(facts.enumerated()), id: \.offset, content: Self.factText)
             if let scores, !scores.isEmpty {
                 ScoreChips(scores: scores, markHeight: 28, spacing: 22)
             }
@@ -30,6 +28,11 @@ struct FactsLine: View {
         .font(.system(size: 26, weight: .semibold))
         .foregroundStyle(Color.screen.opacity(0.85))
         .monospacedDigit()
+    }
+
+    /// Nonisolated so it can't trip Swift 6's main-thread check when the system draws off the main thread (see the iPhone's).
+    nonisolated private static func factText(_ fact: (offset: Int, element: String)) -> Text {
+        Text(fact.element)
     }
 }
 
