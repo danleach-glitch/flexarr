@@ -1164,6 +1164,7 @@ final class AppModel {
         // Newly paired: it carries on through the tunnel it's using, and home is asked on the side (moving there if it
         // answers), so nothing waits on an address that may not be there.
         if !wasPaired, let addresses = client?.addresses, addresses.hasHomeRoute, let tunnel = addresses.tunnel, let client {
+            LocalNetworkAccess.ask()
             addresses.reached(tunnel)
             Task.detached { _ = await client.homeAnswers(within: .seconds(5), fresh: true) }
         }
@@ -1315,6 +1316,8 @@ final class AppModel {
         phase = .signedIn(credentials)
         // Joined through the tunnel, which is up: it carries on there, with home asked on the side.
         if let addresses = client?.addresses, addresses.hasHomeRoute, let tunnel = addresses.tunnel, let client {
+            // Now, as it joins, rather than when home is first tried some other time.
+            LocalNetworkAccess.ask()
             addresses.reached(tunnel)
             Task.detached { _ = await client.homeAnswers(within: .seconds(5), fresh: true) }
         }

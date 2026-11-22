@@ -2,6 +2,26 @@ import FlexarrKit
 import Foundation
 import Network
 
+/// The system's Local Network permission, asked for at a moment that makes sense: as a household device learns its
+/// server's home address (joining, or the first time `/me` gives it), rather than on its first try of that address,
+/// which could be in the middle of something playing. A brief look for Flexarr servers nearby, as the connect screen
+/// does, is what has the system ask; once answered it never asks again, and the look finds nothing that's used.
+@MainActor
+enum LocalNetworkAccess {
+    private static var asked = false
+
+    static func ask() {
+        guard !asked else { return }
+        asked = true
+        let browser = ServerBrowser()
+        browser.start()
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(10))
+            browser.stop()
+        }
+    }
+}
+
 /// Whether this device has a network at all, so the app can go straight to offline mode (and a family guest's app
 /// say it can't reach its host) rather than wait out a request's timeout, and try again as soon as there's one.
 @MainActor
