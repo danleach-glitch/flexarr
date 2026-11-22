@@ -125,13 +125,14 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?, val awayIsTunnel: Boo
             homeCheck?.takeIf { it.isActive } ?: checks.async { verify() }.also { homeCheck = it }
         }
         val ok = runCatching { check.await() }.getOrDefault(false)
-        if (ok) homeVerified = true
+        if (ok) homeVerified()
         return ok
     }
 
-    /** Home answered with the server's id just now. */
+    /** Home answered with the server's id just now (announced as a change of route the first time on this network). */
     internal fun homeVerified() {
-        homeVerified = true
+        val first = synchronized(this) { !homeVerified.also { homeVerified = true } }
+        if (first && awayIsTunnel) onRouteChanged?.invoke(this)
     }
 
     /**
@@ -253,8 +254,9 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?, val awayIsTunnel: Boo
         var onRemoteProven: ((ServerAddresses) -> Unit)? = null
 
         /**
-         * Called whenever the address in use moves (home to away or back), off whatever thread found out, so the app
-         * can follow the route (a household device's tunnel stopping at home). Set once at launch.
+         * Called whenever the address in use moves (home to away or back), or home first proves it's the server on a
+         * network with the tunnel as the away address, off whatever thread found out, so the app can follow the route
+         * (a household device's tunnel stopping at home). Set once at launch.
          */
         @Volatile
         var onRouteChanged: ((ServerAddresses) -> Unit)? = null
