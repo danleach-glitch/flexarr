@@ -61,7 +61,10 @@ struct TopShelfSignInTests {
         let home = URL(string: "http://192.168.1.106:8383")!
         let household = ServerCredentials(address: URL(string: "http://127.0.0.1:50123")!, apiKey: "key", guest: tunnel, serverId: "s",
                                           homeAddress: home)
-        #expect(SharedSignIn.forTopShelf(household, asksWhoIsWatching: false, watching: child, homeAnswering: true)?.address == home)
+        let shared = SharedSignIn.forTopShelf(household, asksWhoIsWatching: false, watching: child, homeAnswering: true)
+        #expect(shared?.address == home)
+        #expect(shared?.serverId == "s")
+        #expect(shared?.client.addresses.asksProof(of: home) == true, "the extension asks home who it is before sending the key")
         #expect(SharedSignIn.forTopShelf(household, asksWhoIsWatching: false, watching: child, homeAnswering: false) == nil, "away: nothing")
         // A guest never, whatever it's told.
         var guest = tunnel

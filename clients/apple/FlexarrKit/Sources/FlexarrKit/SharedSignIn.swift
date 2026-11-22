@@ -8,11 +8,22 @@ public enum SharedSignIn {
         public let address: URL
         public let apiKey: String?
         public let profileToken: String?
+        /// The server's id, which a plain-http `address` must give (and show it holds the key) before the extension
+        /// sends it the sign-in, as the app does (see `ServerAddresses`). Nil when the app doesn't know it (a server
+        /// before 0.55), and for values saved before it was kept.
+        public var serverId: String? = nil
 
-        public init(address: URL, apiKey: String?, profileToken: String?) {
+        public init(address: URL, apiKey: String?, profileToken: String?, serverId: String? = nil) {
             self.address = address
             self.apiKey = apiKey
             self.profileToken = profileToken
+            self.serverId = serverId
+        }
+
+        /// A client for the extension: the address asked who it is before it's sent anything signed in.
+        public var client: FlexarrClient {
+            FlexarrClient(addresses: ServerAddresses(home: address, remote: nil, serverId: serverId), apiKey: apiKey,
+                          profileToken: profileToken)
         }
     }
 
@@ -39,7 +50,7 @@ public enum SharedSignIn {
         }
         let nobodyChosen = severalProfiles && credentials.profileToken == nil
         if asksWhoIsWatching || nobodyChosen, watching?.needsPinToChoose != false { return nil }
-        return Value(address: address, apiKey: credentials.apiKey, profileToken: credentials.profileToken)
+        return Value(address: address, apiKey: credentials.apiKey, profileToken: credentials.profileToken, serverId: credentials.serverId)
     }
 
     /// Saves (or, with nil, removes) the sign-in the extension uses.
