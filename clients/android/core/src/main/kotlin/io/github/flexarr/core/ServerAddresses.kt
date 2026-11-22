@@ -159,15 +159,19 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?, val awayIsTunnel: Boo
         reached(remote)
     }
 
-    /** Another network: whatever answers at home there has to show it's this server again. */
+    /**
+     * Another network: whatever answers at home there has to show it's this server again. With the tunnel as the away
+     * address, home no longer proven is a change of route the app hears about (Settings and Cast follow it).
+     */
     fun networkChanged() {
-        homeVerified = false
+        val wasProven = synchronized(this) { homeProven.also { homeVerified = false } }
         // Tailscale may have come up with it.
         remoteMissedAt = null
         if (awayIsTunnel) {
             // The tunnel is the app's own (nothing else on any network answers it), and home may be here: asked at once.
             homeRefusedHere = false
             synchronized(this) { homeCheckedAt = null }
+            if (wasProven) onRouteChanged?.invoke(this)
             return
         }
         if (remote?.isHttps == false) {
@@ -265,8 +269,8 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?, val awayIsTunnel: Boo
 
         /**
          * Called whenever the address in use moves (home to away or back), or home first proves it's the server on a
-         * network with the tunnel as the away address, off whatever thread found out, so the app can follow the route
-         * (a household device's tunnel stopping at home). Set once at launch.
+         * network with the tunnel as the away address (or stops being proven, on a new network), off whatever thread
+         * found out, so the app can follow the route (a household device's tunnel stopping at home). Set once at launch.
          */
         @Volatile
         var onRouteChanged: ((ServerAddresses) -> Unit)? = null

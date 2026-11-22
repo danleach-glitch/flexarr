@@ -139,6 +139,23 @@ class HouseholdRouteTest {
     }
 
     @Test
+    fun `a new network unproves home and says so`() {
+        val addresses = pair().also { it.homeVerified() }
+        var announced = 0
+        ServerAddresses.onRouteChanged = { if (it === addresses) announced++ }
+        try {
+            addresses.networkChanged()
+            assertFalse(addresses.homeProven)
+            assertEquals(1, announced)
+            // Not proven to begin with: nothing to say.
+            addresses.networkChanged()
+            assertEquals(1, announced)
+        } finally {
+            ServerAddresses.onRouteChanged = null
+        }
+    }
+
+    @Test
     fun `a blip at home that home still answers through stays at home`() = runBlocking {
         val addresses = pair().also { it.homeVerified() }
         atHome.enqueue(json("""{"open":false,"serverId":"abc"}"""))
