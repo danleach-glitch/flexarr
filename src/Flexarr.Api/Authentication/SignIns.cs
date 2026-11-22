@@ -629,16 +629,30 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
 
     /// <summary>
     /// The SHA-256 of the token of the sign-in an app calls <paramref name="keyId"/> (see <see cref="Security.ServerProof"/>),
-    /// or null when there's none.
+    /// or null when there's none. <paramref name="tunneled"/> says it's a guest's or away device's.
     /// </summary>
-    public string? TokenHashKnownAs(string keyId)
+    public string? TokenHashKnownAs(string keyId, out bool tunneled)
     {
         lock (_lock)
         {
-            return Loaded().Keys.Select(h => h.StartsWith(GuestHashPrefix, StringComparison.Ordinal) ? h[GuestHashPrefix.Length..] : h)
-                .FirstOrDefault(h => Security.ServerProof.KeyId(h) == keyId);
+            foreach (var stored in Loaded().Keys)
+            {
+                var guest = stored.StartsWith(GuestHashPrefix, StringComparison.Ordinal);
+                var hash = guest ? stored[GuestHashPrefix.Length..] : stored;
+                if (Security.ServerProof.KeyId(hash) == keyId)
+                {
+                    tunneled = guest;
+                    return hash;
+                }
+            }
+
+            tunneled = false;
+            return null;
         }
     }
+
+    /// <inheritdoc cref="TokenHashKnownAs(string, out bool)"/>
+    public string? TokenHashKnownAs(string keyId) => TokenHashKnownAs(keyId, out _);
 
     /// <summary>What a guest's or away device's token hash starts with (see <see cref="IssueGuest"/>).</summary>
     public const string GuestHashPrefix = "guest:";

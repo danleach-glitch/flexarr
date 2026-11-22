@@ -1040,6 +1040,11 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
 
         Assert.Equal(answer.ServerId, setup.GetProperty("serverId").GetString());
         Assert.Equal(ServerProof.Answer(hash, answer.ServerId, challenge), setup.GetProperty("proof").GetString());
+
+        // Asked from the internet, it isn't answered: that could be someone else's network passing the question on.
+        using var internet = factory.From("203.0.113.74");
+        var relayed = await internet.GetFromJsonAsync<JsonElement>($"/api/v1/setup?challenge={challenge}&keyId={ServerProof.KeyId(hash)}");
+        Assert.True(!relayed.TryGetProperty("proof", out var p) || p.ValueKind == JsonValueKind.Null);
     }
 
     [Fact]

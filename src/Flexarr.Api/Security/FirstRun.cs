@@ -213,7 +213,15 @@ public static class FirstRunEndpoints
             if (current.ServerId is { Length: > 0 } serverId && ServerProof.IsChallenge(challenge) && ServerProof.IsKeyId(keyId))
             {
                 var apiKeyHash = string.IsNullOrEmpty(current.ApiKey) ? null : ServerProof.HashOf(current.ApiKey);
-                var keyHash = apiKeyHash is not null && ServerProof.KeyId(apiKeyHash) == keyId ? apiKeyHash : signIns.TokenHashKnownAs(keyId!);
+                var tunneled = false;
+                var keyHash = apiKeyHash is not null && ServerProof.KeyId(apiKeyHash) == keyId ? apiKeyHash : signIns.TokenHashKnownAs(keyId!, out tunneled);
+                // A guest's or household device's key only ever needs it at home: asked from the internet, it could be
+                // a host on someone else's network passing the app's question on to get the key sent to it.
+                if (tunneled && NetworkZones.Of(http) == NetworkZone.Internet)
+                {
+                    keyHash = null;
+                }
+
                 proof = keyHash is null ? null : ServerProof.Answer(keyHash, serverId, challenge!);
             }
 
