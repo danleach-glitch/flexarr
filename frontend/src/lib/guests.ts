@@ -15,6 +15,16 @@ const pathLabel = (path: TailnetPath) =>
  * household device just says whether it's online: how it's connected is a guest's concern, whose quality it sets.
  */
 export function describeGuest(device: GuestDevice, withProfile = true) {
-  const connection = !device.online ? t('Offline') : device.household ? t('Online') : pathLabel(device.path)
+  // A household device at home talks to the home address and stops its tunnel, so the tailnet calls it offline.
+  const connection =
+    device.household && device.lastRoute === 'home'
+      ? t('At home')
+      : !device.online
+        ? t('Offline')
+        : device.household
+          ? device.lastRoute === 'away'
+            ? t('Away from home')
+            : t('Online')
+          : pathLabel(device.path)
   return [withProfile ? device.profileName : null, connection, t('last used {when}', { when: relativeTime(device.lastUsedAt) })].filter(Boolean).join(' · ')
 }

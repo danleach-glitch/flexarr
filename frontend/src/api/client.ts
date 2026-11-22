@@ -2236,6 +2236,8 @@ export interface Me {
   ratingSystem?: RatingSystem
   /** A family guest's device: it stays on its profile. Absent from servers before 0.57. */
   isGuest?: boolean
+  /** For a household device that joined by invite, the server's home address. Absent from servers before 0.67. */
+  homeUrl?: string | null
   /** The profile's chosen language (a BCP 47 code); null follows the browser. Absent from servers before 0.61. */
   language?: string | null
   /** Nobody has chosen who's watching here, and being the main profile takes its own PIN: ask. Absent from servers before 0.63. */
@@ -2374,6 +2376,11 @@ export interface GuestDevice {
    * household's). Absent from servers before 0.67, and for guests' devices.
    */
   homeProfileId?: string | null
+  /**
+   * How a household device's last request came: `home` (the home network) or `away` (its tunnel). Absent from servers
+   * before 0.67, for guests' devices, and until it's been seen.
+   */
+  lastRoute?: 'home' | 'away' | null
 }
 
 export const getRemoteGuests = (signal?: AbortSignal) => apiGet<RemoteGuests>('/remote/guests', signal)

@@ -355,6 +355,10 @@ describe('Settings › Remote access › Family invites', () => {
     // A household device: online or not, never how.
     expect(describeGuest(device({ household: true }), false)).toMatch(/^Online · last used/)
     expect(describeGuest(device({ household: true, online: false }), false)).toMatch(/^Offline · last used/)
+    // Which way it came last: at home its tunnel is stopped, so the tailnet calling it offline doesn't matter.
+    expect(describeGuest(device({ household: true, online: false, lastRoute: 'home' }), false)).toMatch(/^At home · last used/)
+    expect(describeGuest(device({ household: true, lastRoute: 'away' }), false)).toMatch(/^Away from home · last used/)
+    expect(describeGuest(device({ household: true, online: false, lastRoute: 'away' }), false)).toMatch(/^Offline · last used/)
   })
 
   describe('Your household (away from home)', () => {
