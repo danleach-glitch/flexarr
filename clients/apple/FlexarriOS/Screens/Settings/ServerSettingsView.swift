@@ -16,15 +16,21 @@ struct ServerSettingsView: View {
                 // Through the tunnel: no address to show, just whose server. A guest leaves it here; a household device
                 // away from home signs out on Settings, as at home.
                 let isGuest = model.credentials?.isGuest == true
+                // A household device with a home address uses it while it answers, the tunnel when it doesn't.
+                let atHome = !isGuest && !model.throughTunnel
                 Section {
                     row(t("Server"), model.guestServerTitle(guest))
-                    row(t("Connection"), connection)
+                    if model.credentials?.hasHomeRoute == true {
+                        row(t("Connected"), atHome ? t("At home") : t("Away from home"))
+                    }
+                    if !atHome { row(t("Connection"), connection) }
                     if isGuest {
                         Button(t("Leave"), role: .destructive) { confirmLeave = true }
                             .listRowBackground(Color.seat)
                     }
                 } header: {
-                    Text(isGuest ? t("Connected by invite") : t("Away from home"))
+                    // At home, the row above says so.
+                    if !atHome { Text(isGuest ? t("Connected by invite") : t("Away from home")) }
                 } footer: {
                     Text(isGuest
                          ? t("Connected over the internet. AirPlay is off on this connection, and downloads carry on only while Flexarr is open.")
