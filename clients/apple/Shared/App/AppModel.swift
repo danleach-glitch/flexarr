@@ -1003,6 +1003,25 @@ final class AppModel {
         }
     }
 
+    /// Keeps a household device's home address as the server last gave it (`SignInInfo.homeUrl`; nil: none, or a server
+    /// before it), with the server's id it's asked for there (from the server, through the tunnel, if not kept yet).
+    /// Only ever an address the server gave: a server that never says is never tried at home.
+    private func noteHome(_ homeUrl: URL?) async {
+        guard let now = credentials, now.isHouseholdAway else { return }
+        var id = now.serverId
+        if homeUrl != nil, id?.isEmpty != false, let client {
+            id = (try? await client.systemStatus())?.serverId
+        }
+        guard let again = credentials, again.isSameSignIn(as: now), again.isHouseholdAway,
+              again.homeAddress != homeUrl || again.serverId != id else { return }
+        var updated = again
+        updated.homeAddress = homeUrl == again.address ? nil : homeUrl
+        updated.serverId = id
+        store.saveHousehold(home: updated.homeAddress, serverId: id, of: updated)
+        log.info(updated.homeAddress == nil ? "No home address for this household device" : "Learnt the server's home address")
+        phase = .signedIn(updated)
+    }
+
     /// The host removed this device (or deleted it from their tailnet): signed out, back to joining, saying why.
     private func removedAsGuest(_ guest: GuestTunnelInfo?) {
         // A household device away from home is signed out of its own server, not shut out of someone else's.
@@ -1131,7 +1150,9 @@ final class AppModel {
         // A household device away from home (servers from 0.67 say so): its own profile, without a guest's limits.
         var tunnel = info
         if redeemed.household == true { tunnel.household = true }
-        let credentials = ServerCredentials(address: address, apiKey: redeemed.apiKey, guest: tunnel)
+        // A household device's way in at home too, asked to prove it's this server before it's used (never a guest's).
+        let credentials = ServerCredentials(address: address, apiKey: redeemed.apiKey, guest: tunnel, serverId: redeemed.serverId,
+                                            homeAddress: redeemed.homeUrl)
         do {
             try store.save(credentials)
         } catch {
@@ -1270,6 +1291,9 @@ final class AppModel {
         if let credentials, case let matched = credentials.matching(serverSaysGuest: me?.isGuest), matched != credentials {
             if (try? store.save(matched)) != nil { phase = .signedIn(matched) }
         }
+        // A household device learns where home is (or that it's gone) each time: one that joined before servers said
+        // picks it up after an update, with no joining again.
+        if let me, credentials?.isHouseholdAway == true { Task { await noteHome(me.homeUrl) } }
         profiles = offered(list)
         hasBeenOnline = true
         // In the profile's language (or the device's) before the first screen, so it doesn't change under you.
