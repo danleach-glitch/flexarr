@@ -98,6 +98,7 @@ import kotlinx.coroutines.flow.first
 import io.github.flexarr.data.DiscoveredServer
 import io.github.flexarr.ui.connect.PairingSession
 import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 private val flexarrLog = FlexarrLog("signin")
 private val speedLog = FlexarrLog("playback")
@@ -354,13 +355,42 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         }
     }
 
-    /** Something that may have opened on the tunnel is still going: it keeps the route it opened on. */
+    /**
+     * Something that opened on the tunnel is still going (a player, music, a podcast or a book streaming from it, a
+     * download's file coming through it): it keeps the route it opened on. What opened at home doesn't hold it up.
+     */
     private val tunnelBusy: Boolean
-        get() = videoPlayers > 0 || music.wantsToPlay || podcasts.wantsToPlay || books.wantsToPlay || downloads.isTransferring || bookDownloads.isTransferring
+        get() {
+            val tunnel = tunnelAddress() ?: return false
+            return tunnelVideoPlayers > 0 || tunnelTransfers.get() > 0 ||
+                music.streamsFrom(tunnel) || podcasts.streamsFrom(tunnel) || books.streamsFrom(tunnel)
+        }
 
-    /** How many video players are open (each keeps the route it opened on: the tunnel isn't stopped under it). */
+    /** The tunnel's own address (a tunnel sign-in's [ServerCredentials.address]); null for a sign-in without one. */
+    private fun tunnelAddress(): HttpUrl? = credentials?.takeIf { it.usesTunnel }?.address?.toHttpUrlOrNull()
+
+    /** Whether [url] goes through the tunnel inside the app. */
+    fun isTunnelAddress(url: HttpUrl): Boolean =
+        tunnelAddress()?.let { it.scheme == url.scheme && it.host == url.host && it.port == url.port } == true
+
+    /** How many video players opened on the tunnel are open (each keeps the route it opened on). */
     @Volatile
-    var videoPlayers = 0
+    var tunnelVideoPlayers = 0
+
+    /** How many downloads' files are coming through the tunnel now ([keepingRouteOf]). */
+    @PublishedApi
+    internal val tunnelTransfers = java.util.concurrent.atomic.AtomicInteger()
+
+    /** Runs [block], a transfer from [url]: one through the tunnel keeps it up at home until it's done. */
+    inline fun <T> keepingRouteOf(url: HttpUrl, block: () -> T): T {
+        val viaTunnel = isTunnelAddress(url)
+        if (viaTunnel) tunnelTransfers.incrementAndGet()
+        try {
+            return block()
+        } finally {
+            if (viaTunnel) tunnelTransfers.decrementAndGet()
+        }
+    }
 
     /**
      * What the server said about [isGuest] (null: a server before 0.57, which says nothing, and the sign-in as saved

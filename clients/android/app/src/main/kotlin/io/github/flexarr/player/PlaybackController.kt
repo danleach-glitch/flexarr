@@ -424,9 +424,12 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     private var firstFrame: Triple<Long, Long, String?>? = null
     private val log = FlexarrLog("playback")
 
+    /** Opened through the tunnel inside the app: it keeps the tunnel up until it closes. */
+    private val openedOnTunnel = model.isTunnelAddress(client.addresses.current)
+
     init {
-        // Open, it keeps the route it opened on: a household device's tunnel isn't stopped under it at home.
-        model.videoPlayers++
+        // Open on the tunnel, it keeps the route it opened on: a household device's tunnel isn't stopped under it at home.
+        if (openedOnTunnel) model.tunnelVideoPlayers++
         player.addListener(object : Player.Listener {
             override fun onRenderedFirstFrame() {
                 if (info?.sessionId != switchingFrom) switchingQuality = false
@@ -1791,7 +1794,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
     /** The player closed: the last position, then the session ends (finishing even though the screen has gone). */
     fun close() {
-        if (!closed) model.videoPlayers--
+        if (!closed && openedOnTunnel) model.tunnelVideoPlayers--
         closed = true
         tooSlowCheck?.cancel()
         ticker?.cancel()
