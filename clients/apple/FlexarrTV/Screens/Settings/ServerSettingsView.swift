@@ -17,8 +17,10 @@ struct ServerSettingsView: View {
         SettingsPage(title: t("Server"), summary: summary) {
             SettingsGroupLabel(t("Connection"))
             if let guest = model.credentials?.guest, model.credentials?.isGuest != true {
-                // A household device away from home: no address to show, just whose server. Sign out is on Settings.
-                SettingsFact(t("Away from home"), model.guestServerTitle(guest))
+                // A household device that joined by invite: no address to show, just whose server, and whether it's
+                // reached at home or through its own connection away. Sign out is on Settings.
+                SettingsFact(model.credentials?.hasHomeRoute == true && !model.throughTunnel ? t("At home") : t("Away from home"),
+                             model.guestServerTitle(guest))
             } else if let guest = model.credentials?.guest {
                 // A family guest: no address to show, just whose server, and a way to leave it.
                 SettingsFact(t("Connected by invite"), model.guestServerTitle(guest))

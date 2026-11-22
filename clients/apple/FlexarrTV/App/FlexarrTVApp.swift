@@ -62,11 +62,14 @@ struct RootView: View {
         let severalProfiles: Bool
         let watching: String?
         let behindPin: Bool?
+        /// A household device's home address is the route in use (it has answered as the server).
+        let atHome: Bool
     }
 
     private var topShelf: TopShelfKey {
         TopShelfKey(credentials: model.credentials, asksWhoIsWatching: model.asksWhoIsWatchingHere, profilesLoaded: model.profilesLoaded,
-                    severalProfiles: model.profiles.count > 1, watching: watching?.id, behindPin: watching?.needsPinToChoose)
+                    severalProfiles: model.profiles.count > 1, watching: watching?.id, behindPin: watching?.needsPinToChoose,
+                    atHome: model.credentials?.hasHomeRoute == true && !model.throughTunnel)
     }
 
     var body: some View {
@@ -129,10 +132,10 @@ struct RootView: View {
             if let credentials = model.credentials, topShelf.asksWhoIsWatching || credentials.profileToken == nil,
                !model.profilesLoaded { return }
             // A family guest's Top Shelf stays empty (the extension runs apart from the app, so it can't reach the
-            // tunnel), and so does a profile's with a PIN while "Who's watching?" stands before it (an Apple TV that
+            // tunnel), as does a household device's while it's away (at home it has the home address), and so does a profile's with a PIN while "Who's watching?" stands before it (an Apple TV that
             // asks each time, or nobody chosen yet): the Home screen would show, and play, what the PIN keeps for its owner.
             SharedSignIn.save(SharedSignIn.forTopShelf(model.credentials, asksWhoIsWatching: topShelf.asksWhoIsWatching, watching: watching,
-                                                       severalProfiles: topShelf.severalProfiles))
+                                                       severalProfiles: topShelf.severalProfiles, homeAnswering: topShelf.atHome))
             TVTopShelfContentProvider.topShelfContentDidChange()
         }
         .onChange(of: model.refreshToken) { TVTopShelfContentProvider.topShelfContentDidChange() }

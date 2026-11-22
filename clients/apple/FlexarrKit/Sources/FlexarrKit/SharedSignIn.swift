@@ -24,12 +24,22 @@ public enum SharedSignIn {
     /// "Who's watching?" keeps for whoever has the PIN. A profile without one can be chosen by anyone at the TV anyway.
     /// The same while nobody has been chosen here yet in a household with `severalProfiles`: "Who's watching?" is up
     /// then too, and the server would answer as the main profile.
+    /// A household device that joined by invite gets its home address while that's the route in use, having said it's
+    /// the server (`homeAnswering`), and none while it's away on the tunnel.
     public static func forTopShelf(_ credentials: ServerCredentials?, asksWhoIsWatching: Bool, watching: Profile?,
-                                   severalProfiles: Bool = false) -> Value? {
-        guard let credentials, !credentials.usesTunnel else { return nil }
+                                   severalProfiles: Bool = false, homeAnswering: Bool = false) -> Value? {
+        guard let credentials else { return nil }
+        let address: URL
+        if !credentials.usesTunnel {
+            address = credentials.address
+        } else if credentials.hasHomeRoute, homeAnswering, let home = credentials.homeAddress {
+            address = home
+        } else {
+            return nil
+        }
         let nobodyChosen = severalProfiles && credentials.profileToken == nil
         if asksWhoIsWatching || nobodyChosen, watching?.needsPinToChoose != false { return nil }
-        return Value(address: credentials.address, apiKey: credentials.apiKey, profileToken: credentials.profileToken)
+        return Value(address: address, apiKey: credentials.apiKey, profileToken: credentials.profileToken)
     }
 
     /// Saves (or, with nil, removes) the sign-in the extension uses.
