@@ -66,10 +66,19 @@ data class ServerCredentials(
      * own household profile, with none of a guest's limits. Only with [guest]; false for sign-ins saved before.
      */
     val household: Boolean = false,
+    /**
+     * A household device away from home's server at home ([io.github.flexarr.core.SignInInfo.homeUrl], servers from
+     * 0.67): used while it answers as this server, the tunnel when it doesn't. Never for a guest, and only with
+     * [serverId], which home has to prove before it's sent the sign-in.
+     */
+    val homeAddress: String? = null,
+    /** A household device last reached its server through the tunnel ([homeAddress] didn't answer): the next launch starts there. */
+    val lastAway: Boolean = false,
 ) {
     /**
-     * Reaches the server through the tunnel inside the app ([guest] is set): a guest's or a household device's away from
-     * home. No address for away from home, no Cast, downloads only while the app's in front, always away.
+     * Signed in through the tunnel inside the app ([guest] is set): a guest's or a household device's away from home. No
+     * address for away from home. A guest is always on the tunnel; a household device with a home address ([pairsHome])
+     * uses home while it answers, so whether it's on the tunnel now is the route's ([ServerAddresses.onTunnel]).
      */
     val usesTunnel: Boolean get() = guest != null
 
@@ -89,7 +98,20 @@ data class ServerCredentials(
      * This tunnel sign-in as the server says it is ([guest]: `/me`'s `isGuest`), or null when that changes nothing (it
      * already says so, or it isn't a tunnel sign-in).
      */
-    fun withServerSaid(guest: Boolean): ServerCredentials? = takeIf { usesTunnel && household == guest }?.copy(household = !guest)
+    fun withServerSaid(guest: Boolean): ServerCredentials? = takeIf { usesTunnel && household == guest }
+        ?.copy(household = !guest)?.let { if (guest) it.copy(homeAddress = null, serverId = null, lastAway = false) else it }
+
+    /**
+     * A household device away from home that may use its server's home address: the server said where it is, and its id
+     * is known, so home is asked to prove it's this server before it's sent the sign-in. [address] stays the tunnel's.
+     */
+    val pairsHome: Boolean get() = isHouseholdAway && homeUrl != null && !serverId.isNullOrEmpty()
+
+    private val homeUrl get() = homeAddress?.toHttpUrlOrNull()?.takeIf { isHouseholdAway }
+
+    /** The same sign-in with [home] as its home address and [serverId] as the server's id (a household device's only). */
+    fun withHome(home: String?, serverId: String?): ServerCredentials =
+        if (!isHouseholdAway) this else copy(homeAddress = home, serverId = serverId)
 
     /** The away address with whether it's confirmed, as [io.github.flexarr.AppModel.remoteAddress] takes and gives it. */
     val away: Away? get() = remoteAddress?.let { Away(it, remoteConfirmed) }
@@ -98,13 +120,27 @@ data class ServerCredentials(
     fun withAway(away: Away?): ServerCredentials =
         copy(remoteAddress = away?.url?.takeIf { guest == null && it != address }, remoteConfirmed = away?.confirmed ?: true)
 
-    fun client(onUnauthorized: (() -> Unit)? = null) = FlexarrClient(
-        addresses = ServerAddresses.shared(
-            address.toHttpUrlOrNull()!!,
+    /**
+     * Where this sign-in's server is reached. A household device with a home address ([pairsHome]) has home as home and
+     * the tunnel as away, with the server's id for home to prove; the tunnel itself is always trusted (it's the app's own,
+     * to the address the invite gave).
+     */
+    fun addresses(): ServerAddresses {
+        val tunnel = address.toHttpUrlOrNull()!!
+        val home = homeUrl
+        if (pairsHome && home != null) {
+            return ServerAddresses.shared(home, tunnel, serverId = serverId, remoteConfirmed = true, awayIsTunnel = true, startAway = lastAway)
+        }
+        return ServerAddresses.shared(
+            tunnel,
             remoteAddress?.toHttpUrlOrNull()?.takeIf { guest == null },
             serverId = serverId?.takeIf { guest == null && it.isNotEmpty() },
             remoteConfirmed = remoteConfirmed,
-        ),
+        )
+    }
+
+    fun client(onUnauthorized: (() -> Unit)? = null) = FlexarrClient(
+        addresses = addresses(),
         apiKey = apiKey.ifEmpty { null },
         profileToken = profileToken,
         onUnauthorized = onUnauthorized,
@@ -134,15 +170,19 @@ class CredentialStore internal constructor(context: Context, private val secrets
             GuestTunnelInfo(target, prefs.getString(GUEST_HOSTNAME, null).orEmpty(), prefs.getString(GUEST_OWNER, null).orEmpty(),
                 prefs.getString(GUEST_SERVER_NAME, null))
         }
+        val household = guest != null && prefs.getBoolean(GUEST_HOUSEHOLD, false)
         return ServerCredentials(
             address,
             key,
             prefs.getString(PROFILE, null),
             (prefs.getString(REMOTE, null) ?: prefs.getString(REMOTE_PENDING, null)).takeIf { guest == null },
             guest,
-            prefs.getString(SERVER_ID, null).takeIf { guest == null },
+            // A household device's id is kept apart: older versions read SERVER_ID only for a sign-in at home.
+            if (guest == null) prefs.getString(SERVER_ID, null) else prefs.getString(HOUSEHOLD_SERVER_ID, null).takeIf { household },
             prefs.getString(REMOTE, null) != null || prefs.getString(REMOTE_PENDING, null) == null,
-            guest != null && prefs.getBoolean(GUEST_HOUSEHOLD, false),
+            household,
+            prefs.getString(HOUSEHOLD_HOME, null).takeIf { household },
+            household && prefs.getBoolean(HOUSEHOLD_AWAY, false),
         )
     }
 
@@ -166,7 +206,25 @@ class CredentialStore internal constructor(context: Context, private val secrets
             .putString(GUEST_OWNER, guest?.ownerName)
             .putString(GUEST_SERVER_NAME, guest?.serverName)
             .putBoolean(GUEST_HOUSEHOLD, guest != null && credentials.household)
+            .putString(HOUSEHOLD_HOME, credentials.homeAddress.takeIf { credentials.isHouseholdAway })
+            .putString(HOUSEHOLD_SERVER_ID, credentials.serverId.takeIf { credentials.isHouseholdAway })
+            .putBoolean(HOUSEHOLD_AWAY, credentials.isHouseholdAway && credentials.lastAway)
             .apply()
+    }
+
+    /**
+     * Keeps a household device's home address and its server's id, as the server last said (`/me`'s `homeUrl`). Never
+     * for a guest, nor a sign-in at home: those go in keys of their own, which versions of the app from before never read.
+     */
+    fun saveHome(home: String?, serverId: String?) {
+        if (prefs.getString(GUEST_TARGET, null) == null || !prefs.getBoolean(GUEST_HOUSEHOLD, false)) return
+        prefs.edit().putString(HOUSEHOLD_HOME, home).putString(HOUSEHOLD_SERVER_ID, serverId).apply()
+    }
+
+    /** Whether a household device last reached its server through the tunnel rather than at home, for the next launch. */
+    fun saveLastAway(away: Boolean) {
+        if (prefs.getString(GUEST_TARGET, null) == null || !prefs.getBoolean(GUEST_HOUSEHOLD, false)) return
+        prefs.edit().putBoolean(HOUSEHOLD_AWAY, away).apply()
     }
 
     /** Remembers what the server is called, so Settings can say so while it can't be reached (null forgets it). */
@@ -206,7 +264,10 @@ class CredentialStore internal constructor(context: Context, private val secrets
      */
     fun saveHousehold(household: Boolean) {
         if (prefs.getString(GUEST_TARGET, null) == null) return
-        prefs.edit().putBoolean(GUEST_HOUSEHOLD, household).apply()
+        prefs.edit().putBoolean(GUEST_HOUSEHOLD, household)
+            // A guest after all: never told where home is.
+            .also { if (!household) it.remove(HOUSEHOLD_HOME).remove(HOUSEHOLD_SERVER_ID).remove(HOUSEHOLD_AWAY) }
+            .apply()
     }
 
     /** Remembers who's watching. The token only works alongside the device's own, so it isn't encrypted. */
@@ -237,7 +298,8 @@ class CredentialStore internal constructor(context: Context, private val secrets
 
     fun clear() {
         prefs.edit().remove(ADDRESS).remove(API_KEY).remove(PROFILE).remove(PROFILES).remove(KIDS_LOCK).remove(REMOTE).remove(REMOTE_PENDING).remove(SERVER_ID)
-            .remove(GUEST_TARGET).remove(GUEST_HOSTNAME).remove(GUEST_OWNER).remove(GUEST_SERVER_NAME).remove(GUEST_HOUSEHOLD).remove(SERVER_NAME).apply()
+            .remove(GUEST_TARGET).remove(GUEST_HOSTNAME).remove(GUEST_OWNER).remove(GUEST_SERVER_NAME).remove(GUEST_HOUSEHOLD).remove(SERVER_NAME)
+            .remove(HOUSEHOLD_HOME).remove(HOUSEHOLD_SERVER_ID).remove(HOUSEHOLD_AWAY).apply()
     }
 
     /** Encrypted as the token is, for other secrets kept beside it (the notification key). */
@@ -261,6 +323,9 @@ class CredentialStore internal constructor(context: Context, private val secrets
         const val GUEST_SERVER_NAME = "guest.serverName"
         const val GUEST_HOUSEHOLD = "guest.household"
         const val SERVER_NAME = "serverName"
+        const val HOUSEHOLD_HOME = "household.home"
+        const val HOUSEHOLD_SERVER_ID = "household.serverId"
+        const val HOUSEHOLD_AWAY = "household.lastAway"
     }
 }
 

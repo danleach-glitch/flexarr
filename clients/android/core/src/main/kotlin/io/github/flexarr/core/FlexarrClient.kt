@@ -501,6 +501,12 @@ class FlexarrClient(
             if (couldNotConnect(e)) onCouldNotConnect?.invoke(addresses.home)
             throw FlexarrException.Unreachable(e)
         }
+        // A household device's sign-in refused at home (a server that only takes it through the tunnel): through the
+        // tunnel instead, never a sign-out.
+        if (response.code == 401 && addresses.homeRefused(response.request.url)) {
+            response.close()
+            return exchange(method, path, query, body, racesAlternate, http, headers, answered)
+        }
         return response.use {
             val text = it.body.string()
             when {
@@ -625,7 +631,7 @@ class FlexarrClient(
             return response
         }
         val second = request(method, path, query, body, alternate, headers)
-        val (response, reached) = if (method == "GET" && racesAlternate) {
+        val (response, reached) = if (method == "GET" && racesAlternate && addresses.racesFrom(primary)) {
             race(http, first to primary, second to alternate)
         } else {
             try {
