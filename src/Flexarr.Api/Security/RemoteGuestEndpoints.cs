@@ -319,6 +319,8 @@ public static class RemoteGuestEndpoints
                 return Problems.Of("Family invites are paused on this server. Ask its owner to check Settings › Remote access.", status: 503);
             }
 
+            // Worked out before the invite is used, so nothing after redeeming can fail and leave the code spent.
+            var homeUrl = home.Url();
             try
             {
                 var profiles = await db.Profiles.AsNoTracking().ToDictionaryAsync(p => p.Id, p => (p.Name, p.IsKids), ct);
@@ -332,7 +334,7 @@ public static class RemoteGuestEndpoints
                 }
 
                 return Results.Ok(new RedeemedInviteDto(token, signIn.ProfileId!, options.CurrentValue.ServerId ?? "", signIn.Name, signIn.Away,
-                    signIn.Away ? home.Url() : null));
+                    signIn.Away ? homeUrl : null));
             }
             catch (InviteException ex)
             {

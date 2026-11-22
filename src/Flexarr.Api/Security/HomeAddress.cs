@@ -43,23 +43,42 @@ public sealed class HomeAddress(IServer server, IInstallEnvironment install, Tim
         return url;
     }
 
-    /// <summary>The first private IPv4 address of a running interface with a gateway (the one the home network routes to).</summary>
+    /// <summary>
+    /// The private IPv4 address of a running Ethernet or Wi-Fi interface with a gateway (the one the home network routes
+    /// to), ahead of any other kind, and a VPN's or a virtual machine's adapter last. Null on any trouble reading them: the
+    /// device then stays on its tunnel, and nothing asking for it fails.
+    /// </summary>
     private static IPAddress? Lan()
     {
         try
         {
             return NetworkInterface.GetAllNetworkInterfaces()
-                .Where(n => n.OperationalStatus == OperationalStatus.Up && n.NetworkInterfaceType is not (NetworkInterfaceType.Loopback or NetworkInterfaceType.Tunnel))
-                .Select(n => n.GetIPProperties())
-                .Where(p => p.GatewayAddresses.Any(g => g.Address.AddressFamily == AddressFamily.InterNetwork && !g.Address.Equals(IPAddress.Any)))
-                .SelectMany(p => p.UnicastAddresses.Select(u => u.Address))
+                .Where(n => n.OperationalStatus == OperationalStatus.Up
+                    && n.NetworkInterfaceType is not (NetworkInterfaceType.Loopback or NetworkInterfaceType.Tunnel or NetworkInterfaceType.Ppp))
+                .Select(n => (Interface: n, Properties: n.GetIPProperties()))
+                .Where(n => n.Properties.GatewayAddresses.Any(g => g.Address.AddressFamily == AddressFamily.InterNetwork && !g.Address.Equals(IPAddress.Any)))
+                // A VPN's or virtual machine's adapter only when there's nothing else (Windows' Hyper-V switch can carry
+                // the home network itself).
+                .OrderBy(n => Virtual(n) ? 2 : n.Interface.NetworkInterfaceType is NetworkInterfaceType.Ethernet or NetworkInterfaceType.Wireless80211 or NetworkInterfaceType.GigabitEthernet ? 0 : 1)
+                .SelectMany(n => n.Properties.UnicastAddresses.Select(u => u.Address))
                 .FirstOrDefault(IsHome);
         }
-        catch (NetworkInformationException)
+#pragma warning disable CA1031 // Any failure means "not known": /me and joining must never fail over it.
+        catch (Exception)
+#pragma warning restore CA1031
         {
             return null;
         }
     }
+
+    /// <summary>VPNs' and virtual machines' adapters: seldom where the home network reaches this machine.</summary>
+    internal static bool Virtual(NetworkInterface n) => Virtual(n.Name) || Virtual(n.Description);
+
+    internal static bool Virtual(string name) =>
+        VirtualNames.Any(v => name.StartsWith(v, StringComparison.OrdinalIgnoreCase))
+        || name.Contains("virtual", StringComparison.OrdinalIgnoreCase) || name.Contains("vpn", StringComparison.OrdinalIgnoreCase);
+
+    private static readonly string[] VirtualNames = ["utun", "tun", "tap", "wg", "tailscale", "zt", "docker", "br-", "veth", "virbr", "vmnet", "vboxnet", "bridge", "awdl", "llw", "ipsec", "ppp"];
 
     /// <summary>A private IPv4 address (10/8, 172.16/12, 192.168/16): not loopback, link-local or Tailscale's range.</summary>
     internal static bool IsHome(IPAddress address)

@@ -1012,6 +1012,23 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
     public void The_home_address_is_a_private_one(string address, bool home) =>
         Assert.Equal(home, HomeAddress.IsHome(System.Net.IPAddress.Parse(address)));
 
+    [Theory]
+    [InlineData("en0", false)]
+    [InlineData("eth0", false)]
+    [InlineData("wlan0", false)]
+    [InlineData("enp3s0", false)]
+    [InlineData("utun4", true)]
+    [InlineData("wg0", true)]
+    [InlineData("tailscale0", true)]
+    [InlineData("docker0", true)]
+    [InlineData("br-1a2b3c", true)]
+    [InlineData("bridge100", true)]
+    [InlineData("vmnet8", true)]
+    [InlineData("Hyper-V Virtual Ethernet Adapter", true)]
+    [InlineData("NordVPN", true)]
+    public void A_vpn_or_virtual_machines_adapter_comes_last_for_the_home_address(string name, bool skipped) =>
+        Assert.Equal(skipped, HomeAddress.Virtual(name));
+
     [Fact]
     public async Task The_home_address_proves_itself_to_a_household_device_before_it_sends_its_key()
     {
