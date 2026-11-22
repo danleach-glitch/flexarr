@@ -1,5 +1,6 @@
 package io.github.flexarr.audio
 
+import okhttp3.HttpUrl
 import androidx.annotation.OptIn
 import io.github.flexarr.core.i18n.t
 import io.github.flexarr.player.mediaSources
@@ -58,6 +59,9 @@ class PodcastPlayer(private val context: Context, private val model: AppModel) {
     val wantsToPlay: Boolean
         get() = isPlaying || isLoading ||
             (created && player.playWhenReady && player.playbackState.let { it == Player.STATE_BUFFERING || it == Player.STATE_READY })
+
+    /** Playing, or about to, something queued from [base] (the tunnel's address): it keeps the tunnel up at home. */
+    fun streamsFrom(base: HttpUrl): Boolean = created && wantsToPlay && player.queuesFrom(base)
 
     val player: ExoPlayer by lazy {
         created = true

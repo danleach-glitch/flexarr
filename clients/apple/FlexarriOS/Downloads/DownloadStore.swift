@@ -300,6 +300,8 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
     }()
     /// Whether `guestSession` exists: its transfers outlive guest mode (Leave cancels them after it's ended).
     @ObservationIgnored private var madeGuestSession = false
+    /// The transfers under way through the tunnel (by name), which hold it open (see `TunnelUse`).
+    @ObservationIgnored private var tunnelTransfers: Set<String> = []
     /// Where a new transfer goes: the guest's session for a family guest, the background one for everyone else.
     private var transferSession: URLSession { GuestMode.isActive ? guestSession : session }
 
@@ -371,6 +373,8 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
 
     override init() {
         super.init()
+        // A household device's tunnel stays up at home while a transfer that went through it is under way.
+        TunnelUse.register { [weak self] in self?.tunnelTransfers.isEmpty == false }
         let saved = SavedList.load(LocalDownload.self, from: Self.manifest)
         let savedCollections = SavedList.load(LocalCollection.self, from: Self.collectionsManifest)
         Self.report(saved, from: Self.manifest)
@@ -519,8 +523,10 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         attachedProfileId = client == nil ? nil : profileId
         if let client {
             // A family guest's address is the tunnel's loopback one, the same whoever's Flexarr it joins: its plays are
-            // never kept past its downloads, so none could reach another host's history.
-            let server = GuestMode.isActive ? nil : UnsentReports.serverKey(client.addresses.home)
+            // never kept past its downloads, so none could reach another host's history. A household device with a home
+            // address is known by that, at home or through the tunnel, so a download made at home matches away.
+            let tunnelOnly = client.addresses.guest != nil && !client.addresses.hasHomeRoute
+            let server = tunnelOnly ? nil : UnsentReports.serverKey(client.addresses.home)
             if server != self.server {
                 self.server = server
                 UserDefaults.standard.set(server, forKey: "downloads.server")
@@ -635,8 +641,10 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
                 return
             }
             let resumed = kept.flatMap { $0.wifiOnly == wifiOnly && FlexarrClient.resumes($0.url, at: request.url) ? $0.data : nil }
-            let task = resumed.map { transferSession.downloadTask(withResumeData: $0) } ?? transferSession.downloadTask(with: request)
+            let session = transferSession
+            let task = resumed.map { session.downloadTask(withResumeData: $0) } ?? session.downloadTask(with: request)
             task.taskDescription = name
+            if session !== self.session { tunnelTransfers.insert(name) }
             task.resume()
         }
     }
@@ -1817,6 +1825,27 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         }
     }
 
+    /// A household device's transfer to the home address cut off, or unable to connect there (it's left home): the
+    /// requests move to the tunnel (started for them) unless home answers after all, and the transfer goes again at the
+    /// address in use, from where it got to only if that's the same address (see `startTransfer`). True when that's
+    /// what happened.
+    private func lostHome(_ error: Error, url: URL?) -> Bool {
+        guard let client, let url, client.addresses.hasHomeRoute, client.addresses.isHome(url),
+              (error as NSError).userInfo[NSURLSessionDownloadTaskResumeData] != nil || FlexarrClient.couldNotConnect(error)
+        else { return false }
+        log.info("A download lost the home address: carrying on through the tunnel")
+        let addresses = client.addresses
+        Task { @MainActor in
+            // The tunnel is the route first: only then does it start for the transfer.
+            if !(await client.homeAnswers(fresh: true)) {
+                addresses.homeMissed()
+                _ = await FlexarrClient.onTunnelNeeded?()
+            }
+            if isOnline { poll() }
+        }
+        return true
+    }
+
     fileprivate func bookFileStopped(_ id: String, file: Int, _ error: Error, wifiOnly: Bool, url: URL?) {
         guard let download = all.first(where: { $0.id == id }), !download.isDownloaded else { return }
         if Self.isOutOfSpace(error) {
@@ -1824,11 +1853,10 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
             return
         }
         // Cut off part-way (or cancelled by the system with where it got to, the app swiped away): carried on from
-        // there at the next catch-up.
-        if let data = (error as NSError).userInfo[NSURLSessionDownloadTaskResumeData] as? Data {
-            resumeData["\(id)#\(file)"] = Resumable(data: data, wifiOnly: wifiOnly, url: url)
-            return
-        }
+        // there at the next catch-up. One that lost the home address carries on through the tunnel.
+        let data = (error as NSError).userInfo[NSURLSessionDownloadTaskResumeData] as? Data
+        if let data { resumeData["\(id)#\(file)"] = Resumable(data: data, wifiOnly: wifiOnly, url: url) }
+        if lostHome(error, url: url) || data != nil { return }
         if (error as? URLError)?.code == .cancelled { return }
         update(id) { $0.state = .failed(t("The download stopped. Try again.")) }
     }
@@ -1877,6 +1905,11 @@ final class DownloadStore: NSObject, OfflineLibrary, OfflineMusicLibrary {
         // The device is full: it would only stop again.
         if Self.isOutOfSpace(error) {
             update(id) { $0.state = .failed(Self.outOfSpaceMessage) }
+            return
+        }
+        // A household device's transfer that lost the home address (it left home): it carries on through the tunnel.
+        if lostHome(error, url: url) {
+            held(id, resumeData: (error as NSError).userInfo[NSURLSessionDownloadTaskResumeData] as? Data, wifiOnly: wifiOnly, url: url)
             return
         }
         // Cut off part-way (the network went, a guest's tunnel slept with the phone locked, or the system cancelled it
@@ -1971,6 +2004,7 @@ extension DownloadStore: URLSessionDownloadDelegate {
     }
 
     nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: (any Error)?) {
+        if let name = task.taskDescription { MainActor.assumeIsolated { _ = tunnelTransfers.remove(name) } }
         guard let error, let id = task.taskDescription else { return }
         let wifiOnly = Self.madeWiFiOnly(task)
         let url = Self.address(of: task)

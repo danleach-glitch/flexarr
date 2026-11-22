@@ -6,11 +6,26 @@ import Security
 
 private let log = FlexarrLog("tunnel")
 
-/// This app is signed in through the tunnel (a family guest, or a household device away from home): AirPlay is left
-/// out, since an AirPlay receiver can't reach a tunnel inside this device, and downloads carry on only while the app is
-/// open. Set as the sign-in changes (`AppModel.phase`). A guest's limits are `ServerCredentials.isGuest`, not this.
+/// Requests go through the tunnel now (always for a family guest; for a household device, while home doesn't answer):
+/// AirPlay is left out, since an AirPlay receiver can't reach a tunnel inside this device, and downloads carry on only
+/// while the app is open. Set as the sign-in and its route change (`AppModel.phase`, `AppModel.routeChanged`); what's
+/// already open (a player, a transfer) keeps what it started with. A guest's limits are `isGuest`.
 enum GuestMode {
     nonisolated(unsafe) static var isActive = false
+    /// Signed in as a family guest (`ServerCredentials.isGuest`), wherever its requests go.
+    nonisolated(unsafe) static var isGuest = false
+}
+
+/// What else holds a household device's tunnel open besides the players `AppModel` has: the iPhone's transfers that
+/// went through it (`DownloadStore`). Each says, when asked, whether it has something under way there; the tunnel
+/// stops at home only once nothing does (`AppModel.stopTunnelWhenIdle`).
+@MainActor
+enum TunnelUse {
+    private static var holders: [@MainActor () -> Bool] = []
+
+    static func register(_ holds: @escaping @MainActor () -> Bool) { holders.append(holds) }
+
+    static var inUse: Bool { holders.contains { $0() } }
 }
 
 /// The tunnel a family guest's app reaches its host's server through: Tailscale built in (clients/tunnel), joined to
@@ -47,6 +62,8 @@ final class GuestTunnel: @unchecked Sendable {
 
     private let lock = NSLock()
     private var running: (target: String, port: Int)?
+    /// Goes up with each stop: a start begun before it ends stopped, rather than left running (see `stop`).
+    private var stops = 0
 
     /// The server's address through the tunnel, once it's running.
     var address: URL? {
@@ -71,13 +88,14 @@ final class GuestTunnel: @unchecked Sendable {
                let url = URL(string: "http://127.0.0.1:\(running.port)") {
                 guard let answers else { return Task { url } }
                 // Shared like a start, so the checks that come with coming to the front restart it only once.
+                let stopsBefore = stops
                 let made = Task.detached(priority: .userInitiated) { [self] in
                     if await answers(url) { return url }
                     log.info("The server stopped answering through the tunnel: starting it again")
                     lock.withLock { self.running = nil }
                     FlexarrTunnelStop()
                     // Its identity is kept, so no key is needed.
-                    return try startBlocking(info, authKey: nil)
+                    return try startBlocking(info, authKey: nil, stopsBefore: stopsBefore)
                 }
                 starting = made
                 startingTarget = info.target
@@ -85,9 +103,10 @@ final class GuestTunnel: @unchecked Sendable {
             }
             // After any stop still under way, so it can't stop this one.
             let stopping = self.stopping
+            let stopsBefore = stops
             let made = Task.detached(priority: .userInitiated) { [self] in
                 await stopping?.value
-                return try startBlocking(info, authKey: authKey)
+                return try startBlocking(info, authKey: authKey, stopsBefore: stopsBefore)
             }
             starting = made
             startingTarget = info.target
@@ -95,7 +114,7 @@ final class GuestTunnel: @unchecked Sendable {
         }
         defer {
             lock.withLock {
-                if startingTarget == info.target { starting = nil; startingTarget = nil }
+                if starting == task { starting = nil; startingTarget = nil }
             }
         }
         return try await task.value
@@ -104,7 +123,9 @@ final class GuestTunnel: @unchecked Sendable {
     private var starting: Task<URL, Error>?
     private var startingTarget: String?
 
-    private func startBlocking(_ info: GuestTunnelInfo, authKey: String?) throws -> URL {
+    /// `stopsBefore`: how many stops there had been when it was asked for. One asked for since ends it as it comes up
+    /// (the stop waits for it, then stops the node), and it throws `CancellationError`.
+    private func startBlocking(_ info: GuestTunnelInfo, authKey: String?, stopsBefore: Int) throws -> URL {
         var folder = Self.stateFolder
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         // Once the folder is there (the first time, it isn't until now).
@@ -138,7 +159,15 @@ final class GuestTunnel: @unchecked Sendable {
         Self.saveIdentity(from: folder)
         // Its key is spent now: trying the same invite again (a sign-in that didn't go through) uses this identity.
         if authKey?.isEmpty == false { UserDefaults.standard.set(Self.identity(info), forKey: Self.identityKey) }
-        lock.withLock { running = (info.target, Int(port)) }
+        let stopped = lock.withLock {
+            guard stops == stopsBefore else { return true }
+            running = (info.target, Int(port))
+            return false
+        }
+        if stopped {
+            log.info("The tunnel came up after it was stopped: stopping it")
+            throw CancellationError()
+        }
         GuestTunnelToken.tunnel(listeningOn: Int(port))
         return URL(string: "http://127.0.0.1:\(port)")!
     }
@@ -171,18 +200,22 @@ final class GuestTunnel: @unchecked Sendable {
     private var stopping: Task<Void, Never>?
 
     /// Stops the tunnel, off the main thread (the Go side waits for the node to close). `forget` also deletes this
-    /// device's identity on the host's tailnet (leaving it). A start made after this waits for it; await the task
-    /// returned to know it's done.
+    /// device's identity on the host's tailnet (leaving it). A start under way is waited for and then stopped too (it
+    /// throws `CancellationError` to whoever waits on it), so nothing comes up after this. A start made after this
+    /// waits for it; await the task returned to know it's done.
     @discardableResult
     func stop(forget: Bool = false) -> Task<Void, Never> {
         GuestTunnelToken.tunnel(listeningOn: nil)
         return lock.withLock {
             running = nil
+            stops += 1
+            let underWay = starting
             starting = nil
             startingTarget = nil
             let previous = stopping
             let task = Task.detached(priority: .userInitiated) {
                 await previous?.value
+                _ = try? await underWay?.value
                 FlexarrTunnelStop()
                 if forget {
                     try? FileManager.default.removeItem(at: Self.stateFolder)

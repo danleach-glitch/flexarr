@@ -130,17 +130,36 @@ public struct RedeemedInvite: Decodable, Sendable, Equatable {
     /// The device joined as a household device away from home, on its own profile with none of a guest's limits.
     /// Absent from servers before 0.67 (a guest).
     public var household: Bool? = nil
+    /// A household device's way to the server at home (see `SignInInfo.homeUrl`); nil for a guest. Absent from servers
+    /// before 0.67. Read as text, as `SignInInfo.homeUrl`: `homeAddress` is what's used.
+    public var homeUrl: String? = nil
 
-    public init(apiKey: String, profileId: String, serverId: String, name: String, household: Bool? = nil) {
+    /// `homeUrl` when it's one a household device may use (see `FlexarrClient.householdHome`).
+    public var homeAddress: URL? { FlexarrClient.householdHome(homeUrl) }
+
+    public init(apiKey: String, profileId: String, serverId: String, name: String, household: Bool? = nil, homeUrl: String? = nil) {
         self.apiKey = apiKey
         self.profileId = profileId
         self.serverId = serverId
         self.name = name
         self.household = household
+        self.homeUrl = homeUrl
     }
 }
 
 extension FlexarrClient {
+    /// A home address the server gave (`SignInInfo.homeUrl`) as a household device may use it: http or https with a
+    /// host, and never this device itself (localhost, 127.x, ::1, 0.0.0.0), which is where the tunnel listens. Nil
+    /// otherwise, and then the device uses the tunnel only.
+    public static func householdHome(_ text: String?) -> URL? {
+        guard let text = text?.trimmingCharacters(in: .whitespaces), !text.isEmpty, text.contains("://"),
+              let url = normalizeAddress(text), let scheme = url.scheme, scheme == "http" || scheme == "https",
+              let host = url.host()?.lowercased(), !host.isEmpty else { return nil }
+        let bare = host.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+        if bare == "localhost" || bare.hasSuffix(".localhost") || bare.hasPrefix("127.") || bare == "::1" || bare == "0.0.0.0" { return nil }
+        return url
+    }
+
     /// Swaps an invite's one-time token for this device's sign-in. Sent through the tunnel (the server only accepts it
     /// from a guest device on its tailnet), with no sign-in of its own. 410: used, cancelled or expired; 503: the
     /// host's invites are paused.

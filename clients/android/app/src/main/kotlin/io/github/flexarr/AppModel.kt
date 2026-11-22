@@ -98,6 +98,7 @@ import kotlinx.coroutines.flow.first
 import io.github.flexarr.data.DiscoveredServer
 import io.github.flexarr.ui.connect.PairingSession
 import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 private val flexarrLog = FlexarrLog("signin")
 private val speedLog = FlexarrLog("playback")
@@ -301,6 +302,96 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
      */
     val usesTunnel: Boolean get() = credentials?.usesTunnel == true
 
+    /** Goes up whenever the route to the server moves (home or the tunnel), so what shows it reads it again. */
+    private var routeChanges by mutableIntStateOf(0)
+
+    /**
+     * Reaching the server through the tunnel right now: a guest always, a household device only while its home address
+     * ([ServerCredentials.pairsHome]) isn't the one in use. What follows the route (starting the tunnel, Cast, Watch
+     * Next, background downloads) asks this; what follows the sign-in (Leave, removal, the profile rules) [usesTunnel].
+     */
+    val onTunnelNow: Boolean
+        get() {
+            routeChanges
+            val credentials = credentials?.takeIf { it.usesTunnel } ?: return false
+            return !credentials.pairsHome || credentials.addresses().isAway
+        }
+
+    /** A household device with a home address, at home now: home has answered as this server on this network. */
+    val householdAtHome: Boolean
+        get() {
+            routeChanges
+            val credentials = credentials?.takeIf { it.pairsHome } ?: return false
+            return credentials.addresses().let { !it.isAway && it.homeProven }
+        }
+
+    /**
+     * The route to the server moved ([ServerAddresses.onRouteChanged]). For a household device: remembered for the next
+     * launch, and once home has proven it's this server the tunnel stops (its identity kept), as soon as nothing that
+     * opened on it is still using it. Leaving home needs nothing here: the next request starts the tunnel again.
+     */
+    private fun routeChanged(addresses: ServerAddresses) {
+        val credentials = credentials?.takeIf { it.pairsHome } ?: return
+        if (credentials.addresses() !== addresses) return
+        routeChanges++
+        val away = addresses.isAway
+        if (saved) store.saveLastAway(away)
+        flexarrLog.info(if (away) "Household route: through the tunnel" else if (addresses.homeProven) "Household route: at home" else "Household route: trying home")
+        if (!away && addresses.homeProven) stopTunnelAtHome() else tunnelAtHome?.cancel()
+        // Android TV's Watch Next is built from home, and empties away.
+        scope.launch { WatchNext.refresh(context) }
+    }
+
+    private var tunnelAtHome: Job? = null
+
+    /** At home: the tunnel stops once nothing is using it (a player, music, a podcast or a book, a download), identity kept. */
+    private fun stopTunnelAtHome() {
+        if (tunnelAtHome?.isActive == true) return
+        tunnelAtHome = scope.launch {
+            while (tunnelBusy) delay(TUNNEL_IDLE_MS)
+            if (!householdAtHome) return@launch
+            flexarrLog.info("At home: the tunnel stops")
+            withContext(Dispatchers.IO) { tunnel.stop() }
+        }
+    }
+
+    /**
+     * Something that opened on the tunnel is still going (a player, music, a podcast or a book streaming from it, a
+     * download's file coming through it): it keeps the route it opened on. What opened at home doesn't hold it up.
+     */
+    private val tunnelBusy: Boolean
+        get() {
+            val tunnel = tunnelAddress() ?: return false
+            return tunnelVideoPlayers > 0 || tunnelTransfers.get() > 0 ||
+                music.streamsFrom(tunnel) || podcasts.streamsFrom(tunnel) || books.streamsFrom(tunnel)
+        }
+
+    /** The tunnel's own address (a tunnel sign-in's [ServerCredentials.address]); null for a sign-in without one. */
+    private fun tunnelAddress(): HttpUrl? = credentials?.takeIf { it.usesTunnel }?.address?.toHttpUrlOrNull()
+
+    /** Whether [url] goes through the tunnel inside the app. */
+    fun isTunnelAddress(url: HttpUrl): Boolean =
+        tunnelAddress()?.let { it.scheme == url.scheme && it.host == url.host && it.port == url.port } == true
+
+    /** How many video players opened on the tunnel are open (each keeps the route it opened on). */
+    @Volatile
+    var tunnelVideoPlayers = 0
+
+    /** How many downloads' files are coming through the tunnel now ([keepingRouteOf]). */
+    @PublishedApi
+    internal val tunnelTransfers = java.util.concurrent.atomic.AtomicInteger()
+
+    /** Runs [block], a transfer from [url]: one through the tunnel keeps it up at home until it's done. */
+    inline fun <T> keepingRouteOf(url: HttpUrl, block: () -> T): T {
+        val viaTunnel = isTunnelAddress(url)
+        if (viaTunnel) tunnelTransfers.incrementAndGet()
+        try {
+            return block()
+        } finally {
+            if (viaTunnel) tunnelTransfers.decrementAndGet()
+        }
+    }
+
     /**
      * What the server said about [isGuest] (null: a server before 0.57, which says nothing, and the sign-in as saved
      * stands), kept with a tunnel sign-in so offline (and the next launch) knows too, and in the sign-in in use.
@@ -312,6 +403,37 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         val updated = credentials.withServerSaid(guest) ?: return
         if (saved) store.saveHousehold(updated.household)
         phase = Phase.SignedIn(updated)
+    }
+
+    /**
+     * What `/me` said about where home is ([SignInInfo.homeUrl], servers from 0.67), kept with a household device's
+     * sign-in so it uses home while it answers. Asked on each check, so a device that joined before learns it without
+     * joining again; a server that says nothing (before 0.67, in Docker, a guest's) leaves it on the tunnel. The server's
+     * id, which home has to prove, comes with the join, or else from the server's status through the tunnel.
+     */
+    private fun noteHome(me: SignInInfo) {
+        val credentials = credentials?.takeIf { it.isHouseholdAway && me.isGuest != true } ?: return
+        val home = me.homeUrl?.let { householdHome(it) }
+        if (home == credentials.homeAddress && (home == null || !credentials.serverId.isNullOrEmpty())) return
+        scope.launch {
+            val id = credentials.serverId?.takeIf { it.isNotEmpty() }
+                ?: if (home != null) serverStatus(credentials)?.serverId?.takeIf { it.isNotEmpty() } ?: return@launch else null
+            // Still the same sign-in (who's watching may have changed meanwhile).
+            val now = this@AppModel.credentials ?: return@launch
+            if (now.address != credentials.address || now.apiKey != credentials.apiKey || !now.isHouseholdAway) return@launch
+            if (now.homeAddress == home && now.serverId == id) return@launch
+            if (saved) store.saveHome(home, id)
+            flexarrLog.info(if (home != null) "The server said where home is: home when it answers, the tunnel when it doesn't" else "The server gave no home address: the tunnel only")
+            phase = Phase.SignedIn(now.withHome(home, id))
+        }
+    }
+
+    /** The server's home address as it gave it, if it's one to use: http(s), and never loopback (the tunnel's own). */
+    private fun householdHome(url: String): String? {
+        val parsed = FlexarrClient.normalizeAddress(url)?.takeIf { it.scheme == "http" || it.scheme == "https" } ?: return null
+        val host = parsed.host
+        if (host == "localhost" || host.startsWith("127.") || host == "::1" || host == "0.0.0.0") return null
+        return parsed.toString()
     }
 
     /** The Tailscale node a guest reaches its host's server through. */
@@ -348,6 +470,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         kidsLock = me.kidsLock
         hasOwnSignIn = me.method == "device"
         serverSaid(me.isGuest)
+        noteHome(me)
         if (me.isMainProfile) pairing.refresh(client) else pairing.clear()
     }
 
@@ -405,13 +528,17 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
     })
 
     /** Where [client]'s speed readings belong now: its server and the address in use (a guest's, its tunnel). */
-    fun linkKey(client: FlexarrClient): String = LinkSpeed.key(client, credentials?.guest?.target)
+    fun linkKey(client: FlexarrClient): String = LinkSpeed.key(client, credentials?.guest?.target?.takeIf { throughTunnel(client) })
+
+    /** [client]'s requests go through the tunnel now (a guest's always; a household device's while it isn't home). */
+    fun throughTunnel(client: FlexarrClient?): Boolean =
+        usesTunnel && (client == null || !client.addresses.awayIsTunnel || client.addresses.isAway)
 
     /** The speed to send with a start for [client] (null: nothing to go on). */
     fun measuredBitrate(client: FlexarrClient? = this.client): Long? = client?.let { linkSpeed.current(linkKey(it)) }
 
     /** Reaching the server away from home: by its away address, or a guest's tunnel. */
-    val isAway: Boolean get() = usesTunnel || client?.addresses?.isAway == true
+    val isAway: Boolean get() = onTunnelNow || client?.addresses?.isAway == true
 
     private var speedTesting: Job? = null
 
@@ -1281,7 +1408,11 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             withContext(Dispatchers.IO) { tunnel.use(null) }
             throw GuestJoinException(guestJoinProblem(e, owner, server = invite.serverNaming))
         }
-        val credentials = ServerCredentials(address, redeemed.apiKey, guest = info, household = redeemed.isHousehold)
+        val joined = ServerCredentials(address, redeemed.apiKey, guest = info, household = redeemed.isHousehold)
+        // A household device is told where home is, and uses it once home proves it's this server.
+        // Joined through the tunnel, so that's where it starts (home is asked about straight away).
+        val credentials = joined.withHome(redeemed.homeUrl?.let { householdHome(it) }, redeemed.serverId.ifEmpty { invite.serverId })
+            .let { if (it.pairsHome) it.copy(lastAway = true) else it }
         // Use away from home: the home sign-in gives way to this one.
         val home = this.credentials?.takeIf { joiningAway && !it.usesTunnel }
         if (home != null) {
@@ -1340,7 +1471,10 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         }
     }
 
-    /** The tunnel came up on [port]: a guest's sign-in follows it there, if it had to move from the one it had. */
+    /**
+     * The tunnel came up on [port]: a guest's sign-in follows it there, if it had to move from the one it had. Only the
+     * tunnel's address moves: a household device's home address stays as the server gave it.
+     */
     private fun tunnelMoved(port: Int) {
         scope.launch {
             // Started again in the background (music, a download, a widget): it stops again once that's done with it.
@@ -1571,6 +1705,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
      */
     private suspend fun ensureGuestTunnel(checking: Boolean = false): Boolean {
         credentials?.guest ?: return true
+        // A household device at (or trying) home: the tunnel starts only when a request falls back to it.
+        if (!onTunnelNow) return true
         // One start at a time: whoever else asks meanwhile (Try again, the profile list asked again) waits for it.
         val start = tunnelStart?.takeIf { it.isActive } ?: scope.async { startGuestTunnel(checking) }.also { tunnelStart = it }
         return start.await()
@@ -1661,6 +1797,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
                 kidsLock = it.kidsLock
                 hasOwnSignIn = it.method == "device"
                 serverSaid(it.isGuest)
+                noteHome(it)
             }
             // Without an answer, as before servers asked: a refused request asks again (serverRefusedUnchosen). Someone
             // chosen while this was asked (chose) already settled it: an answer from before doesn't bring the picker back.
@@ -2177,16 +2314,18 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         tunnel.onRefused = { scope.launch { if (credentials?.usesTunnel == true) removedAsGuest() } }
         // A guest's tunnel starts now, off the main thread, so it's up (or on its way) before the first request, which
         // waits for it either way.
+        ServerAddresses.onRouteChanged = { addresses -> scope.launch { routeChanged(addresses) } }
         savedSignIn?.guest?.let { guest ->
             tunnel.use(guest)
-            scope.launch(Dispatchers.IO) { runCatching { tunnel.start() } }
+            // A household device that was last at home tries home first: the tunnel waits until it's needed.
+            if (onTunnelNow) scope.launch(Dispatchers.IO) { runCatching { tunnel.start() } }
         }
     }
 
     /** Back in front: a guest's tunnel is started again if it stopped while the app was away. */
     fun cameToFront() {
         tunnelIdle?.cancel()
-        if (credentials?.usesTunnel == true) scope.launch { ensureGuestTunnel(checking = true) }
+        if (onTunnelNow) scope.launch { ensureGuestTunnel(checking = true) }
         // One request does both: the connection to the server is set up again before Play needs it, and the server's
         // name follows if it was renamed on the web while the app was away. Starting up, it's the status already asked for.
         // Then, away from home, the link is measured, so the first play starts on a quality it carries.
@@ -2296,7 +2435,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             if (System.currentTimeMillis() - FlexarrClient.lastAnsweredAtMs < 20_000) return
             val client = client ?: return
             if (serverAnswers(client, ignoringNetwork)) return
-            if (credentials?.usesTunnel == true && !network.isOffline) {
+            if (onTunnelNow && !network.isOffline) {
                 // Through a tunnel, a miss may be the tunnel itself gone stale while the device slept: it starts again
                 // (joining the restart coming to the front began) before anything says offline.
                 ensureGuestTunnel(checking = true)
@@ -2353,7 +2492,8 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             offlineRetry?.cancel()
             offlineRetry = null
         }
-        if (!tunnel.isInUse) return
+        // Nothing to stop for a household device at home: its tunnel isn't running.
+        if (!tunnel.isInUse || householdAtHome) return
         tunnelIdle?.cancel()
         tunnelIdle = scope.launch {
             delay(TUNNEL_IDLE_MS)

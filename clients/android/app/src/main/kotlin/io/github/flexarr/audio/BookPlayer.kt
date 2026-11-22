@@ -1,5 +1,6 @@
 package io.github.flexarr.audio
 
+import okhttp3.HttpUrl
 import android.content.Context
 import android.hardware.Sensor
 import android.hardware.SensorManager
@@ -165,6 +166,9 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
         get() = isPlaying || isLoading ||
             (created && player.playWhenReady && player.playbackState.let { it == Player.STATE_BUFFERING || it == Player.STATE_READY })
 
+    /** Playing, or about to, something queued from [base] (the tunnel's address): it keeps the tunnel up at home. */
+    fun streamsFrom(base: HttpUrl): Boolean = created && wantsToPlay && player.queuesFrom(base)
+
     /** The sleep timer; End of chapter stops where the chapter playing ends (the one gone to, after a seek). */
     val sleep = SleepTimer(scope).also { it.onExpire = { fadeOutThenPause() } }
     private val chapterSleep = ChapterSleep()
@@ -201,7 +205,7 @@ class BookPlayer(private val context: Context, private val model: AppModel) {
         override fun onIsPlayingChanged(playing: Boolean) {
             isPlaying = playing
             if (playing) timing?.takeIf { it.isAnswered }?.let { started ->
-                started.report(flexarrLog, client?.baseUrl?.host, model.usesTunnel)
+                started.report(flexarrLog, client?.baseUrl?.host, model.throughTunnel(client))
                 timing = null
             }
             if (playing) startTicking()

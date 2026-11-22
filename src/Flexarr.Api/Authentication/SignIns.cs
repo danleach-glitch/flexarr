@@ -135,6 +135,12 @@ public sealed class SignIn
     [JsonIgnore]
     public bool Tunneled => Guest || Away;
 
+    /// <summary>
+    /// For an <see cref="Away"/> device: whether its last request came from the home network (true) or through its
+    /// tunnel (false). Null until it's been seen since this was kept.
+    /// </summary>
+    public bool? LastAtHome { get; set; }
+
     /// <summary>For a guest or away device, the tailnet address of the device that redeemed the invite.</summary>
     public string? GuestAddress { get; init; }
 
@@ -174,6 +180,11 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
     private readonly Lock _lock = new();
     private Dictionary<string, SignIn>? _byHash;
     private readonly Dictionary<string, DateTime> _savedLastUsed = new(StringComparer.Ordinal);
+
+    /// <summary>When each away device's route was last saved for its own sake (see <see cref="NoteRoute"/>).</summary>
+    private readonly Dictionary<string, DateTime> _savedRoute = new(StringComparer.Ordinal);
+
+    private static readonly TimeSpan RouteSavedEvery = TimeSpan.FromMinutes(1);
 
     private string FilePath => Path.Combine(options.CurrentValue.DataDirectory, FileName);
 
@@ -353,6 +364,36 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
         {
             signIn.DeviceType = type;
             SaveLocked();
+        }
+    }
+
+    /// <summary>
+    /// Notes whether an away device's request came from home or through its tunnel. Kept at once, but saved at most
+    /// once a minute per device: a device that has just come home can send some requests each way for a while (a
+    /// player still on its tunnel), and each change would otherwise rewrite the file.
+    /// </summary>
+    public void NoteRoute(SignIn signIn, bool atHome)
+    {
+        ArgumentNullException.ThrowIfNull(signIn);
+        if (!signIn.Away)
+        {
+            return;
+        }
+
+        lock (_lock)
+        {
+            if (signIn.LastAtHome == atHome)
+            {
+                return;
+            }
+
+            signIn.LastAtHome = atHome;
+            var now = clock.GetUtcNow().UtcDateTime;
+            if (now - _savedRoute.GetValueOrDefault(signIn.Id) >= RouteSavedEvery)
+            {
+                _savedRoute[signIn.Id] = now;
+                SaveLocked();
+            }
         }
     }
 
@@ -588,16 +629,30 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
 
     /// <summary>
     /// The SHA-256 of the token of the sign-in an app calls <paramref name="keyId"/> (see <see cref="Security.ServerProof"/>),
-    /// or null when there's none.
+    /// or null when there's none. <paramref name="tunneled"/> says it's a guest's or away device's.
     /// </summary>
-    public string? TokenHashKnownAs(string keyId)
+    public string? TokenHashKnownAs(string keyId, out bool tunneled)
     {
         lock (_lock)
         {
-            return Loaded().Keys.Select(h => h.StartsWith(GuestHashPrefix, StringComparison.Ordinal) ? h[GuestHashPrefix.Length..] : h)
-                .FirstOrDefault(h => Security.ServerProof.KeyId(h) == keyId);
+            foreach (var stored in Loaded().Keys)
+            {
+                var guest = stored.StartsWith(GuestHashPrefix, StringComparison.Ordinal);
+                var hash = guest ? stored[GuestHashPrefix.Length..] : stored;
+                if (Security.ServerProof.KeyId(hash) == keyId)
+                {
+                    tunneled = guest;
+                    return hash;
+                }
+            }
+
+            tunneled = false;
+            return null;
         }
     }
+
+    /// <inheritdoc cref="TokenHashKnownAs(string, out bool)"/>
+    public string? TokenHashKnownAs(string keyId) => TokenHashKnownAs(keyId, out _);
 
     /// <summary>What a guest's or away device's token hash starts with (see <see cref="IssueGuest"/>).</summary>
     public const string GuestHashPrefix = "guest:";

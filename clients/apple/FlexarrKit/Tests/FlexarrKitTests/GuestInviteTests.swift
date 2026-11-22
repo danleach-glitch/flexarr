@@ -95,9 +95,10 @@ struct GuestInviteTests {
         #expect(away.usesTunnel)
         #expect(!away.isGuest)
         #expect(away.isHouseholdAway)
-        // Still only ever the tunnel: no away address, no home id to ask.
+        // No away address; the server's id is kept for asking a home address, once the server gives one.
         #expect(away.remoteAddress == nil)
-        #expect(away.serverId == nil)
+        #expect(away.serverId == "abc")
+        #expect(!away.hasHomeRoute)
 
         let guest = ServerCredentials(address: URL(string: "http://127.0.0.1:52000")!, apiKey: "key",
                                       guest: GuestTunnelInfo(target: "100.101.102.103:8383", hostname: "flexarr-guest-gran", ownerName: "Dan"))

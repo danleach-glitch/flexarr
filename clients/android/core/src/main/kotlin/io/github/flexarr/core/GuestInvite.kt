@@ -152,6 +152,8 @@ data class RedeemedInvite(
      * Absent from servers before 0.67, where every invite is a guest's.
      */
     val household: Boolean? = null,
+    /** The server's home address, for a household device only (as [SignInInfo.homeUrl]). Absent from servers before 0.67. */
+    val homeUrl: String? = null,
 ) {
     /** A household device away from home rather than a guest ([household], false when absent). */
     val isHousehold: Boolean get() = household == true

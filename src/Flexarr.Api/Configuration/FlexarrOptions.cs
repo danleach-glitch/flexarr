@@ -67,6 +67,14 @@ public sealed class FlexarrOptions
     public List<string> KnownHosts { get; set; } = [];
 
     /// <summary>
+    /// The address household devices that joined by invite use while they're home (such as "http://192.168.1.20:8383"),
+    /// in place of the one Flexarr works out from this machine's network. Docker needs it (a container can't see the
+    /// host's address); without it there, those devices always use their built-in connection. See
+    /// docs/remote-guests.md, Household devices at home.
+    /// </summary>
+    public string? HomeUrl { get; set; }
+
+    /// <summary>
     /// Requests from this machine that don't say who they're forwarding for (no X-Forwarded-For) count as the
     /// internet, not as this machine. Turn on when a reverse proxy runs here: one that doesn't send X-Forwarded-For
     /// would otherwise make every visitor look local. A browser on this machine then needs the key too.

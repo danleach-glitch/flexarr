@@ -185,6 +185,9 @@ private fun MainPage(
             // With an address for away from home, which of the two it's using; otherwise the server's name.
             val connection = if (model.credentials?.remoteAddress != null && !model.isGuest) {
                 if (model.client?.addresses?.isAway == true) t("Away") else t("At home")
+            } else if (model.credentials?.pairsHome == true && !model.isGuest) {
+                // A household device that joined by invite, with its server's home address: the route in use.
+                if (model.householdAtHome) t("At home") else t("Away")
             } else {
                 model.serverTitle
             }

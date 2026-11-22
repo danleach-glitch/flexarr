@@ -44,7 +44,9 @@ Someone in your household (a partner, a teenager) shouldn't have to be a guest t
 
 That's it: from then on the app connects by itself, at home or away. **Sign out** beside a device (the arrow leaving a door) signs it out, and deletes its downloads; their profile and what they've watched stay. If you type someone who lives with you under **Add new guest**, Flexarr offers to add their device under **Your household** instead. Someone already a guest who lives with you? Choose **Move to Your household** on their card: they keep their profile, with nothing taken away, on every device they've joined with.
 
-The main profile isn't in **Your household**: away from home, it uses Tailscale, so the server's settings stay out of reach of a lost phone. AirPlay, background downloads and Top Shelf don't work over the built-in connection, for household devices as for guests.
+A household device switches by itself: on your home network it talks to the server directly, and away from home it uses the connection built into the app, so there's nothing to sign out of when they come home. **Your household** says whether each device was last at home or away, and the device's own **Settings › Server** says which it's using now. AirPlay, Chromecast, background downloads and Top Shelf work while the device is at home, not over the built-in connection (and never for guests, who always use it). The first time an iPhone or iPad looks for the server at home, it asks to find devices on your local network: say yes, or it keeps using the built-in connection at home too. A server in Docker can't see its own home address: add `Flexarr__HomeUrl=http://<the host's IP address>:8383` to its `environment:` list, or its household devices always use the built-in connection.
+
+The main profile isn't in **Your household**: away from home, it uses Tailscale, so the server's settings stay out of reach of a lost phone.
 
 ## Add a guest
 

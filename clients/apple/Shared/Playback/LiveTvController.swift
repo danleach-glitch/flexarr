@@ -103,6 +103,7 @@ final class LiveTvController: NSObject {
         guard let client, let url = client.url(for: started.playlist) else { throw FlexarrClientError.invalidResponse }
         log.info("Watching \(started.channel.name) (\(started.method))", ["playbackId": started.playbackId])
         watching = started
+        openedOnTunnel = GuestMode.isActive
         if let lastChannel, lastChannel.id != started.channel.id { previousChannel = lastChannel }
         lastChannel = started.channel
         promptShown = false
@@ -268,6 +269,12 @@ final class LiveTvController: NSObject {
 
     /// A channel is up (or starting).
     var isWatching: Bool { screen != nil || watching != nil }
+
+    /// The channel up opened on the tunnel: it streams through it until it's closed.
+    @ObservationIgnored private var openedOnTunnel = false
+
+    /// A channel is up that streams through the tunnel, which mustn't stop under it.
+    var holdsTunnel: Bool { watching != nil && openedOnTunnel }
 
     /// Closes the channel's screen, ending the stream.
     func closePlayer() {

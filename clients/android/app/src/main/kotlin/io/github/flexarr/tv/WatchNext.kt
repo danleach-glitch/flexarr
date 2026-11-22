@@ -163,8 +163,10 @@ object WatchNext {
 
     private suspend fun sync(context: Context) {
         val credentials = context.appModel.credentials ?: CredentialStore(context).load()
-        if (credentials == null || credentials.usesTunnel) return write(context, emptyList())
-        val client = credentials.client()
+        if (credentials == null) return write(context, emptyList())
+        // Through the tunnel the launcher couldn't fetch the pictures (nor play): a household device's row comes from its
+        // server's home address, while that answers as the server; away (and for a guest) it's empty.
+        val client = if (credentials.usesTunnel) credentials.homeClient() ?: return write(context, emptyList()) else credentials.client()
         try {
             // Asked every time, never the app's own list: a PIN added elsewhere has to empty the row, the 6-hourly refresh's included.
             val watching = watching(client.profiles(), credentials.profileToken) ?: return write(context, emptyList())
@@ -172,7 +174,9 @@ object WatchNext {
             val cards = cards(videos, recentAlbums(client, watching.id), System.currentTimeMillis()) { item -> picture(item, client) }
             write(context, cards, watching.id)
         } catch (e: FlexarrException) {
-            // Offline keeps the row; refused, its titles are no longer for this TV.
+            // Away from home a household device's row empties; otherwise offline keeps it, and refused, its titles are no
+            // longer for this TV.
+            if (credentials.usesTunnel && e is FlexarrException.Unreachable) return write(context, emptyList())
             if (!isRefused(e)) throw e
             write(context, emptyList())
         }

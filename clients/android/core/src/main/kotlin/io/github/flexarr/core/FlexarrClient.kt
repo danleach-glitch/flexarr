@@ -501,6 +501,12 @@ class FlexarrClient(
             if (couldNotConnect(e)) onCouldNotConnect?.invoke(addresses.home)
             throw FlexarrException.Unreachable(e)
         }
+        // A household device's sign-in refused at home (a server that only takes it through the tunnel): through the
+        // tunnel instead, never a sign-out.
+        if (response.code == 401 && addresses.homeRefused(response.request.url)) {
+            response.close()
+            return exchange(method, path, query, body, racesAlternate, http, headers, answered)
+        }
         return response.use {
             val text = it.body.string()
             when {
@@ -625,7 +631,7 @@ class FlexarrClient(
             return response
         }
         val second = request(method, path, query, body, alternate, headers)
-        val (response, reached) = if (method == "GET" && racesAlternate) {
+        val (response, reached) = if (method == "GET" && racesAlternate && addresses.racesFrom(primary)) {
             race(http, first to primary, second to alternate)
         } else {
             try {
@@ -712,6 +718,17 @@ class FlexarrClient(
                 addresses.reached(addresses.home)
             }
         }
+    }
+
+    /**
+     * [url], at home, stopped answering partway (a download's file): with the tunnel as the away address, home is asked
+     * again first, and only if it doesn't answer as this server does the next try go through the tunnel
+     * ([ServerAddresses.homeMissed]). A Wi-Fi blip or the server restarting stays at home. As FlexarrKit's lostHome.
+     */
+    suspend fun homeMissed(url: HttpUrl) {
+        if (!addresses.awayIsTunnel || addresses.remote == null || !url.isAt(addresses.home) || addresses.isAway) return
+        if (verifyHome(http)) return
+        addresses.homeMissed(url)
     }
 
     /** Whether home may be sent the sign-in on this network, asking it ([verifyHome]) when that isn't known yet. */

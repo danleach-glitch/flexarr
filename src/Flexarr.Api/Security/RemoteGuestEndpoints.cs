@@ -33,9 +33,11 @@ public sealed record RedeemInviteRequest(string Token);
 /// <param name="Household">A household device away from home rather than a guest's. Absent from servers before 0.67.</param>
 /// <param name="HomeProfileId">For a household device, the person it was added for (it may have switched to another
 /// profile since): Settings lists it under them. Null for guests. Absent from servers before 0.67.</param>
+/// <param name="LastRoute">For a household device, how its last request came: "home" (the home network) or "away"
+/// (its tunnel). Null for guests and until it's been seen. Absent from servers before 0.67.</param>
 public sealed record GuestDeviceDto(string Id, string Name, string? ProfileId, string? ProfileName, Authentication.DeviceType? DeviceType, DateTime CreatedAt,
     DateTime LastUsedAt, string? Address, bool Online, TailnetPath Path, DateTime? LastSeen, string TailscaleAdminUrl, bool ServerMoved = false,
-    bool Household = false, string? HomeProfileId = null);
+    bool Household = false, string? HomeProfileId = null, string? LastRoute = null);
 
 /// <summary>Family invites' setup, as Settings › Remote access shows it.</summary>
 /// <param name="Enabled">Family invites are turned on for this server (hidden until the apps that carry Tailscale are out).</param>
@@ -64,7 +66,8 @@ public sealed record TvCodeRequest(string Code, string? Name, string ProfileId, 
 /// <param name="ApiKey">The guest device's own sign-in, sent as X-Api-Key.</param>
 /// <param name="Household">The device joined as a household device away from home, not a guest: no guest limits apply.
 /// Absent from servers before 0.67.</param>
-public sealed record RedeemedInviteDto(string ApiKey, string ProfileId, string ServerId, string Name, bool Household = false);
+/// <param name="HomeUrl">The server's home address, for a household device only (see <see cref="MeDto.HomeUrl"/>).</param>
+public sealed record RedeemedInviteDto(string ApiKey, string ProfileId, string ServerId, string Name, bool Household = false, Uri? HomeUrl = null);
 
 /// <summary>Family invites: guests watching from their own homes through Tailscale built into the apps (docs/remote-guests.md).</summary>
 public static class RemoteGuestEndpoints
@@ -297,7 +300,7 @@ public static class RemoteGuestEndpoints
     public static RouteGroupBuilder MapGuestRedeemEndpoints(this RouteGroupBuilder api)
     {
         api.MapPost("/invites/redeem", async (RedeemInviteRequest request, HttpContext http, GuestInvites invites, GuestPolicy policy, ITailnetWhois whois,
-            IOptionsMonitor<FlexarrOptions> options, Notifications.GuestAlerts alerts, FlexarrDbContext db, CancellationToken ct) =>
+            IOptionsMonitor<FlexarrOptions> options, Notifications.GuestAlerts alerts, FlexarrDbContext db, HomeAddress home, CancellationToken ct) =>
         {
             var settings = options.CurrentValue.RemoteGuests;
             if (!settings.Enabled)
@@ -316,6 +319,8 @@ public static class RemoteGuestEndpoints
                 return Problems.Of("Family invites are paused on this server. Ask its owner to check Settings › Remote access.", status: 503);
             }
 
+            // Worked out before the invite is used, so nothing after redeeming can fail and leave the code spent.
+            var homeUrl = home.Url();
             try
             {
                 var profiles = await db.Profiles.AsNoTracking().ToDictionaryAsync(p => p.Id, p => (p.Name, p.IsKids), ct);
@@ -328,7 +333,8 @@ public static class RemoteGuestEndpoints
                     _ = Task.Run(() => invites.DeleteUsedKeyAsync(invite, CancellationToken.None), CancellationToken.None);
                 }
 
-                return Results.Ok(new RedeemedInviteDto(token, signIn.ProfileId!, options.CurrentValue.ServerId ?? "", signIn.Name, signIn.Away));
+                return Results.Ok(new RedeemedInviteDto(token, signIn.ProfileId!, options.CurrentValue.ServerId ?? "", signIn.Name, signIn.Away,
+                    signIn.Away ? homeUrl : null));
             }
             catch (InviteException ex)
             {
@@ -407,7 +413,8 @@ public static class RemoteGuestEndpoints
             var peer = g.GuestAddress is { } address ? peers.GetValueOrDefault(address) : null;
             return new GuestDeviceDto(g.Id, g.Name, g.ProfileId, g.ProfileId is { } id ? profileNames.GetValueOrDefault(id) : null, g.DeviceType, g.CreatedAt,
                 g.LastUsedAt, g.GuestAddress, peer?.Online == true, peer?.Online == true ? peer.Path : TailnetPath.Unknown, peer?.LastSeen,
-                "https://login.tailscale.com/admin/machines", here is not null && g.GuestServer is { } joined && joined != here, g.Away, g.Away ? g.OwnProfileId : null);
+                "https://login.tailscale.com/admin/machines", here is not null && g.GuestServer is { } joined && joined != here, g.Away, g.Away ? g.OwnProfileId : null,
+                g.Away && g.LastAtHome is { } atHome ? (atHome ? "home" : "away") : null);
         }).OrderByDescending(d => d.Online).ThenByDescending(d => d.LastUsedAt).ToList();
     }
 

@@ -74,6 +74,11 @@ public struct FlexarrClient: Sendable {
     /// chooseProfile`) rather than as the main profile. Servers before 0.63 ignore it.
     static let profileChoiceHeader = "X-Flexarr-Profile-Choice"
 
+    /// Called when a request for a household device has to go through the built-in tunnel (home didn't answer, so the
+    /// tunnel is the route now) and the tunnel isn't up: starts it, true once it's listening. Set once at launch; without
+    /// it such a request can't connect.
+    public nonisolated(unsafe) static var onTunnelNeeded: (@Sendable () async -> Bool)?
+
     /// Debug builds' "act offline": every request fails as if there were no network, and `isReachable` says no.
     public nonisolated(unsafe) static var simulatesOffline = false
 
@@ -136,6 +141,7 @@ public struct FlexarrClient: Sendable {
         let seconds = Double(limit.components.seconds) + Double(limit.components.attoseconds) / 1e18
         let primary = addresses.current
         let alternate = addresses.alternate(to: primary)
+        let races = addresses.racesFrom(primary)
         // Its own session, so it never waits in line behind artwork for the same server.
         let session = session === URLSession.shared ? Self.probeSession : session
         @Sendable func probe(_ url: URL) -> URLRequest {
@@ -145,6 +151,8 @@ public struct FlexarrClient: Sendable {
             return GuestTunnelToken.applied(to: request)
         }
         @Sendable func answers(_ url: URL) async -> Bool {
+            // A household device's tunnel that isn't up: nothing of this app's is there to answer.
+            guard addresses.tunnelIsUp(url) else { return false }
             if addresses.asksProof(of: url) { return await provesItself(url, fresh: true) }
             return await Self.answersAsFlexarr(probe(url), session: session)
         }
@@ -158,9 +166,10 @@ public struct FlexarrClient: Sendable {
             }
             if let alternate {
                 group.addTask {
-                    // A head start for the address in use, unless it's already failed.
+                    // A head start for the address in use, unless it's already failed. A household device's home
+                    // is waited on for as long as it takes: the tunnel only once home has failed.
                     await withTaskGroup(of: Void.self) { wait in
-                        wait.addTask { try? await Task.sleep(for: ServerAddresses.probeHeadStart) }
+                        if races { wait.addTask { try? await Task.sleep(for: ServerAddresses.probeHeadStart) } }
                         wait.addTask { for await _ in firstFailed.stream { return } }
                         await wait.next()
                         wait.cancelAll()
@@ -225,6 +234,33 @@ public struct FlexarrClient: Sendable {
             return ServerProof.accepts(id: answer.serverId, proof: answer.proof, expected: id, key: key, challenge: challenge,
                                        memory: .standard)
         }
+    }
+
+    /// Whether a household device's home address answers as this server within `limit` (it's then where requests go),
+    /// asked without the sign-in. False without a home address, or when it's turned the sign-in away before. `fresh`
+    /// asks even if it said so lately. The question carries on past `limit` (home may be slow to wake, an Apple TV's
+    /// network coming back): if home proves itself after all, requests move back to it then.
+    public func homeAnswers(within limit: Duration = .seconds(3), fresh: Bool = false) async -> Bool {
+        guard addresses.hasHomeRoute, addresses.alternate(to: addresses.tunnel ?? addresses.home) != nil else { return false }
+        if Self.simulatesOffline { return false }
+        let home = addresses.home
+        let addresses = self.addresses
+        // Whichever comes first, the answer or the limit; not a task group, which would wait for the question to end.
+        let (outcome, said) = AsyncStream<Bool>.makeStream()
+        Task.detached {
+            let proven = await self.provesItself(home, fresh: fresh)
+            if proven { addresses.reached(home) }
+            said.yield(proven)
+            said.finish()
+        }
+        let timer = Task {
+            try? await Task.sleep(for: limit)
+            said.yield(false)
+            said.finish()
+        }
+        defer { timer.cancel() }
+        for await proven in outcome { return proven }
+        return false
     }
 
     /// What the server answering at `url` says of itself (GET /setup, which anyone may ask): its id and, asked with
@@ -621,7 +657,7 @@ public struct FlexarrClient: Sendable {
     /// else checks: this is asked before each one is made or carried on.
     public func maySendTransfer(to url: URL?) async -> Bool {
         let base = addresses.current
-        guard let url, Self.sameAddress(url, base) else { return false }
+        guard let url, Self.sameAddress(url, base), addresses.tunnelIsUp(base) else { return false }
         return await provesItself(base)
     }
 
@@ -892,6 +928,7 @@ public struct FlexarrClient: Sendable {
         let prepared = request
         let session = events
         let onUnauthorized = self.onUnauthorized
+        let addresses = self.addresses
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
@@ -901,6 +938,11 @@ public struct FlexarrClient: Sendable {
                     guard let http = response as? HTTPURLResponse else { throw FlexarrClientError.invalidResponse }
                     switch http.statusCode {
                     case 200..<300: break
+                    case 401 where base == addresses.home && addresses.hasHomeRoute:
+                        // A household device's sign-in turned away at home: the wrong way in, not a sign-out (as for
+                        // any request). The tunnel from now on; the caller opens the stream again there.
+                        addresses.refusedAtHome()
+                        throw URLError(.cannotConnectToHost)
                     case 401:
                         onUnauthorized?()
                         throw FlexarrClientError.unauthorized
@@ -1053,6 +1095,9 @@ public struct FlexarrClient: Sendable {
         guard let http = response as? HTTPURLResponse else { throw FlexarrClientError.invalidResponse }
         switch http.statusCode {
         case 404: return nil
+        case 401 where base == addresses.home && addresses.hasHomeRoute:
+            addresses.refusedAtHome()
+            throw URLError(.cannotConnectToHost)
         case 401:
             onUnauthorized?()
             throw FlexarrClientError.unauthorized
@@ -1203,7 +1248,8 @@ public struct FlexarrClient: Sendable {
     /// Sends the request to the address that answered last. With a second address, a GET that can't connect to the
     /// first (or hasn't heard back after `ServerAddresses.alternateDelay`) is also sent there and the first answer
     /// wins; anything else only moves over once the first address has failed to connect, so a write is never sent
-    /// twice. Whichever address answers is used from then on.
+    /// twice. Whichever address answers is used from then on. A household device at home never races the tunnel: home is
+    /// waited on, and the tunnel used only once home can't connect (see `ServerAddresses.racesFrom`).
     private func exchange(_ method: String, _ path: String, query: [URLQueryItem], bodyData: Data?, headers: [String: String] = [:],
                           contentType: String, timeout: TimeInterval, racesAlternate: Bool) async throws -> Answer {
         do {
@@ -1230,13 +1276,15 @@ public struct FlexarrClient: Sendable {
                              timeout: timeout)
         let answer: Answer
         let reached: URL
-        if method == "GET", racesAlternate {
+        if method == "GET", racesAlternate, addresses.racesFrom(primary) {
             (answer, reached) = try await race(first, at: primary, then: second, at: alternate)
         } else {
             do {
                 answer = try await exchange(first, at: primary)
                 reached = primary
             } catch let error where Self.couldNotConnect(error) {
+                // A household device's home that can't be reached: the tunnel is the route now (and starts for this).
+                addresses.homeMissed()
                 guard let other = try? await exchange(second, at: alternate) else { throw FlexarrClientError.unreachable }
                 answer = other
                 reached = alternate
@@ -1251,9 +1299,23 @@ public struct FlexarrClient: Sendable {
     /// `ServerAddresses`) and doesn't is as good as not there: nothing signed in is sent, and it "can't connect".
     private func exchange(_ request: URLRequest, at base: URL) async throws -> Answer {
         if Self.simulatesOffline { throw URLError(.notConnectedToInternet) }
+        // A household device's tunnel, when home hasn't answered: started if it isn't up, and never sent the sign-in
+        // until it is (anything else could be listening on its port meanwhile).
+        if addresses.hasHomeRoute, !addresses.tunnelIsUp(base) {
+            guard await Self.onTunnelNeeded?() == true, addresses.tunnelIsUp(base) else {
+                throw URLError(Task.isCancelled ? .cancelled : .cannotConnectToHost)
+            }
+        }
         guard await provesItself(base) else { throw URLError(Task.isCancelled ? .cancelled : .cannotConnectToHost) }
-        let (data, response) = try await requests.data(for: request)
+        // The tunnel's token as it is now: it may have come up since the request was made.
+        let (data, response) = try await requests.data(for: GuestTunnelToken.applied(to: request))
         guard let http = response as? HTTPURLResponse else { throw FlexarrClientError.invalidResponse }
+        // A household device's sign-in turned away at home (a server that only takes it through the tunnel): not a
+        // sign-out, just the wrong way in. The tunnel from now on.
+        if http.statusCode == 401, base == addresses.home, addresses.hasHomeRoute {
+            addresses.refusedAtHome()
+            throw URLError(.cannotConnectToHost)
+        }
         addresses.answered(from: base)
         return (data, http)
     }

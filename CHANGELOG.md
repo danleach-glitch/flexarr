@@ -10,6 +10,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 - Someone who lives with you can watch away from home without installing Tailscale too. In **Settings › Remote access**, under **Your household**, choose **+ Add device** under their name and type the code their app shows. Their device then watches as their own profile, with nothing taken away, and signing it out keeps their profile and what they've watched.
 - Each guest's card says which libraries they see, and **Change** opens their profile to pick them.
 - Someone you invited as a guest who lives with you can move to **Your household** from their card, keeping their profile and what they've watched.
+- A household device now switches by itself between your home network and the app's own connection, with no signing out. At home, AirPlay, Chromecast, Top Shelf, Watch Next and background downloads work, and a download carries on when it leaves. **Your household** shows whether each device is at home or away.
 
 ### Watching away from home
 

@@ -55,4 +55,21 @@ struct TopShelfSignInTests {
         let household = ServerCredentials(address: URL(string: "http://127.0.0.1:50123")!, apiKey: "key", guest: away)
         #expect(SharedSignIn.forTopShelf(household, asksWhoIsWatching: false, watching: child) == nil)
     }
+
+    @Test func aHouseholdDeviceAtHomeSharesItsHomeAddressOnly() {
+        let tunnel = GuestTunnelInfo(target: "100.101.102.103:8383", hostname: "living-room", ownerName: "Dan", household: true)
+        let home = URL(string: "http://192.168.1.106:8383")!
+        let household = ServerCredentials(address: URL(string: "http://127.0.0.1:50123")!, apiKey: "key", guest: tunnel, serverId: "s",
+                                          homeAddress: home)
+        let shared = SharedSignIn.forTopShelf(household, asksWhoIsWatching: false, watching: child, homeAnswering: true)
+        #expect(shared?.address == home)
+        #expect(shared?.serverId == "s")
+        #expect(shared?.client.addresses.asksProof(of: home) == true, "the extension asks home who it is before sending the key")
+        #expect(SharedSignIn.forTopShelf(household, asksWhoIsWatching: false, watching: child, homeAnswering: false) == nil, "away: nothing")
+        // A guest never, whatever it's told.
+        var guest = tunnel
+        guest.household = nil
+        let visiting = ServerCredentials(address: URL(string: "http://127.0.0.1:50123")!, apiKey: "key", guest: guest, homeAddress: home)
+        #expect(SharedSignIn.forTopShelf(visiting, asksWhoIsWatching: false, watching: child, homeAnswering: true) == nil)
+    }
 }

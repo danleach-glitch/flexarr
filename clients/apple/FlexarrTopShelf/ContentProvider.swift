@@ -14,7 +14,9 @@ final class ContentProvider: TVTopShelfContentProvider {
         guard let signIn = SharedSignIn.load() else { return nil }
         // The Top Shelf has a cache file of its own, where an earlier version kept its answers and the sign-in: gone, once.
         FlexarrClient.forgetAnswersKeptBefore()
-        let client = FlexarrClient(baseURL: signIn.address, apiKey: signIn.apiKey, profileToken: signIn.profileToken)
+        // A plain-http address says it's the server (and holds the key) before it's sent the sign-in: on a household
+        // device's home address, something else may answer when the Apple TV isn't at home.
+        let client = signIn.client
         linkKey = OwnLinks.key
         guard let home = try? await client.home() else { return nil }
         let style = TopShelfStyle.current

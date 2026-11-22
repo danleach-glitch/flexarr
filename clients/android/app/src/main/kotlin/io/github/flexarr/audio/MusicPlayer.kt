@@ -1,5 +1,6 @@
 package io.github.flexarr.audio
 
+import okhttp3.HttpUrl
 import io.github.flexarr.core.i18n.t
 import io.github.flexarr.player.mediaSources
 import io.github.flexarr.logging.FlexarrLog
@@ -84,6 +85,9 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
     val wantsToPlay: Boolean
         get() = isPlaying || isLoading ||
             (created && player.playWhenReady && player.playbackState.let { it == Player.STATE_BUFFERING || it == Player.STATE_READY })
+
+    /** Playing, or about to, something queued from [base] (the tunnel's address): it keeps the tunnel up at home. */
+    fun streamsFrom(base: HttpUrl): Boolean = created && wantsToPlay && player.queuesFrom(base)
 
     val player: ExoPlayer by lazy {
         created = true
@@ -688,3 +692,11 @@ class MusicPlayer(private val context: Context, private val model: AppModel) {
         )
     }
 }
+
+/** Whether anything in this player's queue streams from [base] (a file played from the phone doesn't). */
+internal fun Player.queuesFrom(base: HttpUrl): Boolean = (0 until mediaItemCount).any { index ->
+    val uri = getMediaItemAt(index).localConfiguration?.uri ?: return@any false
+    uri.scheme == base.scheme && uri.host == base.host && (if (uri.port == -1) base.defaultPort() else uri.port) == base.port
+}
+
+private fun HttpUrl.defaultPort(): Int = HttpUrl.defaultPort(scheme)

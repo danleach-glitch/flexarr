@@ -507,6 +507,7 @@ final class PlaybackController: NSObject {
         // The same title opened again (another audio track, a recovered stream): Cancel and the countdown carry over.
         let sameTitle = self.info?.item.id == info.item.id
         self.info = info
+        openedOnTunnel = GuestMode.isActive
         if soundObserver == nil {
             soundObserver = NotificationCenter.default.addObserver(forName: SoundSettings.changed, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.soundSettingsChanged() }
@@ -1851,6 +1852,13 @@ final class PlaybackController: NSObject {
 
     /// A title is up in the player.
     var isShowingTitle: Bool { screen != nil && info != nil }
+
+    /// The title up opened on the tunnel (a household device away, or a guest): it streams through it until it's
+    /// closed, whatever the route does meanwhile.
+    @ObservationIgnored private(set) var openedOnTunnel = false
+
+    /// A title is up that streams through the tunnel, which mustn't stop under it.
+    var holdsTunnel: Bool { isShowingTitle && openedOnTunnel }
 
     /// The title up in the player, if there is one (its page is where Continue on iPhone leaves the TV).
     var showingItem: ItemSummary? { screen != nil ? info?.item : nil }

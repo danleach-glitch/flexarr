@@ -135,51 +135,68 @@ internal class DownloadTransfer(
         val kept = File(part.path + ".validator")
         val already = if (part.exists()) part.length() else 0L
         val validator = if (already > 0) runCatching { kept.readText() }.getOrNull()?.takeIf { it.isNotBlank() } else null
-        val response = client.downloadFileRequest(download.id, already, validator).let { FlexarrClient.sharedHttp.newCall(it).execute() }
-        response.use {
-            if (it.code == 401) throw FlexarrException.Unauthorized()
-            if (it.code == 416) {
-                // Asked to carry on from the end: the whole file came last time, and the app stopped before naming it.
-                if (isComplete(already, it.header("Content-Range"), download.sizeBytes)) return@use
-                part.delete()
-                kept.delete()
-                throw IOException("The server couldn't carry on from byte $already; starting again")
+        val request = client.downloadFileRequest(download.id, already, validator)
+        // Through the tunnel, it keeps the tunnel up at home until it's done.
+        context.appModel.keepingRouteOf(request.url) {
+            // A household device leaving home mid-download: the next try carries on through the tunnel.
+            val response = try {
+                FlexarrClient.sharedHttp.newCall(request).execute()
+            } catch (e: IOException) {
+                client.homeMissed(request.url)
+                throw e
             }
-            if (it.code != 200 && it.code != 206) throw IOException("The server answered ${it.code} for the file")
-            // 206 carries on from where it got to; 200 is the whole file again.
-            val resuming = it.code == 206
-            val start = if (resuming) already else 0L
-            if (!resuming) {
-                // A new start: this file's own validator, for carrying on later.
-                val fresh = rangeValidator(it.header("ETag"), it.header("Last-Modified"))
-                if (fresh != null) runCatching { kept.writeText(fresh) } else kept.delete()
-            }
-            val total = it.body.contentLength().takeIf { length -> length > 0 }?.let { length -> length + start }
-            if (total != null && folder.usableSpace < total - start + RESERVE_BYTES) throw NoRoom()
-            var written = start
-            var lastShown = 0L
-            transferred(written, total)
-            FileOutputStream(part, resuming).use { out ->
-                it.body.byteStream().use { input ->
-                    val buffer = ByteArray(64 * 1024)
-                    while (true) {
-                        coroutineContext.ensureActive()
-                        val read = input.read(buffer)
-                        if (read < 0) break
-                        out.write(buffer, 0, read)
-                        written += read
-                        val now = System.currentTimeMillis()
-                        if (total != null && now - lastShown > PROGRESS_MS) {
-                            lastShown = now
-                            val fraction = written.toDouble() / total
-                            onMain { store.progressed(download.id, fraction) }
-                            transferred(written, total)
-                            show(download, t("Downloading"), fraction)
+            response.use {
+                // Refused at home (a household device's sign-in only taken through the tunnel): tried again through it.
+                if (it.code == 401 && client.addresses.homeRefused(request.url)) throw IOException("Refused at home; trying the tunnel")
+                if (it.code == 401) throw FlexarrException.Unauthorized()
+                if (it.code == 416) {
+                    // Asked to carry on from the end: the whole file came last time, and the app stopped before naming it.
+                    if (isComplete(already, it.header("Content-Range"), download.sizeBytes)) return@use
+                    part.delete()
+                    kept.delete()
+                    throw IOException("The server couldn't carry on from byte $already; starting again")
+                }
+                if (it.code != 200 && it.code != 206) throw IOException("The server answered ${it.code} for the file")
+                // 206 carries on from where it got to; 200 is the whole file again.
+                val resuming = it.code == 206
+                val start = if (resuming) already else 0L
+                if (!resuming) {
+                    // A new start: this file's own validator, for carrying on later.
+                    val fresh = rangeValidator(it.header("ETag"), it.header("Last-Modified"))
+                    if (fresh != null) runCatching { kept.writeText(fresh) } else kept.delete()
+                }
+                val total = it.body.contentLength().takeIf { length -> length > 0 }?.let { length -> length + start }
+                if (total != null && folder.usableSpace < total - start + RESERVE_BYTES) throw NoRoom()
+                var written = start
+                var lastShown = 0L
+                transferred(written, total)
+                FileOutputStream(part, resuming).use { out ->
+                    it.body.byteStream().use { input ->
+                        val buffer = ByteArray(64 * 1024)
+                        while (true) {
+                            coroutineContext.ensureActive()
+                            val read = try {
+                                input.read(buffer)
+                            } catch (e: IOException) {
+                                client.homeMissed(request.url)
+                                throw e
+                            }
+                            if (read < 0) break
+                            out.write(buffer, 0, read)
+                            written += read
+                            val now = System.currentTimeMillis()
+                            if (total != null && now - lastShown > PROGRESS_MS) {
+                                lastShown = now
+                                val fraction = written.toDouble() / total
+                                onMain { store.progressed(download.id, fraction) }
+                                transferred(written, total)
+                                show(download, t("Downloading"), fraction)
+                            }
                         }
                     }
                 }
+                if (total != null && written < total) throw IOException("The file stopped short ($written of $total bytes)")
             }
-            if (total != null && written < total) throw IOException("The file stopped short ($written of $total bytes)")
         }
         val name = "${DownloadStore.safeName(download.id)}.${DownloadStore.safeName(download.fileExtension)}"
         val destination = DownloadStore.fileIn(folder, name) ?: throw IOException("Not a download's name")

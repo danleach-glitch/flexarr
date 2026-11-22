@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Net;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -105,10 +106,17 @@ public sealed class ApiKeyAuthenticationHandler(
             }
 
             // A guest's or away device's token only works from the device that redeemed the invite: copied anywhere else,
-            // it's refused.
-            if (device.Tunneled && !FromGuestAddress(device))
+            // it's refused. A household (away) device may also use it at home, so it can switch between the home
+            // address and its tunnel without signing in again; a guest's never leaves the tunnel.
+            var throughTunnel = device.Tunneled && FromGuestAddress(device);
+            if (device.Tunneled && !throughTunnel && !(device.Away && !device.Guest && FromHomeNetwork(options)))
             {
                 return AuthenticateResult.Fail("This sign-in belongs to another device.");
+            }
+
+            if (device.Away)
+            {
+                signIns.NoteRoute(device, atHome: !throughTunnel);
             }
 
             signIns.NoteDeviceType(device, DeviceTypes.Of(Request));
@@ -186,6 +194,29 @@ public sealed class ApiKeyAuthenticationHandler(
     private bool HomeNetworkSignsIn(FlexarrOptions options) =>
         options.AuthenticationRequired == AuthenticationRequired.DisabledForLocalAddresses && NetworkZones.Of(Context) == NetworkZone.Local
         && NetworkZones.AddressedToKnownHost(Context, options.KnownHosts) && !NetworkZones.FromContainerGateway(Context);
+
+    /// <summary>
+    /// This server tells household devices a home address, and this request is from the home network, not this machine,
+    /// addressed to one of the server's own names, and not handed over by a container's gateway: the same rules as the
+    /// home network signing in, whatever that's set to.
+    /// </summary>
+    private bool FromHomeNetwork(FlexarrOptions options)
+    {
+        // Only where household devices are told a home address to use: never, say, in Docker without one set, where
+        // the host's port forwarding can make anyone look local.
+        if (Context.RequestServices.GetService<HomeAddress>()?.Url() is null)
+        {
+            return false;
+        }
+
+        if (NetworkZones.Of(Context) != NetworkZone.Local || RequestPeer.Of(Context) is not { } peer
+            || IPAddress.IsLoopback(peer.IsIPv4MappedToIPv6 ? peer.MapToIPv4() : peer))
+        {
+            return false;
+        }
+
+        return NetworkZones.AddressedToKnownHost(Context, options.KnownHosts) && !NetworkZones.FromContainerGateway(Context);
+    }
 
     /// <summary>The cookie earlier versions gave every browser: derived from the API key, and the same for all of them.</summary>
     public static string LegacySessionValue(string apiKey) =>

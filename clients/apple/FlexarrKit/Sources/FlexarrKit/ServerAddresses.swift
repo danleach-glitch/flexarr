@@ -23,6 +23,12 @@ import Foundation
 /// to pretend as well as a different server at the address (a Tailscale address handed to another machine, a name
 /// that now leads elsewhere).
 ///
+/// A household device that joined by invite pairs the server's home address (`home`, from `/me`'s `homeUrl`) with the
+/// built-in tunnel's address on this device (`remote`): the same race decides which is used, home has to say who it is
+/// as any home address does, and the tunnel needn't (it reaches the server it was set up for, or nothing). A refusal of
+/// the sign-in at home (a server that can't take it there) sends everything back to the tunnel for good, rather than
+/// look like being signed out (see `refusedAtHome`). A family guest has only the tunnel (`home`, with no `remote`).
+///
 /// Shared by every client made for the same sign-in (see `shared(home:remote:)`), so what one request learns, the
 /// next one uses.
 public final class ServerAddresses: @unchecked Sendable {
@@ -31,8 +37,9 @@ public final class ServerAddresses: @unchecked Sendable {
     /// The id the server at `home` must give before it's sent the sign-in (`SystemStatus.serverId`); nil while the
     /// app doesn't know it (a server before 0.55, a guest's own tunnel), and home is then trusted as it always was.
     public let serverId: String?
-    /// A family guest's sign-in: the host's server its tunnel leads to (`GuestTunnelInfo.target`). `home` is then the
-    /// tunnel's own address on this device, and every request travels over the internet.
+    /// A sign-in through the built-in tunnel: the host's server it leads to (`GuestTunnelInfo.target`). For a family
+    /// guest `home` is then the tunnel's own address on this device, and every request travels over the internet; for a
+    /// household device with a home address, `remote` is (see `hasHomeRoute`).
     public let guest: String?
     /// False while `remote` hasn't yet given the server's id to this device: it's asked before it's sent the sign-in.
     /// Only ever goes from false to true (see `shared`).
@@ -53,6 +60,8 @@ public final class ServerAddresses: @unchecked Sendable {
     public static let remoteMissLasts: TimeInterval = 30
     /// Posted (object: the `ServerAddresses`) when the away address first gives the server's id.
     public static let remoteProvenNotification = Notification.Name("io.github.flexarr.server.remoteProven")
+    /// Posted (object: the `ServerAddresses`) when a household device's requests move between home and the tunnel.
+    public static let routeChangedNotification = Notification.Name("io.github.flexarr.server.routeChanged")
 
     private let lock = NSLock()
     private var _current: URL
@@ -62,6 +71,12 @@ public final class ServerAddresses: @unchecked Sendable {
     /// When a plain-http away address last said who it is or answered (see `asksProof`).
     private var remoteProvenAt: Date?
     private var remoteMissedAt: Date?
+    /// Home turned the sign-in away (see `refusedAtHome`): the tunnel only, until the device is on another network.
+    private var homeRefused = false
+    /// Home has said who it is since requests last went elsewhere, and on this network (see `homeProven`).
+    private var homeVerified = false
+    /// Goes up with each change of network (`networkChanged`): what home said on the network before counts for nothing.
+    private var network = 0
     /// Who's waiting on each address's answer while one is being asked.
     private var proofWaiters: [URL: [AsyncStream<Bool>.Continuation]] = [:]
     /// Where the address that answered last is kept between launches; nil keeps nothing.
@@ -79,8 +94,10 @@ public final class ServerAddresses: @unchecked Sendable {
         self.memory = memory
         // The same server at either address: its artwork is kept once, under its home address (see `atHome`).
         if let remote = self.remote { Self.pair(remote: remote, home: home) }
-        // Away last time: most likely still away, and a launch needn't wait on home to find that out again.
-        if let remote = self.remote, memory?.string(forKey: Self.memoryKey) == remote.absoluteString {
+        // Away last time: most likely still away, and a launch needn't wait on home to find that out again. Through the
+        // tunnel last time: its port on this device may have moved since, so it's remembered by where it leads.
+        let last = memory?.string(forKey: Self.memoryKey)
+        if let remote = self.remote, last == remote.absoluteString || (self.guest != nil && last == Self.tunnelMemory(self.guest)) {
             _current = remote
         } else {
             _current = home
@@ -93,29 +110,88 @@ public final class ServerAddresses: @unchecked Sendable {
     /// Away from home: reaching the server by its remote address.
     public var isAway: Bool { lock.withLock { _current != home } }
 
-    /// Away from home now: the address in use is the away one, or this is a family guest's tunnel. Streams then come
-    /// over the internet, so the apps measure the speed and stream to fit (docs/remote-streaming.md).
-    public var awayFromHome: Bool { guest != nil || isAway }
+    /// Away from home now: the address in use is the away one, or the built-in tunnel. Streams then come over the
+    /// internet, so the apps measure the speed and stream to fit (docs/remote-streaming.md).
+    public var awayFromHome: Bool { guest != nil ? onTunnel : isAway }
+
+    /// The built-in tunnel's address on this device, for a sign-in through it: a guest's only address, or a household
+    /// device's away one. Nil for everyone else.
+    public var tunnel: URL? { guest == nil ? nil : remote ?? home }
+
+    /// A household device's sign-in that can also reach the server at home: home first, the tunnel when it doesn't
+    /// answer (see the type's notes).
+    public var hasHomeRoute: Bool { guest != nil && remote != nil }
+
+    /// Home is in use and has shown it's this server (or needn't: https, or no id to ask for): what Settings calls "At
+    /// home". Not before it has said so, nor once requests have gone elsewhere.
+    public var homeProven: Bool {
+        lock.withLock { _current == home && (homeVerified || !asksProofLocked(of: home)) }
+    }
+
+    /// Requests go through the built-in tunnel now: always for a guest, while home doesn't answer for a household
+    /// device. What can't go through it (AirPlay, the background downloader) follows this.
+    public var onTunnel: Bool { tunnel.map { current == $0 } ?? false }
 
     /// Which link readings of the speed belong to (`LinkSpeed`): the server (its id, else its home address) and the
-    /// address in use (home, away, or a guest's tunnel).
+    /// address in use (home, away, or the tunnel).
     public var linkKey: String {
-        if let guest { return "\(guest)|guest" }
+        if let guest, onTunnel { return "\(guest)|guest" }
         return "\(serverId ?? home.absoluteString)|\(isAway ? "remote" : "home")"
     }
 
-    /// The other address, if there is one.
+    /// The other address, if there is one: none from the tunnel once home has turned the sign-in away.
     public func alternate(to url: URL) -> URL? {
         guard let remote else { return nil }
-        return url == remote ? home : remote
+        if url == remote { return lock.withLock { homeRefused } ? nil : home }
+        return remote
+    }
+
+    /// Whether a GET at `url` also goes to the other address when it's slow to answer. Never from a household device's
+    /// home to the tunnel: a slow answer at home isn't a missing one, and the tunnel would start (and stay up) for
+    /// nothing. Home that can't connect still moves to the tunnel (`homeMissed`).
+    public func racesFrom(_ url: URL) -> Bool { !(hasHomeRoute && url == home) }
+
+    /// A household device's home didn't connect (or a transfer to it was cut off): the tunnel from now on, which starts
+    /// for the next request, and home is asked again in a few minutes.
+    public func homeMissed() {
+        guard hasHomeRoute, let remote, current == home else { return }
+        reached(remote)
+    }
+
+    /// Home answered the sign-in with a refusal (401) while the tunnel takes it: a server that only takes it through
+    /// the tunnel (or something else at the address, on this network). Everything goes there from now on, and home
+    /// isn't tried again until the device is on another network (`networkChanged`), so the refusal is never taken for
+    /// being signed out. Only for a household device's pairing; nothing otherwise.
+    public func refusedAtHome() {
+        guard hasHomeRoute, let remote else { return }
+        lock.withLock {
+            homeRefused = true
+            homeVerified = false
+        }
+        reached(remote)
+    }
+
+    /// Whether `url` (a request's or a transfer's) goes to the home address.
+    public func isHome(_ url: URL) -> Bool {
+        url.scheme?.lowercased() == home.scheme?.lowercased() && url.host()?.lowercased() == home.host()?.lowercased()
+            && (url.port ?? (url.scheme == "https" ? 443 : 80)) == (home.port ?? (home.scheme == "https" ? 443 : 80))
+    }
+
+    /// Whether the tunnel's address is one that's up on this device: a request with the sign-in only goes to the
+    /// tunnel's port while this app's tunnel is listening there, never to whatever else might be.
+    public func tunnelIsUp(_ url: URL) -> Bool {
+        guard url == tunnel else { return true }
+        return !GuestTunnelToken.headers(for: url).isEmpty
     }
 
     /// `url` answered: send everything there from now on.
     public func reached(_ url: URL) {
+        if url == home, hasHomeRoute, lock.withLock({ homeRefused }) { return }
         let moved = lock.withLock {
             if url != home, _current == home {
                 homeCheckedAt = Date() // leaving home starts the clock for trying it again
                 homeProvenAt = nil // and whatever is at its address next has to say who it is
+                homeVerified = false
             } else if url == home, _current != home {
                 remoteProvenAt = nil // the same for a plain-http away address, once home again
             }
@@ -123,17 +199,47 @@ public final class ServerAddresses: @unchecked Sendable {
             _current = url
             return moved
         }
-        if moved { memory?.set(url.absoluteString, forKey: Self.memoryKey) }
+        guard moved else { return }
+        memory?.set(url == tunnel && hasHomeRoute ? Self.tunnelMemory(guest) : url.absoluteString, forKey: Self.memoryKey)
+        if guest != nil { NotificationCenter.default.post(name: Self.routeChangedNotification, object: self) }
     }
+
+    /// What's remembered for a launch to start at the tunnel to `guest`, whatever its port.
+    private static func tunnelMemory(_ guest: String?) -> String { "tunnel|\(guest ?? "")" }
 
     /// True once per interval while away: time to see whether home answers again.
     func shouldCheckHome(now: Date = Date()) -> Bool {
         lock.withLock {
-            guard _current != home else { return false }
+            guard _current != home, !homeRefused else { return false }
             if let homeCheckedAt, now.timeIntervalSince(homeCheckedAt) < Self.homeCheckInterval { return false }
             homeCheckedAt = now
             return true
         }
+    }
+
+    /// The device moved to another network (or lost and found one): whatever is at the home address now has to say who
+    /// it is again, before it's sent anything, and a question put to it on the network before is let go of. A household
+    /// device's home that turned the sign-in away is asked again, and soon: it may be this network's.
+    public func networkChanged() {
+        let waiting: [AsyncStream<Bool>.Continuation] = lock.withLock {
+            network += 1
+            homeProvenAt = nil
+            homeVerified = false
+            homeRefused = false
+            remoteMissedAt = nil // Tailscale may have come up with it
+            if hasHomeRoute { homeCheckedAt = nil }
+            return proofWaiters.removeValue(forKey: home) ?? []
+        }
+        for waiter in waiting {
+            waiter.yield(false)
+            waiter.finish()
+        }
+    }
+
+    /// Every server's addresses, on a change of network (see `networkChanged`).
+    public static func networkChangedEverywhere() {
+        let all = registryLock.withLock { Array(registry.values) }
+        all.forEach { $0.networkChanged() }
     }
 
     // MARK: An address says who it is
@@ -142,9 +248,14 @@ public final class ServerAddresses: @unchecked Sendable {
     /// address over plain HTTP, an away address not yet confirmed (see `remoteConfirmed`), and one over plain HTTP (a
     /// 100.x Tailscale address, a range some mobile networks also use for machines of their own), which is then
     /// asked as home is, whenever it hasn't answered for `proofLasts`.
-    public func asksProof(of url: URL) -> Bool {
+    public func asksProof(of url: URL) -> Bool { asksProofLocked(of: url) }
+
+    /// As `asksProof`, reading nothing under the lock (so it can be asked while holding it).
+    private func asksProofLocked(of url: URL) -> Bool {
         guard serverId != nil else { return false }
         if url == home { return home.scheme?.lowercased() != "https" }
+        // The tunnel leads to the server it was set up for, or nowhere.
+        if guest != nil { return false }
         return url == remote && (!remoteConfirmed || !remoteIsHttps)
     }
 
@@ -207,9 +318,10 @@ public final class ServerAddresses: @unchecked Sendable {
             return false
         case .ask:
             // On its own, so one request being cancelled doesn't take the answer from the rest.
+            let asked = lock.withLock { network }
             Task.detached {
                 let same = await ask(url, serverId)
-                self.proofEnded(url, same)
+                self.proofEnded(url, same, network: asked)
             }
         case .wait:
             break
@@ -218,11 +330,16 @@ public final class ServerAddresses: @unchecked Sendable {
         return false
     }
 
-    private func proofEnded(_ url: URL, _ same: Bool) {
-        let (waiting, firstProof) = lock.withLock {
+    private func proofEnded(_ url: URL, _ same: Bool, network asked: Int) {
+        let (waiting, firstProof, verifiedChanged): ([AsyncStream<Bool>.Continuation], Bool, Bool) = lock.withLock {
+            // Home asked on the network before: its answer says nothing of this one (and its waiters have been told).
+            if url == home, asked != network { return ([], false, false) }
             var first = false
+            var changed = false
             if url == home {
                 homeProvenAt = same ? Date() : nil
+                changed = homeVerified != same
+                homeVerified = same
             } else if same {
                 first = !remoteProven
                 remoteProven = true
@@ -232,9 +349,11 @@ public final class ServerAddresses: @unchecked Sendable {
                 remoteProvenAt = nil
                 remoteMissedAt = Date()
             }
-            return (proofWaiters.removeValue(forKey: url) ?? [], first)
+            return (proofWaiters.removeValue(forKey: url) ?? [], first, changed)
         }
         if firstProof { NotificationCenter.default.post(name: Self.remoteProvenNotification, object: self) }
+        // "At home" waits for home to have said who it is: a household device's Settings hear when it has.
+        if verifiedChanged, hasHomeRoute { NotificationCenter.default.post(name: Self.routeChangedNotification, object: self) }
         for waiter in waiting {
             waiter.yield(same)
             waiter.finish()
@@ -250,18 +369,36 @@ public final class ServerAddresses: @unchecked Sendable {
     /// times share what they've learnt. The away address being confirmed carries over to the one instance rather than
     /// making another, so what it knows of home isn't lost; it's never taken back, as the same away address of the same
     /// server can't stop being that server's.
+    ///
+    /// A household device's pairing of home and the tunnel is one entry whatever the tunnel's port: when the port moves
+    /// (the one it asked for was taken), the new instance takes over where requests were going and what home has said.
     public static func shared(home: URL, remote: URL?, serverId: String? = nil, remoteConfirmed: Bool = true,
                               guest: String? = nil) -> ServerAddresses {
-        let key = "\(home.absoluteString)|\(remote?.absoluteString ?? "")|\(serverId ?? "")|\(guest ?? "")"
+        let pairsTunnel = guest?.isEmpty == false && remote != nil && remote != home
+        let key = "\(home.absoluteString)|\(pairsTunnel ? "tunnel" : remote?.absoluteString ?? "")|\(serverId ?? "")|\(guest ?? "")"
         return registryLock.withLock {
-            if let existing = registry[key] {
+            if let existing = registry[key], existing.remote == remote {
                 if remoteConfirmed { existing.lock.withLock { existing._remoteConfirmed = true } }
                 return existing
             }
             let made = ServerAddresses(home: home, remote: remote, serverId: serverId, remoteConfirmed: remoteConfirmed,
                                        guest: guest, memory: .standard)
+            if let before = registry[key] { made.takeOver(from: before) }
             registry[key] = made
             return made
+        }
+    }
+
+    /// Where `before` (the same pairing, with the tunnel at another port) had got to. Not what home said: home says who
+    /// it is again to the new instance before it's sent anything.
+    private func takeOver(from before: ServerAddresses) {
+        let (onHome, checked, refused) = before.lock.withLock {
+            (before._current == before.home, before.homeCheckedAt, before.homeRefused)
+        }
+        lock.withLock {
+            _current = onHome && !refused ? home : remote ?? home
+            homeCheckedAt = checked
+            homeRefused = refused
         }
     }
 }

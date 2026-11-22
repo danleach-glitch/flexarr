@@ -27,6 +27,7 @@ public sealed class RemoteGuestFactory : WebApplicationFactory<Program>
 
     public const string Guest = "100.64.0.9";
     public const string Owner = "100.64.0.2";
+    public const string HomeUrl = "http://192.168.1.2:8383/";
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -36,6 +37,8 @@ public sealed class RemoteGuestFactory : WebApplicationFactory<Program>
         builder.UseSetting("Flexarr:DataDirectory", DataDirectory);
         builder.UseSetting("Flexarr:Logs:ErrorReportsDsn", "");
         builder.UseSetting("Flexarr:RemoteGuests:Enabled", "true");
+        // The test server listens nowhere, so it can't work out its own.
+        builder.UseSetting("Flexarr:HomeUrl", HomeUrl);
         builder.UseSetting("Flexarr:RemoteGuests:ClientId", "client");
         builder.UseSetting("Flexarr:RemoteGuests:ClientSecret", "secret");
         builder.UseSetting("Flexarr:RemoteGuests:ApiUrl", "https://tailscale.test");
@@ -941,6 +944,131 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
         var redeemed = await RedeemAsync(address, GuestInvites.Decode(created.Link[GuestInvites.LinkBase.Length..])!.T);
         Assert.Equal(HttpStatusCode.OK, redeemed.StatusCode);
         return (await redeemed.Content.ReadFromJsonAsync<RedeemedInviteDto>(Web))!;
+    }
+
+    [Fact]
+    public async Task A_household_device_also_signs_in_from_the_home_network_but_nowhere_else()
+    {
+        var claire = await factory.AddProfileAsync("Claire70");
+        const string address = "100.64.0.70";
+        var answer = await JoinHouseholdAsync(claire, address);
+
+        // Home: the same key works, so the device can switch between its tunnel and the home address.
+        using var home = factory.From("192.168.1.70", answer.ApiKey);
+        Assert.Equal(claire, (await home.GetFromJsonAsync<JsonElement>("/api/v1/me")).GetProperty("profileId").GetString());
+
+        // Another tailnet address, or the internet: still refused.
+        using var otherTailnet = factory.From("100.64.0.71", answer.ApiKey);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await otherTailnet.GetAsync("/api/v1/me")).StatusCode);
+        using var internet = factory.From("203.0.113.70", answer.ApiKey);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await internet.GetAsync("/api/v1/me")).StatusCode);
+
+        // Relayed from the internet to this machine: refused, however local it looks.
+        using var relayed = factory.From("127.0.0.1", answer.ApiKey);
+        relayed.DefaultRequestHeaders.Add("CF-Connecting-IP", "203.0.113.71");
+        Assert.Equal(HttpStatusCode.Unauthorized, (await relayed.GetAsync("/api/v1/me")).StatusCode);
+
+        // This machine itself isn't the home network.
+        using var loopback = factory.From("127.0.0.1", answer.ApiKey);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await loopback.GetAsync("/api/v1/me")).StatusCode);
+
+        // The owner sees which way it came last.
+        using var admin = factory.Admin();
+        async Task<string?> Route() => (await admin.GetFromJsonAsync<List<GuestDeviceDto>>("/api/v1/remote/guests/devices", Web))!.Single(d => d.Address == address).LastRoute;
+        Assert.Equal("home", await Route());
+        using var tunnel = factory.From(address, answer.ApiKey);
+        Assert.True((await tunnel.GetAsync("/api/v1/me")).IsSuccessStatusCode);
+        Assert.Equal("away", await Route());
+    }
+
+    [Fact]
+    public async Task Only_a_household_device_is_told_the_home_address()
+    {
+        var claire = await factory.AddProfileAsync("Claire73");
+        var answer = await JoinHouseholdAsync(claire, "100.64.0.73");
+        using var away = factory.From("100.64.0.73", answer.ApiKey);
+        var me = await away.GetFromJsonAsync<JsonElement>("/api/v1/me");
+        Assert.Equal(RemoteGuestFactory.HomeUrl, me.GetProperty("homeUrl").GetString());
+        Assert.Equal(RemoteGuestFactory.HomeUrl, answer.HomeUrl?.ToString());
+
+        var (_, key) = await JoinAsync("Gran73");
+        using var guest = factory.From(RemoteGuestFactory.Guest, key);
+        var guestMe = await guest.GetFromJsonAsync<JsonElement>("/api/v1/me");
+        Assert.True(!guestMe.TryGetProperty("homeUrl", out var g) || g.ValueKind == JsonValueKind.Null);
+    }
+
+    [Theory]
+    [InlineData("192.168.1.10", true)]
+    [InlineData("10.0.0.5", true)]
+    [InlineData("172.20.1.1", true)]
+    [InlineData("172.32.1.1", false)]
+    [InlineData("100.64.0.1", false)]
+    [InlineData("127.0.0.1", false)]
+    [InlineData("169.254.1.1", false)]
+    [InlineData("8.8.8.8", false)]
+    public void The_home_address_is_a_private_one(string address, bool home) =>
+        Assert.Equal(home, HomeAddress.IsHome(System.Net.IPAddress.Parse(address)));
+
+    [Theory]
+    [InlineData("en0", false)]
+    [InlineData("eth0", false)]
+    [InlineData("wlan0", false)]
+    [InlineData("enp3s0", false)]
+    [InlineData("utun4", true)]
+    [InlineData("wg0", true)]
+    [InlineData("tailscale0", true)]
+    [InlineData("docker0", true)]
+    [InlineData("br-1a2b3c", true)]
+    [InlineData("bridge100", true)]
+    [InlineData("vmnet8", true)]
+    [InlineData("Hyper-V Virtual Ethernet Adapter", true)]
+    [InlineData("NordVPN", true)]
+    public void A_vpn_or_virtual_machines_adapter_comes_last_for_the_home_address(string name, bool skipped) =>
+        Assert.Equal(skipped, HomeAddress.Virtual(name));
+
+    [Fact]
+    public async Task The_home_address_proves_itself_to_a_household_device_before_it_sends_its_key()
+    {
+        var claire = await factory.AddProfileAsync("Claire74");
+        var answer = await JoinHouseholdAsync(claire, "100.64.0.74");
+        const string challenge = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
+        var hash = ServerProof.HashOf(answer.ApiKey);
+
+        // Asked anonymously from home, as the apps do before trusting the address.
+        using var home = factory.From("192.168.1.74");
+        var setup = await home.GetFromJsonAsync<JsonElement>($"/api/v1/setup?challenge={challenge}&keyId={ServerProof.KeyId(hash)}");
+
+        Assert.Equal(answer.ServerId, setup.GetProperty("serverId").GetString());
+        Assert.Equal(ServerProof.Answer(hash, answer.ServerId, challenge), setup.GetProperty("proof").GetString());
+
+        // Asked from the internet, it isn't answered: that could be someone else's network passing the question on.
+        using var internet = factory.From("203.0.113.74");
+        var relayed = await internet.GetFromJsonAsync<JsonElement>($"/api/v1/setup?challenge={challenge}&keyId={ServerProof.KeyId(hash)}");
+        Assert.True(!relayed.TryGetProperty("proof", out var p) || p.ValueKind == JsonValueKind.Null);
+    }
+
+    [Fact]
+    public async Task A_household_device_isnt_let_in_from_home_where_the_server_gives_no_home_address()
+    {
+        var claire = await factory.AddProfileAsync("Claire75");
+        var answer = await JoinHouseholdAsync(claire, "100.64.0.75");
+        Assert.Equal(RemoteGuestFactory.HomeUrl, answer.HomeUrl?.ToString());
+
+        // As in Docker without Flexarr:HomeUrl, where the host's port forwarding could make anyone look local (here an
+        // address that isn't one, which also gives none).
+        using var unknown = factory.WithWebHostBuilder(b => b.UseSetting("Flexarr:HomeUrl", "not an address"));
+        using var home = unknown.CreateClient();
+        home.DefaultRequestHeaders.Add("X-Test-Peer", "192.168.1.75");
+        home.DefaultRequestHeaders.Add("X-Api-Key", answer.ApiKey);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await home.GetAsync("/api/v1/me")).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_guests_key_never_works_from_the_home_network()
+    {
+        var (_, key) = await JoinAsync("Gran70");
+        using var home = factory.From("192.168.1.72", key);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await home.GetAsync("/api/v1/me")).StatusCode);
     }
 
     private async Task<string> AddKidsProfileAsync(string name)

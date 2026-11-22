@@ -273,6 +273,9 @@ fun SettingsScreen(
                         t("Offline")
                     } else if (model.credentials?.remoteAddress != null && !model.isGuest) {
                         if (model.client?.addresses?.isAway == true) t("Away") else t("At home")
+                    } else if (model.credentials?.pairsHome == true && !model.isGuest) {
+                        // A household device that joined by invite, with its server's home address: the route in use.
+                        if (model.householdAtHome) t("At home") else t("Away")
                     } else {
                         model.serverTitle
                     }
@@ -552,9 +555,18 @@ fun ServerSettingsScreen(model: AppModel, onDiagnostics: () -> Unit, onUseAway: 
             // A guest leaves here; a household device away from home signs out on Settings, as at home (as the iPhone).
             if (guest != null || model.isGuest) item {
                 val isGuest = model.isGuest
+                // A household device at home on its server's home address (the route follows where it is).
+                val atHome = !isGuest && model.householdAtHome
                 // A household device on the tunnel: why Cast isn't offered (a guest's page stays as it was, as on Apple).
-                Group(footer = if (isGuest) null else t("Away from home, Flexarr uses its own connection. Cast is off on it.")) {
-                    Fact(if (isGuest) t("Connected by invite") else t("Away from home"), model.guestServerTitle(guest))
+                Group(footer = if (isGuest || atHome) null else t("Away from home, Flexarr uses its own connection. Cast is off on it.")) {
+                    if (isGuest) {
+                        Fact(t("Connected by invite"), model.guestServerTitle(guest))
+                    } else {
+                        // As the iPhone: whose server, then how it's reached now.
+                        Fact(t("Server"), model.guestServerTitle(guest))
+                        Divider()
+                        Fact(t("Connected"), if (atHome) t("At home") else t("Away from home"))
+                    }
                     if (isGuest) {
                         Divider()
                         Text(

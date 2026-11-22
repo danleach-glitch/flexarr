@@ -424,12 +424,17 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
     private var firstFrame: Triple<Long, Long, String?>? = null
     private val log = FlexarrLog("playback")
 
+    /** Opened through the tunnel inside the app: it keeps the tunnel up until it closes. */
+    private val openedOnTunnel = model.isTunnelAddress(client.addresses.current)
+
     init {
+        // Open on the tunnel, it keeps the route it opened on: a household device's tunnel isn't stopped under it at home.
+        if (openedOnTunnel) model.tunnelVideoPlayers++
         player.addListener(object : Player.Listener {
             override fun onRenderedFirstFrame() {
                 if (info?.sessionId != switchingFrom) switchingQuality = false
                 val started = timing?.takeIf { it.isAnswered } ?: return
-                started.report(log, client.baseUrl.host, model.usesTunnel)
+                started.report(log, client.baseUrl.host, model.throughTunnel(client))
                 firstFrame = Triple(android.os.SystemClock.elapsedRealtime(), player.currentPosition, info?.playbackId)
                 timing = null
             }
@@ -461,7 +466,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
                     if (after < EARLY_STALL_MS && abs(player.currentPosition - position - after) < 3000) {
                         log.measured(
                             "Playback ${playbackId ?: "unknown"} stalled soon after starting",
-                            mapOf("afterMs" to after.toString(), "remote" to (model.usesTunnel || StartTiming.looksRemote(client.baseUrl.host)).toString(), "playbackId" to playbackId),
+                            mapOf("afterMs" to after.toString(), "remote" to (model.throughTunnel(client) || StartTiming.looksRemote(client.baseUrl.host)).toString(), "playbackId" to playbackId),
                         )
                     }
                 }
@@ -1789,6 +1794,7 @@ class PlaybackController(context: Context, private val model: AppModel, val clie
 
     /** The player closed: the last position, then the session ends (finishing even though the screen has gone). */
     fun close() {
+        if (!closed && openedOnTunnel) model.tunnelVideoPlayers--
         closed = true
         tooSlowCheck?.cancel()
         ticker?.cancel()

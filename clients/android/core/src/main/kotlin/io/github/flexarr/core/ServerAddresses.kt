@@ -26,8 +26,13 @@ import okhttp3.HttpUrl
  * nothing signed in ([checkRemote]); once it has, it stays trusted for this launch. The id isn't secret (anyone may
  * ask for it), so this catches a different server at the address (a Tailscale address handed to another machine, a
  * name that now leads elsewhere), not one set up to pretend.
+ *
+ * [awayIsTunnel]: the away address is the tunnel inside the app (a household device that joined by invite, whose server
+ * said where home is). Then GETs at home aren't raced to it (that would start the tunnel at home on every slow
+ * request): it's only used once home can't be reached or hasn't shown it's this server. A refusal of the sign-in at
+ * home ([homeRefused]) moves to it rather than signing out, and a new network asks home again at the next request.
  */
-class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
+class ServerAddresses(val home: HttpUrl, remote: HttpUrl?, val awayIsTunnel: Boolean = false) {
     val remote: HttpUrl? = remote?.takeIf { it != home }
 
     @Volatile
@@ -97,7 +102,17 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
     }
 
     /** Whether home may be sent the sign-in now without asking it first. */
-    val homeTrustedNow: Boolean get() = homeVerified || serverId == null || home.isHttps
+    val homeTrustedNow: Boolean get() = !homeRefusedHere && (homeVerified || serverId == null || home.isHttps)
+
+    /**
+     * Home refused the sign-in on this network ([homeRefused]): it's left alone until the next one, the away address (the
+     * tunnel) carrying on.
+     */
+    @Volatile
+    private var homeRefusedHere = false
+
+    /** Home has shown it's this server on the network in use, and nothing has made it ask again since. */
+    val homeProven: Boolean get() = homeVerified && !homeRefusedHere
 
     /**
      * Whether home may be sent the sign-in, asking it with [verify] (once at a time, however many requests wait) when
@@ -105,24 +120,60 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
      */
     internal suspend fun checkHome(verify: suspend () -> Boolean): Boolean {
         if (homeTrustedNow) return true
+        if (homeRefusedHere) return false
         val check = synchronized(this) {
             homeCheck?.takeIf { it.isActive } ?: checks.async { verify() }.also { homeCheck = it }
         }
         val ok = runCatching { check.await() }.getOrDefault(false)
-        if (ok) homeVerified = true
+        if (ok) homeVerified()
         return ok
     }
 
-    /** Home answered with the server's id just now. */
+    /** Home answered with the server's id just now (announced as a change of route the first time on this network). */
     internal fun homeVerified() {
-        homeVerified = true
+        val first = synchronized(this) { !homeVerified.also { homeVerified = true } }
+        if (first && awayIsTunnel) onRouteChanged?.invoke(this)
     }
 
-    /** Another network: whatever answers at home there has to show it's this server again. */
-    fun networkChanged() {
+    /**
+     * [url], a request at home, was refused the sign-in (401). With the tunnel as the away address that's a server that
+     * doesn't take this sign-in from home (before 0.67) or a stranger: the tunnel takes over until another network, and
+     * true says to send the request again (through it). Otherwise false: a refusal is the server's word.
+     */
+    @Synchronized
+    fun homeRefused(url: HttpUrl): Boolean {
+        if (!awayIsTunnel || remote == null || !url.isAt(home)) return false
+        homeRefusedHere = true
         homeVerified = false
+        reached(remote)
+        return true
+    }
+
+    /**
+     * [url], at home, stopped answering partway (a download's file as the device left home): with the tunnel as the
+     * away address, the next try goes through it, and home is asked about again in a few minutes.
+     */
+    fun homeMissed(url: HttpUrl) {
+        val remote = remote ?: return
+        if (!awayIsTunnel || !url.isAt(home) || _current != home) return
+        reached(remote)
+    }
+
+    /**
+     * Another network: whatever answers at home there has to show it's this server again. With the tunnel as the away
+     * address, home no longer proven is a change of route the app hears about (Settings and Cast follow it).
+     */
+    fun networkChanged() {
+        val wasProven = synchronized(this) { homeProven.also { homeVerified = false } }
         // Tailscale may have come up with it.
         remoteMissedAt = null
+        if (awayIsTunnel) {
+            // The tunnel is the app's own (nothing else on any network answers it), and home may be here: asked at once.
+            homeRefusedHere = false
+            synchronized(this) { homeCheckedAt = null }
+            if (wasProven) onRouteChanged?.invoke(this)
+            return
+        }
         if (remote?.isHttps == false) {
             remoteVerified = false
             remoteAskAgain = true
@@ -151,21 +202,40 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
         return if (to == remote) home else remote
     }
 
+    /** Whether a GET at [primary] that's slow to answer is also sent to the other address: never from home to the tunnel. */
+    internal fun racesFrom(primary: HttpUrl): Boolean = !(awayIsTunnel && primary == home)
+
+    /** On the tunnel inside the app now: it's the away address, and the one in use. */
+    val onTunnel: Boolean get() = awayIsTunnel && isAway
+
     /** [url] answered: send everything there from now on. */
-    @Synchronized
     fun reached(url: HttpUrl) {
-        // Leaving home starts the clock for trying it again.
-        if (url != home && _current == home) {
-            homeCheckedAt = System.currentTimeMillis()
-            homeVerified = false
+        val moved = synchronized(this) {
+            // Leaving home starts the clock for trying it again.
+            if (url != home && _current == home) {
+                homeCheckedAt = System.currentTimeMillis()
+                homeVerified = false
+            }
+            (_current != url).also { _current = url }
         }
-        _current = url
+        if (moved) onRouteChanged?.invoke(this)
+    }
+
+    /**
+     * Starts on the away address (where the last launch left it), with home asked about at the first request rather than
+     * after the usual few minutes. Only before any request has been sent.
+     */
+    @Synchronized
+    internal fun startAway() {
+        val remote = remote ?: return
+        _current = remote
+        homeCheckedAt = null
     }
 
     /** True once per interval while away: time to see whether home answers again. */
     @Synchronized
     internal fun shouldCheckHome(now: Long = System.currentTimeMillis()): Boolean {
-        if (_current == home) return false
+        if (_current == home || homeRefusedHere) return false
         homeCheckedAt?.let { if (now - it < HOME_CHECK_INTERVAL_MS) return false }
         homeCheckedAt = now
         return true
@@ -197,6 +267,14 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
         @Volatile
         var onRemoteProven: ((ServerAddresses) -> Unit)? = null
 
+        /**
+         * Called whenever the address in use moves (home to away or back), or home first proves it's the server on a
+         * network with the tunnel as the away address (or stops being proven, on a new network), off whatever thread
+         * found out, so the app can follow the route (a household device's tunnel stopping at home). Set once at launch.
+         */
+        @Volatile
+        var onRouteChanged: ((ServerAddresses) -> Unit)? = null
+
         private val registry = mutableMapOf<String, ServerAddresses>()
 
         /** Where [checkHome]'s questions run, so one caller giving up doesn't cancel it for the others waiting. */
@@ -214,12 +292,23 @@ class ServerAddresses(val home: HttpUrl, remote: HttpUrl?) {
          * same away address of the same server can't stop being that server's.
          */
         @Synchronized
-        fun shared(home: HttpUrl, remote: HttpUrl?, serverId: String? = null, remoteConfirmed: Boolean = true): ServerAddresses =
-            registry.getOrPut("$home|${remote ?: ""}|${serverId ?: ""}") {
-                ServerAddresses(home, remote).also {
+        fun shared(
+            home: HttpUrl,
+            remote: HttpUrl?,
+            serverId: String? = null,
+            remoteConfirmed: Boolean = true,
+            awayIsTunnel: Boolean = false,
+            startAway: Boolean = false,
+        ): ServerAddresses =
+            registry.getOrPut("$home|${remote ?: ""}|${serverId ?: ""}|$awayIsTunnel") {
+                ServerAddresses(home, remote, awayIsTunnel).also {
                     it.serverId = serverId
                     it.remoteConfirmed = remoteConfirmed
+                    if (startAway) it.startAway()
                 }
             }.also { if (remoteConfirmed) it.remoteConfirmed = true }
     }
 }
+
+/** The same server and port as [base] (whatever path follows). */
+internal fun HttpUrl.isAt(base: HttpUrl): Boolean = scheme == base.scheme && host == base.host && port == base.port
