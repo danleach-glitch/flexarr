@@ -6,11 +6,14 @@ import Security
 
 private let log = FlexarrLog("tunnel")
 
-/// This app is signed in through the tunnel (a family guest, or a household device away from home): AirPlay is left
-/// out, since an AirPlay receiver can't reach a tunnel inside this device, and downloads carry on only while the app is
-/// open. Set as the sign-in changes (`AppModel.phase`). A guest's limits are `ServerCredentials.isGuest`, not this.
+/// Requests go through the tunnel now (always for a family guest; for a household device, while home doesn't answer):
+/// AirPlay is left out, since an AirPlay receiver can't reach a tunnel inside this device, and downloads carry on only
+/// while the app is open. Set as the sign-in and its route change (`AppModel.phase`, `AppModel.routeChanged`); what's
+/// already open (a player, a transfer) keeps what it started with. A guest's limits are `isGuest`.
 enum GuestMode {
     nonisolated(unsafe) static var isActive = false
+    /// Signed in as a family guest (`ServerCredentials.isGuest`), wherever its requests go.
+    nonisolated(unsafe) static var isGuest = false
 }
 
 /// The tunnel a family guest's app reaches its host's server through: Tailscale built in (clients/tunnel), joined to
