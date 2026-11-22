@@ -258,6 +258,19 @@ struct HouseholdHomeTests {
         #expect(addresses.shouldCheckHome(), "asked again at once on the new network")
     }
 
+    @Test func homeProvingItselfLateStillBringsTheRequestsBack() async throws {
+        let (client, home) = client()
+        client.addresses.reached(Self.tunnelAddress)
+        var slow = Self.setup(Self.id)
+        slow.delay = 0.6
+        StubProtocol.register(host: home, path: "/api/v1/setup", slow)
+
+        #expect(!(await client.homeAnswers(within: .milliseconds(100), fresh: true)), "not within the limit")
+        #expect(client.addresses.onTunnel)
+        try await Task.sleep(for: .milliseconds(900))
+        #expect(!client.addresses.onTunnel, "home, once it has said who it is")
+    }
+
     @Test func aHouseholdSignInIsSavedWhereOlderVersionsDoNotLook() throws {
         let suite = "household-home-test-\(UUID().uuidString)"
         let service = "io.github.flexarr.test.\(UUID().uuidString)"

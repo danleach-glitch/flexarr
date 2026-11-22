@@ -991,8 +991,13 @@ final class AppModel {
             client.addresses.homeMissed()
             return await startGuestTunnel(checking: checking)
         }
-        // Back in front, or the network changed: perhaps home now. Asked beside the tunnel, never waited on.
-        if checking { Task.detached { _ = await client.homeAnswers(within: .seconds(5), fresh: true) } }
+        // Back in front, or the network changed: perhaps home now. Asked first, briefly, so a device that's come home
+        // doesn't check (or restart) the tunnel it no longer needs; a slower answer still moves it home when it comes.
+        if checking, await client.homeAnswers(within: .seconds(2), fresh: true) {
+            tunnelProblem = nil
+            routeChanged(nil)
+            return true
+        }
         let started = await startGuestTunnel(checking: checking)
         // Home answered meanwhile: the tunnel just started isn't needed.
         routeChanged(nil)

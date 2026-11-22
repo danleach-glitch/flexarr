@@ -238,23 +238,29 @@ public struct FlexarrClient: Sendable {
 
     /// Whether a household device's home address answers as this server within `limit` (it's then where requests go),
     /// asked without the sign-in. False without a home address, or when it's turned the sign-in away before. `fresh`
-    /// asks even if it said so lately.
+    /// asks even if it said so lately. The question carries on past `limit` (home may be slow to wake, an Apple TV's
+    /// network coming back): if home proves itself after all, requests move back to it then.
     public func homeAnswers(within limit: Duration = .seconds(3), fresh: Bool = false) async -> Bool {
         guard addresses.hasHomeRoute, addresses.alternate(to: addresses.tunnel ?? addresses.home) != nil else { return false }
         if Self.simulatesOffline { return false }
         let home = addresses.home
-        let proven = await withTaskGroup(of: Bool?.self) { group in
-            group.addTask { await self.provesItself(home, fresh: fresh) }
-            group.addTask {
-                try? await Task.sleep(for: limit)
-                return nil
-            }
-            let first = await group.next() ?? nil
-            group.cancelAll()
-            return first ?? false
+        let addresses = self.addresses
+        // Whichever comes first, the answer or the limit; not a task group, which would wait for the question to end.
+        let (outcome, said) = AsyncStream<Bool>.makeStream()
+        Task.detached {
+            let proven = await self.provesItself(home, fresh: fresh)
+            if proven { addresses.reached(home) }
+            said.yield(proven)
+            said.finish()
         }
-        if proven { addresses.reached(home) }
-        return proven
+        let timer = Task {
+            try? await Task.sleep(for: limit)
+            said.yield(false)
+            said.finish()
+        }
+        defer { timer.cancel() }
+        for await proven in outcome { return proven }
+        return false
     }
 
     /// What the server answering at `url` says of itself (GET /setup, which anyone may ask): its id and, asked with
