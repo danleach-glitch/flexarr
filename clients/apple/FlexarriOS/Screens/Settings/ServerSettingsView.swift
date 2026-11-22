@@ -1,6 +1,8 @@
 import FlexarrKit
 import SwiftUI
 
+private let log = FlexarrLog("settings")
+
 struct ServerSettingsView: View {
     @Environment(AppModel.self) private var model
     @State private var status: SystemStatus?
@@ -16,25 +18,28 @@ struct ServerSettingsView: View {
                 // Through the tunnel: no address to show, just whose server. A guest leaves it here; a household device
                 // away from home signs out on Settings, as at home.
                 let isGuest = model.credentials?.isGuest == true
-                // A household device with a home address uses it while it answers, the tunnel when it doesn't.
-                let atHome = !isGuest && !model.throughTunnel
+                // A household device with a home address uses it while it answers (once it has said it's the server),
+                // the tunnel when it doesn't.
+                let atHome = !isGuest && model.householdAtHome
                 Section {
                     row(t("Server"), model.guestServerTitle(guest))
-                    if model.credentials?.hasHomeRoute == true {
-                        row(t("Connected"), atHome ? t("At home") : t("Away from home"))
-                    }
-                    if !atHome { row(t("Connection"), connection) }
                     if isGuest {
+                        row(t("Connection"), connection)
                         Button(t("Leave"), role: .destructive) { confirmLeave = true }
                             .listRowBackground(Color.seat)
+                    } else {
+                        // The row says where it is: no heading over it, and the tunnel's path goes in the log.
+                        row(t("Connected"), atHome ? t("At home") : t("Away from home"))
                     }
                 } header: {
-                    // At home, the row above says so.
-                    if !atHome { Text(isGuest ? t("Connected by invite") : t("Away from home")) }
+                    if isGuest { Text(t("Connected by invite")) }
                 } footer: {
-                    Text(isGuest
-                         ? t("Connected over the internet. AirPlay is off on this connection, and downloads carry on only while Flexarr is open.")
-                         : t("Away from home, Flexarr uses its own connection. AirPlay is off on it, and downloads carry on only while Flexarr is open."))
+                    // AirPlay and downloads are only limited on the tunnel.
+                    if isGuest {
+                        Text(t("Connected over the internet. AirPlay is off on this connection, and downloads carry on only while Flexarr is open."))
+                    } else if !atHome {
+                        Text(t("Away from home, Flexarr uses its own connection. AirPlay is off on it, and downloads carry on only while Flexarr is open."))
+                    }
                 }
                 .leaveGuestConfirmation(isPresented: $confirmLeave, server: model.guestServerNaming(guest)) { model.signOut() }
             } else {
@@ -145,7 +150,11 @@ struct ServerSettingsView: View {
         // Says here whether the away address has been reached, so it's asked again if it hasn't (beside the status,
         // which needn't wait for it).
         Task { await model.checkAwayAddress() }
-        if model.credentials?.usesTunnel == true { path = await GuestTunnel.shared.connectionPath() }
+        if model.credentials?.usesTunnel == true {
+            path = await GuestTunnel.shared.connectionPath()
+            // Not shown for a household device: Send diagnostics carries it.
+            if model.credentials?.isHouseholdAway == true, model.throughTunnel { log.info("The tunnel's path: \(path ?? "unknown")") }
+        }
         guard let client = model.client else { return }
         do {
             status = try await client.systemStatus()

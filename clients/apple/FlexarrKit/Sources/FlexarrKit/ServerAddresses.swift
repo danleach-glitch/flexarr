@@ -73,6 +73,8 @@ public final class ServerAddresses: @unchecked Sendable {
     private var remoteMissedAt: Date?
     /// Home turned the sign-in away (see `refusedAtHome`): the tunnel only, until the device is on another network.
     private var homeRefused = false
+    /// Home has said who it is since requests last went elsewhere, and on this network (see `homeProven`).
+    private var homeVerified = false
     /// Goes up with each change of network (`networkChanged`): what home said on the network before counts for nothing.
     private var network = 0
     /// Who's waiting on each address's answer while one is being asked.
@@ -120,6 +122,12 @@ public final class ServerAddresses: @unchecked Sendable {
     /// answer (see the type's notes).
     public var hasHomeRoute: Bool { guest != nil && remote != nil }
 
+    /// Home is in use and has shown it's this server (or needn't: https, or no id to ask for): what Settings calls "At
+    /// home". Not before it has said so, nor once requests have gone elsewhere.
+    public var homeProven: Bool {
+        lock.withLock { _current == home && (homeVerified || !asksProofLocked(of: home)) }
+    }
+
     /// Requests go through the built-in tunnel now: always for a guest, while home doesn't answer for a household
     /// device. What can't go through it (AirPlay, the background downloader) follows this.
     public var onTunnel: Bool { tunnel.map { current == $0 } ?? false }
@@ -156,7 +164,10 @@ public final class ServerAddresses: @unchecked Sendable {
     /// being signed out. Only for a household device's pairing; nothing otherwise.
     public func refusedAtHome() {
         guard hasHomeRoute, let remote else { return }
-        lock.withLock { homeRefused = true }
+        lock.withLock {
+            homeRefused = true
+            homeVerified = false
+        }
         reached(remote)
     }
 
@@ -180,6 +191,7 @@ public final class ServerAddresses: @unchecked Sendable {
             if url != home, _current == home {
                 homeCheckedAt = Date() // leaving home starts the clock for trying it again
                 homeProvenAt = nil // and whatever is at its address next has to say who it is
+                homeVerified = false
             } else if url == home, _current != home {
                 remoteProvenAt = nil // the same for a plain-http away address, once home again
             }
@@ -212,6 +224,7 @@ public final class ServerAddresses: @unchecked Sendable {
         let waiting: [AsyncStream<Bool>.Continuation] = lock.withLock {
             network += 1
             homeProvenAt = nil
+            homeVerified = false
             homeRefused = false
             remoteMissedAt = nil // Tailscale may have come up with it
             if hasHomeRoute { homeCheckedAt = nil }
@@ -235,7 +248,10 @@ public final class ServerAddresses: @unchecked Sendable {
     /// address over plain HTTP, an away address not yet confirmed (see `remoteConfirmed`), and one over plain HTTP (a
     /// 100.x Tailscale address, a range some mobile networks also use for machines of their own), which is then
     /// asked as home is, whenever it hasn't answered for `proofLasts`.
-    public func asksProof(of url: URL) -> Bool {
+    public func asksProof(of url: URL) -> Bool { asksProofLocked(of: url) }
+
+    /// As `asksProof`, reading nothing under the lock (so it can be asked while holding it).
+    private func asksProofLocked(of url: URL) -> Bool {
         guard serverId != nil else { return false }
         if url == home { return home.scheme?.lowercased() != "https" }
         // The tunnel leads to the server it was set up for, or nowhere.
@@ -315,12 +331,15 @@ public final class ServerAddresses: @unchecked Sendable {
     }
 
     private func proofEnded(_ url: URL, _ same: Bool, network asked: Int) {
-        let (waiting, firstProof): ([AsyncStream<Bool>.Continuation], Bool) = lock.withLock {
+        let (waiting, firstProof, verifiedChanged): ([AsyncStream<Bool>.Continuation], Bool, Bool) = lock.withLock {
             // Home asked on the network before: its answer says nothing of this one (and its waiters have been told).
-            if url == home, asked != network { return ([], false) }
+            if url == home, asked != network { return ([], false, false) }
             var first = false
+            var changed = false
             if url == home {
                 homeProvenAt = same ? Date() : nil
+                changed = homeVerified != same
+                homeVerified = same
             } else if same {
                 first = !remoteProven
                 remoteProven = true
@@ -330,9 +349,11 @@ public final class ServerAddresses: @unchecked Sendable {
                 remoteProvenAt = nil
                 remoteMissedAt = Date()
             }
-            return (proofWaiters.removeValue(forKey: url) ?? [], first)
+            return (proofWaiters.removeValue(forKey: url) ?? [], first, changed)
         }
         if firstProof { NotificationCenter.default.post(name: Self.remoteProvenNotification, object: self) }
+        // "At home" waits for home to have said who it is: a household device's Settings hear when it has.
+        if verifiedChanged, hasHomeRoute { NotificationCenter.default.post(name: Self.routeChangedNotification, object: self) }
         for waiter in waiting {
             waiter.yield(same)
             waiter.finish()

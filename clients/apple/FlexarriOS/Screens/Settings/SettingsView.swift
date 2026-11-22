@@ -213,6 +213,8 @@ struct SettingsView: View {
 
     private var connection: String? {
         if model.isOffline { return t("Offline") }
+        // A household device that joined by invite: at home, or away on its own connection.
+        if model.credentials?.isHouseholdAway == true { return model.householdAtHome ? t("At home") : t("Away") }
         if model.credentials?.usesTunnel == true { return model.serverTitle }
         // The server's name when it has given one; with an address for away from home, which of the two is in use.
         guard model.credentials?.remoteAddress != nil else { return model.serverTitle }

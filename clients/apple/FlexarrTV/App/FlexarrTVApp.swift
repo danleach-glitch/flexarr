@@ -69,7 +69,7 @@ struct RootView: View {
     private var topShelf: TopShelfKey {
         TopShelfKey(credentials: model.credentials, asksWhoIsWatching: model.asksWhoIsWatchingHere, profilesLoaded: model.profilesLoaded,
                     severalProfiles: model.profiles.count > 1, watching: watching?.id, behindPin: watching?.needsPinToChoose,
-                    atHome: model.credentials?.hasHomeRoute == true && !model.throughTunnel)
+                    atHome: model.householdAtHome)
     }
 
     var body: some View {

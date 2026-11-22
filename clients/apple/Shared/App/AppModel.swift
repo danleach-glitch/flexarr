@@ -42,6 +42,7 @@ final class AppModel {
             GuestMode.isActive = client?.addresses.onTunnel == true
             GuestMode.isGuest = credentials?.isGuest == true
             throughTunnel = GuestMode.isActive
+            householdAtHome = credentials?.hasHomeRoute == true && client?.addresses.homeProven == true
             // Speed readings follow the server signed in to, and the address it's reached at.
             LinkSpeed.shared.follow(client?.addresses)
             ConnectionError.server = serverNaming
@@ -59,6 +60,9 @@ final class AppModel {
     /// Requests go through the built-in tunnel now (`ServerAddresses.onTunnel`), for Settings to say: always for a
     /// guest, while home doesn't answer for a household device.
     private(set) var throughTunnel = false
+    /// A household device that joined by invite is using its server's home address, which has shown it's the server:
+    /// Settings says "At home". Not while home hasn't said so yet (it's "Away" until then).
+    private(set) var householdAtHome = false
     private(set) var libraries: [Library] = []
     private(set) var librariesError: String?
     /// Whether this profile has podcasts; nil for servers before them.
@@ -1026,6 +1030,7 @@ final class AppModel {
         if let addresses, addresses !== current { return }
         GuestMode.isActive = current.onTunnel
         throughTunnel = current.onTunnel
+        householdAtHome = credentials.hasHomeRoute && current.homeProven
         LinkSpeed.shared.follow(current)
         guard credentials.hasHomeRoute, !current.onTunnel else { return }
         tunnelProblem = nil

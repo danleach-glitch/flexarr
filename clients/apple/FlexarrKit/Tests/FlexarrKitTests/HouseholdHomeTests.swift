@@ -271,6 +271,20 @@ struct HouseholdHomeTests {
         #expect(!client.addresses.onTunnel, "home, once it has said who it is")
     }
 
+    @Test func atHomeOnlyOnceHomeHasSaidWhoItIs() async {
+        let home = URL(string: "http://192.168.1.106:8383")!
+        let addresses = ServerAddresses(home: home, remote: Self.tunnelAddress, serverId: Self.id, guest: Self.target)
+        #expect(!addresses.onTunnel)
+        #expect(!addresses.homeProven, "home in use, but not yet proven")
+        #expect(await addresses.proveHome { _, _ in true })
+        #expect(addresses.homeProven)
+        addresses.networkChanged()
+        #expect(!addresses.homeProven)
+        #expect(await addresses.proveHome { _, _ in true })
+        addresses.reached(Self.tunnelAddress)
+        #expect(!addresses.homeProven)
+    }
+
     @Test func aHouseholdSignInIsSavedWhereOlderVersionsDoNotLook() throws {
         let suite = "household-home-test-\(UUID().uuidString)"
         let service = "io.github.flexarr.test.\(UUID().uuidString)"
