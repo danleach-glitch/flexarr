@@ -123,9 +123,13 @@ data class ServerCredentials(
     /**
      * Where this sign-in's server is reached. A household device with a home address ([pairsHome]) has home as home and
      * the tunnel as away, with the server's id for home to prove; the tunnel itself is always trusted (it's the app's own,
-     * to the address the invite gave).
+     * to the address the invite gave). Worked out once per sign-in (what follows the route reads it on every frame).
      */
-    fun addresses(): ServerAddresses {
+    fun addresses(): ServerAddresses = sharedAddresses
+
+    private val sharedAddresses: ServerAddresses by lazy { makeAddresses() }
+
+    private fun makeAddresses(): ServerAddresses {
         val tunnel = address.toHttpUrlOrNull()!!
         val home = homeUrl
         if (pairsHome && home != null) {
