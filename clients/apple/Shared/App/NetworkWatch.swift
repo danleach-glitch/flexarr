@@ -28,15 +28,17 @@ final class NetworkWatch {
                 let watch = NetworkWatch.shared
                 watch.isExpensive = expensive
                 // Another network (Wi-Fi to mobile data, another Wi-Fi): the speed it had says nothing of this one.
+                let moved = watch.known && interfaces != watch.interfaces && !offline && !watch.isOffline
                 if watch.known, interfaces != watch.interfaces || offline != watch.isOffline { SpeedTest.shared.networkChanged() }
                 watch.interfaces = interfaces
-                watch.changed(offline: offline)
+                watch.changed(offline: offline, moved: moved)
             }
         }
         monitor.start(queue: .main)
     }
 
-    /// Hears every change from then on: true when the network has gone, false when it's back.
+    /// Hears every change from then on: true when the network has gone, false when it's back or the device has moved
+    /// to another one (Wi-Fi to mobile data and back), so a household device asks again whether home answers.
     func onChange(_ listener: @escaping @MainActor (_ offline: Bool) -> Void) {
         listeners.append(listener)
     }
@@ -60,12 +62,13 @@ final class NetworkWatch {
         all.forEach { $0.resume() }
     }
 
-    private func changed(offline: Bool) {
+    /// `moved`: online before and after, on other interfaces.
+    private func changed(offline: Bool, moved: Bool) {
         let wasKnown = known
         let changed = offline != isOffline
         known = true
         isOffline = offline
         release()
-        if wasKnown && changed || !wasKnown && offline { listeners.forEach { $0(offline) } }
+        if wasKnown && (changed || moved) || !wasKnown && offline { listeners.forEach { $0(offline) } }
     }
 }
