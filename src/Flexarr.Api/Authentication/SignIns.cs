@@ -181,6 +181,11 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
     private Dictionary<string, SignIn>? _byHash;
     private readonly Dictionary<string, DateTime> _savedLastUsed = new(StringComparer.Ordinal);
 
+    /// <summary>When each away device's route was last saved for its own sake (see <see cref="NoteRoute"/>).</summary>
+    private readonly Dictionary<string, DateTime> _savedRoute = new(StringComparer.Ordinal);
+
+    private static readonly TimeSpan RouteSavedEvery = TimeSpan.FromMinutes(1);
+
     private string FilePath => Path.Combine(options.CurrentValue.DataDirectory, FileName);
 
     /// <summary>Creates a sign-in and returns its token, which is shown once and never stored.</summary>
@@ -362,19 +367,33 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
         }
     }
 
-    /// <summary>Notes whether an away device's request came from home or through its tunnel, saved only on a change.</summary>
+    /// <summary>
+    /// Notes whether an away device's request came from home or through its tunnel. Kept at once, but saved at most
+    /// once a minute per device: a device that has just come home can send some requests each way for a while (a
+    /// player still on its tunnel), and each change would otherwise rewrite the file.
+    /// </summary>
     public void NoteRoute(SignIn signIn, bool atHome)
     {
         ArgumentNullException.ThrowIfNull(signIn);
-        if (!signIn.Away || signIn.LastAtHome == atHome)
+        if (!signIn.Away)
         {
             return;
         }
 
         lock (_lock)
         {
+            if (signIn.LastAtHome == atHome)
+            {
+                return;
+            }
+
             signIn.LastAtHome = atHome;
-            SaveLocked();
+            var now = clock.GetUtcNow().UtcDateTime;
+            if (now - _savedRoute.GetValueOrDefault(signIn.Id) >= RouteSavedEvery)
+            {
+                _savedRoute[signIn.Id] = now;
+                SaveLocked();
+            }
         }
     }
 
