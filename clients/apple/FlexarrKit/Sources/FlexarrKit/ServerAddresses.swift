@@ -145,6 +145,12 @@ public final class ServerAddresses: @unchecked Sendable {
         reached(remote)
     }
 
+    /// Whether `url` (a request's or a transfer's) goes to the home address.
+    public func isHome(_ url: URL) -> Bool {
+        url.scheme?.lowercased() == home.scheme?.lowercased() && url.host()?.lowercased() == home.host()?.lowercased()
+            && (url.port ?? (url.scheme == "https" ? 443 : 80)) == (home.port ?? (home.scheme == "https" ? 443 : 80))
+    }
+
     /// Whether the tunnel's address is one that's up on this device: a request with the sign-in only goes to the
     /// tunnel's port while this app's tunnel is listening there, never to whatever else might be.
     public func tunnelIsUp(_ url: URL) -> Bool {
