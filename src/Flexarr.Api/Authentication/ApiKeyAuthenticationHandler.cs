@@ -108,9 +108,15 @@ public sealed class ApiKeyAuthenticationHandler(
             // A guest's or away device's token only works from the device that redeemed the invite: copied anywhere else,
             // it's refused. A household (away) device may also use it at home, so it can switch between the home
             // address and its tunnel without signing in again; a guest's never leaves the tunnel.
-            if (device.Tunneled && !FromGuestAddress(device) && !(device.Away && !device.Guest && FromHomeNetwork(options)))
+            var throughTunnel = device.Tunneled && FromGuestAddress(device);
+            if (device.Tunneled && !throughTunnel && !(device.Away && !device.Guest && FromHomeNetwork(options)))
             {
                 return AuthenticateResult.Fail("This sign-in belongs to another device.");
+            }
+
+            if (device.Away)
+            {
+                signIns.NoteRoute(device, atHome: !throughTunnel);
             }
 
             signIns.NoteDeviceType(device, DeviceTypes.Of(Request));

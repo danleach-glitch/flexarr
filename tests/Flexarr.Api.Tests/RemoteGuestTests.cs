@@ -968,6 +968,14 @@ public class RemoteGuestTests(RemoteGuestFactory factory) : IClassFixture<Remote
         // This machine itself isn't the home network.
         using var loopback = factory.From("127.0.0.1", answer.ApiKey);
         Assert.Equal(HttpStatusCode.Unauthorized, (await loopback.GetAsync("/api/v1/me")).StatusCode);
+
+        // The owner sees which way it came last.
+        using var admin = factory.Admin();
+        async Task<string?> Route() => (await admin.GetFromJsonAsync<List<GuestDeviceDto>>("/api/v1/remote/guests/devices", Web))!.Single(d => d.Address == address).LastRoute;
+        Assert.Equal("home", await Route());
+        using var tunnel = factory.From(address, answer.ApiKey);
+        Assert.True((await tunnel.GetAsync("/api/v1/me")).IsSuccessStatusCode);
+        Assert.Equal("away", await Route());
     }
 
     [Fact]

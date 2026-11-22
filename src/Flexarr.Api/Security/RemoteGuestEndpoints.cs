@@ -33,9 +33,11 @@ public sealed record RedeemInviteRequest(string Token);
 /// <param name="Household">A household device away from home rather than a guest's. Absent from servers before 0.67.</param>
 /// <param name="HomeProfileId">For a household device, the person it was added for (it may have switched to another
 /// profile since): Settings lists it under them. Null for guests. Absent from servers before 0.67.</param>
+/// <param name="LastRoute">For a household device, how its last request came: "home" (the home network) or "away"
+/// (its tunnel). Null for guests and until it's been seen. Absent from servers before 0.67.</param>
 public sealed record GuestDeviceDto(string Id, string Name, string? ProfileId, string? ProfileName, Authentication.DeviceType? DeviceType, DateTime CreatedAt,
     DateTime LastUsedAt, string? Address, bool Online, TailnetPath Path, DateTime? LastSeen, string TailscaleAdminUrl, bool ServerMoved = false,
-    bool Household = false, string? HomeProfileId = null);
+    bool Household = false, string? HomeProfileId = null, string? LastRoute = null);
 
 /// <summary>Family invites' setup, as Settings › Remote access shows it.</summary>
 /// <param name="Enabled">Family invites are turned on for this server (hidden until the apps that carry Tailscale are out).</param>
@@ -409,7 +411,8 @@ public static class RemoteGuestEndpoints
             var peer = g.GuestAddress is { } address ? peers.GetValueOrDefault(address) : null;
             return new GuestDeviceDto(g.Id, g.Name, g.ProfileId, g.ProfileId is { } id ? profileNames.GetValueOrDefault(id) : null, g.DeviceType, g.CreatedAt,
                 g.LastUsedAt, g.GuestAddress, peer?.Online == true, peer?.Online == true ? peer.Path : TailnetPath.Unknown, peer?.LastSeen,
-                "https://login.tailscale.com/admin/machines", here is not null && g.GuestServer is { } joined && joined != here, g.Away, g.Away ? g.OwnProfileId : null);
+                "https://login.tailscale.com/admin/machines", here is not null && g.GuestServer is { } joined && joined != here, g.Away, g.Away ? g.OwnProfileId : null,
+                g.Away && g.LastAtHome is { } atHome ? (atHome ? "home" : "away") : null);
         }).OrderByDescending(d => d.Online).ThenByDescending(d => d.LastUsedAt).ToList();
     }
 

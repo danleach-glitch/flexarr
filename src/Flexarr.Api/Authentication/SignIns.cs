@@ -135,6 +135,12 @@ public sealed class SignIn
     [JsonIgnore]
     public bool Tunneled => Guest || Away;
 
+    /// <summary>
+    /// For an <see cref="Away"/> device: whether its last request came from the home network (true) or through its
+    /// tunnel (false). Null until it's been seen since this was kept.
+    /// </summary>
+    public bool? LastAtHome { get; set; }
+
     /// <summary>For a guest or away device, the tailnet address of the device that redeemed the invite.</summary>
     public string? GuestAddress { get; init; }
 
@@ -352,6 +358,22 @@ public sealed partial class SignIns(IOptionsMonitor<FlexarrOptions> options, Tim
         lock (_lock)
         {
             signIn.DeviceType = type;
+            SaveLocked();
+        }
+    }
+
+    /// <summary>Notes whether an away device's request came from home or through its tunnel, saved only on a change.</summary>
+    public void NoteRoute(SignIn signIn, bool atHome)
+    {
+        ArgumentNullException.ThrowIfNull(signIn);
+        if (!signIn.Away || signIn.LastAtHome == atHome)
+        {
+            return;
+        }
+
+        lock (_lock)
+        {
+            signIn.LastAtHome = atHome;
             SaveLocked();
         }
     }
