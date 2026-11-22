@@ -106,6 +106,28 @@ class HouseholdHomeTest {
     }
 
     @Test
+    fun `household keys left behind for another server's tunnel are ignored`() {
+        store.save(household().withHome(home, "old-server").copy(lastAway = true))
+        // An older version signs out (leaving the household keys) and joins another server's tunnel.
+        prefs.edit()
+            .putString("guest.target", "100.64.0.9:8383")
+            .putBoolean("guest.household", true)
+            .apply()
+        val loaded = store.load()!!
+
+        assertTrue(loaded.isHouseholdAway)
+        assertNull(loaded.homeAddress)
+        assertNull(loaded.serverId)
+        assertFalse(loaded.lastAway)
+        assertFalse(loaded.pairsHome)
+
+        // Told where home is now, it's kept for this tunnel.
+        store.saveHome(home, "new-server")
+        assertEquals("new-server", store.load()!!.serverId)
+        assertTrue(store.load()!!.pairsHome)
+    }
+
+    @Test
     fun `with a home address, home is home and the tunnel is away, with the id home must prove`() {
         val addresses = household().withHome(home, "pair-test").client().addresses
         assertEquals(home.toHttpUrl(), addresses.home)

@@ -181,6 +181,9 @@ class CredentialStore internal constructor(context: Context, private val secrets
                 prefs.getString(GUEST_SERVER_NAME, null))
         }
         val household = guest != null && prefs.getBoolean(GUEST_HOUSEHOLD, false)
+        // Kept for this same tunnel only: an older version signing out leaves them behind, and its next join (another
+        // server's tunnel) mustn't pair that server's id with a home address it learns.
+        val ownHome = household && prefs.getString(HOUSEHOLD_TARGET, null) == guest?.target
         return ServerCredentials(
             address,
             key,
@@ -188,11 +191,11 @@ class CredentialStore internal constructor(context: Context, private val secrets
             (prefs.getString(REMOTE, null) ?: prefs.getString(REMOTE_PENDING, null)).takeIf { guest == null },
             guest,
             // A household device's id is kept apart: older versions read SERVER_ID only for a sign-in at home.
-            if (guest == null) prefs.getString(SERVER_ID, null) else prefs.getString(HOUSEHOLD_SERVER_ID, null).takeIf { household },
+            if (guest == null) prefs.getString(SERVER_ID, null) else prefs.getString(HOUSEHOLD_SERVER_ID, null).takeIf { ownHome },
             prefs.getString(REMOTE, null) != null || prefs.getString(REMOTE_PENDING, null) == null,
             household,
-            prefs.getString(HOUSEHOLD_HOME, null).takeIf { household },
-            household && prefs.getBoolean(HOUSEHOLD_AWAY, false),
+            prefs.getString(HOUSEHOLD_HOME, null).takeIf { ownHome },
+            ownHome && prefs.getBoolean(HOUSEHOLD_AWAY, false),
         )
     }
 
@@ -219,6 +222,7 @@ class CredentialStore internal constructor(context: Context, private val secrets
             .putString(HOUSEHOLD_HOME, credentials.homeAddress.takeIf { credentials.isHouseholdAway })
             .putString(HOUSEHOLD_SERVER_ID, credentials.serverId.takeIf { credentials.isHouseholdAway })
             .putBoolean(HOUSEHOLD_AWAY, credentials.isHouseholdAway && credentials.lastAway)
+            .putString(HOUSEHOLD_TARGET, guest?.target.takeIf { credentials.isHouseholdAway })
             .apply()
     }
 
@@ -228,13 +232,14 @@ class CredentialStore internal constructor(context: Context, private val secrets
      */
     fun saveHome(home: String?, serverId: String?) {
         if (prefs.getString(GUEST_TARGET, null) == null || !prefs.getBoolean(GUEST_HOUSEHOLD, false)) return
-        prefs.edit().putString(HOUSEHOLD_HOME, home).putString(HOUSEHOLD_SERVER_ID, serverId).apply()
+        prefs.edit().putString(HOUSEHOLD_HOME, home).putString(HOUSEHOLD_SERVER_ID, serverId)
+            .putString(HOUSEHOLD_TARGET, prefs.getString(GUEST_TARGET, null)).apply()
     }
 
     /** Whether a household device last reached its server through the tunnel rather than at home, for the next launch. */
     fun saveLastAway(away: Boolean) {
         if (prefs.getString(GUEST_TARGET, null) == null || !prefs.getBoolean(GUEST_HOUSEHOLD, false)) return
-        prefs.edit().putBoolean(HOUSEHOLD_AWAY, away).apply()
+        prefs.edit().putBoolean(HOUSEHOLD_AWAY, away).putString(HOUSEHOLD_TARGET, prefs.getString(GUEST_TARGET, null)).apply()
     }
 
     /** Remembers what the server is called, so Settings can say so while it can't be reached (null forgets it). */
@@ -276,7 +281,7 @@ class CredentialStore internal constructor(context: Context, private val secrets
         if (prefs.getString(GUEST_TARGET, null) == null) return
         prefs.edit().putBoolean(GUEST_HOUSEHOLD, household)
             // A guest after all: never told where home is.
-            .also { if (!household) it.remove(HOUSEHOLD_HOME).remove(HOUSEHOLD_SERVER_ID).remove(HOUSEHOLD_AWAY) }
+            .also { if (!household) it.remove(HOUSEHOLD_HOME).remove(HOUSEHOLD_SERVER_ID).remove(HOUSEHOLD_AWAY).remove(HOUSEHOLD_TARGET) }
             .apply()
     }
 
@@ -309,7 +314,7 @@ class CredentialStore internal constructor(context: Context, private val secrets
     fun clear() {
         prefs.edit().remove(ADDRESS).remove(API_KEY).remove(PROFILE).remove(PROFILES).remove(KIDS_LOCK).remove(REMOTE).remove(REMOTE_PENDING).remove(SERVER_ID)
             .remove(GUEST_TARGET).remove(GUEST_HOSTNAME).remove(GUEST_OWNER).remove(GUEST_SERVER_NAME).remove(GUEST_HOUSEHOLD).remove(SERVER_NAME)
-            .remove(HOUSEHOLD_HOME).remove(HOUSEHOLD_SERVER_ID).remove(HOUSEHOLD_AWAY).apply()
+            .remove(HOUSEHOLD_HOME).remove(HOUSEHOLD_SERVER_ID).remove(HOUSEHOLD_AWAY).remove(HOUSEHOLD_TARGET).apply()
     }
 
     /** Encrypted as the token is, for other secrets kept beside it (the notification key). */
@@ -336,6 +341,9 @@ class CredentialStore internal constructor(context: Context, private val secrets
         const val HOUSEHOLD_HOME = "household.home"
         const val HOUSEHOLD_SERVER_ID = "household.serverId"
         const val HOUSEHOLD_AWAY = "household.lastAway"
+
+        /** The tunnel ([GUEST_TARGET]) the household keys were kept for: they're read only beside that same one. */
+        const val HOUSEHOLD_TARGET = "household.target"
     }
 }
 
