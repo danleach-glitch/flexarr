@@ -1154,8 +1154,12 @@ public struct SignInInfo: Decodable, Sendable, Equatable {
     public var chooseProfile: Bool? = nil
     /// The server's address on its home network (`http://192.168.1.50:8383`), for a household device away from home:
     /// the app uses it instead of the tunnel while it answers (and says it's the same server). Nil for a guest, a server
-    /// in Docker, or when the server can't tell. Absent from servers before 0.67.
-    public var homeUrl: URL? = nil
+    /// in Docker, or when the server can't tell. Absent from servers before 0.67. Read as text, so a value the app can't
+    /// use never spoils the rest of the answer: `homeAddress` is what's used.
+    public var homeUrl: String? = nil
+
+    /// `homeUrl` when it's one a household device may use (see `FlexarrClient.householdHome`).
+    public var homeAddress: URL? { FlexarrClient.householdHome(homeUrl) }
 }
 
 /// What `POST /admin/unlock` answers.

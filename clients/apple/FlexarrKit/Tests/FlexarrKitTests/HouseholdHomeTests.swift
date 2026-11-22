@@ -308,10 +308,24 @@ struct HouseholdHomeTests {
 
     @Test func meAndTheRedeemAnswerCarryTheHomeAddress() throws {
         let redeemed = #"{"apiKey":"k","profileId":"claire","serverId":"s","name":"iPad","household":true,"homeUrl":"http://192.168.1.106:8383"}"#
-        #expect(try JSONDecoder().decode(RedeemedInvite.self, from: Data(redeemed.utf8)).homeUrl == URL(string: "http://192.168.1.106:8383"))
+        #expect(try JSONDecoder().decode(RedeemedInvite.self, from: Data(redeemed.utf8)).homeAddress == URL(string: "http://192.168.1.106:8383"))
         let before = #"{"apiKey":"k","profileId":"claire","serverId":"s","name":"iPad","household":true}"#
-        #expect(try JSONDecoder().decode(RedeemedInvite.self, from: Data(before.utf8)).homeUrl == nil)
+        #expect(try JSONDecoder().decode(RedeemedInvite.self, from: Data(before.utf8)).homeAddress == nil)
         let me = #"{"profileId":"p","method":"device","isAdmin":false,"homeUrl":null}"#
-        #expect(try JSONDecoder().decode(SignInInfo.self, from: Data(me.utf8)).homeUrl == nil)
+        #expect(try JSONDecoder().decode(SignInInfo.self, from: Data(me.utf8)).homeAddress == nil)
+    }
+
+    @Test func aHomeAddressTheAppCantUseIsLeftOut_AndNeverSpoilsTheAnswer() throws {
+        for bad in ["", "not a url", "ftp://192.168.1.106:8383", "http://localhost:8383", "http://127.0.0.1:59871",
+                    "http://[::1]:8383", "http://0.0.0.0:8383", "192.168.1.106:8383"] {
+            let me = #"{"profileId":"p","method":"device","isAdmin":true,"homeUrl":"\#(bad)"}"#
+            let decoded = try JSONDecoder().decode(SignInInfo.self, from: Data(me.utf8))
+            #expect(decoded.isAdmin, "the rest of /me still reads")
+            #expect(decoded.homeAddress == nil, "\(bad)")
+        }
+        #expect(FlexarrClient.householdHome("https://flexarr.home.arpa/") == URL(string: "https://flexarr.home.arpa"))
+        #expect(FlexarrClient.householdHome("http://192.168.1.106:8383") == URL(string: "http://192.168.1.106:8383"))
+        let redeemed = #"{"apiKey":"k","profileId":"p","serverId":"s","name":"iPad","homeUrl":"http://localhost:8383"}"#
+        #expect(try JSONDecoder().decode(RedeemedInvite.self, from: Data(redeemed.utf8)).homeAddress == nil)
     }
 }

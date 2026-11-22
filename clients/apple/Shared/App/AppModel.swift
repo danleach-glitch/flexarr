@@ -1298,7 +1298,7 @@ final class AppModel {
         if redeemed.household == true { tunnel.household = true }
         // A household device's way in at home too, asked to prove it's this server before it's used (never a guest's).
         let credentials = ServerCredentials(address: address, apiKey: redeemed.apiKey, guest: tunnel, serverId: redeemed.serverId,
-                                            homeAddress: redeemed.homeUrl)
+                                            homeAddress: redeemed.homeAddress)
         do {
             try store.save(credentials)
         } catch {
@@ -1444,7 +1444,7 @@ final class AppModel {
         }
         // A household device learns where home is (or that it's gone) each time: one that joined before servers said
         // picks it up after an update, with no joining again.
-        if let me, credentials?.isHouseholdAway == true { Task { await noteHome(me.homeUrl) } }
+        if let me, credentials?.isHouseholdAway == true { Task { await noteHome(me.homeAddress) } }
         profiles = offered(list)
         hasBeenOnline = true
         // In the profile's language (or the device's) before the first screen, so it doesn't change under you.
