@@ -140,7 +140,7 @@ internal class DownloadTransfer(
         val response = try {
             FlexarrClient.sharedHttp.newCall(request).execute()
         } catch (e: IOException) {
-            client.addresses.homeMissed(request.url)
+            client.homeMissed(request.url)
             throw e
         }
         response.use {
@@ -176,7 +176,7 @@ internal class DownloadTransfer(
                         val read = try {
                             input.read(buffer)
                         } catch (e: IOException) {
-                            client.addresses.homeMissed(request.url)
+                            client.homeMissed(request.url)
                             throw e
                         }
                         if (read < 0) break

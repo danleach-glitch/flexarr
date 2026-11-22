@@ -1,5 +1,6 @@
 package io.github.flexarr.core
 
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
@@ -135,5 +136,27 @@ class HouseholdRouteTest {
         val plain = ServerAddresses(atHome.url("/"), tunnel.url("/"))
         plain.homeMissed(atHome.url("/api/v1/offline/1/file"))
         assertFalse(plain.isAway)
+    }
+
+    @Test
+    fun `a blip at home that home still answers through stays at home`() = runBlocking {
+        val addresses = pair().also { it.homeVerified() }
+        atHome.enqueue(json("""{"open":false,"serverId":"abc"}"""))
+
+        FlexarrClient(addresses, apiKey = "token").homeMissed(atHome.url("/api/v1/offline/1/file"))
+
+        assertFalse(addresses.isAway)
+        assertEquals(0, tunnel.requestCount)
+        assertEquals("/api/v1/setup", atHome.takeRequest().url.encodedPath)
+    }
+
+    @Test
+    fun `a download that loses home and home doesn't answer moves to the tunnel`() = runBlocking {
+        val addresses = pair().also { it.homeVerified() }
+        atHome.enqueue(json("""{"open":false,"serverId":"someone-else"}"""))
+
+        FlexarrClient(addresses, apiKey = "token").homeMissed(atHome.url("/api/v1/offline/1/file"))
+
+        assertTrue(addresses.onTunnel)
     }
 }

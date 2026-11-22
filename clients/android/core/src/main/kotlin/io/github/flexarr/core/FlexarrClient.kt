@@ -720,6 +720,17 @@ class FlexarrClient(
         }
     }
 
+    /**
+     * [url], at home, stopped answering partway (a download's file): with the tunnel as the away address, home is asked
+     * again first, and only if it doesn't answer as this server does the next try go through the tunnel
+     * ([ServerAddresses.homeMissed]). A Wi-Fi blip or the server restarting stays at home. As FlexarrKit's lostHome.
+     */
+    suspend fun homeMissed(url: HttpUrl) {
+        if (!addresses.awayIsTunnel || addresses.remote == null || !url.isAt(addresses.home) || addresses.isAway) return
+        if (verifyHome(http)) return
+        addresses.homeMissed(url)
+    }
+
     /** Whether home may be sent the sign-in on this network, asking it ([verifyHome]) when that isn't known yet. */
     private suspend fun homeTrusted(http: OkHttpClient): Boolean = addresses.checkHome { verifyHome(http) }
 

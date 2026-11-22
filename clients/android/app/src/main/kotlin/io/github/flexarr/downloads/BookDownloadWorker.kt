@@ -90,7 +90,7 @@ class BookDownloadWorker(context: Context, parameters: WorkerParameters) : Corou
         val answer = try {
             FlexarrClient.sharedHttp.newCall(request).execute()
         } catch (e: IOException) {
-            client.addresses.homeMissed(request.url)
+            client.homeMissed(request.url)
             throw e
         }
         answer.use { response ->
@@ -112,7 +112,7 @@ class BookDownloadWorker(context: Context, parameters: WorkerParameters) : Corou
                         val read = try {
                             input.read(buffer)
                         } catch (e: IOException) {
-                            client.addresses.homeMissed(request.url)
+                            client.homeMissed(request.url)
                             throw e
                         }
                         if (read < 0) break
