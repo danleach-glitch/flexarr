@@ -176,6 +176,39 @@ same built-in tunnel and tag, but the device signs in to **her own household pro
   before going back. Devices already joined are safe: 0.66 finds nothing for their tokens, so they're signed out rather
   than becoming guests.
 
+## Household devices at home
+
+A household device that joined by invite shouldn't need signing out when it comes home. It uses the server's home
+address whenever that answers and goes through the tunnel when it doesn't, the way a device signed in at home already
+switches between its home and away addresses. Family guests are unchanged: tunnel only, never told the home address.
+
+- **The key works at home too.** An away sign-in is accepted from the tailnet address that redeemed it (as before) or
+  from the home network: zone `Local`, not loopback, addressed to one of the server's names, and not handed over by a
+  container's gateway (the rules the home network signing in already uses). Never from the internet or another tailnet
+  address. A guest's sign-in stays bound to its tailnet address. The trade-off: a copied household key works on the
+  home Wi-Fi, which is what any home device's key already does.
+- **The server says where home is.** `/me` gains `homeUrl` (optional) for away sign-ins only: `http://<LAN IPv4>:<port>`,
+  the first private, non-tailnet address of a running interface and the port Kestrel listens on for plain HTTP. In
+  Docker it's null (the container's own address isn't the host's), so a Docker server's household devices stay on
+  the tunnel. A device already joined learns it the next time it asks `/me`, so nobody joins again.
+- **The app checks before it sends the key.** A household sign-in keeps `homeAddress` and the server's id (never for a
+  guest). The home address only gets the key once it proves it's the same server (`/setup` with a challenge, as home
+  sign-ins do), so a lookalike address on someone else's network gets nothing. The tunnel headers never go to it.
+- **Switching is the existing race.** `ServerAddresses` gets home as the home address and the tunnel's loopback
+  address as the away one, so requests go to whichever answered last, GETs race the other after a moment, and home is
+  tried again every few minutes while away. The last route that answered is kept, so a launch at home goes straight
+  home. The apps only try home when the server sent `homeUrl`: an older server refuses the key at home, and that
+  refusal must never look like a sign-out.
+- **The tunnel at home** stops (identity kept: `stop()` without forget) once home has answered, and starts again from
+  its saved identity when home stops answering. A download that loses the home address carries on through the tunnel.
+- **What follows the route.** AirPlay, Chromecast, background downloads, Top Shelf (only a proven home address) and
+  Android TV's Watch Next work while the device is home and go away when it isn't; a player already open keeps the
+  route it opened on. What follows the sign-in stays: Leave/Sign out, removal, the profile rules, downloads' server key
+  (the server's id, so a download made at home matches away).
+- **The owner sees it.** Each away sign-in remembers whether its last request came from home or through the tunnel,
+  shown as `lastRoute` (`home`/`away`, optional) on `GuestDeviceDto` and in Settings › Remote access › Your household.
+- **Settings** in the apps say *At home* or *Away from home* for the route in use.
+
 ## Turning it on
 
 Family invites are on by default (they were hidden until the apps carrying the tunnel were in the stores):
