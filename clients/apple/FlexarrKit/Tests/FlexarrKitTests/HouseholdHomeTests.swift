@@ -190,6 +190,30 @@ struct HouseholdHomeTests {
         #expect(addresses.onTunnel)
     }
 
+    @Test func aRefusalAtHomeOfTheEventStreamIsNeverASignOut() async {
+        final class Flag: @unchecked Sendable {
+            private let lock = NSLock()
+            private var raised = false
+            var isRaised: Bool { lock.withLock { raised } }
+            func raise() { lock.withLock { raised = true } }
+        }
+        let refused = Flag()
+        let (client, home) = client { refused.raise() }
+        StubProtocol.register(host: home, .init(status: 401, body: Data()))
+        StubProtocol.register(host: home, path: "/api/v1/setup", Self.setup(Self.id))
+
+        var failure: Error?
+        do {
+            for try await _ in client.deviceEvents() {}
+        } catch {
+            failure = error
+        }
+
+        #expect((failure as? URLError)?.code == .cannotConnectToHost)
+        #expect(!refused.isRaised, "the stream turned away at home hasn't signed this device out")
+        #expect(client.addresses.onTunnel)
+    }
+
     @Test func aHouseholdSignInIsSavedWhereOlderVersionsDoNotLook() throws {
         let suite = "household-home-test-\(UUID().uuidString)"
         let service = "io.github.flexarr.test.\(UUID().uuidString)"

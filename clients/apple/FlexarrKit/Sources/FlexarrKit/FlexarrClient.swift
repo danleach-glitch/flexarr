@@ -922,6 +922,7 @@ public struct FlexarrClient: Sendable {
         let prepared = request
         let session = events
         let onUnauthorized = self.onUnauthorized
+        let addresses = self.addresses
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
@@ -931,6 +932,11 @@ public struct FlexarrClient: Sendable {
                     guard let http = response as? HTTPURLResponse else { throw FlexarrClientError.invalidResponse }
                     switch http.statusCode {
                     case 200..<300: break
+                    case 401 where base == addresses.home && addresses.hasHomeRoute:
+                        // A household device's sign-in turned away at home: the wrong way in, not a sign-out (as for
+                        // any request). The tunnel from now on; the caller opens the stream again there.
+                        addresses.refusedAtHome()
+                        throw URLError(.cannotConnectToHost)
                     case 401:
                         onUnauthorized?()
                         throw FlexarrClientError.unauthorized
