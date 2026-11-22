@@ -900,6 +900,12 @@ data class SignInInfo(
      * one profile, and choosing is all the server allows until then. Absent from servers before 0.63.
      */
     val chooseProfile: Boolean = false,
+    /**
+     * The server's address on its home network ("http://192.168.1.20:8383/"), for a household device that joined by
+     * invite (an away sign-in) only: it may use that while it answers, and the tunnel when it doesn't. Null for guests,
+     * a server in Docker, or when the server can't tell. Absent from servers before 0.67.
+     */
+    val homeUrl: String? = null,
 ) {
     /** The main profile, unlocked or not: it's asked to let devices in (allowing takes its PIN while locked). */
     val isMainProfile: Boolean get() = isAdmin || canUnlock
