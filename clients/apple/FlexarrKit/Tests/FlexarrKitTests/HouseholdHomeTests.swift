@@ -214,6 +214,50 @@ struct HouseholdHomeTests {
         #expect(client.addresses.onTunnel)
     }
 
+    @Test func anotherNetworkAsksHomeAgain_AndDropsAQuestionPutOnTheLastOne() async {
+        let home = URL(string: "http://192.168.1.106:8383")!
+        let addresses = ServerAddresses(home: home, remote: Self.tunnelAddress, serverId: Self.id, guest: Self.target)
+        #expect(await addresses.proveHome { _, _ in true })
+        #expect(!addresses.needsProof(home))
+
+        addresses.networkChanged()
+        #expect(addresses.needsProof(home), "whatever is at home on this network says who it is first")
+
+        // A question still out when the network changes: its answer doesn't count.
+        let asked = Task { await addresses.proveHome(fresh: true) { _, _ in
+            try? await Task.sleep(for: .milliseconds(300))
+            return true
+        } }
+        try? await Task.sleep(for: .milliseconds(50))
+        addresses.networkChanged()
+        #expect(!(await asked.value))
+        try? await Task.sleep(for: .milliseconds(400))
+        #expect(addresses.needsProof(home))
+    }
+
+    @Test func theTunnelsPortMovingDoesntCarryHomesProofOver() async {
+        let home = URL(string: "http://192.168.201.\(Int.random(in: 2...250)):8383")!
+        let first = ServerAddresses.shared(home: home, remote: URL(string: "http://127.0.0.1:59011")!, serverId: Self.id, guest: Self.target)
+        first.reached(home) // whatever an earlier test left remembered
+        #expect(await first.proveHome { _, _ in true })
+        let moved = ServerAddresses.shared(home: home, remote: URL(string: "http://127.0.0.1:59012")!, serverId: Self.id, guest: Self.target)
+        #expect(moved.current == home)
+        #expect(moved.needsProof(home))
+    }
+
+    @Test func aRefusalAtHomeLastsUntilAnotherNetwork() {
+        let home = URL(string: "http://192.168.1.106:8383")!
+        let addresses = ServerAddresses(home: home, remote: Self.tunnelAddress, serverId: Self.id, guest: Self.target)
+        addresses.refusedAtHome()
+        #expect(addresses.onTunnel)
+        #expect(addresses.alternate(to: Self.tunnelAddress) == nil)
+        #expect(!addresses.shouldCheckHome())
+
+        addresses.networkChanged()
+        #expect(addresses.alternate(to: Self.tunnelAddress) == home)
+        #expect(addresses.shouldCheckHome(), "asked again at once on the new network")
+    }
+
     @Test func aHouseholdSignInIsSavedWhereOlderVersionsDoNotLook() throws {
         let suite = "household-home-test-\(UUID().uuidString)"
         let service = "io.github.flexarr.test.\(UUID().uuidString)"

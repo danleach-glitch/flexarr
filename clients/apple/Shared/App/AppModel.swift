@@ -932,6 +932,9 @@ final class AppModel {
     }
 
     private func networkChanged(offline: Bool) {
+        // Another network: whatever answers at home has to say who it is again, and a home that turned the sign-in
+        // away on the last one is asked again.
+        ServerAddresses.networkChangedEverywhere()
         guard credentials != nil else { return }
         if offline {
             // A moment's grace: moving from Wi-Fi to mobile data drops the network briefly.
