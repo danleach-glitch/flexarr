@@ -300,6 +300,16 @@ struct HouseholdHomeTests {
         #expect(!older.hasHomeRoute)
         #expect(older.addresses.home == Self.tunnelAddress)
 
+        // A version from before signed out (leaving them) and joined another server: they aren't that one's.
+        try store.save(ServerCredentials(address: Self.tunnelAddress, apiKey: "k", guest: Self.household, serverId: Self.id,
+                                         homeAddress: home))
+        let elsewhere = GuestTunnelInfo(target: "100.90.80.70:8383", hostname: "flexarr-guest-claire", ownerName: "Sam", household: true)
+        defaults.set(try JSONEncoder().encode(elsewhere), forKey: "\(service).address.guest")
+        let stale = try #require(store.load())
+        #expect(stale.homeAddress == nil)
+        #expect(stale.serverId == nil)
+        #expect(!stale.hasHomeRoute)
+
         // A guest's sign-in never keeps them.
         try store.save(ServerCredentials(address: Self.tunnelAddress, apiKey: "k", guest: Self.guest, serverId: Self.id, homeAddress: home))
         #expect(defaults.string(forKey: "\(service).address.householdHome") == nil)

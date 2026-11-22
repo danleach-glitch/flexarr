@@ -193,14 +193,22 @@ public struct CredentialStore: Sendable {
         guard let text = defaults.string(forKey: addressKey), let url = URL(string: text) else { return nil }
         let confirmed = defaults.string(forKey: "\(addressKey).remote").flatMap(URL.init(string:))
         let pending = defaults.string(forKey: "\(addressKey).remotePending").flatMap(URL.init(string:))
+        let guest = defaults.data(forKey: "\(addressKey).guest").flatMap { try? JSONDecoder().decode(GuestTunnelInfo.self, from: $0) }
+        // Only with the tunnel they were kept for: a version from before signs out without clearing them, and may
+        // then have joined somewhere else.
+        let household = guest.map { defaults.string(forKey: "\(addressKey).householdTunnel") == Self.householdTunnel($0) } == true
         return ServerCredentials(address: url, apiKey: readKey(account: text) ?? "",
                                  profileToken: profileToken(account: text),
                                  remoteAddress: confirmed ?? pending,
-                                 guest: defaults.data(forKey: "\(addressKey).guest").flatMap { try? JSONDecoder().decode(GuestTunnelInfo.self, from: $0) },
-                                 serverId: defaults.string(forKey: "\(addressKey).serverId") ?? defaults.string(forKey: "\(addressKey).householdServerId"),
+                                 guest: guest,
+                                 serverId: defaults.string(forKey: "\(addressKey).serverId")
+                                     ?? (household ? defaults.string(forKey: "\(addressKey).householdServerId") : nil),
                                  remoteConfirmed: confirmed != nil || pending == nil,
-                                 homeAddress: defaults.string(forKey: "\(addressKey).householdHome").flatMap(URL.init(string:)))
+                                 homeAddress: household ? defaults.string(forKey: "\(addressKey).householdHome").flatMap(URL.init(string:)) : nil)
     }
+
+    /// Which tunnel a household device's home address and server id were kept for.
+    private static func householdTunnel(_ guest: GuestTunnelInfo) -> String { "\(guest.target)|\(guest.hostname)" }
 
     /// The last address used, kept after sign-out so the connect screen can prefill it.
     public var lastAddress: String? {
@@ -231,6 +239,7 @@ public struct CredentialStore: Sendable {
         let household = credentials.isHouseholdAway
         defaults.set(household ? home?.absoluteString : nil, forKey: "\(addressKey).householdHome")
         defaults.set(household && serverId?.isEmpty == false ? serverId : nil, forKey: "\(addressKey).householdServerId")
+        defaults.set(household ? credentials.guest.map(Self.householdTunnel) : nil, forKey: "\(addressKey).householdTunnel")
     }
 
     /// Remembers the server's address for away from home and whether it's confirmed (nil forgets it). A guest never
@@ -316,6 +325,7 @@ public struct CredentialStore: Sendable {
         defaults.removeObject(forKey: "\(addressKey).name")
         defaults.removeObject(forKey: "\(addressKey).householdHome")
         defaults.removeObject(forKey: "\(addressKey).householdServerId")
+        defaults.removeObject(forKey: "\(addressKey).householdTunnel")
     }
 
     // MARK: Keychain

@@ -1148,7 +1148,8 @@ final class AppModel {
         if pretendsAway { return } // straight to the server: there's no tunnel to pair home with
         #endif
         var id = now.serverId
-        if homeUrl != nil, id?.isEmpty != false, let client {
+        // A new home address has the server asked for its id afresh, so a stale one never sticks to it.
+        if homeUrl != nil, id?.isEmpty != false || homeUrl != now.homeAddress, let client {
             id = (try? await client.systemStatus())?.serverId
         }
         guard let again = credentials, again.isSameSignIn(as: now), again.isHouseholdAway,
