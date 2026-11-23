@@ -5,7 +5,8 @@ This repo is public. Private details (the home server's address, device IDs, sig
 ## How work flows
 
 - **One branch: `main`.** No dev branch. Every change arrives through a pull request; main requires the `CI passed` check and blocks force-pushes. Main must always be releasable: half-built server features hide behind a setting, and a new client stays in its own folder until it ships.
-- **Branches come from `yolo <branch>`** (a worktree under `.yolo/<branch>`, based on `origin/main`). Commit early: a branch with no commits is removed when the session ends.
+- **Branches come from `hw <branch>`** (a Herdr workspace and worktree based on `origin/main`; `wt-setup` copies env files and installs dependencies). Commit early: a branch with no commits is removed when the session ends.
+- **The branch workflow (`/brief`, `/preview`, `/audit`, `/land`) is shared across projects** (`~/dev/skills`). What's Flexarr's own (areas, checks, checklist pages, the hub, changelog) is in `.claude/workflow.md`; change it there, not in a project copy of those skills.
 - **Planning starts with `/brief`**: it maps a brief against the code, asks questions, suggests improvements and publishes a build checklist; once the user says go it builds the whole list, committing after each item and ticking it off.
 - **Before landing, `/audit`** reviews the branch (bugs, performance, security, compatibility, UI/UX with screenshots, land readiness) and publishes a checklist; the user picks what to fix.
 - **Brief and audit pages all come from one template** in `scripts/claude/checklist/`: each page is only data, rendered and checked by `render.py`. Change the look there, never on a single page. A hub page lists every checklist with its progress: /brief, /audit and /land update it as they go, and `/hub` catches up ticks made by hand and deletes the pages marked there.
