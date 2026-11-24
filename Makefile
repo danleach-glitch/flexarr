@@ -96,6 +96,8 @@ APPLE_VERSION = $(if $(MARKETING),MARKETING_VERSION=$(MARKETING))
 # Sign in to App Store Connect with an API key instead of Xcode's account: ASC_KEY_ID, ASC_ISSUER_ID and ASC_KEY_PATH (the .p8).
 # Read from ~/.flexarr-release/apple.env when it's there. The key needs the Admin role: only Admin keys can cloud-sign. Xcode's
 # account works too, but xcodebuild can't renew its App Store Connect session, so it lapses within the hour. The installs use the key too, so they can add a new device to the team.
+# The archives use it too, so a Mac with no account in Xcode can sign (it makes its own development certificate). Its
+# private key goes in the login keychain, which must be unlocked: over SSH, `security unlock-keychain` first.
 APPLE_ENV := $(HOME)/.flexarr-release/apple.env
 apple_env = $(shell [ -f $(APPLE_ENV) ] && sed -n 's/^$(1)=//p' $(APPLE_ENV))
 ASC_KEY_ID ?= $(call apple_env,ASC_KEY_ID)
@@ -107,7 +109,7 @@ ios-upload: tunnel-apple ## Archive the iOS app and upload it to App Store Conne
 	@test -n "$(TEAM)" -a -n "$(BUNDLE_ID)" || { echo "usage: make ios-upload TEAM=<team id> BUNDLE_ID=com.yourname.flexarr.ios"; exit 1; }
 	cd clients/apple && xcodegen generate --quiet
 	xcodebuild -project clients/apple/Flexarr.xcodeproj -scheme FlexarriOS -configuration Release -destination 'generic/platform=iOS' \
-		-archivePath build/apple/FlexarriOS.xcarchive -allowProvisioningUpdates \
+		-archivePath build/apple/FlexarriOS.xcarchive -allowProvisioningUpdates $(ASC_AUTH) \
 		DEVELOPMENT_TEAM=$(TEAM) FLEXARR_IOS_BUNDLE_ID=$(BUNDLE_ID) FLEXARR_IOS_ENTITLEMENTS=$(IOS_ENTITLEMENTS) FLEXARR_WIDGET_ENTITLEMENTS=$(WIDGET_ENTITLEMENTS) FLEXARR_NOTIFICATION_ENTITLEMENTS=$(NOTIFICATION_ENTITLEMENTS) CODE_SIGN_STYLE=Automatic $(APPLE_VERSION) CURRENT_PROJECT_VERSION=$(BUILD) archive -quiet
 	printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' '<plist version="1.0"><dict>' \
 		'<key>method</key><string>app-store-connect</string><key>destination</key><string>upload</string>' \
@@ -146,7 +148,7 @@ tv-upload: tunnel-apple ## Archive the tvOS app and upload it to App Store Conne
 	@test -n "$(TEAM)" -a -n "$(BUNDLE_ID)" || { echo "usage: make tv-upload TEAM=<team id> BUNDLE_ID=com.yourname.flexarr.ios"; exit 1; }
 	cd clients/apple && xcodegen generate --quiet
 	xcodebuild -project clients/apple/Flexarr.xcodeproj -scheme FlexarrTV -configuration Release -destination 'generic/platform=tvOS' \
-		-archivePath build/apple/FlexarrTV.xcarchive -allowProvisioningUpdates \
+		-archivePath build/apple/FlexarrTV.xcarchive -allowProvisioningUpdates $(ASC_AUTH) \
 		DEVELOPMENT_TEAM=$(TEAM) FLEXARR_TV_BUNDLE_ID=$(BUNDLE_ID) CODE_SIGN_STYLE=Automatic $(APPLE_VERSION) CURRENT_PROJECT_VERSION=$(BUILD) archive -quiet
 	printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' '<plist version="1.0"><dict>' \
 		'<key>method</key><string>app-store-connect</string><key>destination</key><string>upload</string>' \
@@ -165,7 +167,7 @@ mac-upload: ## Archive the Mac app and upload it to App Store Connect
 	clients/macos/Tools/publish-server.sh
 	cd clients/macos && xcodegen generate --quiet
 	xcodebuild -project clients/macos/FlexarrServer.xcodeproj -scheme FlexarrServer -configuration Release -destination 'generic/platform=macOS' \
-		-archivePath clients/macos/build/FlexarrServer.xcarchive -allowProvisioningUpdates \
+		-archivePath clients/macos/build/FlexarrServer.xcarchive -allowProvisioningUpdates $(ASC_AUTH) \
 		DEVELOPMENT_TEAM=$(TEAM) FLEXARR_MAC_BUNDLE_ID=$(BUNDLE_ID) CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="Apple Development" \
 		$(APPLE_VERSION) CURRENT_PROJECT_VERSION=$(BUILD) archive -quiet
 	printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' '<plist version="1.0"><dict>' \
@@ -202,7 +204,7 @@ mac-player-upload: tunnel-apple ## Archive the Mac app (the player) and upload i
 	@test -n "$(TEAM)" -a -n "$(BUNDLE_ID)" || { echo "usage: make mac-player-upload TEAM=<team id> BUNDLE_ID=com.yourname.flexarr.ios"; exit 1; }
 	cd clients/apple && xcodegen generate --quiet
 	xcodebuild -project clients/apple/Flexarr.xcodeproj -scheme FlexarrMac -configuration Release -destination 'generic/platform=macOS' \
-		-archivePath build/apple/FlexarrMac.xcarchive -allowProvisioningUpdates \
+		-archivePath build/apple/FlexarrMac.xcarchive -allowProvisioningUpdates $(ASC_AUTH) \
 		DEVELOPMENT_TEAM=$(TEAM) FLEXARR_MAC_PLAYER_BUNDLE_ID=$(BUNDLE_ID) CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="Apple Development" \
 		FLEXARR_MAC_ENTITLEMENTS=FlexarrMac/FlexarrMac-Store.entitlements \
 		FLEXARR_MAC_NOTIFICATION_ENTITLEMENTS=FlexarrMacNotificationService/FlexarrMacNotificationService-Store.entitlements \
