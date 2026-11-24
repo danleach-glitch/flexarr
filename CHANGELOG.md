@@ -14,6 +14,7 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 ### Watching away from home
 
+- Connecting the iPhone, iPad, Apple TV or Mac app to your server's address from outside your home now goes straight on to the API key, with the address already filled in. It used to stop on a message with only a Back button.
 - The iPhone, iPad, Apple TV and Mac apps no longer close by themselves when a stream over a family invite or remote connection drops part-way.
 - Over a family invite or a household device away from home, the apps now reconnect by themselves after the device has been asleep, and **Try again** works, instead of needing the app closed and opened again.
 - Downloads over a family invite or a household device away from home keep the iPhone or iPad screen on until they finish, so the device going to sleep doesn't stop them.

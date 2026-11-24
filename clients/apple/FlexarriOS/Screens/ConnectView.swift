@@ -14,7 +14,9 @@ struct ConnectView: View {
     private enum Step: Equatable {
         case choose
         case pair(DiscoveredServer)
-        case manual
+        /// Typing an address. Coming from a server that won't give a code (it's reached from outside the home), it
+        /// opens on the API key, with that address and the server's reason.
+        case manual(address: String? = nil, reason: String? = nil)
         /// A family invite: this device shows a code to give whoever invited it.
         case guest
     }
@@ -31,11 +33,12 @@ struct ConnectView: View {
     private var current: some View {
         switch step {
         case .choose:
-            ChooseServer(browser: browser, onPick: { step = .pair($0) }, onManual: { step = .manual }, onGuest: { step = .guest })
+            ChooseServer(browser: browser, onPick: { step = .pair($0) }, onManual: { step = .manual() }, onGuest: { step = .guest })
         case .pair(let server):
-            PairWithServer(server: server, onBack: { step = .choose })
-        case .manual:
-            ManualConnect(onPair: { step = .pair($0) }, onBack: { step = .choose })
+            PairWithServer(server: server, onNeedsKey: { step = .manual(address: server.address.absoluteString, reason: $0) },
+                           onBack: { step = .choose })
+        case .manual(let address, let reason):
+            ManualConnect(startAddress: address, reason: reason, onPair: { step = .pair($0) }, onBack: { step = .choose })
         case .guest:
             GuestCodeView(onBack: { step = .choose })
         }
@@ -255,6 +258,8 @@ private struct PairWithServer: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openURL) private var openURL
     let server: DiscoveredServer
+    /// The server won't give a code here (reached from outside the home): carry on with the API key instead.
+    let onNeedsKey: (String?) -> Void
     let onBack: () -> Void
     @State private var pairing: Pairing?
     /// Try again after "Don't allow": a fresh start, with a fresh code the phones are asked about.
@@ -340,6 +345,7 @@ private struct PairWithServer: View {
             let pairing = Pairing(server: server)
             self.pairing = pairing
             await pairing.run(model: model)
+            if pairing.needsKey { onNeedsKey(pairing.error) }
         }
     }
 
@@ -393,14 +399,24 @@ private struct NumberedStep<Content: View>: View {
 /// The API key is only for connecting from outside the home network and tailnet.
 private struct ManualConnect: View {
     @Environment(AppModel.self) private var model
+    let startAddress: String?
     let onPair: (DiscoveredServer) -> Void
     let onBack: () -> Void
     @State private var address = ""
     @State private var apiKey = ""
-    @State private var usesKey = false
+    @State private var usesKey: Bool
     @State private var isConnecting = false
     @State private var error: String?
     @FocusState private var focus: Field?
+
+    /// `reason` (the server's, for turning down a code) opens it on the API key for `startAddress`.
+    init(startAddress: String? = nil, reason: String? = nil, onPair: @escaping (DiscoveredServer) -> Void, onBack: @escaping () -> Void) {
+        self.startAddress = startAddress
+        self.onPair = onPair
+        self.onBack = onBack
+        _usesKey = State(initialValue: reason != nil)
+        _error = State(initialValue: reason)
+    }
 
     private enum Field { case address, key }
 
@@ -467,7 +483,7 @@ private struct ManualConnect: View {
             }
         }
         .onAppear {
-            if address.isEmpty { address = model.store.lastAddress ?? "" }
+            if address.isEmpty { address = startAddress ?? model.store.lastAddress ?? "" }
             focus = address.isEmpty || !usesKey ? .address : .key
         }
     }
