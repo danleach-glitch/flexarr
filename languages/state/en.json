@@ -43,7 +43,7 @@
   "A description of up to 20,000 characters.": "s",
   "A development build, between releases.": "w",
   "A device at {address}": "s",
-  "A device can only connect with a code from your home network or over Tailscale. Use the API key instead.": "s",
+  "A device can only connect with a code from your home network or over Tailscale. Use the API key instead.": "as",
   "A device is asking to connect": "w",
   "A device no longer signed in": "a",
   "A folder on another drive, or a share, survives this one failing.": "w",

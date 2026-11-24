@@ -23,6 +23,9 @@ final class Pairing {
     private(set) var setupNeedsCode = false
     /// The main profile chose "Don't allow": the screen says so, and asks again only on Try again.
     private(set) var declined = false
+    /// The server won't give this device a code: it's reached from outside the home network and tailnet, where only
+    /// the API key works. `run` stops, and the connect screen goes straight to the key, with `error` saying why.
+    private(set) var needsKey = false
 
     init(server: DiscoveredServer) {
         self.server = server
@@ -38,9 +41,23 @@ final class Pairing {
     func run(model: AppModel) async {
         let client = FlexarrClient(baseURL: server.address)
         declined = false
+        needsKey = false
         while !Task.isCancelled {
             do {
-                let started = try await client.startPairing(deviceName: ThisDevice.ownName)
+                let started: PairingStart
+                do {
+                    started = try await client.startPairing(deviceName: ThisDevice.ownName)
+                } catch FlexarrClientError.http(status: 403, let message) {
+                    // Codes are only for the home network and tailnet (or, over Tailscale, a family guest is told to
+                    // use its invite). Asking again won't change that, so stop and hand over to the API key, with the
+                    // server's reason; servers before 0.61 send no code to tell the two apart, and the key screen
+                    // shows the reason either way.
+                    needsKey = true
+                    self.error = message ?? t("A device can only connect with a code from your home network or over Tailscale. Use the API key instead.")
+                    current = nil
+                    renewedAt = nil
+                    return
+                }
                 let setup = await client.setupStatus()
                 needsSetup = setup?.open ?? false
                 setupNeedsCode = setup?.codeRequired ?? false

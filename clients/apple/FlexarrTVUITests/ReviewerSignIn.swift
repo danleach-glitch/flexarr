@@ -65,6 +65,48 @@ final class ReviewerSignIn: XCTestCase {
         snap("home")
     }
 
+    /// What App Review actually did (rejections of 0.66.0): the address, then straight to Connect, missing the API key
+    /// link. The server turns the code down from outside the home, and the app should carry on to the key with the
+    /// address kept, not stop on that message with only Back.
+    func testConnectBeforeTheKeyLink() throws {
+        guard let server = env["FLEXARR_REVIEW_SERVER"], let key = env["FLEXARR_REVIEW_KEY"] else {
+            throw XCTSkip("Set TEST_RUNNER_FLEXARR_REVIEW_SERVER and TEST_RUNNER_FLEXARR_REVIEW_KEY")
+        }
+        app = XCUIApplication()
+        app.launch()
+
+        let manual = app.buttons["Enter an address instead"]
+        XCTAssertTrue(manual.waitForExistence(timeout: 15), "a fresh install should open on the connect screen")
+        for _ in 0..<8 where !manual.hasFocus { press(.down, wait: 0.8) }
+        press(.select, wait: 2)
+        XCTAssertTrue(app.textFields.firstMatch.waitForExistence(timeout: 5))
+        press(.select, wait: 2)
+        app.typeText(server)
+        press(.menu, wait: 1.5)
+        // Connect has the focus once the keyboard closes.
+        let connect = app.buttons["Connect"].firstMatch
+        for _ in 0..<3 where !connect.hasFocus { press(.down, wait: 1) }
+        XCTAssertTrue(connect.hasFocus, "focus should reach Connect")
+        press(.select, wait: 3)
+        snap("connect-without-key")
+
+        // Turned down for a code: the key field, with the address still there and the focus on the key.
+        let keyField = app.secureTextFields.firstMatch
+        XCTAssertTrue(keyField.waitForExistence(timeout: 15), "a code turned down from outside should lead to the API key")
+        XCTAssertTrue(keyField.hasFocus, "the key field should have the focus")
+        press(.select, wait: 2)
+        app.typeText(key)
+        press(.menu, wait: 1.5)
+        press(.down, wait: 1)
+        for _ in 0..<3 where !connect.hasFocus { press(.left, wait: 1) }
+        XCTAssertTrue(connect.hasFocus, "focus should reach Connect")
+        press(.select, wait: 2)
+
+        let profile = app.buttons.matching(NSPredicate(format: "label CONTAINS 'App Review'")).firstMatch
+        XCTAssertTrue(profile.waitForExistence(timeout: 30), "connecting should ask who's watching")
+        snap("connect-without-key-profiles")
+    }
+
     private func press(_ button: XCUIRemote.Button, wait: TimeInterval) {
         remote.press(button)
         Thread.sleep(forTimeInterval: wait)
