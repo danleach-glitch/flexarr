@@ -1,6 +1,6 @@
 import XCTest
 
-/// App Review's way in, on a fresh install: past the welcome cards, "Enter an address instead", the API key link,
+/// App Review's way in, on a fresh install: past the welcome cards, "Enter its address" (under "Can’t see your server?"), the API key link,
 /// the App Review profile, then Home. Run it before submitting a version, against the review server:
 ///
 ///     TEST_RUNNER_FLEXARR_REVIEW_SERVER=<https address> TEST_RUNNER_FLEXARR_REVIEW_KEY=<key>
@@ -23,7 +23,7 @@ final class ReviewerSignIn: XCTestCase {
         XCTAssertTrue(skip.waitForExistence(timeout: 10), "a fresh install should open on the welcome cards")
         skip.tap()
 
-        let manual = app.buttons["Enter an address instead"]
+        let manual = app.buttons["Enter its address"]
         XCTAssertTrue(manual.waitForExistence(timeout: 10), "the connect screen should offer an address")
         snap("connect")
         manual.tap()
