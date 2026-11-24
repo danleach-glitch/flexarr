@@ -20,8 +20,13 @@ namespace Flexarr.Api.Endpoints;
 /// Whether an admin chose <paramref name="ServerName"/>, rather than it being the machine's name: family guests are
 /// shown "Dan's Flexarr" until someone names it. Absent from servers before 0.61.
 /// </param>
+/// <param name="RemoteAccessOff">
+/// True when <paramref name="RemoteUrl"/> is null because remote access is off; false when it's null because Tailscale
+/// couldn't say just now (starting after a restart, say), when the apps keep the address they have. Absent from
+/// servers before 0.67.
+/// </param>
 public sealed record SystemStatus(string AppName, string Version, string OsDescription, string RuntimeVersion, DateTimeOffset StartTime, string? RemoteUrl,
-    ErrorReportStatus ErrorReports, string? ServerId, string? ServerName = null, bool? ServerNamed = null);
+    ErrorReportStatus ErrorReports, string? ServerId, string? ServerName = null, bool? ServerNamed = null, bool? RemoteAccessOff = null);
 
 public sealed record ErrorReportStatus(bool Enabled, string? InstallId);
 
@@ -47,17 +52,23 @@ public static class SystemEndpoints
         });
 
         group.MapGet("/status", async (HttpContext http, TailscaleService tailscale, IOptionsMonitor<FlexarrOptions> options, Updates.IInstallEnvironment install,
-            CancellationToken ct) => new SystemStatus(
-            "Flexarr",
-            Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.0.0",
-            RuntimeInformation.OSDescription,
-            RuntimeInformation.FrameworkDescription,
-            StartTime,
-            RemoteUrl(install.Kind, await tailscale.RemoteUrlAsync(Port(http), ct), RemoteAccessEndpoints.TailnetIp, Port(http)),
-            options.CurrentValue.Logs is { ErrorReports: true, ErrorReportsId: { } id } ? new ErrorReportStatus(true, id) : new ErrorReportStatus(false, null),
-            options.CurrentValue.ServerId,
-            ServerName.Of(options.CurrentValue),
-            ServerName.IsNamed(options.CurrentValue)));
+            CancellationToken ct) =>
+        {
+            var remote = await tailscale.RemoteAsync(Port(http), ct);
+            var remoteUrl = RemoteUrl(install.Kind, remote.Url, RemoteAccessEndpoints.TailnetIp, Port(http));
+            return new SystemStatus(
+                "Flexarr",
+                Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.0.0",
+                RuntimeInformation.OSDescription,
+                RuntimeInformation.FrameworkDescription,
+                StartTime,
+                remoteUrl,
+                options.CurrentValue.Logs is { ErrorReports: true, ErrorReportsId: { } id } ? new ErrorReportStatus(true, id) : new ErrorReportStatus(false, null),
+                options.CurrentValue.ServerId,
+                ServerName.Of(options.CurrentValue),
+                ServerName.IsNamed(options.CurrentValue),
+                RemoteAccessOff: remoteUrl is null && remote.Off);
+        });
 
         return api;
     }
