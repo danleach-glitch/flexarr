@@ -23,7 +23,7 @@ namespace Flexarr.Api.Endpoints;
 /// <param name="RemoteAccessOff">
 /// True when <paramref name="RemoteUrl"/> is null because remote access is off; false when it's null because Tailscale
 /// couldn't say just now (starting after a restart, say), when the apps keep the address they have. Absent from
-/// servers before 0.67.
+/// servers before 0.67.1.
 /// </param>
 public sealed record SystemStatus(string AppName, string Version, string OsDescription, string RuntimeVersion, DateTimeOffset StartTime, string? RemoteUrl,
     ErrorReportStatus ErrorReports, string? ServerId, string? ServerName = null, bool? ServerNamed = null, bool? RemoteAccessOff = null);

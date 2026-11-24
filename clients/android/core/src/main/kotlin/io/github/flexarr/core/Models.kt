@@ -125,7 +125,7 @@ data class SystemStatus(
     /**
      * True when [remoteUrl] is absent because remote access is off; false when it's absent because Tailscale on the
      * server couldn't say just now (starting after a restart, say): the address kept from before stays. Absent from
-     * servers before 0.67, whose missing [remoteUrl] is taken the same way.
+     * servers before 0.67.1, whose missing [remoteUrl] is taken the same way.
      */
     val remoteAccessOff: Boolean? = null,
 ) {

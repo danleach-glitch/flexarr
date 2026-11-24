@@ -2,6 +2,12 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Watching away from home
+
+- After the server's computer restarts, the iPhone, iPad, Apple TV, Mac and Android apps no longer lose your server's Tailscale address. An app opened while Tailscale on the server was still starting used to forget it, and then couldn't reach the server away from home until it was opened again at home.
+
 ## 0.67.0 · 24 November 2026
 
 ### Family invites
@@ -16,7 +22,6 @@ What's changed in Flexarr, newest first. Changes not yet in a version are under 
 
 - Connecting the iPhone, iPad, Apple TV or Mac app to your server's address from outside your home now goes straight on to the API key, with the address already filled in. It used to stop on a message with only a Back button.
 - The iPhone, iPad, Apple TV and Mac apps no longer close by themselves when a stream over a family invite or remote connection drops part-way.
-- After the server's computer restarts, the iPhone, iPad, Apple TV, Mac and Android apps no longer lose your server's Tailscale address. An app opened while Tailscale on the server was still starting used to forget it, and then couldn't reach the server away from home until it was opened again at home.
 - Over a family invite or a household device away from home, the apps now reconnect by themselves after the device has been asleep, and **Try again** works, instead of needing the app closed and opened again.
 - Downloads over a family invite or a household device away from home keep the iPhone or iPad screen on until they finish, so the device going to sleep doesn't stop them.
 - Away from home, films and episodes start straight away and stop buffering. Each app checks your connection when it opens away from home and remembers it. When your connection easily carries a file, it plays as it is; otherwise it comes in 1080p, 720p and 480p at once, starts on a light one, and the player moves between them every few seconds to suit your connection.
