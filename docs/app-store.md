@@ -88,6 +88,10 @@ subtitle, age rating and App Privacy are shared.
 - Reviewers sign in with the Siri Remote: "Enter an address instead", the review server's address, "Connecting
   from outside your home? Use an API key" and the key, then the App Review profile. `FlexarrTVUITests/ReviewerSignIn.swift` walks it on a fresh install, with the same
   environment as the iOS test.
+- App Review rejected tvOS 0.66.0 seven times (guideline 2.1, "unable to sign in"): the reviewer chose Connect straight
+  after the address, missing the API key link, and the app stopped on the server's "only connect with a code from your
+  home network" with only Back. From 0.67 a code turned down like that goes straight to the API key with the address
+  kept; `testConnectBeforeTheKeyLink` in the same test file walks that path.
 - The screens behind the screenshots come from `FlexarrTVUITests/StoreTour.swift`.
 
 ## Mac (the player)
