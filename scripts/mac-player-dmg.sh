@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 # The Mac app (the player) as Flexarr.dmg, for downloading from flexarr.io rather than the App Store: archived, signed
-# with Developer ID (cloud signing through the App Store Connect API key: no certificate kept on this Mac), notarised and
-# stapled with the same key, so it opens without a warning. `scripts/release.sh publish` attaches it to each release.
+# with Developer ID, notarised and stapled with the App Store Connect API key, so it opens without a warning. Signing
+# uses a Developer ID Application certificate in this Mac's login keychain when there is one (the Mini has one); without
+# it, xcodebuild falls back to cloud signing, which Apple allows only for the Account Holder's own Xcode sign-in. `scripts/release.sh publish` attaches it to each release.
 #
 #   scripts/mac-player-dmg.sh [version]      writes build/apple/Flexarr.dmg
 #
 # Needs, in the environment or in ~/.flexarr-release/apple.env (private details stay out of this public repo):
 #   TEAM          the Apple team ID
 #   BUNDLE_ID     the iPhone app's bundle ID (one App ID across the platforms, as the App Store's)
-#   ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH   an App Store Connect API key with the Admin role (only Admin keys can
-#                                             cloud-sign), for signing and notarising
+#   ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH   an App Store Connect API key with the Admin role, for notarising
+#                                             (and provisioning)
 #
 # This copy says when a newer one is out (FlexarrDistribution=direct; FlexarrMac/App/MacUpdates.swift). It has no
 # notifications: those need the App Store's entitlements and profile.
@@ -49,7 +50,7 @@ printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' '<plist version="1.0"><di
 xcodebuild -exportArchive -archivePath "$archive" -exportOptionsPlist "$out/ExportOptions-mac-direct.plist" \
   -exportPath "$export_dir" -allowProvisioningUpdates -quiet \
   -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" -authenticationKeyPath "$ASC_KEY_PATH" \
-  || die "the Developer ID export failed: does the API key ($ASC_KEY_ID) have the Admin role?"
+  || die "the Developer ID export failed: is a \"Developer ID Application\" certificate with its private key in this Mac's login keychain, and may codesign use it (security set-key-partition-list)?"
 app="$export_dir/Flexarr.app"
 codesign --verify --deep --strict "$app" || die "the exported app's signature doesn't verify"
 signature=$(codesign -dvv "$app" 2>&1)

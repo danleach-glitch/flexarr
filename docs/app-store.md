@@ -5,10 +5,13 @@ with the bundle ID `com.danleach.flexarr.ios`; the Apple TV app and the Mac app 
 
 ## Uploading a build
 
+The Mini uploads all three Apple apps with the App Store Connect API key in `~/.flexarr-release/apple.env`
+(`make ios-upload`, `tv-upload`, `mac-player-upload`, each `TEAM=… BUNDLE_ID=<the iOS bundle id>`): no Xcode sign-in needed.
+
     make ios-upload TEAM=<team id> BUNDLE_ID=com.danleach.flexarr.ios
 
-Xcode must be signed in to the paid developer account (Xcode › Settings › Apple Accounts). Each upload
-gets the current time as its build number. It appears under TestFlight after processing (10–30 minutes).
+Without that key in `apple.env`, Xcode must be signed in to the paid developer account instead (Xcode › Settings ›
+Apple Accounts). Each upload gets the current time as its build number. It appears under TestFlight after processing (10–30 minutes).
 The version shown on the App Store is `MARKETING_VERSION` in `clients/apple/project.yml`, the same
 as the server's.
 
@@ -54,17 +57,37 @@ Elephants Dream, Sintel and Tears of Steel (with subtitles).
 - Reviewers sign in with a device sign-in for the "App Review" profile, which can browse and watch but
   not manage the server. The main profile has a PIN, so they can't switch to it.
 
-Review notes:
+Review notes lead with the sign-in steps, in the app's own words, then the background. As submitted for 0.67.1:
 
-> Flexarr is a client for a self-hosted media server, like the Plex or Jellyfin apps. It contains no
-> content and offers no way to obtain any. We've set up a demo server with openly licensed films
-> (Blender Foundation, CC BY). Tap Skip on the welcome cards. On the Connect screen, tap "Enter an
-> address instead" and enter the server address (the user name below). Tap "Connecting from outside your
-> home? Use an API key", enter the API key (the password below), tap Connect, and choose the "App
-> Review" profile.
+> HOW TO SIGN IN (about a minute)
+> 1. Open the app and tap Skip on the welcome cards. If iOS asks to find devices on your local network, either answer works.
+> 2. On the Connect screen, wait a few seconds until "Can't see your server?" appears, then tap "Enter its address" next to it.
+> 3. Server address: the user name above.
+> 4. Tap "Connecting from outside your home? Use an API key" (below the Connect button), and enter the password above as the API key.
+> 5. Tap Connect, then choose the "App Review" profile.
+>
+> If you tap Connect before step 4, the app opens the API key field by itself with the address kept: enter the key there and tap Connect again.
+>
+> ABOUT THE APP
+> Flexarr is a client for a self-hosted media server, like the Plex or Jellyfin apps. It contains no content and offers
+> no way to obtain any. The demo server holds only openly licensed films (Blender Foundation, CC BY) … Why an API key:
+> real users run Flexarr on a computer in their own home; on the same Wi-Fi the app finds the server by itself and shows
+> a code to approve. The API key is only for connecting from outside the home, as this demo does.
+
+The Mac's are the same with "Find my server" on the welcome page and click for tap, plus the network server paragraph
+below. Check every quoted button against the app before submitting: 0.66's notes still said "Enter an address instead",
+which the iPhone's connect screen no longer has.
 
 `FlexarriOSUITests/ReviewerSignIn.swift` walks these steps on a fresh install; run it against the review
 server before submitting a version whose connect screens changed.
+
+## Submitting
+
+Through the App Store Connect API (the same key) or the website: attach the processed build to each platform's version,
+set the review notes and What's New, then submit. A version rejected before sits in a review submission marked
+*Unresolved issues*: resubmit that same submission, after marking its rejected item resolved (the API's
+`reviewSubmissionItems` `resolved: true`; the website's Resubmit to App Review does it). Until then the API refuses with
+"Version is not ready to be submitted yet", however long you wait.
 
 ## Screenshots and preview
 
@@ -92,6 +115,9 @@ subtitle, age rating and App Privacy are shared.
   after the address, missing the API key link, and the app stopped on the server's "only connect with a code from your
   home network" with only Back. From 0.67 a code turned down like that goes straight to the API key with the address
   kept; `testConnectBeforeTheKeyLink` in the same test file walks that path.
+- 0.67.1 was resubmitted on that rejection with the notes saying so plainly (0.66.0 stopped on a screen with only Back;
+  this build fixes it), and the Apple TV reviewer logs in at `https://demo.flexarr.io` with a 12-character key that's
+  easy to type with the Siri Remote.
 - The screens behind the screenshots come from `FlexarrTVUITests/StoreTour.swift`.
 
 ## Mac (the player)
