@@ -706,23 +706,35 @@ final class AppModel {
         // A tunnel sign-in only ever reaches its host through the tunnel.
         guard !remoteChecked, let credentials, !credentials.usesTunnel else { return }
         remoteChecked = true
-        await checkRemoteAddress(credentials)
+        // Tailscale on the server couldn't say (it's still starting after a restart): asked again shortly, a few times,
+        // so a device that had no address yet still learns it this launch.
+        var current = credentials
+        var wait = Duration.seconds(15)
+        while await checkRemoteAddress(current), wait <= .seconds(240) {
+            try? await Task.sleep(for: wait)
+            wait *= 2
+            guard let now = self.credentials, now.isSameSignIn(as: credentials) else { return }
+            current = now
+        }
         confirmRemoteLater()
     }
 
     /// Asks the server for its address for away from home and keeps what `FlexarrClient.remoteAddress` makes of it.
-    private func checkRemoteAddress(_ credentials: ServerCredentials) async {
+    /// True when the server couldn't say just then (see `SystemStatus.remoteAccessOff`).
+    @discardableResult
+    private func checkRemoteAddress(_ credentials: ServerCredentials) async -> Bool {
         var kept = credentials.away
         // Requests have already gone there, once it gave the server's id: it's confirmed.
         if kept?.confirmed == false, credentials.client.addresses.remoteHasProven { kept?.confirmed = true }
         guard let status = try? await credentials.client.systemStatus() else {
             if kept != credentials.away { keep(kept, id: credentials.serverId, for: credentials) }
-            return
+            return false
         }
         // A new one has to give the id kept at sign-in, not one this answer brings with it.
         let remote = await Self.remoteAddress(for: status, address: credentials.address, kept: kept, knownId: credentials.serverId)
         // Never swapped for another: a server whose id has changed is a different server, to be connected to afresh.
         keep(remote, id: credentials.serverId ?? status.serverId, for: credentials)
+        return status.remoteUrl == nil && status.remoteAccessOff == false
     }
 
     private func keep(_ remote: FlexarrClient.Away?, id: String?, for credentials: ServerCredentials) {

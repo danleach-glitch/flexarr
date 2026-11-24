@@ -122,6 +122,12 @@ data class SystemStatus(
      * Flexarr" until then. Absent from servers before 0.61.
      */
     val serverNamed: Boolean? = null,
+    /**
+     * True when [remoteUrl] is absent because remote access is off; false when it's absent because Tailscale on the
+     * server couldn't say just now (starting after a restart, say): the address kept from before stays. Absent from
+     * servers before 0.67, whose missing [remoteUrl] is taken the same way.
+     */
+    val remoteAccessOff: Boolean? = null,
 ) {
     /** The name to show on this sign-in: a guest only sees one an admin chose. */
     fun serverName(forGuest: Boolean): String? = if (forGuest && serverNamed == false) null else serverName

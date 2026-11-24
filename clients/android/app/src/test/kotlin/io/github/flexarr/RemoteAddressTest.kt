@@ -16,8 +16,8 @@ class RemoteAddressTest {
     private val home = "http://192.168.1.50:8383/"
     private val tailscale = "https://mini.tail1234.ts.net:8443/"
 
-    private fun status(remoteUrl: String?, serverId: String? = "home-id") =
-        SystemStatus(appName = "Flexarr", version = "0.55.0", remoteUrl = remoteUrl, serverId = serverId)
+    private fun status(remoteUrl: String?, serverId: String? = "home-id", off: Boolean? = null) =
+        SystemStatus(appName = "Flexarr", version = "0.55.0", remoteUrl = remoteUrl, serverId = serverId, remoteAccessOff = off)
 
     /** Where the app asked, without the sign-in, which server is there. */
     private val asked = mutableListOf<String>()
@@ -37,6 +37,18 @@ class RemoteAddressTest {
         )
 
     private fun unreachable(): Nothing = throw FlexarrException.Unreachable(ConnectException("no route"))
+
+    /** The server's Mac has just restarted and its Tailscale isn't up yet: no address, but not off. */
+    @Test
+    fun `no address while Tailscale starts keeps the one kept`() = runTest {
+        assertEquals(tailscale, remote(status(null, off = false), kept = tailscale) { error("not asked") })
+        // A server before 0.67 doesn't say: kept too.
+        assertEquals(tailscale, remote(status(null), kept = tailscale) { error("not asked") })
+        assertEquals(Away(tailscale, confirmed = false), away(status(null, off = false), Away(tailscale, confirmed = false)) { error("not asked") })
+        // Turned off: forgotten.
+        assertNull(remote(status(null, off = true), kept = tailscale) { error("not asked") })
+        assertTrue(asked.isEmpty())
+    }
 
     @Test
     fun `the same server there is kept`() = runTest {

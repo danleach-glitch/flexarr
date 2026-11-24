@@ -72,8 +72,11 @@ extension FlexarrClient {
         idAt: @Sendable (URL) async throws -> String? = { try await serverId(at: $0) },
         refused: @Sendable (String) -> Void
     ) async -> Away? {
-        guard let given = status.remoteUrl?.absoluteString,
-              let url = normalizeAddress(given.removingPercentEncoding ?? given) else { return nil }
+        // No address isn't always remote access off: Tailscale on the server may still be starting (its Mac has just
+        // restarted). Forgetting the address then would leave this device unable to reach the server away from home
+        // until the app happened to ask again at home, so only a server that says it's off loses it.
+        guard let given = status.remoteUrl?.absoluteString else { return status.remoteAccessOff == true ? nil : kept }
+        guard let url = normalizeAddress(given.removingPercentEncoding ?? given) else { return nil }
         guard isAcceptableRemote(url) else {
             refused("The server's address for away from home isn't a Tailscale one; not using it")
             return nil

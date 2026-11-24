@@ -1528,19 +1528,34 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         scope.launch { notifications.checkTimeZone() }
         // A guest only ever reaches the server through its tunnel.
         if (credentials.usesTunnel) return
-        checkRemoteAddress(credentials, launching = true)
+        // Tailscale on the server couldn't say (it's still starting after a restart): asked again shortly, a few times,
+        // so a phone that had no address yet still learns it this launch.
+        var current: ServerCredentials = credentials
+        var waitMs = 15_000L
+        var launching = true
+        while (checkRemoteAddress(current, launching) && waitMs <= 240_000L) {
+            launching = false
+            delay(waitMs)
+            waitMs *= 2
+            val now = this.credentials ?: return
+            if (now.address != credentials.address || now.apiKey != credentials.apiKey) return
+            current = now
+        }
         confirmRemoteLater()
     }
 
-    /** Asks the server for its address for away from home and keeps what [remoteAddress] makes of it. */
-    private suspend fun checkRemoteAddress(credentials: ServerCredentials, launching: Boolean = false) {
+    /**
+     * Asks the server for its address for away from home and keeps what [remoteAddress] makes of it. True when the server
+     * couldn't say just then (see [SystemStatus.remoteAccessOff]).
+     */
+    private suspend fun checkRemoteAddress(credentials: ServerCredentials, launching: Boolean = false): Boolean {
         var kept = credentials.away
         // Requests have already gone there, once it answered with the server's id: it's confirmed.
         if (kept?.confirmed == false && credentials.client().addresses.remoteHasProven) kept = kept.copy(confirmed = true)
         val status = serverStatus(credentials)
         if (status == null) {
             if (kept != credentials.away) keep(kept, credentials.serverId, credentials)
-            return
+            return false
         }
         if (launching && ServerSupport.isTooOld(status.version) && this.credentials?.address == credentials.address) {
             serverUpdateNotice = ServerSupport.UPDATE_MESSAGE
@@ -1550,6 +1565,7 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
         // A sign-in from before the app kept the server's id learns it now; one it knows already keeps it (a different
         // answer from home was already turned away before the sign-in was sent).
         keep(remote, credentials.serverId ?: status.serverId, credentials)
+        return status.remoteUrl == null && status.remoteAccessOff == false
     }
 
     private fun keep(remote: Away?, serverId: String?, credentials: ServerCredentials) {
@@ -2550,7 +2566,11 @@ class AppModel(private val context: Context, savedSignIn: ServerCredentials?) {
             idAt: suspend (HttpUrl) -> String? = { FlexarrClient.serverIdAt(it) },
             refused: (String) -> Unit = { flexarrLog.warning(it) },
         ): Away? {
-            val url = status.remoteUrl?.let { FlexarrClient.normalizeAddress(it) } ?: return null
+            // No address isn't always remote access off: Tailscale on the server may still be starting (its Mac has just
+            // restarted). Forgetting the address then would leave this phone unable to reach the server away from home
+            // until the app happened to ask again at home, so only a server that says it's off loses it.
+            val given = status.remoteUrl ?: return if (status.remoteAccessOff == true) null else kept
+            val url = FlexarrClient.normalizeAddress(given) ?: return null
             if (!FlexarrClient.isAcceptableRemote(url)) {
                 refused("The server's address for away from home isn't a Tailscale one; not using it")
                 return null
