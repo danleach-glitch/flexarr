@@ -7,6 +7,13 @@ namespace Flexarr.Api.Security;
 
 public sealed record TailnetPerson(string Login, string Name);
 
+/// <summary>The address for away from home (or null), and whether remote access is known to be off.</summary>
+public sealed record RemoteAnswer(string? Url, bool Off)
+{
+    /// <summary>Tailscale said one way or the other.</summary>
+    public bool Known => Url is not null || Off;
+}
+
 public sealed record TailscaleState(
     bool Installed,
     bool Running,
@@ -15,7 +22,8 @@ public sealed record TailscaleState(
     bool PrivateAccess,
     bool PublicAccess,
     IReadOnlyList<TailnetPerson> People,
-    string? Problem)
+    string? Problem,
+    [property: System.Text.Json.Serialization.JsonIgnore] bool ServeRead = false)
 {
     /// <summary>Flexarr's address on the tailnet, with a real HTTPS certificate from Tailscale.</summary>
     public string? Url => DnsName is null ? null : $"https://{DnsName}:{TailscaleService.Port}";
@@ -88,7 +96,7 @@ public sealed partial class TailscaleService(ILogger<TailscaleService> logger, T
     public static readonly TimeSpan RemoteUrlLifetime = TimeSpan.FromMinutes(1);
 
     private readonly Lock _remoteLock = new();
-    private (DateTimeOffset At, Task<string?> Lookup)? _remote;
+    private (DateTimeOffset At, Task<RemoteAnswer> Lookup)? _remote;
 
     private static readonly string[] Candidates =
     [
@@ -174,7 +182,8 @@ public sealed partial class TailscaleService(ILogger<TailscaleService> logger, T
         }
 
         return new TailscaleState(true, running, dns, owner, privateAccess, publicAccess, people.OrderBy(p => p.Name).ToList(),
-            running ? null : Loc.T("Tailscale is installed but not connected. Sign in to Tailscale on the server."));
+            running ? null : Loc.T("Tailscale is installed but not connected. Sign in to Tailscale on the server."),
+            ServeRead: serveOk && dns is not null && serveJson.TrimStart().StartsWith('{'));
     }
 
     /// <summary>
@@ -182,25 +191,35 @@ public sealed partial class TailscaleService(ILogger<TailscaleService> logger, T
     /// else null. Asked by every app at launch (<c>/system/status</c>), so the answer is kept for a minute rather than
     /// running <c>tailscale</c> each time.
     /// </summary>
-    public Task<string?> RemoteUrlAsync(int flexarrPort, CancellationToken ct)
+    public async Task<string?> RemoteUrlAsync(int flexarrPort, CancellationToken ct) => (await RemoteAsync(flexarrPort, ct)).Url;
+
+    /// <summary>
+    /// As <see cref="RemoteUrlAsync"/>, and whether remote access is known to be off. Without an address and not known
+    /// to be off, Tailscale couldn't say just now (still starting after the server's machine restarted, not connected,
+    /// or its command failed): the apps keep the address they have rather than forget it. That answer is kept only a
+    /// few seconds, so it's asked again soon.
+    /// </summary>
+    public Task<RemoteAnswer> RemoteAsync(int flexarrPort, CancellationToken ct)
     {
         if (Cli is null)
         {
-            return Task.FromResult<string?>(null);
+            // No Tailscale here at all. The Mac app's sandbox hides the command even with Tailscale there.
+            return Task.FromResult(new RemoteAnswer(null, Off: !Sandboxed));
         }
 
-        Task<string?> lookup;
+        Task<RemoteAnswer> lookup;
         lock (_remoteLock)
         {
             var now = clock.GetUtcNow();
             // Callers arriving together share one run; a run that failed is asked again by the next caller.
-            if (_remote is { } kept && !kept.Lookup.IsFaulted && !kept.Lookup.IsCanceled && (!kept.Lookup.IsCompleted || now - kept.At < RemoteUrlLifetime))
+            if (_remote is { } kept && !kept.Lookup.IsFaulted && !kept.Lookup.IsCanceled
+                && (!kept.Lookup.IsCompleted || now - kept.At < (kept.Lookup.Result.Known ? RemoteUrlLifetime : UnsureRemoteLifetime)))
             {
                 lookup = kept.Lookup;
             }
             else
             {
-                lookup = LookupRemoteUrlAsync(flexarrPort);
+                lookup = LookupRemoteAsync(flexarrPort);
                 _remote = (now, lookup);
             }
         }
@@ -208,11 +227,23 @@ public sealed partial class TailscaleService(ILogger<TailscaleService> logger, T
         return lookup.WaitAsync(ct);
     }
 
+    /// <summary>How long an answer that couldn't tell (see <see cref="RemoteAsync"/>) is kept.</summary>
+    public static readonly TimeSpan UnsureRemoteLifetime = TimeSpan.FromSeconds(5);
+
     /// <summary>On its own clock, so a caller that gives up doesn't spoil the answer for the others.</summary>
-    private async Task<string?> LookupRemoteUrlAsync(int flexarrPort)
+    private async Task<RemoteAnswer> LookupRemoteAsync(int flexarrPort) =>
+        RemoteOf(await StateAsync(flexarrPort, CancellationToken.None));
+
+    /// <summary>What <paramref name="state"/> says of the address for away from home.</summary>
+    internal static RemoteAnswer RemoteOf(TailscaleState state)
     {
-        var state = await StateAsync(flexarrPort, CancellationToken.None);
-        return state.Running && state.PrivateAccess ? state.Url : null;
+        if (state.Running && state.PrivateAccess)
+        {
+            return new RemoteAnswer(state.Url, Off: false);
+        }
+
+        // Off only when Tailscale isn't installed, or is connected and said what it serves without Flexarr in it.
+        return new RemoteAnswer(null, Off: !state.Installed || state.Running && state.ServeRead);
     }
 
     /// <summary>Publishes Flexarr to your tailnet (private: only your Tailscale devices can reach it).</summary>

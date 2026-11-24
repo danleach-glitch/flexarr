@@ -7,9 +7,26 @@ struct RemoteAddressTests {
     private let home = URL(string: "http://192.168.1.50:8383")!
     private let tailscale = URL(string: "https://mini.tail1234.ts.net:8443")!
 
-    private func status(_ remoteUrl: String?, serverId: String? = "home-id") -> SystemStatus {
-        SystemStatus(appName: "Flexarr", version: "0.55.0", osDescription: "macOS", runtimeVersion: ".NET 10",
-                     startTime: Date(), remoteUrl: remoteUrl.flatMap(URL.init(string:)), serverId: serverId)
+    private func status(_ remoteUrl: String?, serverId: String? = "home-id", off: Bool? = nil) -> SystemStatus {
+        var status = SystemStatus(appName: "Flexarr", version: "0.55.0", osDescription: "macOS", runtimeVersion: ".NET 10",
+                                  startTime: Date(), remoteUrl: remoteUrl.flatMap(URL.init(string:)), serverId: serverId)
+        status.remoteAccessOff = off
+        return status
+    }
+
+    /// The server's Mac has just restarted and its Tailscale isn't up yet: no address, but not off. The phone keeps the
+    /// one it has, or it can't reach the server once it leaves home.
+    @Test func noAddressWhileTailscaleStartsKeepsTheOneKept() async {
+        let record = Record()
+        #expect(await remote(status(nil, off: false), kept: tailscale, record) { throw NotAsked() } == tailscale)
+        // A server before 0.67 doesn't say: kept too.
+        #expect(await remote(status(nil), kept: tailscale, record) { throw NotAsked() } == tailscale)
+        // Unconfirmed stays unconfirmed.
+        #expect(await away(status(nil, off: false), kept: tailscale, keptConfirmed: false, record) { throw NotAsked() }
+            == FlexarrClient.Away(tailscale, confirmed: false))
+        // Turned off: forgotten.
+        #expect(await remote(status(nil, off: true), kept: tailscale, record) { throw NotAsked() } == nil)
+        #expect(record.asked.isEmpty)
     }
 
     /// Where the app asked, without the sign-in, which server is there, and what it refused.

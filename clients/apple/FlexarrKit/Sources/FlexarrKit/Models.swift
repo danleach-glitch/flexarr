@@ -106,6 +106,10 @@ public struct SystemStatus: Codable, Sendable, Equatable {
     /// Whether an admin chose `serverName` (rather than it being the machine's name): a family guest is shown "Dan's
     /// Flexarr" until then. Absent from servers before 0.61.
     public var serverNamed: Bool? = nil
+    /// True when `remoteUrl` is absent because remote access is off; false when it's absent because Tailscale on the
+    /// server couldn't say just now (starting after a restart, say): the address kept from before stays. Absent from
+    /// servers before 0.67, whose missing `remoteUrl` is taken the same way.
+    public var remoteAccessOff: Bool? = nil
 
     /// The name to show on this sign-in: a guest only sees one an admin chose.
     public func serverName(forGuest guest: Bool) -> String? {
