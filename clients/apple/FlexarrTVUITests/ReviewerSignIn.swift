@@ -52,14 +52,14 @@ final class ReviewerSignIn: XCTestCase {
         press(.select, wait: 2)
         snap("connecting")
 
-        // Signed in: pick the App Review profile (the main one has a PIN).
+        // Signed in: the picker starts on the App Review profile, the one the key signs in as, so a single press
+        // goes in. App Review rejected 0.67.1 for pressing Select here when focus started on the main profile and its PIN.
         let profile = app.buttons.matching(NSPredicate(format: "label CONTAINS 'App Review'")).firstMatch
         let asked = profile.waitForExistence(timeout: 30)
         snap("after-connect")
         XCTAssertTrue(asked, "connecting should ask who's watching")
         snap("profiles")
-        for _ in 0..<6 where !profile.hasFocus { press(.right, wait: 1) }
-        XCTAssertTrue(profile.hasFocus, "focus should reach the App Review profile")
+        XCTAssertTrue(waitForFocus(profile), "who's watching should start on the App Review profile")
         press(.select, wait: 8)
         XCTAssertTrue(app.buttons["Home"].firstMatch.waitForExistence(timeout: 15), "the profile should land on Home")
         snap("home")
@@ -105,6 +105,13 @@ final class ReviewerSignIn: XCTestCase {
         let profile = app.buttons.matching(NSPredicate(format: "label CONTAINS 'App Review'")).firstMatch
         XCTAssertTrue(profile.waitForExistence(timeout: 30), "connecting should ask who's watching")
         snap("connect-without-key-profiles")
+        XCTAssertTrue(waitForFocus(profile), "who's watching should start on the App Review profile")
+    }
+
+    /// The picker fades in, and focus lands once it has: give it a few seconds, without pressing anything.
+    private func waitForFocus(_ element: XCUIElement, timeout: TimeInterval = 6) -> Bool {
+        let focused = expectation(for: NSPredicate(format: "hasFocus == true"), evaluatedWith: element)
+        return XCTWaiter.wait(for: [focused], timeout: timeout) == .completed
     }
 
     private func press(_ button: XCUIRemote.Button, wait: TimeInterval) {

@@ -172,7 +172,9 @@ struct ProfilePickerView: View {
     }
 
     private var defaultFocus: String? {
-        guard marksCurrent else { return model.profiles.first?.id }
+        // At launch, the profile this Apple TV signed in as (a device sign-in or a guest's), so a single press
+        // goes in; otherwise the first, which is the main profile and may have a PIN.
+        guard marksCurrent else { return (model.profiles.first(where: \.isCurrent) ?? model.profiles.first)?.id }
         return (model.otherProfile ?? model.profiles.first(where: { !$0.isCurrent }))?.id
     }
 

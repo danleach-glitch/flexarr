@@ -2,6 +2,12 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Apple TV
+
+- When the Apple TV app asks who's watching after it connects, it now starts on the profile it signed in as, rather than the main profile, so one press of the remote goes straight in.
+
 ## 0.67.1 · 24 November 2026
 
 ### Watching away from home
