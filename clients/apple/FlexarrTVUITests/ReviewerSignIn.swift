@@ -59,7 +59,7 @@ final class ReviewerSignIn: XCTestCase {
         snap("after-connect")
         XCTAssertTrue(asked, "connecting should ask who's watching")
         snap("profiles")
-        XCTAssertTrue(profile.hasFocus, "who's watching should start on the App Review profile")
+        XCTAssertTrue(waitForFocus(profile), "who's watching should start on the App Review profile")
         press(.select, wait: 8)
         XCTAssertTrue(app.buttons["Home"].firstMatch.waitForExistence(timeout: 15), "the profile should land on Home")
         snap("home")
@@ -105,7 +105,13 @@ final class ReviewerSignIn: XCTestCase {
         let profile = app.buttons.matching(NSPredicate(format: "label CONTAINS 'App Review'")).firstMatch
         XCTAssertTrue(profile.waitForExistence(timeout: 30), "connecting should ask who's watching")
         snap("connect-without-key-profiles")
-        XCTAssertTrue(profile.hasFocus, "who's watching should start on the App Review profile")
+        XCTAssertTrue(waitForFocus(profile), "who's watching should start on the App Review profile")
+    }
+
+    /// The picker fades in, and focus lands once it has: give it a few seconds, without pressing anything.
+    private func waitForFocus(_ element: XCUIElement, timeout: TimeInterval = 6) -> Bool {
+        let focused = expectation(for: NSPredicate(format: "hasFocus == true"), evaluatedWith: element)
+        return XCTWaiter.wait(for: [focused], timeout: timeout) == .completed
     }
 
     private func press(_ button: XCUIRemote.Button, wait: TimeInterval) {
