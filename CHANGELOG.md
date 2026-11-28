@@ -2,6 +2,13 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Sonarr, Radarr and the other apps
+
+- **Open in Sonarr**, **Open in Radarr** and **Needs attention** links on Coming soon now open in every setup: in a browser that reached Flexarr at its Tailscale address, where they ended in "This site can't provide a secure connection", and with Flexarr in Docker, where Sonarr set up by its container name (`http://sonarr:8989`) gave a link nothing outside Docker could open. The same goes for the open icons in Settings › Connections and, on iPhone and iPad, Open in Sonarr on Home's Coming soon.
+- Sonarr, Radarr or Lidarr behind a reverse proxy, or anywhere else Flexarr can't work out: give it an **Address in a browser** in Settings › Connections, and links go there.
+
 ## 0.67.2 · 26 November 2026
 
 ### Apple TV

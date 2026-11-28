@@ -21,9 +21,12 @@ using Flexarr.Api.Localization;
 
 namespace Flexarr.Api.Endpoints;
 
-public sealed record ArrConnectionDto(string Name, ArrKind Kind, string BaseUrl, bool HasApiKey);
+/// <param name="WebUrl">Where a browser opens it, when an admin set that (absent from servers before 0.68).</param>
+/// <param name="Link">Where this browser opens it: <paramref name="WebUrl"/>, or the address worked out from <paramref name="BaseUrl"/> (absent from servers before 0.68).</param>
+public sealed record ArrConnectionDto(string Name, ArrKind Kind, string BaseUrl, bool HasApiKey, string? WebUrl = null, string? Link = null);
 
-public sealed record ArrConnectionUpdate(string Name, ArrKind Kind, string BaseUrl, string? ApiKey);
+/// <param name="WebUrl">Where a browser opens it: omitted to keep the saved one, empty to work it out from <paramref name="BaseUrl"/>.</param>
+public sealed record ArrConnectionUpdate(string Name, ArrKind Kind, string BaseUrl, string? ApiKey, string? WebUrl = null);
 
 public sealed record SettingsDto(
     TranscodingOptions Transcoding,
@@ -68,7 +71,9 @@ public sealed record TraktAppUpdate(string ClientId, string? ClientSecret);
 
 /// <summary>The Live TV source; the password is never sent back, only whether there is one.</summary>
 public sealed record LiveTvSettingsDto(string BaseUrl, string Username, bool HasPassword, int RewindMinutes, string? DvrFolder = null,
-    string DvrFolderInUse = "", int? MaxStreams = null, int PaddingBeforeMinutes = 1, int PaddingAfterMinutes = 5, int MinFreeGigabytes = 100, bool HasAdminApiKey = false);
+    string DvrFolderInUse = "", int? MaxStreams = null, int PaddingBeforeMinutes = 1, int PaddingAfterMinutes = 5, int MinFreeGigabytes = 100, bool HasAdminApiKey = false,
+    // Where this browser opens Dispatcharr (absent from servers before 0.68).
+    string? Link = null);
 
 /// <param name="BaseUrl">Empty to remove the source (its channels and guide go with it).</param>
 /// <param name="Password">Omitted to keep the saved one, which is only kept for the same server.</param>
@@ -82,11 +87,13 @@ public sealed record LiveTvTestDto(bool Ok, int? Channels, int? MaxConnections, 
 /// <param name="DetectedCountry">The server's own region; null when it can't tell, when <paramref name="ResolvedCountry"/> only falls back. Absent from servers before 0.64.</param>
 public sealed record PodcastSettingsDto(string? Country, string ResolvedCountry, string? DetectedCountry = null);
 
-public sealed record SeerrConnectionDto(string BaseUrl, bool HasApiKey);
+/// <param name="Link">Where this browser opens it (absent from servers before 0.68).</param>
+public sealed record SeerrConnectionDto(string BaseUrl, bool HasApiKey, string? Link = null);
 
 public sealed record SeerrConnectionUpdate(string BaseUrl, string? ApiKey);
 
-public sealed record BazarrConnectionDto(string BaseUrl, bool HasApiKey);
+/// <param name="Link">Where this browser opens it (absent from servers before 0.68).</param>
+public sealed record BazarrConnectionDto(string BaseUrl, bool HasApiKey, string? Link = null);
 
 /// <param name="BaseUrl">Empty to remove Bazarr.</param>
 /// <param name="ApiKey">Omitted to keep the saved one, which is only kept for the same server.</param>
@@ -151,9 +158,10 @@ public static class SettingsEndpoints
     {
         var group = api.MapGroup("/settings").WithTags("Settings").RequireAuthorization(FlexarrClaims.AdminPolicy);
 
-        group.MapGet("/", async (IOptionsMonitor<FlexarrOptions> options, FlexarrDbContext db, Authentication.KeyInAddress keyInAddress, CancellationToken ct) =>
+        group.MapGet("/", async (IOptionsMonitor<FlexarrOptions> options, FlexarrDbContext db, Authentication.KeyInAddress keyInAddress, HttpRequest request, ITailnet tailnet,
+            CancellationToken ct) =>
             ToDto(options.CurrentValue, await AvailableAsync(options.CurrentValue, ct), await LiveTv.DvrFolders.ResolveAsync(db, options.CurrentValue, ct),
-                await MainHasOwnPinAsync(db, ct)) with { KeyInAddress = keyInAddress.Recent() });
+                await MainHasOwnPinAsync(db, ct)).WithLinks(await AppLinks.ForAsync(request, tailnet, ct)) with { KeyInAddress = keyInAddress.Recent() });
 
         group.MapPut("/", async (SettingsUpdate update, IOptionsMonitor<FlexarrOptions> options, LiveTv.LiveTvRefreshSignal liveTvRefresh, LiveTv.DispatcharrGuides guides, FlexarrDbContext db,
             ILibraryScanQueue scans, HttpContext http, CurrentProfile profile, PinGuard guard, CancellationToken ct) =>
@@ -181,6 +189,11 @@ public static class SettingsEndpoints
             if (update.Arr?.FirstOrDefault(a => WebAddress(a.BaseUrl) is null) is { } bad)
             {
                 return Problems.Field("{name}: “{baseUrl}” isn’t a valid http or https address.", field: "arr", args: new { name = bad.Name, baseUrl = bad.BaseUrl });
+            }
+
+            if (update.Arr?.FirstOrDefault(a => a.WebUrl is { } web && web.Trim().Length > 0 && WebAddress(web) is null) is { } badWeb)
+            {
+                return Problems.Field("{name}: “{baseUrl}” isn’t a valid http or https address.", field: "arr", args: new { name = badWeb.Name, baseUrl = badWeb.WebUrl });
             }
 
             if (update.Seerr is { BaseUrl.Length: > 0 } badSeerr && WebAddress(badSeerr.BaseUrl) is null)
@@ -340,6 +353,8 @@ public static class SettingsEndpoints
                         ["kind"] = a.Kind.ToString(),
                         ["baseUrl"] = a.BaseUrl.Trim(),
                         ["apiKey"] = string.IsNullOrWhiteSpace(a.ApiKey) ? SavedKey(saved.GetValueOrDefault(a.Name), a.BaseUrl) ?? "" : a.ApiKey.Trim(),
+                        // Omitted keeps the saved one (apps that don't know of it can't clear it); empty clears it.
+                        ["webUrl"] = (a.WebUrl is null ? saved.GetValueOrDefault(a.Name)?.WebUrl?.ToString() : a.WebUrl.Trim()) is { Length: > 0 } web ? web : null,
                     })]);
                 }
             }, ct: ct);
@@ -380,7 +395,7 @@ public static class SettingsEndpoints
             }
 
             return Results.Ok(ToDto(options.CurrentValue, await AvailableAsync(options.CurrentValue, ct), await LiveTv.DvrFolders.ResolveAsync(db, options.CurrentValue, ct),
-                await MainHasOwnPinAsync(db, ct)));
+                await MainHasOwnPinAsync(db, ct)).WithLinks(await AppLinks.ForAsync(http.Request, http.RequestServices.GetRequiredService<ITailnet>(), ct)));
         });
 
         // Showing the key is a POST, so it needs the web app's own header (see RequestForgery) and can't be read by a
@@ -547,6 +562,15 @@ public static class SettingsEndpoints
         return api;
     }
 
+    /// <summary>Where this browser opens each app connected.</summary>
+    private static SettingsDto WithLinks(this SettingsDto dto, AppLinks links) => dto with
+    {
+        Arr = [.. dto.Arr.Select(a => a with { Link = links.Open(a.BaseUrl, a.WebUrl) })],
+        Seerr = dto.Seerr is { } seerr ? seerr with { Link = links.Open(seerr.BaseUrl) } : null,
+        Bazarr = dto.Bazarr is { } bazarr ? bazarr with { Link = links.Open(bazarr.BaseUrl) } : null,
+        LiveTv = dto.LiveTv is { } live ? live with { Link = links.Open(live.BaseUrl) } : null,
+    };
+
     private static Task<bool> MainHasOwnPinAsync(FlexarrDbContext db, CancellationToken ct) =>
         db.Profiles.AsNoTracking().AnyAsync(p => p.Id == PlaybackState.DefaultUser && p.PinHash != null, ct);
 
@@ -555,7 +579,7 @@ public static class SettingsEndpoints
         available,
         o.AuthenticationRequired,
         o.PathMappings,
-        o.Arr.Select(a => new ArrConnectionDto(a.Name, a.Kind, a.BaseUrl.ToString().TrimEnd('/'), !string.IsNullOrEmpty(a.ApiKey))).ToList(),
+        o.Arr.Select(a => new ArrConnectionDto(a.Name, a.Kind, a.BaseUrl.ToString().TrimEnd('/'), !string.IsNullOrEmpty(a.ApiKey), a.WebUrl?.ToString())).ToList(),
         o.Seerr is { BaseUrl.Length: > 0 } s ? new SeerrConnectionDto(s.BaseUrl, s.ApiKey.Length > 0) : null,
         Path.GetFullPath(o.DataDirectory),
         o.FfmpegPath,

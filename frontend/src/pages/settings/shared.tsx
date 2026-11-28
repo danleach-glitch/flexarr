@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { AsyncButton } from '../../components/AsyncButton'
 import { ChevronLeft, ChevronRight, External } from '../../components/icons'
-import { appLink } from '../../lib/apps'
+import { webLink } from '../../lib/links'
 import { t } from '../../i18n'
 
 export function SaveBar({ saved, error, busy, label }: { saved?: string; error?: string; busy?: boolean; label?: string }) {
@@ -25,9 +25,9 @@ export function SaveBar({ saved, error, busy, label }: { saved?: string; error?:
   )
 }
 
-/** Opens the app in a new tab, at the address typed above it. */
-export function OpenApp({ baseUrl, name, host }: { baseUrl: string; name: string; host?: string | null }) {
-  const href = appLink(baseUrl, host || window.location.hostname)
+/** Opens the app in a new tab, where the server says this browser reaches it. */
+export function OpenApp({ link, name }: { link?: string | null; name: string }) {
+  const href = webLink(link)
   return (
     href && (
       <a className="open-app" href={href} target="_blank" rel="noreferrer" aria-label={t('Open {name}', { name })} data-tip={t('Open {name}', { name })}>

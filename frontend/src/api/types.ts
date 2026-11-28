@@ -615,6 +615,10 @@ export interface ArrConnection {
   kind: ArrKind
   baseUrl: string
   hasApiKey: boolean
+  /** Where a browser opens it, when set in Settings (absent from servers before 0.68). */
+  webUrl?: string | null
+  /** Where this browser opens it (absent from servers before 0.68). */
+  link?: string | null
 }
 
 export interface Settings {
@@ -623,7 +627,7 @@ export interface Settings {
   authenticationRequired: 'Enabled' | 'DisabledForLocalAddresses'
   pathMappings: { from: string; to: string }[]
   arr: ArrConnection[]
-  seerr: { baseUrl: string; hasApiKey: boolean } | null
+  seerr: { baseUrl: string; hasApiKey: boolean; link?: string | null } | null
   /** Whether there's a TMDB key (it's never sent back), for films Radarr doesn't have. */
   hasTmdbKey?: boolean
   dataDirectory: string
@@ -650,11 +654,13 @@ export interface Settings {
     paddingBeforeMinutes: number
     paddingAfterMinutes: number
     minFreeGigabytes: number
+    /** Where this browser opens Dispatcharr (absent from servers before 0.68). */
+    link?: string | null
   } | null
-  /** The server's name on the network, put in place of localhost in links to apps; none in a container. */
+  /** The server's name on the network; none in a container. */
   hostName?: string | null
   /** Bazarr, for finding subtitles; the API key is never sent back. */
-  bazarr?: { baseUrl: string; hasApiKey: boolean } | null
+  bazarr?: { baseUrl: string; hasApiKey: boolean; link?: string | null } | null
   /** Whether the main profile has a PIN of its own (from 0.57; saving it does nothing there). */
   askPinForMainProfile?: boolean
   /** The admin's own Trakt app, if one replaces Flexarr's. Absent from servers before 0.57. */
@@ -677,7 +683,8 @@ export interface SettingsUpdate {
   transcoding?: TranscodingSettings
   authenticationRequired?: Settings['authenticationRequired']
   pathMappings?: Settings['pathMappings']
-  arr?: { name: string; kind: ArrKind; baseUrl: string; apiKey?: string }[]
+  /** An omitted webUrl keeps the saved one; empty clears it. */
+  arr?: { name: string; kind: ArrKind; baseUrl: string; apiKey?: string; webUrl?: string }[]
   seerr?: { baseUrl: string; apiKey?: string }
   /** An empty country goes back to the server's region. */
   podcasts?: { country: string }

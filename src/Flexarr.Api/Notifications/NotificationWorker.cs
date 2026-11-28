@@ -933,7 +933,7 @@ public sealed partial class NotificationWorker(IServiceScopeFactory scopes, Time
         await using var scope = services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<FlexarrDbContext>();
         await LibraryVisibility.ApplyAsync(db, profileId, ct);
-        var calendar = await UpcomingEndpoints.UpcomingAsync(2, options, arr, null, db, null, ct);
+        var calendar = await UpcomingEndpoints.UpcomingAsync(2, options, arr, null, db, AppLinks.None, ct);
 
         var showIds = calendar.Where(u => u.Kind == MediaKind.Episode && u.LibraryItemId is not null).Select(u => u.LibraryItemId!.Value).Distinct().ToList();
         var watching = (await db.PlaybackStates.Where(p => p.UserId == profileId && p.MediaItem!.Parent!.ParentId != null && showIds.Contains(p.MediaItem.Parent.ParentId.Value))

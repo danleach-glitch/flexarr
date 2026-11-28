@@ -68,8 +68,20 @@ public static partial class DiscoveryEndpoints
     {
         // listening: what the app can open from the Continue row besides films and shows ("books,podcasts"). Older
         // apps send nothing and get the row as it always was.
-        api.MapGet("/home", async (string? listening, FlexarrDbContext db, CurrentProfile profile, IServiceProvider services, CancellationToken ct) =>
+        api.MapGet("/home", async (string? listening, FlexarrDbContext db, CurrentProfile profile, IServiceProvider services, HttpRequest request, CancellationToken ct) =>
         {
+            // Home is kept for everyone who asks, so the links into Sonarr and Radarr are made for each browser here.
+            async Task<HomeDto> Linked(HomeDto home)
+            {
+                if (home.Upcoming.All(u => u.ManageUrl is null))
+                {
+                    return home;
+                }
+
+                var links = await AppLinks.ForAsync(request, services.GetRequiredService<Security.ITailnet>(), ct);
+                return home with { Upcoming = [.. home.Upcoming.Select(u => u with { ManageUrl = links.Open(u.ManageUrl) })] };
+            }
+
             var me = profile.Id;
             var options = services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Configuration.FlexarrOptions>>().CurrentValue;
             // The profile's own rows, or the server's while it hasn't chosen.
@@ -80,7 +92,7 @@ public static partial class DiscoveryEndpoints
             var homeKey = HomeCache.Key(db, profile, listening, DateTime.UtcNow);
             if (HomeCache.TryGet(cache, homeKey, version, profileVersion, options, out var kept))
             {
-                return kept;
+                return await Linked(kept);
             }
 
             var homeLayout = await LayoutEndpoints.ForProfileAsync(db, options, me, ct);
@@ -233,8 +245,8 @@ public static partial class DiscoveryEndpoints
             {
                 try
                 {
-                    upcoming = (await UpcomingEndpoints.UpcomingAsync(10, options, arr, cache, db, null, ct)).Where(u => !u.Available && u.Date >= DateTime.UtcNow.AddHours(-12)).Take(16).ToList().For(profile);
-                    downloading = (await UpcomingEndpoints.DownloadsAsync(options, arr, cache, db, null, ct)).Count;
+                    upcoming = (await UpcomingEndpoints.UpcomingAsync(10, options, arr, cache, db, AppLinks.None, ct)).Where(u => !u.Available && u.Date >= DateTime.UtcNow.AddHours(-12)).Take(16).ToList().For(profile);
+                    downloading = (await UpcomingEndpoints.DownloadsAsync(options, arr, cache, db, AppLinks.None, ct)).Count;
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
@@ -273,7 +285,7 @@ public static partial class DiscoveryEndpoints
 
             var home = new HomeDto(rotation, overviews, arranged, upcoming, downloading, resume, resumes, PlacesPodcasts: true);
             HomeCache.Set(cache, homeKey, version, profileVersion, options, home, DateTime.UtcNow);
-            return home;
+            return await Linked(home);
         }).WithTags("Discovery");
 
         api.MapGet("/home/continue", async (int? take, FlexarrDbContext db, CurrentProfile profile, CancellationToken ct) =>
