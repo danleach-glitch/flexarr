@@ -1,5 +1,6 @@
 using System.Net;
 using Flexarr.Api.Endpoints;
+using Flexarr.Api.Security;
 
 namespace Flexarr.Api.Tests;
 
@@ -25,6 +26,25 @@ public class UpcomingTests(FlexarrApiFactory factory) : IClassFixture<FlexarrApi
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync(new Uri("/api/v1/downloads", UriKind.Relative))).StatusCode);
 
         Assert.Equal(2, sonarrQueue); // Asked again: the first answer may predate the download.
+    }
+
+    [Theory]
+    [InlineData("dans-mac-mini.tail1234.ts.net", "100.64.0.1")] // Browsers force HTTPS on .ts.net; Sonarr answers HTTP.
+    [InlineData("192.168.1.20", "192.168.1.20")]
+    [InlineData("flexarr.lan", "flexarr.lan")]
+    public async Task ALinkIntoALocalhostArr_AvoidsTheTailscaleName(string host, string expected)
+    {
+        var linkHost = await UpcomingEndpoints.LinkHostAsync(host, new FakeTailnet(), CancellationToken.None);
+
+        Assert.Equal(expected, linkHost);
+    }
+
+    [Fact]
+    public async Task WithoutTailscaleAnswering_ALinkUsesTheShortMagicDnsName()
+    {
+        var linkHost = await UpcomingEndpoints.LinkHostAsync("dans-mac-mini.tail1234.ts.net", new FakeTailnet { Snapshot = null }, CancellationToken.None);
+
+        Assert.Equal("dans-mac-mini", linkHost);
     }
 }
 

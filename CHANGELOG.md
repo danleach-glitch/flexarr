@@ -2,6 +2,12 @@
 
 What's changed in Flexarr, newest first. Changes not yet in a version are under **Unreleased**.
 
+## Unreleased
+
+### Coming soon
+
+- In a browser that reached Flexarr at its Tailscale address, **Open in Sonarr**, **Open in Radarr** and **Needs attention** links now open, when Sonarr and Radarr run on the same computer as Flexarr. They used to end in "This site can't provide a secure connection".
+
 ## 0.67.2 · 26 November 2026
 
 ### Apple TV

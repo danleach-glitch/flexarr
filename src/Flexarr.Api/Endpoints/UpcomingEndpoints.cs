@@ -1,6 +1,7 @@
 using System.Globalization;
 using Flexarr.Api.Configuration;
 using Flexarr.Api.Profiles;
+using Flexarr.Api.Security;
 using Flexarr.Core.Data;
 using Flexarr.Core.Libraries;
 using Flexarr.Core.Media;
@@ -55,13 +56,14 @@ public static class UpcomingEndpoints
     public static RouteGroupBuilder MapUpcomingEndpoints(this RouteGroupBuilder api)
     {
         api.MapGet("/upcoming", async (int? days, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, IMemoryCache cache, FlexarrDbContext db, HttpRequest request,
-            CurrentProfile profile, CancellationToken ct) =>
-            (await UpcomingAsync(Math.Clamp(days ?? 21, 1, 90), options.CurrentValue, arr, cache, db, request.Host.Host, ct)).For(profile)).WithTags("Upcoming");
+            ITailnet tailnet, CurrentProfile profile, CancellationToken ct) =>
+            (await UpcomingAsync(Math.Clamp(days ?? 21, 1, 90), options.CurrentValue, arr, cache, db, await LinkHostAsync(request.Host.Host, tailnet, ct), ct))
+            .For(profile)).WithTags("Upcoming");
 
         api.MapGet("/downloads", async (IOptionsMonitor<FlexarrOptions> options, ArrClient arr, IMemoryCache cache, FlexarrDbContext db, HttpRequest request,
-            CurrentProfile profile, CancellationToken ct) =>
+            ITailnet tailnet, CurrentProfile profile, CancellationToken ct) =>
         {
-            var downloads = await DownloadsAsync(options.CurrentValue, arr, cache, db, request.Host.Host, ct);
+            var downloads = await DownloadsAsync(options.CurrentValue, arr, cache, db, await LinkHostAsync(request.Host.Host, tailnet, ct), ct);
             return profile.IsMainProfile ? downloads : [.. downloads.Select(d => d with { ManageUrl = null })];
         }).WithTags("Upcoming");
 
@@ -490,6 +492,32 @@ public static class UpcomingEndpoints
             // Anything at all: run in the background, a call that threw would otherwise never be retried.
             return null;
         }
+    }
+
+    /// <summary>
+    /// The host for links into a localhost Sonarr or Radarr, from the one the browser reached Flexarr on. Browsers
+    /// only speak HTTPS to a .ts.net name (the domain is on their HSTS preload list) and the *arrs answer plain HTTP,
+    /// so Flexarr reached at its Tailscale name links to this server's tailnet address instead, or, when Tailscale
+    /// can't say what that is, to the machine's short MagicDNS name.
+    /// </summary>
+    internal static async Task<string?> LinkHostAsync(string? host, ITailnet tailnet, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(host) || !host.TrimEnd('.').EndsWith(".ts.net", StringComparison.OrdinalIgnoreCase))
+        {
+            return host;
+        }
+
+        TailnetSnapshot? snapshot = null;
+        try
+        {
+            snapshot = await tailnet.SnapshotAsync(ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Tailscale not answering: the short name below still works on a tailnet with MagicDNS.
+        }
+
+        return snapshot?.Address ?? host.Split('.')[0];
     }
 
     /// <summary>
