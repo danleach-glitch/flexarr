@@ -159,3 +159,48 @@ describe('Dispatcharr’s admin API key', () => {
     await screen.findByText('Dispatcharr refused the key.')
   })
 })
+
+describe('Where a browser opens Sonarr', () => {
+  const sonarr = { name: 'Sonarr', kind: 'Sonarr', baseUrl: 'http://localhost:8989', hasApiKey: true, webUrl: null, link: 'http://100.64.0.1:8989/' }
+  const radarr = { name: 'Radarr', kind: 'Radarr', baseUrl: 'http://localhost:7878', hasApiKey: true, webUrl: 'https://radarr.example.com/', link: 'https://radarr.example.com/' }
+
+  const setUp = () => {
+    const sent: { arr?: Record<string, unknown>[] }[] = []
+    mockApi({
+      'GET /settings': { ...settings, arr: [sonarr, radarr] },
+      'PUT /settings': (init?: RequestInit) => {
+        sent.push(JSON.parse(String(init?.body)) as { arr?: Record<string, unknown>[] })
+        return { ...settings, arr: [sonarr, radarr] }
+      },
+      '/arr/status': [],
+      '/arr/folders': [],
+    })
+    render(
+      <MemoryRouter>
+        <ConnectionsSection />
+      </MemoryRouter>,
+    )
+    return sent
+  }
+
+  it('opens the app where the server says, not at localhost', async () => {
+    setUp()
+    expect(await screen.findByRole('link', { name: 'Open Sonarr' })).toHaveAttribute('href', 'http://100.64.0.1:8989/')
+    expect(screen.getByRole('link', { name: 'Open Radarr' })).toHaveAttribute('href', 'https://radarr.example.com/')
+  })
+
+  it('saves an address for browsers with the one edited, and leaves the others’ as they are', async () => {
+    const sent = setUp()
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Sonarr' }))
+    const form = await screen.findByRole('form', { name: 'Edit Sonarr' })
+    const field = within(form).getByLabelText('Address in a browser') as HTMLInputElement
+    expect(field.value).toBe('')
+    expect(field.placeholder).toBe('http://100.64.0.1:8989/')
+    fireEvent.change(field, { target: { value: ' https://tv.example.com/sonarr ' } })
+    fireEvent.click(within(form).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(sent).toHaveLength(1))
+    expect(sent[0].arr?.[0]).toMatchObject({ name: 'Sonarr', webUrl: 'https://tv.example.com/sonarr' })
+    expect(sent[0].arr?.[1]).not.toHaveProperty('webUrl')
+  })
+})

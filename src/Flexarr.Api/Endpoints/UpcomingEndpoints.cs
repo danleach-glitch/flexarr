@@ -57,13 +57,13 @@ public static class UpcomingEndpoints
     {
         api.MapGet("/upcoming", async (int? days, IOptionsMonitor<FlexarrOptions> options, ArrClient arr, IMemoryCache cache, FlexarrDbContext db, HttpRequest request,
             ITailnet tailnet, CurrentProfile profile, CancellationToken ct) =>
-            (await UpcomingAsync(Math.Clamp(days ?? 21, 1, 90), options.CurrentValue, arr, cache, db, await LinkHostAsync(request.Host.Host, tailnet, ct), ct))
+            (await UpcomingAsync(Math.Clamp(days ?? 21, 1, 90), options.CurrentValue, arr, cache, db, await AppLinks.ForAsync(request, tailnet, ct), ct))
             .For(profile)).WithTags("Upcoming");
 
         api.MapGet("/downloads", async (IOptionsMonitor<FlexarrOptions> options, ArrClient arr, IMemoryCache cache, FlexarrDbContext db, HttpRequest request,
             ITailnet tailnet, CurrentProfile profile, CancellationToken ct) =>
         {
-            var downloads = await DownloadsAsync(options.CurrentValue, arr, cache, db, await LinkHostAsync(request.Host.Host, tailnet, ct), ct);
+            var downloads = await DownloadsAsync(options.CurrentValue, arr, cache, db, await AppLinks.ForAsync(request, tailnet, ct), ct);
             return profile.IsMainProfile ? downloads : [.. downloads.Select(d => d with { ManageUrl = null })];
         }).WithTags("Upcoming");
 
@@ -81,9 +81,9 @@ public static class UpcomingEndpoints
         return profile.IsMainProfile ? upcoming : [.. upcoming.Select(u => u with { ManageUrl = null })];
     }
 
-    /// <param name="host">The host the browser reached Flexarr on, for links into *arr apps configured as localhost.</param>
-    public static async Task<List<UpcomingDto>> UpcomingAsync(int days, FlexarrOptions options, ArrClient arr, IMemoryCache? cache, FlexarrDbContext db, string? host, CancellationToken ct) =>
-        [.. (await UpcomingWithFoldersAsync(days, options, arr, cache, db, host, ct)).Select(u => u.Upcoming)];
+    /// <param name="links">Where the browser asking opens Sonarr and Radarr.</param>
+    public static async Task<List<UpcomingDto>> UpcomingAsync(int days, FlexarrOptions options, ArrClient arr, IMemoryCache? cache, FlexarrDbContext db, AppLinks links, CancellationToken ct) =>
+        [.. (await UpcomingWithFoldersAsync(days, options, arr, cache, db, links, ct)).Select(u => u.Upcoming)];
 
     /// <summary>
     /// What's coming to one film or TV library: a title already in Flexarr counts where it is; one not yet in any
@@ -104,7 +104,7 @@ public static class UpcomingEndpoints
             return [];
         }
 
-        var upcoming = (await UpcomingWithFoldersAsync(days, options, arr, cache, db, null, ct)).Where(u => u.Upcoming.Kind == kind).ToList();
+        var upcoming = (await UpcomingWithFoldersAsync(days, options, arr, cache, db, AppLinks.None, ct)).Where(u => u.Upcoming.Kind == kind).ToList();
         var inLibrary = upcoming.Select(u => u.Upcoming.LibraryItemId).OfType<Guid>().Distinct().ToList();
         var libraryOf = await db.MediaItems.Where(i => inLibrary.Contains(i.Id)).Select(i => new { i.Id, i.LibraryId }).ToDictionaryAsync(i => i.Id, i => i.LibraryId, ct);
         var sameKind = await db.Libraries.AsNoTracking().Where(l => l.Type == library.Type).OrderBy(l => l.CreatedAt).ThenBy(l => l.Id)
@@ -128,7 +128,7 @@ public static class UpcomingEndpoints
 
     /// <summary>The calendar, each with the folder its *arr keeps it in (for placing it in a library; never sent).</summary>
     private static async Task<List<(UpcomingDto Upcoming, string? Folder)>> UpcomingWithFoldersAsync(int days, FlexarrOptions options, ArrClient arr, IMemoryCache? cache,
-        FlexarrDbContext db, string? host, CancellationToken ct)
+        FlexarrDbContext db, AppLinks links, CancellationToken ct)
     {
         // From yesterday (a day's slack either side of UTC for the viewer's own "yesterday").
         var today = DateTime.UtcNow.Date;
@@ -182,7 +182,7 @@ public static class UpcomingEndpoints
                     Remote(show?.Images.FirstOrDefault(i => i.CoverType == "poster")?.RemoteUrl),
                     Remote(episode.Images.FirstOrDefault(i => i.CoverType == "screenshot")?.RemoteUrl ?? show?.Images.FirstOrDefault(i => i.CoverType == "fanart")?.RemoteUrl),
                     itemId, episode.HasFile, download, sonarr.Name,
-                    show?.TitleSlug is { } slug ? WebUrl(sonarr, host, $"series/{slug}") : null), show?.Path));
+                    show?.TitleSlug is { } slug ? links.Open(sonarr.BaseUrl, sonarr.WebUrl, $"series/{slug}") : null), show?.Path));
             }
         }
 
@@ -202,7 +202,7 @@ public static class UpcomingEndpoints
                     Remote(movie.Images.FirstOrDefault(i => i.CoverType == "poster")?.RemoteUrl),
                     Remote(movie.Images.FirstOrDefault(i => i.CoverType == "fanart")?.RemoteUrl),
                     movies.GetValueOrDefault(movie.TmdbId.ToString(CultureInfo.InvariantCulture)), movie.HasFile, download, radarr.Name,
-                    movie.TitleSlug is { } slug ? WebUrl(radarr, host, $"movie/{slug}") : null, movie.TmdbId), movie.Path));
+                    movie.TitleSlug is { } slug ? links.Open(radarr.BaseUrl, radarr.WebUrl, $"movie/{slug}") : null, movie.TmdbId), movie.Path));
             }
         }
 
@@ -215,7 +215,7 @@ public static class UpcomingEndpoints
             .OrderBy(r => r.Upcoming.Date).ToList();
     }
 
-    public static async Task<List<DownloadDto>> DownloadsAsync(FlexarrOptions options, ArrClient arr, IMemoryCache? cache, FlexarrDbContext db, string? host, CancellationToken ct)
+    public static async Task<List<DownloadDto>> DownloadsAsync(FlexarrOptions options, ArrClient arr, IMemoryCache? cache, FlexarrDbContext db, AppLinks links, CancellationToken ct)
     {
         var instances = options.Arr.Where(a => a.Kind is ArrKind.Sonarr or ArrKind.Radarr).ToList();
         var queues = await Task.WhenAll(instances.Select(instance => QueueOfAsync(instance, arr, cache, ct)));
@@ -237,7 +237,7 @@ public static class UpcomingEndpoints
                 }
 
                 var state = new DownloadStateDto(Math.Round(q.Progress, 3), q.Timeleft, q.TrackedDownloadState ?? q.Status);
-                var queuePage = WebUrl(instance, host, "activity/queue");
+                var queuePage = links.Open(instance.BaseUrl, instance.WebUrl, "activity/queue");
                 downloads.Add(instance.Kind == ArrKind.Sonarr
                     ? new DownloadDto($"q-{instance.Name}-{q.Id}", MediaKind.Episode, q.Episode?.Title ?? q.Title ?? "Episode", q.Series?.Title,
                         q.Episode?.SeasonNumber, q.Episode?.EpisodeNumber, Remote(q.Series?.Images.FirstOrDefault(i => i.CoverType == "poster")?.RemoteUrl),
@@ -492,48 +492,6 @@ public static class UpcomingEndpoints
             // Anything at all: run in the background, a call that threw would otherwise never be retried.
             return null;
         }
-    }
-
-    /// <summary>
-    /// The host for links into a localhost Sonarr or Radarr, from the one the browser reached Flexarr on. Browsers
-    /// only speak HTTPS to a .ts.net name (the domain is on their HSTS preload list) and the *arrs answer plain HTTP,
-    /// so Flexarr reached at its Tailscale name links to this server's tailnet address instead, or, when Tailscale
-    /// can't say what that is, to the machine's short MagicDNS name.
-    /// </summary>
-    internal static async Task<string?> LinkHostAsync(string? host, ITailnet tailnet, CancellationToken ct)
-    {
-        if (string.IsNullOrEmpty(host) || !host.TrimEnd('.').EndsWith(".ts.net", StringComparison.OrdinalIgnoreCase))
-        {
-            return host;
-        }
-
-        TailnetSnapshot? snapshot = null;
-        try
-        {
-            snapshot = await tailnet.SnapshotAsync(ct);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            // Tailscale not answering: the short name below still works on a tailnet with MagicDNS.
-        }
-
-        return snapshot?.Address ?? host.Split('.')[0];
-    }
-
-    /// <summary>
-    /// A page in a Sonarr/Radarr web UI. An instance configured as localhost is only localhost to this server, so the
-    /// browser is sent to the same host it reached Flexarr on, at the *arr's port.
-    /// </summary>
-    internal static string WebUrl(ArrInstance instance, string? host, string path)
-    {
-        var url = new UriBuilder(instance.BaseUrl);
-        if (instance.BaseUrl.IsLoopback && !string.IsNullOrEmpty(host))
-        {
-            url.Host = host;
-        }
-
-        url.Path = $"{url.Path.TrimEnd('/')}/{path}";
-        return url.Uri.ToString();
     }
 
     private static string? Remote(string? url) => ImageEndpoints.RemoteUrl(url);

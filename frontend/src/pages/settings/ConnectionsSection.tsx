@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type FormEvent, type ReactNode } from 'react'
+import { useId, useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import {
   addArrWebhook,
@@ -16,6 +16,7 @@ import {
   type ArrKind,
   type ArrStatus,
   type LiveTvSettingsUpdate,
+  type SettingsUpdate,
   type LiveTvTest,
   type Settings,
 } from '../../api/client'
@@ -62,6 +63,9 @@ interface DraftConnection {
   baseUrl: string
   apiKey: string
   hasApiKey: boolean
+  /** Where a browser opens it, when that isn't worked out from the address; empty for the usual case. */
+  webUrl: string
+  link?: string | null
 }
 
 type Save = ReturnType<typeof useSettings>['save']
@@ -101,11 +105,12 @@ export function ConnectionsSection() {
     setHooks((h) => ({ ...h, [name]: next }))
   }
 
-  const current = settings.arr.map((a) => ({ name: a.name, kind: a.kind, baseUrl: a.baseUrl, apiKey: undefined as string | undefined }))
+  // The others keep their keys and browser addresses by leaving them out.
+  const current: NonNullable<SettingsUpdate['arr']> = settings.arr.map((a) => ({ name: a.name, kind: a.kind, baseUrl: a.baseUrl }))
   /** The whole list goes to the server, with this one changed (or taken out); keys left blank stay as they were. */
   async function saveArr(index: number | 'new', next: DraftConnection | null) {
     const list = [...current]
-    const entry = next && { name: next.name, kind: next.kind, baseUrl: next.baseUrl, apiKey: next.apiKey || undefined }
+    const entry = next && { name: next.name, kind: next.kind, baseUrl: next.baseUrl, apiKey: next.apiKey || undefined, webUrl: next.webUrl.trim() }
     if (index === 'new') list.push(entry!)
     else if (entry) list[index] = entry
     else list.splice(index, 1)
@@ -124,7 +129,6 @@ export function ConnectionsSection() {
   }
 
   return (
-    <ServerName value={settings.hostName}>
       <section>
         {confirmDialog}
         <SettingsHeader title={t('Connections')}>
@@ -141,7 +145,7 @@ export function ConnectionsSection() {
                 return (
                   <ArrRow
                     key={`${a.name}-${i}`}
-                    connection={{ ...a, apiKey: '' }}
+                    connection={{ ...a, apiKey: '', webUrl: a.webUrl ?? '' }}
                     live={status.data?.find((s) => s.name === a.name)}
                     unfound={folders.data?.filter((f) => f.app === a.name && (f.state === 'Suggested' || f.state === 'Missing')).map((f) => f.path)}
                     open={open === i}
@@ -158,7 +162,7 @@ export function ConnectionsSection() {
               (connected.length === 0 || adding) && (
                 <ArrRow
                   key={`new-${kind}`}
-                  connection={{ name: freshName(kind), kind, baseUrl: '', apiKey: '', hasApiKey: false }}
+                  connection={{ name: freshName(kind), kind, baseUrl: '', apiKey: '', hasApiKey: false, webUrl: '' }}
                   isNew
                   open={adding}
                   onOpen={() => setOpen(`new-${kind}`)}
@@ -271,12 +275,8 @@ export function ConnectionsSection() {
         <MediaFolders folders={folders.data} hasApps={settings.arr.length > 0} mappings={settings.pathMappings} save={save} />
         <Webhooks secret={settings.webhookSecret} connections={settings.arr} hooks={hooks} onHookUp={hookUp} />
       </section>
-    </ServerName>
   )
 }
-
-/** The server's name on the network, for Open links to apps it reaches at localhost. */
-const ServerName = createContext<string | null | undefined>(undefined)
 
 /** A connection's line: whether it's reachable, its version, a link to it beside its name, and Edit, which opens the form under it. */
 function ConnectionLine({
@@ -286,7 +286,7 @@ function ConnectionLine({
   ok,
   status,
   warning,
-  baseUrl,
+  link,
   connected = true,
   open,
   onOpen,
@@ -300,7 +300,8 @@ function ConnectionLine({
   status: ReactNode
   /** Something to see to though it's connected: shown under the status, with an amber dot. */
   warning?: ReactNode
-  baseUrl: string
+  /** Where this browser opens the app, from the server. */
+  link?: string | null
   /** False for an app that isn't set up: Connect in place of Edit. */
   connected?: boolean
   open: boolean
@@ -308,7 +309,6 @@ function ConnectionLine({
   /** For Sonarr, Radarr and Lidarr, which can have more than one each. */
   onAddAnother?: () => void
 }) {
-  const host = useContext(ServerName)
   return (
     <div className={connected ? 'connection-line' : 'connection-line unconnected'}>
       <span className={ok && warning ? 'status-dot warn' : ok ? 'status-dot ok' : ok === false ? 'status-dot bad' : 'status-dot'} aria-hidden="true" />
@@ -322,7 +322,7 @@ function ConnectionLine({
       <span className="setting-text">
         <strong className="connection-name">
           {name}
-          {baseUrl && <OpenApp baseUrl={baseUrl} name={name} host={host} />}
+          {link && <OpenApp link={link} name={name} />}
         </strong>
         <span className="muted">{status}</span>
         {warning && <span className="connection-warning">{warning}</span>}
@@ -370,6 +370,7 @@ function ArrRow({
   onAddAnother?: () => void
 }) {
   const [draft, setDraft] = useState(connection)
+  const formId = useId()
   const [test, setTest] = useState<ArrStatus | 'testing'>()
   const [saving, setSaving] = useState(false)
   const shown = test && test !== 'testing' ? test : live
@@ -409,7 +410,7 @@ function ArrRow({
             </>
           ) : undefined
         }
-        baseUrl={isNew ? '' : connection.baseUrl}
+        link={isNew ? null : connection.link}
         connected={!isNew}
         open={open}
         onOpen={onOpen}
@@ -436,6 +437,22 @@ function ArrRow({
               onChange={(e) => update({ apiKey: e.target.value })}
             />
           </label>
+          <div className="field">
+            <label className="field-label" htmlFor={`${formId}-web`}>
+              {t('Address in a browser')}
+            </label>
+            <input
+              id={`${formId}-web`}
+              type="url"
+              value={draft.webUrl}
+              placeholder={connection.link && !connection.webUrl ? connection.link : t('Worked out from the address above')}
+              aria-describedby={`${formId}-web-help`}
+              onChange={(e) => update({ webUrl: e.target.value })}
+            />
+            <span id={`${formId}-web-help`} className="field-help">
+              {t('Where Open in {app} takes you. Leave it empty unless that doesn’t open, such as when {app} is behind a reverse proxy.', { app: draft.kind })}
+            </span>
+          </div>
           <div className="form-actions">
             {onRemove &&
               (others ? (
@@ -490,7 +507,7 @@ function ServiceRow({
   onSave,
 }: {
   kind: 'Seerr' | 'Bazarr'
-  service: { baseUrl: string; hasApiKey: boolean } | null | undefined
+  service: { baseUrl: string; hasApiKey: boolean; link?: string | null } | null | undefined
   /** Its status while it isn't set up. */
   notConnected: string
   description: string
@@ -518,7 +535,7 @@ function ServiceRow({
         name={kind}
         ok={ok}
         status={service ? status : notConnected}
-        baseUrl={service?.baseUrl ?? ''}
+        link={service?.link}
         connected={!!service}
         open={open}
         onOpen={onOpen}
@@ -601,7 +618,7 @@ function TmdbRow({
   return (
     <div className="connection">
       {confirmDialog}
-      <ConnectionLine icon={<Film />} name="TMDB" ok={test ? test.ok : hasKey ? true : undefined} status={status} baseUrl="" connected={hasKey} open={open} onOpen={onOpen} />
+      <ConnectionLine icon={<Film />} name="TMDB" ok={test ? test.ok : hasKey ? true : undefined} status={status} connected={hasKey} open={open} onOpen={onOpen} />
       {open && (
         <form
           className="connection-form"
@@ -697,7 +714,7 @@ function TraktAppRow({
   const [saving, setSaving] = useState(false)
   return (
     <div className="connection">
-      <ConnectionLine icon={<Refresh />} name="Trakt" ok={app ? true : undefined} status={app ? t('Your own Trakt app') : t('Flexarr’s Trakt app')} baseUrl="" connected open={open} onOpen={onOpen} />
+      <ConnectionLine icon={<Refresh />} name="Trakt" ok={app ? true : undefined} status={app ? t('Your own Trakt app') : t('Flexarr’s Trakt app')} connected open={open} onOpen={onOpen} />
       {open && (
         <form
           className="connection-form"
@@ -786,7 +803,7 @@ function DispatcharrRow({
   return (
     <div className="connection">
       {confirmDialog}
-      <ConnectionLine kind="Dispatcharr" name="Dispatcharr" ok={test && test !== 'testing' ? test.ok : ok} status={shown} baseUrl={liveTv?.baseUrl ?? ''} connected={!!liveTv} open={open} onOpen={onOpen} />
+      <ConnectionLine kind="Dispatcharr" name="Dispatcharr" ok={test && test !== 'testing' ? test.ok : ok} status={shown} link={liveTv?.link} connected={!!liveTv} open={open} onOpen={onOpen} />
       {open && (
         <form
           className="connection-form"

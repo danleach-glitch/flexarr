@@ -15,6 +15,12 @@ public sealed record ArrInstance
     public required Uri BaseUrl { get; init; }
     public required string ApiKey { get; init; }
 
+    /// <summary>
+    /// Where a browser opens it, when that isn't something Flexarr can work out from <see cref="BaseUrl"/> (behind a
+    /// reverse proxy, say). Null for the usual case.
+    /// </summary>
+    public Uri? WebUrl { get; init; }
+
     /// <summary>Sonarr and Radarr expose /api/v3; Lidarr /api/v1.</summary>
     public string ApiVersion => Kind is ArrKind.Lidarr ? "v1" : "v3";
 }
